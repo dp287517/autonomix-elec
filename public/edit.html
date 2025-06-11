@@ -9,7 +9,7 @@
 </head>
 <body class="bg-gray-100">
     <nav class="bg-blue-600 p-4">
-        <ul class="flex space-x-4 text-white">
+        <ul class="flex flex-wrap space-x-4 sm:space-x-4 justify-center">
             <li><a href="index.html">Accueil</a></li>
             <li><a href="create.html">Créer un tableau</a></li>
             <li><a href="view.html">Voir les tableaux</a></li>
@@ -17,12 +17,12 @@
         </ul>
     </nav>
 
-    <div class="container mx-auto p-6">
-        <h1 class="text-3xl font-bold text-center mb-6">Modifier un tableau électrique</h1>
+    <div class="container mx-auto p-4 sm:p-6">
+        <h1 class="text-2xl sm:text-3xl font-bold text-center mb-6">Modifier un tableau électrique</h1>
 
-        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
-            <h2 class="text-2xl font-semibold mb-4">Étapes pour modifier un tableau</h2>
-            <ol class="list-decimal list-inside space-y-2">
+        <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-lg sm:text-2xl font-semibold mb-4">Étapes pour modifier un tableau</h2>
+            <ol class="list-decimal list-inside space-y-2 text-sm sm:text-base">
                 <li>Vérifiez l'identifiant du tableau (non modifiable).</li>
                 <li>Indiquez si le tableau est le général principal du site.</li>
                 <li>Modifiez les disjoncteurs existants via le bouton "Modifier".</li>
@@ -41,8 +41,8 @@
             </ol>
         </div>
 
-        <div class="bg-white p-6 rounded-lg shadow-md">
-            <h2 class="text-xl font-semibold mb-4">Informations du tableau</h2>
+        <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md">
+            <h2 class="text-lg sm:text-xl font-semibold mb-4">Informations du tableau</h2>
             <div class="mb-4">
                 <label class="block text-sm font-medium">Identifiant du tableau</label>
                 <input id="tableau-id" type="text" class="w-full p-2 border rounded" readonly>
@@ -56,8 +56,8 @@
                 <div id="isSiteMain-message" class="hidden mt-2 p-2 rounded text-sm"></div>
             </div>
 
-            <h2 class="text-xl font-semibold mb-4">Ajouter un disjoncteur</h2>
-            <div class="grid grid-cols-2 gap-4 mb-4">
+            <h2 class="text-lg sm:text-xl font-semibold mb-4">Ajouter un disjoncteur</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
                     <label class="block text-sm font-medium">Marque</label>
                     <input id="disjoncteur-marque" type="text" class="w-full p-2 border rounded" placeholder="Ex. Schneider Electric">
@@ -67,7 +67,7 @@
                     <input id="disjoncteur-ref" type="text" class="w-full p-2 border rounded" placeholder="Ex. C60N">
                 </div>
             </div>
-            <div class="flex space-x-4 mb-4">
+            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
                 <button onclick="rechercherDisjoncteur()" class="bg-blue-600 text-white p-2 rounded">Rechercher via OpenAI</button>
                 <button onclick="ajouterManuel()" class="bg-gray-600 text-white p-2 rounded">Ajouter manuellement</button>
             </div>
@@ -80,8 +80,8 @@
             </div>
 
             <div id="disjoncteur-form" class="mt-4 hidden">
-                <h3 class="text-lg font-semibold mb-2">Caractéristiques du disjoncteur</h3>
-                <div class="grid grid-cols-3 gap-4">
+                <h3 class="text-base sm:text-lg font-semibold mb-2">Caractéristiques du disjoncteur</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-sm font-medium">ID <span class="text-red-600">*</span></label>
                         <input id="disjoncteur-id" type="text" class="w-full p-1 border rounded" placeholder="Ex. 400Q1 Compresseur">
@@ -195,35 +195,37 @@
                         <p class="text-xs text-gray-500">Sélectionnez un tableau aval (non principal uniquement)</p>
                     </div>
                 </div>
-                <div class="flex space-x-4 mt-4">
+                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 mt-4">
                     <button id="disjoncteur-action" onclick="ajouterDisjoncteur()" class="bg-green-600 text-white p-2 rounded">Ajouter au tableau</button>
                 </div>
             </div>
         </div>
 
-        <div class="bg-white p-6 rounded-lg shadow-md mt-6">
-            <h2 class="text-xl font-semibold mb-4">Disjoncteurs du tableau</h2>
-            <table id="disjoncteurs-table" class="w-full">
-                <thead>
-                    <tr class="bg-gray-200">
-                        <th class="p-2">ID</th>
-                        <th class="p-2">Marque</th>
-                        <th class="p-2">Référence</th>
-                        <th class="p-2">Principal</th>
-                        <th class="p-2">Liaison</th>
-                        <th class="p-2">Actions</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
+        <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md mt-6">
+            <h2 class="text-lg sm:text-xl font-semibold mb-4">Disjoncteurs du tableau</h2>
+            <div class="overflow-x-auto">
+                <table id="disjoncteurs-table" class="w-full">
+                    <thead>
+                        <tr class="bg-gray-200">
+                            <th class="p-2">ID</th>
+                            <th class="p-2">Marque</th>
+                            <th class="p-2">Référence</th>
+                            <th class="p-2">Principal</th>
+                            <th class="p-2">Liaison</th>
+                            <th class="p-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
             <button onclick="enregistrerModifications()" class="bg-blue-600 text-white p-2 rounded mt-4">Enregistrer les modifications</button>
         </div>
 
         <div id="popup" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-            <div class="bg-white p-6 rounded-lg shadow-md">
+            <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md">
                 <p id="popup-message" class="mb-4"></p>
                 <div id="popup-content" class="mb-4"></div>
-                <div class="flex space-x-4">
+                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
                     <button id="popup-confirm" class="bg-green-600 text-white p-2 rounded">Confirmer</button>
                     <button id="popup-cancel" class="bg-red-600 text-white p-2 rounded">Annuler</button>
                 </div>
@@ -629,7 +631,7 @@
                     showPopup('La courbe doit être B, C ou D.', () => {});
                     return;
                 }
-                if (disjoncteur.ir && !/^\d+(\s*A)?$/.test(disjoncteur.ir)) {
+                if (disjoncteur.ir && !/^\d+(\s.?A)?$/.test(disjoncteur.ir)) {
                     console.log('[Edit] Erreur: Ir invalide', disjoncteur.ir);
                     showPopup('Ir doit être une valeur numérique, ex. 60 ou 60 A.', () => {});
                     return;
@@ -719,7 +721,7 @@
                     console.log('[Edit] Disjoncteur', d.id, 'index:', index, 'isPrincipal:', isPrincipal);
                     const hasConflict = idCounts[d.id] > 1;
                     const row = document.createElement('tr');
-                    if (isPrincipal) row.className = 'disjoncteur-principal bg-yellow-100';
+                    if (isPrincipal) row.className = 'disjoncteur-principal-row bg-yellow-100';
 
                     const idCell = document.createElement('td');
                     idCell.className = `p-2 ${hasConflict ? 'text-red-600 font-bold' : ''}`;
@@ -747,29 +749,29 @@
                     row.appendChild(liaisonCell);
 
                     const actionsCell = document.createElement('td');
-                    actionsCell.className = 'p-2';
+                    actionsCell.className = 'p-2 flex flex-wrap gap-2';
 
                     const modifierBtn = document.createElement('button');
-                    modifierBtn.className = 'bg-blue-500 text-white p-1 rounded-sm';
+                    modifierBtn.className = 'bg-blue-500 text-white p-1 rounded-sm text-xs sm:text-sm';
                     modifierBtn.textContent = 'Modifier';
                     modifierBtn.onclick = () => modifierDisjoncteur(index);
                     actionsCell.appendChild(modifierBtn);
 
                     const supprimerBtn = document.createElement('button');
-                    supprimerBtn.className = 'bg-red-500 text-white p-1 rounded-sm';
+                    supprimerBtn.className = 'bg-red-500 text-white p-1 rounded-sm text-xs sm:text-sm';
                     supprimerBtn.textContent = 'Supprimer';
                     supprimerBtn.onclick = () => supprimerDisjoncteur(index);
                     actionsCell.appendChild(supprimerBtn);
 
                     const transfererBtn = document.createElement('button');
-                    transfererBtn.className = 'bg-purple-500 text-white p-1 rounded-sm';
+                    transfererBtn.className = 'bg-purple-500 text-white bg-1 rounded-sm text-sm sm:text-sm';
                     transfererBtn.textContent = 'Transférer';
-                    transfererBtn.onclick = () => transfererDisjoncteur(index);
+                    transfererBtn.onclick = () => transfererDisjoncteurs(index);
                     actionsCell.appendChild(transfererBtn);
 
                     if (!isPrincipal) {
                         const principalBtn = document.createElement('button');
-                        principalBtn.className = 'bg-yellow-500 text-white p-1 rounded-sm';
+                        principalBtn.className = 'bg-yellow-500 text-white p-1 rounded-sm text-xs sm:text-sm';
                         principalBtn.textContent = 'Principal';
                         principalBtn.onclick = () => designerPrincipal(index);
                         actionsCell.appendChild(principalBtn);
@@ -797,7 +799,7 @@
                         body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
                     });
                     const data = await response.json();
-                    console.log('[Edit] Réponse serveur:', data);
+                    console.log('[Edit] Résultat serveur:', data);
                     if (response.ok) {
                         showPopup('Modifications enregistrées avec succès !', '', () => {
                             console.log('[Edit] Modifications enregistrées, redirection vers view.html');

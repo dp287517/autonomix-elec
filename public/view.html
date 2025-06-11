@@ -9,7 +9,7 @@
 </head>
 <body class="bg-gray-900 text-white font-sans">
     <nav class="bg-blue-700 p-4 shadow-lg fixed w-full top-0 z-50">
-        <ul class="flex space-x-6 justify-center">
+        <ul class="flex flex-wrap space-x-4 sm:space-x-6 justify-center">
             <li><a href="index.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-home"></i> Accueil</a></li>
             <li><a href="create.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-plus-circle"></i> Créer un tableau</a></li>
             <li><a href="view.html" class="text-yellow-300 font-bold"><i class="fas fa-table"></i> Voir les tableaux</a></li>
@@ -19,12 +19,12 @@
         </ul>
     </nav>
 
-    <div class="container mx-auto mt-28 p-6">
-        <h1 class="text-3xl font-bold text-center mb-6">Liste des tableaux électriques</h1>
+    <div class="container mx-auto mt-28 p-4 sm:p-6">
+        <h1 class="text-2xl sm:text-3xl font-bold text-center mb-6">Liste des tableaux électriques</h1>
 
-        <div class="bg-gray-800 p-6 rounded-lg shadow-md mb-6">
-            <h2 class="text-2xl font-semibold mb-4">Comment utiliser cette page</h2>
-            <ol class="list-decimal list-inside space-y-2">
+        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-lg sm:text-2xl font-semibold mb-4">Comment utiliser cette page</h2>
+            <ol class="list-decimal list-inside space-y-2 text-sm sm:text-base">
                 <li>Consultez la liste des tableaux enregistrés.</li>
                 <li>Filtrez par bâtiment en entrant un numéro (ex. 27).</li>
                 <li>Cliquez sur "Modifier" pour éditer un tableau.</li>
@@ -33,34 +33,36 @@
             </ol>
         </div>
 
-        <div class="bg-gray-800 p-6 rounded-lg shadow-md mb-6">
-            <h2 class="text-xl font-semibold mb-4">Filtrer par bâtiment</h2>
-            <div class="flex space-x-4">
+        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-lg sm:text-xl font-semibold mb-4">Filtrer par bâtiment</h2>
+            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
                 <input id="batiment-filter" type="text" class="bg-gray-700 text-white p-2 border rounded w-full" placeholder="Ex. 27">
                 <button onclick="filtrerTableaux()" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Filtrer</button>
                 <button onclick="resetFiltre()" class="bg-gray-600 text-white p-2 rounded hover:bg-gray-700">Réinitialiser</button>
             </div>
         </div>
 
-        <div class="bg-gray-800 p-6 rounded-lg shadow-md">
-            <table id="tableaux-table" class="w-full">
-                <thead>
-                    <tr class="bg-gray-700">
-                        <th class="p-2">Identifiant</th>
-                        <th class="p-2">Bâtiment</th>
-                        <th class="p-2">Disjoncteurs</th>
-                        <th class="p-2">Actions</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
+        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-md">
+            <div class="overflow-x-auto">
+                <table id="tableaux-table" class="w-full">
+                    <thead>
+                        <tr class="bg-gray-700">
+                            <th class="p-2">Identifiant</th>
+                            <th class="p-2">Bâtiment</th>
+                            <th class="p-2">Disjoncteurs</th>
+                            <th class="p-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <div id="popup" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-        <div class="bg-white p-6 rounded-lg shadow-md">
+        <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md">
             <p id="popup-message" class="mb-4 text-gray-900"></p>
-            <div class="flex space-x-4">
+            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
                 <button id="popup-confirm" class="bg-green-600 text-white p-2 rounded hover:bg-green-700">Confirmer</button>
                 <button id="popup-cancel" class="bg-red-600 text-white p-2 rounded hover:bg-red-700">Annuler</button>
             </div>

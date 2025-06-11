@@ -1,6 +1,7 @@
 body {
     font-family: 'Inter', Arial, sans-serif;
     transition: background-color 0.3s;
+    margin: 0;
 }
 
 nav {
@@ -14,9 +15,23 @@ nav {
     background: rgba(30, 64, 175, 0.9);
 }
 
+nav ul {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+nav ul li {
+    margin: 8px;
+}
+
 nav ul li a {
     color: #FFFFFF;
     transition: color 0.2s, transform 0.2s;
+    font-size: 1rem;
 }
 
 nav ul li a:hover {
@@ -28,12 +43,15 @@ nav ul li a:hover {
 table {
     border-collapse: collapse;
     width: 100%;
+    overflow-x: auto;
+    display: block;
 }
 
 th, td {
     border: 1px solid #4B5563;
     text-align: left;
     padding: 8px;
+    font-size: 0.875rem;
 }
 
 th[title], td[title] {
@@ -75,6 +93,8 @@ th[title]:hover::after, td[title]:hover::after {
 button {
     margin-right: 5px;
     transition: transform 0.2s, background-color 0.3s;
+    padding: 8px 12px;
+    font-size: 0.875rem;
 }
 
 button:hover {
@@ -123,14 +143,18 @@ canvas {
     max-height: calc(100vh - 40px);
     overflow-y: auto;
     scroll-behavior: smooth;
+    width: 90%;
+    max-width: 600px;
 }
 
 .action-btn {
-    pointer-events: auto !important; /* Assurer que les clics sont capturés */
+    pointer-events: auto !important;
 }
 
 #modal-details input, #modal-details select {
     transition: border-color 0.3s, box-shadow 0.3s;
+    width: 100%;
+    padding: 8px;
 }
 
 #modal-details input:focus, #modal-details select:focus {
@@ -194,6 +218,7 @@ canvas {
     position: relative;
     z-index: 60;
     opacity: 1 !important;
+    padding: 16px;
 }
 
 .container > * {
@@ -208,11 +233,19 @@ nav + .container {
 #popup {
     z-index: 1000;
     background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    inset: 0;
 }
 
 #popup .bg-white {
     border-radius: 8px;
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 500px;
+    padding: 16px;
 }
 
 #capex-chart {
@@ -221,15 +254,15 @@ nav + .container {
 }
 
 .bar-red .bar {
-    fill: #dc2626; /* Rouge pour < 2 ans */
+    fill: #dc2626;
 }
 
 .bar-orange .bar {
-    fill: #f4b400; /* Orange pour 2-5 ans */
+    fill: #f4b400;
 }
 
 .bar-green .bar {
-    fill: #22c55e; /* Vert pour > 5 ans */
+    fill: #22c55e;
 }
 
 .task-bar {
@@ -260,13 +293,13 @@ nav + .container {
     z-index: 10;
 }
 
-/* Styles pour reports.html */
 section {
     margin-bottom: 20px;
 }
 
 section h2 {
     margin-bottom: 10px;
+    font-size: 1.5rem;
 }
 
 section div {
@@ -283,6 +316,7 @@ section input, section select {
     padding: 8px;
     border: 1px solid #4B5563;
     border-radius: 4px;
+    font-size: 0.875rem;
 }
 
 section button {
@@ -292,6 +326,7 @@ section button {
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    font-size: 0.875rem;
 }
 
 section button:hover {
@@ -302,5 +337,90 @@ section button:hover {
 #global-graph canvas {
     width: 100% !important;
     height: 100% !important;
-    min-height: 800px;
+    min-height: 400px;
+}
+
+/* Styles responsives pour smartphones */
+@media (max-width: 640px) {
+    nav ul {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    nav ul li {
+        margin: 4px 0;
+    }
+
+    nav ul li a {
+        font-size: 0.9rem;
+    }
+
+    .container {
+        padding: 8px;
+    }
+
+    nav + .container {
+        margin-top: 120px;
+    }
+
+    h1 {
+        font-size: 1.5rem;
+    }
+
+    h2 {
+        font-size: 1.25rem;
+    }
+
+    table {
+        font-size: 0.75rem;
+    }
+
+    th, td {
+        padding: 6px;
+    }
+
+    button {
+        padding: 6px 10px;
+        font-size: 0.75rem;
+    }
+
+    .grid-cols-2, .grid-cols-3 {
+        grid-template-columns: 1fr;
+    }
+
+    input, select {
+        font-size: 0.8rem;
+        padding: 6px;
+    }
+
+    #popup .bg-white {
+        width: 95%;
+        padding: 12px;
+    }
+
+    #modal-details .bg-white {
+        width: 95%;
+    }
+
+    .flex.space-x-4 {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .flex.space-x-4 button {
+        width: 100%;
+    }
+
+    section h2 {
+        font-size: 1.25rem;
+    }
+
+    section button {
+        padding: 8px 16px;
+        font-size: 0.8rem;
+    }
+
+    #global-graph canvas {
+        min-height: 300px;
+    }
 }
