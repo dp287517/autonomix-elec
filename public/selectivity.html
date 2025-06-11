@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomix Elec - Sélectivité des installations</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <style>
+        #modal-graph { background-color: #ffffff !important; overflow-y: auto !important; }
+        #modal-graph > div { overflow: visible !important; max-height: none !important; }
+        .vis-tooltip {
+            background-color: #2D3748 !important; color: #ffffff !important; padding: 16px !important;
+            border: 2px solid #10B981 !important; border-radius: 8px !important;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5) !important; font-size: 14px !important;
+            z-index: 1000 !important; pointer-events: none !important;
+        }
+        #mini-modal { z-index: 2000 !important; }
+        #global-graph canvas { width: 100% !important; height: 100% !important; min-height: 800px; }
+        #building-filter, #tableau-filter {
+            appearance: auto !important; cursor: pointer !important; pointer-events: auto !important;
+            z-index: 1000 !important; user-select: auto !important; position: relative !important;
+            background-color: #374151 !important; color: #ffffff !important; border: 1px solid #4B5563 !important;
+            padding: 8px !important; border-radius: 4px !important; width: 200px !important; height: 40px !important;
+        }
+        #building-filter:disabled, #tableau-filter:disabled { cursor: not-allowed !important; opacity: 0.5 !important; }
+        .bg-gray-800, .bg-gray-800 * { pointer-events: auto !important; z-index: 100 !important; }
+        .container, .container * { z-index: 60 !important; pointer-events: auto !important; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <nav class="bg-blue-700 p-4 sticky top-0 z-50 shadow-lg">
+        <ul class="flex space-x-6 text-white font-semibold">
+            <li><a href="index.html" class="hover:text-yellow-300 transition"><i class="fas fa-home mr-2"></i>Accueil</a></li>
+            <li><a href="create.html" class="hover:text-yellow-300 transition"><i class="fas fa-plus-circle mr-2"></i>Créer un tableau</a></li>
+            <li><a href="view.html" class="hover:text-yellow-300 transition"><i class="fas fa-table mr-2"></i>Voir les tableaux</a></li>
+            <li><a href="selectivity.html" class="text-yellow-300"><i class="fas fa-shield-alt mr-2"></i>Sélectivité</a></li>
+            <li><a href="obsolescence.html" class="hover:text-yellow-300 transition"><i class="fas fa-clock mr-2"></i>Obsolescence</a></li>
+        </ul>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        <h1 class="text-3xl font-bold mb-6 flex items-center"><i class="fas fa-shield-alt mr-3"></i>Sélectivité des installations électriques</h1>
+
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg flex space-x-4">
+            <div>
+                <label for="building-filter" class="block text-sm font-medium">Filtrer par bâtiment</label>
+                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600" onchange="filterData()">
+                    <option value="">Tous les bâtiments</option>
+                </select>
+            </div>
+            <div>
+                <label for="tableau-filter" class="block text-sm font-medium">Tableau</label>
+                <select id="tableau-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600" onchange="filterData()">
+                    <option value="">Tous les tableaux</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
+            <h2 class="text-xl font-bold mb-2 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
+            <ul class="list-disc pl-6 text-gray-300">
+                <li>Utilisez les filtres pour sélectionner un bâtiment ou un tableau spécifique.</li>
+                <li>Consultez le tableau ci-dessous pour voir les tableaux électriques et leurs disjoncteurs.</li>
+                <li>Chaque tableau affiche son disjoncteur principal, les disjoncteurs non principaux, et les liaisons.</li>
+                <li>Cliquez sur l’icône <i class="fas fa-chart-line"></i> ou "Agrandir" pour voir le graphique de sélectivité.</li>
+                <li>Le statut indique si la sélectivité est correcte, avec une explication dans le modal.</li>
+                <li>Le schéma interactif plus bas montre les relations entre tableaux et disjoncteurs.</li>
+                <li>Si des données manquent, un bouton "Modifier" vous redirige vers l’édition.</li>
+                <li>Les courbes rouges signalent un risque de coupure incorrecte.</li>
+            </ul>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
+            <h2 class="text-xl font-bold mb-4 flex items-center"><i class="fas fa-table mr-2"></i>Tableau des installations</h2>
+            <table class="w-full">
+                <thead>
+                    <tr class="bg-gray-700 text-white">
+                        <th class="p-2">Tableau</th>
+                        <th class="p-2">Disjoncteur Principal</th>
+                        <th class="p-2">Disjoncteurs Non Principaux</th>
+                        <th class="p-2">Liaisons</th>
+                        <th class="p-2">Statut Sélectivité</th>
+                        <th class="p-2">Graphique</th>
+                        <th class="p-2">Données Manquantes</th>
+                    </tr>
+                </thead>
+                <tbody id="tableaux-table"></tbody>
+            </table>
+        </div>
+
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-xl font-bold mb-2 flex items-center"><i class="fas fa-sitemap mr-2"></i>Schéma global</h2>
+            <div id="global-graph" class="w-full h-[800px] bg-white rounded-lg border-2 border-green-600 relative z-10"></div>
+            <div id="global-text" class="mt-4 text-gray-300"></div>
+        </div>
+
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-xl font-bold mb-2 flex items-center"><i class="fas fa-table mr-2"></i>Récapitulatif de la sélectivité</h2>
+            <div id="missing-data-alert" class="hidden bg-red-900 text-red-200 p-3 rounded mb-4">
+                <p><i class="fas fa-exclamation-triangle mr-2"></i>Données manquantes détectées. <a href="#" id="missing-link" class="underline">Modifier les disjoncteurs concernés</a></p>
+            </div>
+            <table class="w-full">
+                <thead>
+                    <tr class="bg-gray-700 text-white">
+                        <th class="p-3">Tableau</th>
+                        <th class="p-3">Statut Intra</th>
+                        <th class="p-3">Liaisons</th>
+                        <th class="p-3">Statut Inter</th>
+                        <th class="p-3">Détails</th>
+                    </tr>
+                </thead>
+                <tbody id="global-tableau-body"></tbody>
+            </table>
+        </div>
+
+        <div id="modal-graph" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-start justify-center pt-4 pb-4">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg w-[90vw] max-w-[750px] flex flex-col relative z-[2000]">
+                <div class="sticky top-0 flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-white"><i class="fas fa-chart-line mr-2"></i><span id="modal-title"></span></h3>
+                    <button onclick="closeModal()" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"><i class="fas fa-times"></i> Fermer</button>
+                </div>
+                <canvas id="modal-modal" width="700" height="500" class="w-full h-auto"></canvas>
+                <div id="selectivity-explanation" class="mt-4 text-sm text-gray-300"></div>
+            </div>
+        </div>
+
+        <div id="mini-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-[2000]">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg w-[600px]">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-xl font-bold text-white"><i class="fas fa-info-circle mr-2"></i><span id="mini-modal-title">Détails</span></h4>
+                    <button onclick="closeMiniModal()" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-blue-700"><i class="fas fa-times"></i></button>
+                </div>
+                <div id="mini-modal-content" class="text-gray-300"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let tableauxData = [];
+        let modalChartInstance = null;
+        let graphInstance = null;
+
+        function normalizeCurrent(value) {
+            if (value === null || value === undefined) return null;
+            if (typeof value === 'number' && !isNaN(value)) return value;
+            if (typeof value === 'string') {
+                const match = value.match(/[\d.]+/);
+                return match ? parseFloat(match[0]) : null;
+            }
+            return null;
+        }
+
+        function calculerTripTime(inValue, irValue, courbe) {
+            console.log('[Client] Calcul de TripTime pour in:', inValue, 'ir:', irValue, 'courbe:', courbe);
+            const k = 1.5;
+            const n = 2.5;
+            return k * Math.pow((irValue || inValue) / inValue, n);
+        }
+
+        function calculerTempsDeclenchement(courant, inValue, irValue, courbe, triptime) {
+            const seuils = {
+                'B': [3, 5],
+                'C': [5, 10],
+                'D': [10, 20]
+            };
+            const seuil = seuils[courbe] || seuils['C'];
+            const seuilMin = seuil[0];
+            const seuilMax = seuil[1];
+            const seuilMagnetique = seuilMax * inValue;
+
+            if (courant >= seuilMagnetique) return 0.01;
+            if (courant > (irValue || inValue)) return triptime;
+            return 100;
+        }
+
+        async function chargerTableaux() {
+            console.log('[Client] Chargement des données de sélectivité');
+            try {
+                const response = await fetch('/api/selectivity?t=' + Date.now(), {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (!response.ok) throw new Error('Erreur HTTP: ' + response.status + ' ' + response.statusText);
+                const data = await response.json();
+                console.log('[Client] Données reçues:', data.length, 'tableaux');
+                tableauxData = data.map(tableau => ({
+                    ...tableau,
+                    disjoncteurs: tableau.disjoncteurs.map(d => ({
+                        ...d,
+                        inValue: normalizeCurrent(d.in),
+                        irValue: normalizeCurrent(d.ir)
+                    })),
+                    isSiteMain: tableau.isSiteMain || false
+                }));
+                populateFilters();
+                afficherTableauxEtSchema(tableauxData);
+            } catch (error) {
+                console.error('[Client] Erreur lors du chargement des tableaux:', error.message, error.stack);
+                alert('Erreur lors du chargement des données.');
+            }
+        }
+
+        function populateFilters() {
+            console.log('[Client] Remplissage des filtres, tableauxData:', tableauxData.length);
+            const buildingFilter = document.getElementById('building-filter');
+            const tableauFilter = document.getElementById('tableau-filter');
+            if (!buildingFilter || !tableauFilter) {
+                console.error('[Client] Éléments de filtre non trouvés:', { buildingFilter, tableauFilter });
+                return;
+            }
+            buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
+            tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
+            const buildings = [...new Set(tableauxData.map(t => t.building))].sort();
+            console.log('[Client] Bâtiments trouvés:', buildings);
+            buildings.forEach(b => {
+                const option = document.createElement('option');
+                option.value = b;
+                option.textContent = b;
+                console.log('[Client] Ajout option bâtiment:', b);
+                buildingFilter.appendChild(option);
+            });
+            tableauxData.forEach(t => {
+                const option = document.createElement('option');
+                option.value = t.id;
+                option.textContent = t.id;
+                console.log('[Client] Ajout option tableau:', t.id);
+                tableauFilter.appendChild(option);
+            });
+            console.log('[Client] Options bâtiment après ajout:', Array.from(buildingFilter.options).map(o => o.value));
+            console.log('[Client] Options tableau après ajout:', Array.from(tableauFilter.options).map(o => o.value));
+            console.log('[Client] Building filter disabled:', buildingFilter.disabled);
+            console.log('[Client] Tableau filter disabled:', tableauFilter.disabled);
+        }
+
+        function filterData() {
+            console.log('[Client] Début de filterData');
+            const buildingFilter = document.getElementById('building-filter');
+            const tableauFilter = document.getElementById('tableau-filter');
+            if (!buildingFilter || !tableauFilter) {
+                console.error('[Client] Éléments de filtre non trouvés dans filterData');
+                return;
+            }
+            const building = buildingFilter.value;
+            const tableau = tableauFilter.value;
+            console.log('[Client] Application des filtres:', { building, tableau });
+            const filteredData = tableauxData.filter(t => 
+                (!building || t.building === building) && 
+                (!tableau || t.id === tableau || t.disjoncteurs.some(d => d.linkedTableauId === tableau))
+            );
+            console.log('[Client] Données filtrées:', filteredData.length);
+            afficherTableauxEtSchema(filteredData);
+        }
+
+        function afficherTableauxEtSchema(tableaux) {
+            console.log('[Client] Affichage des tableaux et du schéma:', tableaux.length);
+            afficherTableaux(tableaux);
+            renderSelectivity(tableaux);
+        }
+
+        function afficherTableaux(tableaux) {
+            console.log('[Client] Affichage des tableaux');
+            const tableBody = document.getElementById('tableaux-table');
+            tableBody.innerHTML = '';
+
+            tableaux.forEach((tableau, index) => {
+                console.log('[Client] Traitement du tableau:', tableau.id);
+                const principal = tableau.disjoncteurs.find(d => d.isPrincipal) || {};
+                const nonPrincipaux = tableau.disjoncteurs.filter(d => !d.isPrincipal);
+                const liaisons = tableau.disjoncteurs
+                    .filter(d => d.linkedTableauId)
+                    .map(d => `${d.id} → ${d.linkedTableauId}`)
+                    .join(', ') || 'Aucune';
+                const missingData = checkMissingData(tableau.disjoncteurs);
+                const selectivityStatus = checkSelectivityStatus(tableau, tableau.id);
+
+                const upstreamInfo = selectivityStatus.upstreamDisjoncteurId 
+                    ? `${selectivityStatus.upstreamDisjoncteurId} (${selectivityStatus.upstreamTableauId})`
+                    : tableau.isSiteMain
+                        ? 'Principal du site'
+                        : 'Aucun amont défini';
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-2">${tableau.id}${tableau.isSiteMain ? ' (Principal du site)' : ''}</td>
+                    <td class="p-2${principal.id ? ' disjoncteur-principal' : ''}">${principal.id || 'Aucun (amont: ' + upstreamInfo + ')'} (${principal.marque || ''} ${principal.ref || ''})</td>
+                    <td class="p-2">${nonPrincipaux.length > 0 ? nonPrincipaux.map(d => `${d.id} (${d.marque} ${d.ref})`).join('<br>') : 'Aucun'}</td>
+                    <td class="p-2">${liaisons}</td>
+                    <td class="p-2"><span class="${selectivityStatus.status === 'Parfait' ? 'text-green-600' : selectivityStatus.status === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${selectivityStatus.status}: ${selectivityStatus.message}</span></td>
+                    <td class="p-2 flex items-center space-x-2"><i class="fas fa-chart-line text-blue-600 text-xl cursor-pointer hover:text-blue-800 graph-icon" onclick="openModal(${index})"></i><button onclick="openModal(${index})" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">Agrandir</button></td>
+                    <td class="p-2">${missingData.length > 0 ? missingData.map(d => `<p class="text-red-600 alert-missing">${d.id}: ${d.missing.join(', ')}</p><button onclick="redirigerModifier('${tableau.id}', '${d.id}')" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">Modifier</button>`).join('<br>') : 'Aucune'}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        function checkMissingData(disjoncteurs) {
+            console.log('[Client] Vérification des données manquantes');
+            return disjoncteurs
+                .map(d => {
+                    const missing = [];
+                    if (d.inValue === null) missing.push('in');
+                    if (d.irValue === null) missing.push('ir');
+                    if (!d.courbe) missing.push('courbe');
+                    console.log('[Client] Vérification disjoncteur:', d.id, { in: d.in, inValue: d.inValue, ir: d.ir, irValue: d.irValue, courbe: d.courbe, missing });
+                    return missing.length > 0 ? { id: d.id || 'Inconnu', missing } : null;
+                })
+                .filter(Boolean);
+        }
+
+        function redirigerModifier(tableauId, disjoncteurId) {
+            console.log('[Client] Redirection vers edit.html pour', tableauId, disjoncteurId);
+            window.location.href = `edit.html?id=${tableauId}#${disjoncteurId}`;
+        }
+
+        function findUpstreamDisjoncteur(tableauId, allTableaux) {
+            if (!tableauId) return null;
+            for (const tableau of allTableaux) {
+                const disjoncteur = tableau.disjoncteurs.find(d => d.linkedTableauId === tableauId);
+                if (disjoncteur) {
+                    return {
+                        disjoncteur: {
+                            ...disjoncteur,
+                            inValue: normalizeCurrent(disjoncteur.in),
+                            irValue: normalizeCurrent(disjoncteur.ir)
+                        },
+                        tableauId: tableau.id,
+                        source: 'upstream'
+                    };
+                }
+            }
+            return null;
+        }
+
+        function checkSelectivityStatus(tableau, tableauId, allTableaux = tableauxData) {
+            if (tableau.isSiteMain) {
+                return {
+                    status: 'N/A',
+                    message: 'Tableau principal du site, aucune analyse de sélectivité requise.',
+                    criticalCurrent: null,
+                    details: 'Ce tableau est marqué comme principal du site. Les disjoncteurs internes sont considérés comme correctement configurés.',
+                    upstreamDisjoncteurId: null,
+                    upstreamTableauId: null
+                };
+            }
+
+            const principal = tableau.disjoncteurs.find(d => d.isPrincipal);
+            let effectiveDisjoncteur = principal;
+            let disjoncteurSource = 'local';
+            let upstreamDisjoncteurId = null;
+            let upstreamTableauId = null;
+
+            if (!principal) {
+                const upstreamResult = findUpstreamDisjoncteur(tableauId, allTableaux);
+                if (upstreamResult) {
+                    effectiveDisjoncteur = upstreamResult.disjoncteur;
+                    disjoncteurSource = upstreamResult.source;
+                    upstreamDisjoncteurId = effectiveDisjoncteur.id;
+                    upstreamTableauId = upstreamResult.tableauId;
+                } else {
+                    return {
+                        status: 'Problème',
+                        message: 'Aucun disjoncteur principal ou amont défini.',
+                        criticalCurrent: null,
+                        details: `Veuillez définir un disjoncteur principal dans ${tableauId} ou lier un disjoncteur amont via un tableau parent.`,
+                        upstreamDisjoncteurId: null,
+                        upstreamTableauId: null
+                    };
+                }
+            }
+
+            const disjoncteurIr = effectiveDisjoncteur.irValue || effectiveDisjoncteur.inValue;
+            const disjoncteurTripTime = effectiveDisjoncteur.triptime || calculerTripTime(effectiveDisjoncteur.inValue, effectiveDisjoncteur.irValue, effectiveDisjoncteur.courbe);
+            const disjoncteurCourbe = effectiveDisjoncteur.courbe || 'C';
+            let criticalCurrent = null;
+            let details = '';
+
+            const nonPrincipaux = tableau.disjoncteurs.filter(d => !d.isPrincipal);
+            for (const d of nonPrincipaux) {
+                const subDisjoncteurIr = d.irValue || d.inValue;
+                const subDisjoncteurTripTime = d.triptime || calculerTripTime(d.inValue, d.irValue, d.courbe);
+                const subDisjoncteurCourbe = d.courbe || 'C';
+
+                const courbeOrder = ['B', 'C', 'D'];
+                if (courbeOrder.indexOf(subDisjoncteurCourbe) < courbeOrder.indexOf(disjoncteurCourbe)) {
+                    criticalCurrent = subDisjoncteurIr * (subDisjoncteurCourbe === 'B' ? 5 : 10);
+                    details = `Le disjoncteur ${d.id} (courbe ${subDisjoncteurCourbe}, Ir=${subDisjoncteurIr}A) est trop sensible par rapport au ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'} (courbe ${disjoncteurCourbe}, Ir=${disjoncteurIr}A). À ${criticalCurrent}A, il risque de déclencher avant, causant une coupure prématurée.`;
+                    return {
+                        status: 'Problème',
+                        message: `Le disjoncteur ${d.id} (courbe ${subDisjoncteurCourbe}) est trop sensible par rapport au ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'}.`,
+                        criticalCurrent,
+                        details,
+                        upstreamDisjoncteurId,
+                        upstreamTableauId
+                    };
+                }
+
+                if (Math.abs(subDisjoncteurIr - disjoncteurIr) / disjoncteurIr <= 0.1) {
+                    criticalCurrent = Math.max(subDisjoncteurIr, disjoncteurIr);
+                    details = `Le disjoncteur ${d.id} (Ir=${subDisjoncteurIr}A) est trop proche du ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'} (Ir=${disjoncteurIr}A). À ${criticalCurrent}A, les deux risquent de déclencher simultanément, compromettant la sélectivité.`;
+                    return {
+                        status: 'Problème',
+                        message: `Le disjoncteur ${d.id} (Ir=${subDisjoncteurIr}A) est trop proche du ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'}.`,
+                        criticalCurrent,
+                        details,
+                        upstreamDisjoncteurId,
+                        upstreamTableauId
+                    };
+                }
+
+                if (subDisjoncteurIr > disjoncteurIr) {
+                    criticalCurrent = disjoncteurIr;
+                    details = `Le disjoncteur ${d.id} (Ir=${subDisjoncteurIr}A) est plus grand que le ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'} (Ir=${disjoncteurIr}A). À ${criticalCurrent}A, le disjoncteur amont déclenchera avant, entraînant une coupure générale.`;
+                    return {
+                        status: 'Problème',
+                        message: `Le disjoncteur ${d.id} (Ir=${subDisjoncteurIr}A) est plus grand que le ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'}.`,
+                        criticalCurrent,
+                        details,
+                        upstreamDisjoncteurId,
+                        upstreamTableauId
+                    };
+                }
+            }
+
+            details = `Les disjoncteurs secondaires (ex. ${nonPrincipaux.length > 0 ? nonPrincipaux[0].id : 'aucun'}, Ir=${nonPrincipaux.length > 0 ? (nonPrincipaux[0].irValue || nonPrincipaux[0].inValue) : 'N/A'}A) sont bien dimensionnés. Ils déclencheront avant le ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'} (Ir=${disjoncteurIr}A), assurant une sélectivité correcte.`;
+            return {
+                status: 'Parfait',
+                message: `Les disjoncteurs secondaires (ex. ${nonPrincipaux.length > 0 ? nonPrincipaux[0].id : 'aucun'}) sont bien dimensionnés et couperont avant le ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'}.`,
+                criticalCurrent: null,
+                details,
+                upstreamDisjoncteurId,
+                upstreamTableauId
+            };
+        }
+
+        function buildArborescence(tableaux) {
+            const graph = { nodes: [], edges: [] };
+            const tableauIds = new Set(tableaux.map(t => t.id));
+            let levelCounter = 0;
+
+            tableaux.forEach(tableau => {
+                const selectivityStatus = checkSelectivityStatus(tableau, tableau.id, tableaux);
+                console.log('[Client] Construire arborescence pour tableau:', tableau.id, { hasPrincipal: !!tableau.disjoncteurs.find(d => d.isPrincipal), isSiteMain: tableau.isSiteMain });
+                
+                // Niveau 0: Tableau
+                graph.nodes.push({
+                    id: tableau.id,
+                    label: `${tableau.id}${tableau.isSiteMain ? '\n(Principal du site)' : ''}\n${selectivityStatus.status}`,
+                    title: `<div class="vis-tooltip"><p><strong>Tableau :</strong> ${tableau.id}</p><p><strong>Statut :</strong> ${selectivityStatus.status}</p><p><strong>Détails :</strong> ${selectivityStatus.message}</p></div>`,
+                    color: { background: selectivityStatus.status === 'Parfait' ? '#22c55e' : selectivityStatus.status === 'N/A' ? '#eab308' : '#dc2626', border: '#ffffff' },
+                    font: { color: '#ffffff' },
+                    shape: 'box',
+                    widthConstraint: { minimum: 100 },
+                    status: selectivityStatus.status,
+                    group: 'tableau',
+                    level: levelCounter
+                });
+
+                const principal = tableau.disjoncteurs.find(d => d.isPrincipal);
+                let principalId;
+                let principalLevel = levelCounter + 1;
+                let nonPrincipalLevel = principal ? levelCounter + 2 : levelCounter + 1;
+
+                if (principal) {
+                    // Niveau 1: Disjoncteur principal
+                    principalId = `${tableau.id}-principal-${principal.id}`;
+                    graph.nodes.push({
+                        id: principalId,
+                        label: `${principal.id}\n(Principal, Ir=${principal.irValue || principal.inValue}A)`,
+                        title: `<div class="vis-tooltip"><p><strong>Disjoncteur :</strong> ${principal.id}</p><p><strong>Tableau :</strong> ${tableau.id}</p><p><strong>Ir :</strong> ${principal.irValue || 'N/A'}A</p><p><strong>In :</strong> ${principal.inValue || 'N/A'}A</p><p><strong>Courbe :</strong> ${principal.courbe || 'N/A'}</p></div>`,
+                        color: { background: '#3b82f6', border: '#ffffff' },
+                        font: { color: '#ffffff' },
+                        shape: 'box',
+                        widthConstraint: { minimum: 80 },
+                        group: 'principal',
+                        level: principalLevel
+                    });
+                    graph.edges.push({
+                        id: `${tableau.id}-to-${principalId}`,
+                        from: tableau.id,
+                        to: principalId,
+                        color: '#6B7280',
+                        width: 2,
+                        smooth: false
+                    });
+                }
+
+                tableau.disjoncteurs.forEach(d => {
+                    // Niveau 2 (ou 1 si pas de principal): Disjoncteurs non principaux
+                    const disjoncteurId = `${tableau.id}-non-principal-${d.id}`;
+                    let isSelective = false;
+                    let upstreamDisjoncteur = principal;
+                    let upstreamTableauId = null;
+                    if (!principal && !tableau.isSiteMain) {
+                        const upstreamResult = findUpstreamDisjoncteur(tableau.id, tableaux);
+                        if (upstreamResult) {
+                            upstreamDisjoncteur = upstreamResult.disjoncteur;
+                            upstreamTableauId = upstreamResult.tableauId;
+                            isSelective = (d.irValue || d.inValue) < (upstreamDisjoncteur.irValue || upstreamDisjoncteur.inValue) * 0.9;
+                        }
+                    } else if (principal) {
+                        isSelective = (d.irValue || d.inValue) < (principal.irValue || principal.inValue) * 0.9;
+                    }
+                    graph.nodes.push({
+                        id: disjoncteurId,
+                        label: `${d.id}\n(Ir=${d.irValue || d.inValue}A)`,
+                        title: `<div class="vis-tooltip"><p><strong>Disjoncteur :</strong> ${d.id}</p><p><strong>Tableau :</strong> ${tableau.id}</p><p><strong>Ir :</strong> ${d.irValue || 'N/A'}A</p><p><strong>In :</strong> ${d.inValue || 'N/A'}A</p><p><strong>Courbe :</strong> ${d.courbe || 'N/A'}</p><p><strong>Sélectivité :</strong> ${upstreamDisjoncteur ? (isSelective ? 'Correcte' : 'Problème') : tableau.isSiteMain ? 'N/A (Principal du site)' : 'Aucun disjoncteur amont'}</p></div>`,
+                        color: { background: upstreamDisjoncteur && isSelective ? '#22c55e' : '#dc2626', border: '#ffffff' },
+                        font: { color: '#ffffff' },
+                        shape: 'circle',
+                        size: 30,
+                        group: 'non-principal',
+                        disjoncteur: d,
+                        level: nonPrincipalLevel
+                    });
+                    if (principal) {
+                        graph.edges.push({
+                            id: `${principalId}-to-${disjoncteurId}`,
+                            from: principalId,
+                            to: disjoncteurId,
+                            color: isSelective ? '#22c55e' : '#dc2626',
+                            width: 2,
+                            smooth: false
+                        });
+                    } else {
+                        graph.edges.push({
+                            id: `${tableau.id}-to-${disjoncteurId}`,
+                            from: tableau.id,
+                            to: disjoncteurId,
+                            color: tableau.isSiteMain ? '#eab308' : '#dc2626',
+                            width: 2,
+                            smooth: false
+                        });
+                    }
+
+                    if (d.linkedTableauId && tableauIds.has(d.linkedTableauId)) {
+                        // Niveau 3+: Tableau aval
+                        const upstreamResult = findUpstreamDisjoncteur(d.linkedTableauId, tableaux);
+                        const upstreamDisjoncteur = upstreamResult ? upstreamResult.disjoncteur : null;
+                        const isInterSelective = upstreamDisjoncteur ? (d.irValue || d.inValue) < (upstreamDisjoncteur.irValue || upstreamDisjoncteur.inValue) * 0.9 : false;
+                        graph.edges.push({
+                            id: `${disjoncteurId}-to-${d.linkedTableauId}`,
+                            from: disjoncteurId,
+                            to: d.linkedTableauId,
+                            label: `Liaison (Ir=${d.irValue || d.inValue}A)`,
+                            title: `<div class="vis-tooltip"><p><strong>Liaison :</strong> ${tableau.id} → ${d.linkedTableauId}</p><p><strong>Disjoncteur :</strong> ${d.id}</p><p><strong>Ir :</strong> ${d.irValue || 'N/A'}A</p><p><strong>Courbe :</strong> ${d.courbe || 'N/A'}</p><p><strong>Sélectivité :</strong> ${upstreamDisjoncteur ? (isInterSelective ? 'Correcte' : 'Problème') : 'Aucun disjoncteur amont'}</p></div>`,
+                            color: upstreamDisjoncteur && isInterSelective ? '#22c55e' : '#dc2626',
+                            width: 4,
+                            arrows: { to: { enabled: true } },
+                            disjoncteur: d
+                        });
+                    }
+                });
+
+                levelCounter += principal ? 3 : 2; // Incrémenter pour le prochain tableau
+            });
+
+            return graph;
+        }
+
+        function checkGlobalSelectivity(tableaux) {
+            const graph = buildArborescence(tableaux);
+            const results = [];
+            let globalStatus = 'Parfait';
+            const errors = [];
+            const missingDataIssues = [];
+            tableaux.forEach(tableau => {
+                const selectivityStatus = checkSelectivityStatus(tableau, tableau.id, tableaux);
+                const missingData = checkMissingData(tableau.disjoncteurs);
+                const liaisons = tableau.disjoncteurs
+                    .filter(d => d.linkedTableauId)
+                    .map(d => {
+                        const principal = tableau.disjoncteurs.find(p => p.isPrincipal);
+                        let effectiveDisjoncteur = principal;
+                        let upstreamTableauId = d.linkedTableauId;
+                        if (!principal && !tableau.isSiteMain) {
+                            const upstreamResult = findUpstreamDisjoncteur(d.linkedTableauId, tableaux);
+                            effectiveDisjoncteur = upstreamResult ? upstreamResult.disjoncteur : null;
+                            upstreamTableauId = upstreamResult ? upstreamResult.tableauId : d.linkedTableauId;
+                        }
+                        const isInterSelective = effectiveDisjoncteur && (d.irValue || d.inValue) < (effectiveDisjoncteur.irValue || effectiveDisjoncteur.inValue) * 0.9;
+                        return {
+                            disjoncteurId: d.id,
+                            target: d.linkedTableauId,
+                            status: tableau.isSiteMain || (effectiveDisjoncteur && isInterSelective) ? 'Parfait' : 'Problème',
+                            message: tableau.isSiteMain 
+                                ? `Liaison ${d.id} → ${d.linkedTableauId}: Tableau principal du site.`
+                                : effectiveDisjoncteur && isInterSelective 
+                                    ? `Liaison ${d.id} → ${d.linkedTableauId}: Sélectivité correcte.` 
+                                    : `Liaison ${d.id} → ${d.linkedTableauId}: ${effectiveDisjoncteur ? `Le disjoncteur (Ir=${d.irValue || d.inValue}A) ne déclenche pas avant le disjoncteur amont (Ir=${effectiveDisjoncteur.irValue || effectiveDisjoncteur.inValue}A).` : `Aucun disjoncteur amont défini pour ${d.linkedTableauId}.`}`
+                        };
+                    });
+                results.push({
+                    tableauId: tableau.id,
+                    intraStatus: selectivityStatus.status,
+                    intraMessage: selectivityStatus.message,
+                    liaisons,
+                    interStatus: liaisons.length > 0 ? (liaisons.every(l => l.status === 'Parfait') ? 'Parfait' : 'Problème') : 'N/A',
+                    interMessage: liaisons.length > 0 ? liaisons.map(l => l.message).join('<br>') : ''
+                });
+                if (selectivityStatus.status !== 'Parfait' && selectivityStatus.status !== 'N/A') {
+                    globalStatus = 'Problème';
+                    errors.push(`Tableau ${tableau.id}: ${selectivityStatus.message}`);
+                }
+                if (missingData.length > 0) {
+                    missingDataIssues.push(`Tableau ${tableau.id}: Données manquantes pour ${missingData.map(d => d.id).join(', ')}`);
+                }
+                liaisons.forEach(l => {
+                    if (l.status !== 'Parfait') {
+                        globalStatus = 'Problème';
+                        errors.push(l.message);
+                    }
+                });
+            });
+            return { globalStatus, errors, results, graph, missingDataIssues };
+        }
+
+        function adjustGraphHeight(graph) {
+            const graphContainer = document.getElementById('global-graph');
+            const nodeCount = graph.nodes.length;
+            const edgeCount = graph.edges.length;
+            const estimatedHeight = Math.min(1200, 200 + nodeCount * 100 + edgeCount * 50);
+            const maxHeight = Math.max(estimatedHeight, window.innerHeight * 0.8);
+            graphContainer.style.height = `${maxHeight}px`;
+            graphContainer.style.minHeight = '800px';
+            if (graphInstance) {
+                graphInstance.setSize('100%', `${maxHeight}px`);
+                graphInstance.fit();
+                graphInstance.redraw();
+            }
+        }
+
+        function genererGraphique(canvasId, disjoncteurs, tableau, tableauId, isModal) {
+            console.log('[Client] Génération du graphique pour:', canvasId);
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const selectivityStatus = checkSelectivityStatus(tableau, tableauId);
+
+            let graphDisjoncteurs = disjoncteurs.slice();
+            if (!tableau.isSiteMain && !disjoncteurs.find(d => d.isPrincipal) && selectivityStatus.upstreamDisjoncteurId) {
+                const upstreamTableau = tableauxData.find(t => t.id === selectivityStatus.upstreamTableauId);
+                if (upstreamTableau) {
+                    const upstreamDisjoncteur = upstreamTableau.disjoncteurs.find(d => d.id === selectivityStatus.upstreamDisjoncteurId);
+                    if (upstreamDisjoncteur) {
+                        graphDisjoncteurs.push({
+                            ...upstreamDisjoncteur,
+                            id: `${upstreamDisjoncteur.id} (amont)`,
+                            isPrincipal: true,
+                            marque: upstreamDisjoncteur.marque || '',
+                            ref: upstreamDisjoncteur.ref || '',
+                            inValue: normalizeCurrent(upstreamDisjoncteur.in),
+                            irValue: normalizeCurrent(upstreamDisjoncteur.ir)
+                        });
+                    }
+                }
+            }
+
+            const datasets = graphDisjoncteurs.map(d => {
+                const inValue = d.inValue || 1;
+                const irValue = d.irValue || inValue;
+                const courbe = d.courbe || 'C';
+                const triptime = d.triptime ? d.triptime : calculerTripTime(inValue, irValue, courbe);
+
+                const dataPoints = [];
+                const courantMax = inValue * (courbe === 'B' ? 5 : courbe === 'C' ? 10 : 20);
+                for (let i = inValue; i <= courantMax; i += inValue / 10) {
+                    const temps = calculerTempsDeclenchement(i, inValue, irValue, courbe, triptime);
+                    dataPoints.push({ x: i, y: temps });
+                }
+
+                const isSelective = checkSelectivity(d, graphDisjoncteurs.find(p => p.isPrincipal));
+
+                return {
+                    label: `${d.id} (${d.marque} ${d.ref}${d.isPrincipal ? ' - Principal' : ''})`,
+                    data: dataPoints,
+                    borderColor: isSelective ? (d.isPrincipal ? '#22c55e' : '#3b82f6') : '#dc2626',
+                    fill: false,
+                    tension: 0.1
+                };
+            });
+
+            const annotations = isModal && selectivityStatus.criticalCurrent ? {
+                point1: {
+                    type: 'point',
+                    xValue: selectivityStatus.criticalCurrent,
+                    yValue: calculerTempsDeclenchement(selectivityStatus.criticalCurrent, disjoncteurs[0]?.inValue || 1, disjoncteurs[0]?.irValue || 1, disjoncteurs[0]?.courbe || 'C', disjoncteurs[0]?.triptime || calculerTripTime(disjoncteurs[0]?.inValue || 1, disjoncteurs[0]?.irValue || 1, disjoncteurs[0]?.courbe || 'C')),
+                    backgroundColor: '#dc2626',
+                    radius: 8,
+                    borderColor: '#fff',
+                    borderWidth: 2,
+                    drawTime: 'afterDatasetsDraw',
+                    className: 'pulse-animation'
+                }
+            } : {};
+
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        x: {
+                            type: 'logarithmic',
+                            title: { display: true, text: 'Courant (A)', font: { size: 14 } },
+                            min: 1,
+                            max: 10000,
+                            grid: { color: '#4B5563' }
+                        },
+                        y: {
+                            type: 'logarithmic',
+                            title: { display: true, text: 'Temps (s)', font: { size: 14 } },
+                            min: 0.001,
+                            max: 100,
+                            grid: { color: '#4B5563' }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Sélectivité - Tableau ${tableauId}${tableau.isSiteMain ? ' (Principal du site)' : ''}`,
+                            font: { size: 16, weight: 'bold' },
+                            color: '#ffffff'
+                        },
+                        annotation: { annotations },
+                        legend: { labels: { font: { size: 12 }, color: '#ffffff' } }
+                    },
+                    animation: { duration: 1000, easing: 'easeOutCubic' }
+                }
+            });
+
+            if (isModal) {
+                const explanationDiv = document.getElementById('selectivity-explanation');
+                const criticalTime = selectivityStatus.criticalCurrent ? calculerTempsDeclenchement(selectivityStatus.criticalCurrent, disjoncteurs[0]?.inValue || 1, disjoncteurs[0]?.irValue || 1, disjoncteurs[0]?.courbe || 'C', disjoncteurs[0]?.triptime || calculerTripTime(disjoncteurs[0]?.inValue || 1, disjoncteurs[0]?.irValue || 1, disjoncteurs[0]?.courbe || 'C')) : null;
+                explanationDiv.innerHTML = `
+                    <p class="mb-2"><strong><i class="fas fa-info-circle mr-1"></i>Statut :</strong> ${selectivityStatus.status} - ${selectivityStatus.message}</p>
+                    ${selectivityStatus.criticalCurrent ? `<p class="mb-2"><strong><i class="fas fa-exclamation-circle mr-1 text-red-600"></i>Point critique :</strong> Courant de ${selectivityStatus.criticalCurrent}A avec un temps de ${criticalTime.toFixed(3)}s.</p>` : ''}
+                    <p class="mb-2"><strong><i class="fas fa-chart-line mr-1"></i>Interprétation :</strong> ${selectivityStatus.details}</p>
+                    <p><strong><i class="fas fa-lightbulb mr-1"></i>Conclusion :</strong> ${selectivityStatus.status === 'Parfait' || selectivityStatus.status === 'N/A' ? 'Sélectivité assurée.' : `Corrigez via <a href="edit.html?id=${tableauId}" class="underline text-blue-600">l’édition</a>.`}</p>
+                `;
+                document.getElementById('modal-title').textContent = `Sélectivité - Tableau ${tableauId}${tableau.isSiteMain ? ' (Principal du site)' : ''}`;
+            }
+
+            return chart;
+        }
+
+        function openModal(index) {
+            console.log('[Client] Ouverture du modal pour le graphique:', index);
+            const tableau = tableauxData[index];
+            if (!tableau) {
+                console.error('[Client] Tableau non trouvé pour l’index:', index);
+                return;
+            }
+            const modal = document.getElementById('modal-graph');
+            modal.classList.remove('hidden');
+            const canvas = document.getElementById('modal-modal');
+            const ctx = canvas.getContext('2d');
+
+            if (modalChartInstance) {
+                console.log('[Client] Destruction de l’ancien graphique du modal');
+                modalChartInstance.destroy();
+                modalChartInstance = null;
+            }
+
+            modalChartInstance = genererGraphique('modal-modal', tableau.disjoncteurs, tableau, tableau.id, true);
+        }
+
+        function closeModal() {
+            console.log('[Client] Fermeture du modal');
+            const modal = document.getElementById('modal-graph');
+            modal.classList.add('hidden');
+            const canvas = document.getElementById('modal-modal');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (modalChartInstance) {
+                console.log('[Client] Destruction du graphique du modal');
+                modalChartInstance.destroy();
+                modalChartInstance = null;
+            }
+        }
+
+        function checkSelectivity(disjoncteur, upstreamDisjoncteur) {
+            if (!upstreamDisjoncteur || disjoncteur.isPrincipal) return true;
+            const upstreamIr = upstreamDisjoncteur.irValue || upstreamDisjoncteur.inValue;
+            const disjoncteurIr = disjoncteur.irValue || disjoncteur.inValue;
+            const upstreamTripTime = upstreamDisjoncteur.triptime || calculerTripTime(upstreamDisjoncteur.inValue, upstreamDisjoncteur.irValue, upstreamDisjoncteur.courbe);
+            const disjoncteurTripTime = disjoncteur.triptime || calculerTripTime(disjoncteur.inValue, disjoncteur.irValue, disjoncteur.courbe);
+            const courbeOrder = ['B', 'C', 'D'];
+            const upstreamCourbe = upstreamDisjoncteur.courbe || 'C';
+            const disjoncteurCourbe = disjoncteur.courbe || 'C';
+            return disjoncteurIr < upstreamIr * 0.9 &&
+                   disjoncteurTripTime < upstreamTripTime &&
+                   courbeOrder.indexOf(disjoncteurCourbe) >= courbeOrder.indexOf(upstreamCourbe);
+        }
+
+        function renderSelectivity(data = tableauxData) {
+            console.log('[Client] Rendu du schéma avec:', data.length, 'tableaux');
+            const graphContainer = document.getElementById('global-graph');
+            const textDiv = document.getElementById('global-text');
+            const tableBody = document.getElementById('global-tableau-body');
+            const missingDataAlert = document.getElementById('missing-data-alert');
+            const missingDataLink = document.getElementById('missing-link');
+
+            if (graphInstance) {
+                graphInstance.destroy();
+                graphInstance = null;
+            }
+
+            const selectivity = checkGlobalSelectivity(data);
+            const { globalStatus, errors, results, graph, missingDataIssues } = selectivity;
+
+            let textContent = `<p class="text-2xl font-bold ${globalStatus === 'Parfait' ? 'text-green-600' : 'text-red-600'}"><i class="fas ${globalStatus === 'Parfait' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-2"></i>Sélectivité globale : ${globalStatus}</p>`;
+            textContent += `<p class="mt-4">${globalStatus === 'Parfait' ? 'Installation bien configurée. Tous les disjoncteurs sont sélectifs.' : 'Problèmes détectés. Consultez le schéma et le tableau pour les détails.'}</p>`;
+            if (errors.length > 0) {
+                textContent += `<ul class="list-disc ml-6 mt-4 text-red-600">${errors.map(e => `<li>${e}</li>`).join('')}</ul>`;
+            }
+            if (missingDataIssues.length > 0) {
+                textContent += `<p class="mt-4 text-yellow-600 font-semibold"><i class="fas fa-exclamation-triangle mr-2"></i>Données manquantes :</p>`;
+                textContent += `<ul class="list-disc ml-6 mt-2 text-yellow-600">${missingDataIssues.map(i => `<li>${i}</li>`).join('')}</ul>`;
+                missingDataAlert.classList.remove('hidden');
+                missingDataLink.onclick = () => window.location.href = `edit.html?id=${results[0]?.tableauId || ''}`;
+            } else {
+                missingDataAlert.classList.add('hidden');
+            }
+            textDiv.innerHTML = textContent;
+
+            if (graph.nodes.length === 0) {
+                graphContainer.innerHTML = '<p class="text-center text-gray-300">Aucune donnée à afficher.</p>';
+                tableBody.innerHTML = '';
+                adjustGraphHeight(graph);
+                return;
+            }
+            console.log('[Client] Nœuds du graphe:', graph.nodes.length);
+            const nodes = new vis.DataSet(graph.nodes);
+            const edges = new vis.DataSet(graph.edges);
+            graphInstance = new vis.Network(graphContainer, { nodes, edges }, {
+                layout: { 
+                    hierarchical: { 
+                        direction: 'UD', 
+                        sortMethod: 'directed', 
+                        nodeSpacing: 300, 
+                        levelSeparation: 200,
+                        treeSpacing: 200,
+                        blockShifting: true,
+                        edgeMinimization: true
+                    } 
+                },
+                interaction: { hover: true, zoomView: true, dragView: true },
+                nodes: { font: { size: 14 }, borderWidth: 2 },
+                edges: { width: 4, arrows: { to: { enabled: true } }, smooth: false, font: { size: 12 } },
+                physics: { enabled: false }
+            });
+
+            setTimeout(() => adjustGraphHeight(graph), 100);
+
+            graphInstance.on('click', params => {
+                if (params.edges.length > 0) {
+                    const edge = edges.get(params.edges[0]);
+                    if (edge.disjoncteur) {
+                        document.getElementById('mini-modal-title').textContent = `Liaison ${edge.from} → ${edge.to}`;
+                        document.getElementById('mini-modal-content').innerHTML = `
+                            <p><strong>Liaison :</strong> ${edge.from} → ${edge.to}</p>
+                            <p><strong>Disjoncteur :</strong> ${edge.disjoncteur.id}</p>
+                            <p><strong>Ir :</strong> ${edge.disjoncteur.irValue || 'N/A'}A</p>
+                            <p><strong>In :</strong> ${edge.disjoncteur.inValue || 'N/A'}A</p>
+                            <p><strong>Courbe :</strong> ${edge.disjoncteur.courbe || 'N/A'}</p>
+                        `;
+                        document.getElementById('mini-modal').classList.remove('hidden');
+                    }
+                } else if (params.nodes.length > 0) {
+                    const node = nodes.get(params.nodes[0]);
+                    if (node.group === 'tableau') {
+                        document.getElementById('mini-modal-title').textContent = `Tableau ${node.id}`;
+                        document.getElementById('mini-modal-content').innerHTML = `
+                            <p><strong>Tableau :</strong> ${node.id}</p>
+                            <p><strong>Statut :</strong> ${node.status}</p>
+                            <p><strong>Principal :</strong> ${node.disjoncteurs?.find(d => d.isPrincipal)?.id || 'Aucun'} (Ir=${node.disjoncteurs?.find(d => d.isPrincipal)?.irValue || 'N/A'}A)</p>
+                            <p><strong>Détails :</strong> ${node.disjoncteurs?.length || 0} disjoncteurs</p>
+                        `;
+                    } else if (node.group === 'principal') {
+                        document.getElementById('mini-modal-title').textContent = `Disjoncteur Principal ${node.label.split('\n')[0]}`;
+                        document.getElementById('mini-modal-content').innerHTML = `
+                            <p><strong>Disjoncteur :</strong> ${node.label.split('\n')[0]}</p>
+                            <p><strong>Tableau :</strong> ${node.id.split('-principal-')[0]}</p>
+                            <p><strong>Ir :</strong> ${node.label.match(/Ir=([\d.]+)A/)[1]}A</p>
+                            <p><strong>Rôle :</strong> Principal</p>
+                        `;
+                    } else if (node.group === 'non-principal') {
+                        document.getElementById('mini-modal-title').textContent = `Disjoncteur ${node.disjoncteur.id}`;
+                        document.getElementById('mini-modal-content').innerHTML = `
+                            <p><strong>Disjoncteur :</strong> ${node.disjoncteur.id}</p>
+                            <p><strong>Tableau :</strong> ${node.id.split('-non-principal-')[0]}</p>
+                            <p><strong>Ir :</strong> ${node.disjoncteur.irValue || 'N/A'}A</p>
+                            <p><strong>In :</strong> ${node.disjoncteur.inValue || 'N/A'}A</p>
+                            <p><strong>Courbe :</strong> ${node.disjoncteur.courbe || 'N/A'}</p>
+                            <p><strong>Liaison :</strong> ${node.disjoncteur.linkedTableauId || 'Aucune'}</p>
+                        `;
+                    }
+                    document.getElementById('mini-modal').classList.remove('hidden');
+                }
+            });
+
+            if (typeof gsap !== 'undefined') {
+                gsap.from('#global-graph', { opacity: 0, y: 50, duration: 1, ease: 'power2.out' });
+            }
+
+            tableBody.innerHTML = '';
+            results.forEach(result => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-3">${result.tableauId}</td>
+                    <td class="p-3 ${result.intraStatus === 'Parfait' ? 'text-green-600' : result.intraStatus === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${result.intraStatus}</td>
+                    <td class="p-3">${result.liaisons.map(l => `${l.disjoncteurId} → ${l.target}`).join(', ') || 'Aucune'}</td>
+                    <td class="p-3 ${result.interStatus === 'Parfait' ? 'text-green-600' : result.interStatus === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${result.interStatus}</td>
+                    <td class="p-3">${result.intraMessage}<br>${result.interMessage}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        function closeMiniModal() {
+            console.log('[Client] Fermeture du mini-modal');
+            document.getElementById('mini-modal').classList.add('hidden');
+        }
+
+        window.onload = function() {
+            console.log('[Client] Page selectivity.html chargée');
+            if (window.location.protocol === 'file:') {
+                alert('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/selectivity.html) pour accéder à l\'API.');
+                return;
+            }
+            try {
+                const miniModal = document.getElementById('mini-modal');
+                miniModal.classList.add('hidden');
+                const buildingFilter = document.getElementById('building-filter');
+                const tableauFilter = document.getElementById('tableau-filter');
+                if (buildingFilter && tableauFilter) {
+                    buildingFilter.addEventListener('change', () => {
+                        console.log('[Client] Filtre bâtiment changé:', buildingFilter.value);
+                        filterData();
+                    });
+                    tableauFilter.addEventListener('change', () => {
+                        console.log('[Client] Filtre tableau changé:', tableauFilter.value);
+                        filterData();
+                    });
+                    console.log('[Client] Gestionnaires d\'événements attachés');
+                    console.log('[Client] Building filter styles:', window.getComputedStyle(buildingFilter).cursor);
+                    console.log('[Client] Tableau filter styles:', window.getComputedStyle(tableauFilter).cursor);
+                } else {
+                    console.error('[Client] Éléments de filtre non trouvés lors de l\'initialisation');
+                }
+                chargerTableaux();
+            } catch (error) {
+                console.error('[Client] Erreur lors de l’initialisation:', error.message, error.stack);
+            }
+        };
+    </script>
+</body>
+</html>

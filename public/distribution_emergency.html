@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Urgence Distribution - Autonomix Elec</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white">
+    <nav class="bg-blue-700 p-4 sticky top-0 z-50 shadow-lg">
+        <ul class="flex space-x-6 text-white font-semibold">
+            <li><a href="index.html" class="hover:text-yellow-300 transition"><i class="fas fa-home mr-2"></i>Accueil</a></li>
+            <li><a href="create.html" class="hover:text-yellow-300 transition"><i class="fas fa-plus-circle mr-2"></i>Créer un tableau</a></li>
+            <li><a href="view.html" class="hover:text-yellow-300 transition"><i class="fas fa-table mr-2"></i>Voir les tableaux</a></li>
+            <li><a href="selectivity.html" class="hover:text-yellow-300 transition"><i class="fas fa-shield-alt mr-2"></i>Sélectivité</a></li>
+            <li><a href="obsolescence.html" class="hover:text-yellow-300 transition"><i class="fas fa-clock mr-2"></i>Obsolescence</a></li>
+            <li><a href="fault_level_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-bolt mr-2"></i>Évaluation du Niveau de Défaut</a></li>
+            <li><a href="hazards_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-exclamation-triangle mr-2"></i>Évaluation des Risques</a></li>
+            <li><a href="maintenance_chart.html" class="hover:text-yellow-300 transition"><i class="fas fa-sitemap mr-2"></i>Organigramme Maintenance</a></li>
+            <li><a href="distribution_emergency.html" class="text-yellow-300"><i class="fas fa-siren mr-2"></i>Urgence Distribution</a></li>
+            <li><a href="reports.html" class="hover:text-yellow-300 transition"><i class="fas fa-file-pdf mr-2"></i>Rapports</a></li>
+        </ul>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        <h1 class="text-3xl font-bold mb-6 flex items-center"><i class="fas fa-siren mr-3"></i>Urgence Distribution Électrique</h1>
+
+        <!-- Filtres -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg flex space-x-4">
+            <div>
+                <label for="building-filter" class="block text-sm font-medium">Filtrer par Bâtiment</label>
+                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600">
+                    <option value="">Tous les bâtiments</option>
+                </select>
+            </div>
+            <div>
+                <label for="tableau-filter" class="block text-sm font-medium">Filtrer par Tableau</label>
+                <select id="tableau-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600">
+                    <option value="">Tous les tableaux</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
+            <ul class="list-disc pl-6 text-gray-300">
+                <li>Filtrez par bâtiment ou tableau pour identifier les urgences potentielles.</li>
+                <li>Le tableau liste les disjoncteurs critiques (ex. Ik > Icn, obsolescence, données manquantes).</li>
+                <li>Cliquez sur l’icône <i class="fas fa-eye"></i> pour voir les détails et les actions recommandées.</li>
+                <li>Le graphique montre le nombre d’urgences par catégorie (pannes, risques, maintenance).</li>
+                <li>Utilisez le bouton "Signaler une Panne" pour enregistrer un incident.</li>
+            </ul>
+        </div>
+
+        <!-- Bouton Signaler une Panne -->
+        <div class="mb-6">
+            <button id="report-issue" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"><i class="fas fa-exclamation-circle mr-2"></i>Signaler une Panne</button>
+        </div>
+
+        <!-- Tableau des Urgences -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-table mr-2"></i>Tableau des Urgences</h2>
+            <table class="w-full border-collapse">
+                <thead>
+                    <tr class="bg-gray-700">
+                        <th class="border border-gray-600 p-2">Tableau</th>
+                        <th class="border border-gray-600 p-2">Disjoncteur ID</th>
+                        <th class="border border-gray-600 p-2">Type d’Urgence</th>
+                        <th class="border border-gray-600 p-2">Priorité</th>
+                        <th class="border border-gray-600 p-2">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="emergency-table-body"></tbody>
+            </table>
+        </div>
+
+        <!-- Graphique des Urgences -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-chart-pie mr-2"></i>Répartition des Urgences</h2>
+            <canvas id="emergency-chart" class="w-full h-96"></canvas>
+        </div>
+
+        <!-- Modal Signaler une Panne -->
+        <div id="modal-report" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full animate-zoom-in">
+                <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-exclamation-circle mr-2"></i>Signaler une Panne</h2>
+                <div class="mb-4">
+                    <label for="tableau-id" class="block text-sm font-medium">Tableau</label>
+                    <select id="tableau-id" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full"></select>
+                </div>
+                <div class="mb-4">
+                    <label for="disjoncteur-id" class="block text-sm font-medium">Disjoncteur</label>
+                    <input id="disjoncteur-id" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="ID du disjoncteur">
+                </div>
+                <div class="mb-4">
+                    <label for="description" class="block text-sm font-medium">Description</label>
+                    <textarea id="description" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" rows="4" placeholder="Décrivez le problème"></textarea>
+                </div>
+                <div class="flex space-x-4">
+                    <button id="submit-report" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"><i class="fas fa-check mr-2"></i>Envoyer</button>
+                    <button id="close-report" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Annuler</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Détails -->
+        <div id="modal-details" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full animate-zoom-in">
+                <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-info-circle mr-2"></i>Détails de l’Urgence</h2>
+                <div id="modal-content" class="mb-4 text-gray-300"></div>
+                <div class="flex space-x-4">
+                    <button id="edit-disjoncteur" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"><i class="fas fa-edit mr-2"></i>Modifier</button>
+                    <button id="close-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let tableauxData = [];
+        const currentYear = 2025;
+
+        // Charger les données
+        async function loadTableaux() {
+            try {
+                const response = await fetch('http://localhost:3000/api/fault-level');
+                const responseData = await response.json();
+                if (!response.ok) throw new Error(responseData.error || 'Erreur lors du chargement');
+                tableauxData = responseData.data;
+                console.log('[Client] Données chargées:', tableauxData);
+                populateFilters();
+                renderEmergencyTable();
+                renderEmergencyChart();
+            } catch (error) {
+                console.error('[Client] Erreur chargement:', error);
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        // Remplir les filtres
+        function populateFilters() {
+            const buildingFilter = document.getElementById('building-filter');
+            const tableauFilter = document.getElementById('tableau-filter');
+            const tableauSelect = document.getElementById('tableau-id');
+            const buildings = [...new Set(tableauxData.map(t => t.building))].sort();
+            buildings.forEach(b => {
+                const option = document.createElement('option');
+                option.value = b;
+                option.textContent = b;
+                buildingFilter.appendChild(option);
+            });
+            tableauxData.forEach(t => {
+                const option = document.createElement('option');
+                option.value = t.id;
+                option.textContent = t.id;
+                tableauFilter.appendChild(option);
+                tableauSelect.appendChild(option.cloneNode(true));
+            });
+            buildingFilter.onchange = filterData;
+            tableauFilter.onchange = filterData;
+        }
+
+        // Filtrer les données
+        function filterData() {
+            const building = document.getElementById('building-filter').value;
+            const tableau = document.getElementById('tableau-filter').value;
+            const filteredData = tableauxData.filter(t => (!building || t.building === building) && (!tableau || t.id === tableau));
+            renderEmergencyTable(filteredData);
+            renderEmergencyChart(filteredData);
+        }
+
+        // Évaluer les urgences
+        function evaluateEmergency(disjoncteur, tableau) {
+            let type = 'Aucun';
+            let priority = 'Faible';
+            if (disjoncteur.ik && disjoncteur.icn && disjoncteur.ik > disjoncteur.icn) {
+                type = 'Risque Court-Circuit';
+                priority = 'Élevée';
+            } else if (disjoncteur.date && new Date(disjoncteur.date).getFullYear() + (disjoncteur.lifespan || 30) < currentYear) {
+                type = 'Obsolescence';
+                priority = 'Moyenne';
+            } else if (!disjoncteur.ue || !disjoncteur.section) {
+                type = 'Données Manquantes';
+                priority = 'Moyenne';
+            }
+            return { type, priority };
+        }
+
+        // Rendre le tableau des urgences
+        function renderEmergencyTable(data = tableauxData) {
+            const tbody = document.getElementById('emergency-table-body');
+            tbody.innerHTML = '';
+            data.forEach(tableau => {
+                tableau.disjoncteurs.forEach(disjoncteur => {
+                    const emergency = evaluateEmergency(disjoncteur, tableau);
+                    if (emergency.type !== 'Aucun') {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="border border-gray-600 p-2">${tableau.id}</td>
+                            <td class="border border-gray-600 p-2">${disjoncteur.id}</td>
+                            <td class="border border-gray-600 p-2">${emergency.type}</td>
+                            <td class="border border-gray-600 p-2 ${emergency.priority === 'Élevée' ? 'text-red-600' : emergency.priority === 'Moyenne' ? 'text-yellow-400' : 'text-green-600'}">${emergency.priority}</td>
+                            <td class="border border-gray-600 p-2">
+                                <button class="action-btn text-blue-400 hover:text-blue-600" onclick="openModal('${tableau.id}', '${disjoncteur.id}')"><i class="fas fa-eye"></i></button>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    }
+                });
+            });
+            gsap.from('tr', { opacity: 0, y: 20, duration: 0.5, stagger: 0.1 });
+        }
+
+        // Rendre le graphique des urgences
+        function renderEmergencyChart(data = tableauxData) {
+            const ctx = document.getElementById('emergency-chart').getContext('2d');
+            const counts = { risque: 0, obsolescence: 0, donnees: 0 };
+            data.forEach(tableau => {
+                tableau.disjoncteurs.forEach(disjoncteur => {
+                    const emergency = evaluateEmergency(disjoncteur, tableau);
+                    if (emergency.type === 'Risque Court-Circuit') counts.risque++;
+                    else if (emergency.type === 'Obsolescence') counts.obsolescence++;
+                    else if (emergency.type === 'Données Manquantes') counts.donnees++;
+                });
+            });
+
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Risque Court-Circuit', 'Obsolescence', 'Données Manquantes'],
+                    datasets: [{ data: [counts.risque, counts.obsolescence, counts.donnees], backgroundColor: ['#dc2626', '#f4b400', '#22c55e'] }]
+                },
+                options: {
+                    plugins: { legend: { labels: { color: '#FFF' } } },
+                    animation: { duration: 1500, easing: 'easeOutBounce' }
+                }
+            });
+            gsap.from('#emergency-chart', { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+        }
+
+        // Gérer le modal de signalement
+        document.getElementById('report-issue').onclick = () => {
+            document.getElementById('modal-report').classList.remove('hidden');
+        };
+        document.getElementById('close-report').onclick = () => {
+            document.getElementById('modal-report').classList.add('hidden');
+        };
+        document.getElementById('submit-report').onclick = async () => {
+            try {
+                const tableauId = document.getElementById('tableau-id').value;
+                const disjoncteurId = document.getElementById('disjoncteur-id').value;
+                const description = document.getElementById('description').value;
+                const response = await fetch('http://localhost:3000/api/emergency-report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tableauId, disjoncteurId, description })
+                });
+                const responseData = await response.json();
+                if (!response.ok) throw new Error(responseData.error || 'Erreur lors du signalement');
+                console.log('[Client] Panne signalée:', responseData.data);
+                alert('Panne signalée avec succès !');
+                document.getElementById('modal-report').classList.add('hidden');
+            } catch (error) {
+                console.error('[Client] Erreur signalement:', error.message);
+                alert('Erreur : ' + error.message);
+            }
+        };
+
+        // Gérer le modal de détails
+        function openModal(tableauId, disjoncteurId) {
+            const modal = document.getElementById('modal-details');
+            const tableau = tableauxData.find(t => t.id === tableauId);
+            const disjoncteur = tableau.disjoncteurs.find(d => d.id === disjoncteurId);
+            const emergency = evaluateEmergency(disjoncteur, tableau);
+            const content = `
+                <p><strong>Tableau :</strong> ${tableauId}</p>
+                <p><strong>Disjoncteur :</strong> ${disjoncteur.id}</p>
+                <p><strong>Type d’Urgence :</strong> ${emergency.type}</p>
+                <p><strong>Priorité :</strong> ${emergency.priority}</p>
+                <h3 class="text-lg font-semibold mt-4">Actions Recommandées :</h3>
+                <ul class="list-disc pl-6">
+                    ${emergency.type === 'Risque Court-Circuit' ? '<li>Remplacer le disjoncteur par un modèle avec Icn supérieur.</li>' : ''}
+                    ${emergency.type === 'Obsolescence' ? '<li>Planifier le remplacement du disjoncteur.</li>' : ''}
+                    ${emergency.type === 'Données Manquantes' ? '<li>Compléter les données manquantes (Ue, section).</li>' : ''}
+                </ul>
+            `;
+            document.getElementById('modal-content').innerHTML = content;
+            modal.classList.remove('hidden');
+            document.getElementById('edit-disjoncteur').onclick = () => window.location.href = `edit.html?id=${tableauId}`;
+            document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
+        }
+
+        // Initialisation
+        window.onload = loadTableaux;
+    </script>
+</body>
+</html>

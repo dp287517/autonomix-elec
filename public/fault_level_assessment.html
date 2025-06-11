@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomix Elec - Évaluation du Niveau de Défaut</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/dist/vis-network.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/dist/dist/vis-network.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white font-sans">
+    <nav class="bg-blue-700 p-4 shadow-lg fixed w-full top-0 z-50">
+        <ul class="flex space-x-6 justify-center">
+            <li><a href="index.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-home"></i> Accueil</a></li>
+            <li><a href="create.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-plus-circle"></i> Créer un tableau</a></li>
+            <li><a href="view.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-table"></i> Voir les tableaux</a></li>
+            <li><a href="selectivity.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-link"></i> Sélectivité</a></li>
+            <li><a href="obsolescence.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-clock"></i> Obsolescence</a></li>
+            <li><a href="fault_level_assessment.html" class="text-yellow-300 font-bold"><i class="fas fa-bolt"></i> Évaluation du Niveau de Défaut</a></li>
+        </ul>
+    </nav>
+
+    <div class="container mx-auto mt-28 p-6 flex">
+        <!-- Tableau principal -->
+        <div class="flex-1 pr-4">
+            <h1 class="text-3xl font-bold mb-6">Évaluation du Niveau de Défaut</h1>
+            <div class="mb-6 bg-gray-800 p-4 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4">Qu’est-ce que l’évaluation du niveau de défaut ?</h2>
+                <p class="mb-2">Imaginez votre installation électrique comme une rivière. Un court-circuit est comme un torrent soudain qui peut tout emporter. Cette page vérifie si vos disjoncteurs (les barrages) peuvent arrêter ce torrent.</p>
+                <p class="mb-2"><strong>Ik (courant de court-circuit)</strong> : La force du torrent, mesurée en kiloampères (kA). Elle dépend de la tension (Ue), de la longueur du câble, et de sa section. Plus le câble est long ou gros, moins le torrent est fort.</p>
+                <p class="mb-2"><strong>Icn (pouvoir de coupure)</strong> : La solidité du barrage, aussi en kA. C’est la capacité du disjoncteur à bloquer un court-circuit sans se casser.</p>
+                <p class="mb-2"><strong>Risque</strong> : Si le torrent (Ik) est plus fort que le barrage (Icn), le disjoncteur risque de céder (statut KO). Sinon, il tient bon (statut OK).</p>
+                <p><strong>Exemple</strong> : Le disjoncteur 400Q1 Compresseur a un Icn de 4,5 kA. Si Ik atteint 6 kA, il est en danger (KO). Vous devriez renforcer le barrage (changer le disjoncteur) ou réduire le torrent (allonger le câble).</p>
+            </div>
+
+            <div class="mb-6 flex space-x-4">
+                <div>
+                    <label for="building-filter" class="block text-sm mb-1">Filtrer par bâtiment</label>
+                    <select id="building-filter" class="bg-gray-700 text-white p-2 rounded">
+                        <option value="">Tous les bâtiments</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="tableau-filter" class="block text-sm mb-1">Filtrer par tableau</label>
+                    <select id="tableau-filter" class="bg-gray-700 text-white p-2 rounded">
+                        <option value="">Tous les tableaux</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mb-6 bg-gray-800 p-4 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-4"><i class="fas fa-info-circle"></i> Comment utiliser cette page</h2>
+                <ul class="list-disc list-inside space-y-2">
+                    <li>Filtrez par bâtiment ou tableau pour cibler vos disjoncteurs.</li>
+                    <li>Vérifiez le tableau : Ik (torrent), Icn (barrage), et statut (OK/KO).</li>
+                    <li>Cliquez sur <i class="fas fa-chart-line"></i> pour afficher les détails dans le panneau latéral.</li>
+                    <li>Les disjoncteurs principaux ont un câble minimum de 5 m, les autres de 20 m pour limiter Ik.</li>
+                    <li>Le schéma montre les connexions (ex. 01-9-G sous 02-9-G). Cliquez pour explorer les sous-tableaux.</li>
+                    <li>Le graphique à bulles montre tous les disjoncteurs : Ik (axe X) vs Icn (axe Y). Les bulles rouges (Ik > Icn) indiquent un risque.</li>
+                    <li>Si des données manquent, complétez-les via le panneau latéral.</li>
+                </ul>
+            </div>
+
+            <div id="missing-data-alert" class="alert-missing hidden mb-6">
+                <p>Certaines données (Ue, section, longueur de câble) sont manquantes pour <span id="missing-count"></span> disjoncteurs. Cliquez sur <i class="fas fa-chart-line"></i> pour les compléter.</p>
+            </div>
+
+            <div id="no-linked-tableau-alert" class="alert-missing hidden mb-6">
+                <p>Aucune liaison entre tableaux n’a été détectée (ex. 01-9-G lié à 02-9-G). Utilisez <a href="edit.html" class="text-blue-400 underline">Modifier</a> pour ajouter des tableaux avals.</p>
+            </div>
+
+            <div id="high-ik-alert" class="alert-missing hidden mb-6">
+                <p>Certains disjoncteurs ont un Ik > 100 kA, ce qui est irréaliste. Vérifiez les données (longueur de câble, section, impédance) dans le panneau latéral.</p>
+            </div>
+
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold mb-4"><i class="fas fa-table"></i> Tableau des disjoncteurs</h2>
+                <table class="w-full gantt">
+                    <thead>
+                        <tr>
+                            <th>Tableau</th>
+                            <th>Disjoncteur ID</th>
+                            <th>Marque</th>
+                            <th>Référence</th>
+                            <th title="Tension nominale (V)">Ue (V)</th>
+                            <th title="Pouvoir de coupure (kA)">Icn (kA)</th>
+                            <th title="Courant de court-circuit calculé (kA)">Ik (kA)</th>
+                            <th>Statut</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="disjoncteurs-table"></tbody>
+                </table>
+            </div>
+
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold mb-4"><i class="fas fa-chart-scatter"></i> Graphique à bulles : Ik vs Icn</h2>
+                <p class="mb-4">Ce graphique montre tous les disjoncteurs avec Ik (axe X) et Icn (axe Y). Les bulles rouges indiquent un risque (Ik > Icn), les vertes sont sécurisées (Ik ≤ Icn). La ligne diagonale représente la limite Icn = Ik.</p>
+                <canvas id="bubble-chart" class="bg-gray-800 p-4 rounded-lg" style="height: 400px;"></canvas>
+            </div>
+
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold mb-4"><i class="fas fa-sitemap"></i> Schéma électrique</h2>
+                <p class="mb-4">Ce schéma montre comment les tableaux et disjoncteurs sont connectés. Les disjoncteurs principaux sont en vert, les disjoncteurs à risque (Ik > Icn) en rouge, et ceux sans données en gris. Les liaisons indiquent les sous-tableaux (ex. 01-9-G sous 02-9-G).</p>
+                <div id="network-schema" class="bg-white p-4 rounded-lg border border-gray-300" style="height: 400px;"></div>
+            </div>
+        </div>
+
+        <!-- Panneau latéral pour les détails -->
+        <div id="details-panel" class="w-1/3 bg-gray-800 p-4 rounded-lg shadow-lg hidden">
+            <h2 class="text-xl font-bold mb-4">Détails du disjoncteur</h2>
+            <button id="close-panel" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 mb-4">Fermer</button>
+            <div id="panel-content"></div>
+            <div id="panel-error" class="text-red-600 hidden mt-2"></div>
+            <div id="panel-success" class="text-green-600 hidden mt-2"></div>
+            <div id="panel-impedance-info" class="text-gray-400 hidden mt-2"></div>
+            <div class="mt-4">
+                <h3 class="text-lg font-semibold mb-2">Graphique Ik vs Icn</h3>
+                <p class="mb-2">Ce graphique compare la force du courant de court-circuit (Ik) à la capacité du disjoncteur (Icn). Une barre rouge indique un risque (Ik > Icn).</p>
+                <canvas id="disjoncteur-chart" style="max-height: 200px;"></canvas>
+            </div>
+            <div class="mt-4 flex justify-end space-x-2">
+                <button id="update-cable-data" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Mettre à jour</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let tableauxData = [];
+        let panelChartInstance = null;
+        let bubbleChartInstance = null;
+        let networkInstance = null;
+        let lastClickTime = 0;
+
+        window.onload = () => {
+            console.log('[Client] Initialisation de la page');
+            if (typeof Chart === 'undefined') console.error('[Client] Chart.js non chargé');
+            if (typeof vis === 'undefined') console.error('[Client] Vis.js non chargé');
+            const panel = document.getElementById('details-panel');
+            if (panel) {
+                panel.classList.add('hidden');
+                console.log('[Client] Panneau caché au chargement');
+            }
+            // Attacher la délégation d'événements
+            document.removeEventListener('click', handleActionClick);
+            document.addEventListener('click', handleActionClick);
+            console.log('[Client] Gestionnaire d\'événements attaché au document');
+            loadTableaux();
+        };
+
+        async function loadTableaux() {
+            try {
+                console.log('[Client] Chargement des données FLA');
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 2000);
+                const response = await fetch('http://localhost:3000/api/fault-level', { 
+                    method: 'GET',
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
+                const data = await response.json();
+                console.log('[Client] Données reçues:', data);
+                tableauxData = data.data || [];
+                populateFilters();
+                renderTable();
+                renderBubbleChart();
+                renderNetwork();
+                updateMissingDataAlert();
+                checkHighIk();
+            } catch (error) {
+                console.error('[Client] Erreur chargement:', error);
+            }
+        }
+
+        async function loadTableauById(tableauId) {
+            try {
+                console.log('[Client] Chargement tableau', tableauId);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 2000);
+                const response = await fetch(`http://localhost:3000/api/tableaux/${tableauId}`, { 
+                    method: 'GET',
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
+                const data = await response.json();
+                console.log('[Client] Tableau reçu:', data.id);
+                return {
+                    id: data.id,
+                    building: data.id.split('-')[0] || 'Inconnu',
+                    disjoncteurs: data.disjoncteurs.map(d => ({
+                        ...d,
+                        ik: d.ik || null,
+                        icn: normalizeIcn(d.icn),
+                        tableauId: data.id
+                    }))
+                };
+            } catch (error) {
+                console.error('[Client] Erreur chargement tableau:', error);
+                return null;
+            }
+        }
+
+        function normalizeIcn(icn) {
+            if (!icn) return null;
+            const match = icn.match(/[\d.]+/);
+            return match ? parseFloat(match[0]) : null;
+        }
+
+        function populateFilters() {
+            const buildings = [...new Set(tableauxData.map(t => t.building))].sort();
+            const buildingFilter = document.getElementById('building-filter');
+            buildings.forEach(b => {
+                const option = document.createElement('option');
+                option.value = b;
+                option.textContent = b;
+                buildingFilter.appendChild(option);
+            });
+
+            const tableauFilter = document.getElementById('tableau-filter');
+            tableauxData.forEach(t => {
+                const option = document.createElement('option');
+                option.value = t.id;
+                option.textContent = t.id;
+                tableauFilter.appendChild(option);
+            });
+
+            buildingFilter.addEventListener('change', filterData);
+            tableauFilter.addEventListener('change', filterData);
+        }
+
+        function filterData() {
+            const building = document.getElementById('building-filter').value;
+            const tableau = document.getElementById('tableau-filter').value;
+            let filteredData = tableauxData;
+
+            if (building) filteredData = filteredData.filter(t => t.building === building);
+            if (tableau) filteredData = filteredData.filter(t => t.id === tableau);
+
+            renderTable(filteredData);
+            renderBubbleChart(filteredData);
+            renderNetwork(filteredData);
+        }
+
+        function checkHighIk() {
+            const highIk = tableauxData.flatMap(t => t.disjoncteurs.filter(d => d.ik && d.ik > 100));
+            const alert = document.getElementById('high-ik-alert');
+            alert.classList.toggle('hidden', highIk.length === 0);
+        }
+
+        function renderTable(data = tableauxData) {
+            console.log('[Client] Rendu du tableau avec', data.length, 'tableaux');
+            console.log('[Client] Contenu de tableauxData:', JSON.stringify(data.map(t => ({
+                id: t.id,
+                disjoncteurs: t.disjoncteurs.map(d => d.id)
+            })), null, 2));
+            const tbody = document.getElementById('disjoncteurs-table');
+            tbody.innerHTML = '';
+            data.forEach(tableau => {
+                tableau.disjoncteurs.forEach(d => {
+                    const row = document.createElement('tr');
+                    const ik = d.ik ? (d.ik >= 1 ? d.ik.toFixed(2) : d.ik.toFixed(3)) : 'N/A';
+                    const icn = d.icn ? parseFloat(d.icn).toFixed(2) : 'N/A';
+                    const status = d.ik != null && d.icn ? (d.ik <= d.icn ? 'OK' : 'KO') : 'Incomplet';
+                    // Nettoyer les IDs pour HTML
+                    const cleanTableauId = tableau.id.replace(/"/g, '"').replace(/'/g, "");
+                    const cleanDisjoncteurId = d.id.replace(/"/g, '"').replace(/'/g, "");
+                    row.innerHTML = `
+                        <td>${tableau.id}</td>
+                        <td>${d.id}</td>
+                        <td>${d.marque}</td>
+                        <td>${d.ref}</td>
+                        <td>${d.ue || 'N/A'}</td>
+                        <td>${icn}</td>
+                        <td>${ik}${ik !== 'N/A' && d.ik > 100 ? ' <span class="text-yellow-400">(Aberrant)</span>' : ''}</td>
+                        <td class="${status === 'OK' ? 'text-green-600' : status === 'KO' ? 'text-red-600' : ''}">${status}</td>
+                        <td>
+                            <button class="action-btn bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700" data-tableau-id="${cleanTableauId}" data-disjoncteur-id="${cleanDisjoncteurId}"><i class="fas fa-chart-line"></i></button>
+                            <a href="edit.html?id=${tableau.id}" class="bg-yellow-600 text-white px-2 py-1 rounded hover:bg-yellow-700"><i class="fas fa-edit"></i></a>
+                        </td>
+                    `;
+
+                    tbody.appendChild(row);
+                    console.log('[Client] Bouton créé pour:', { tableauId: tableau.id, disjoncteurId: d.id, cleanTableauId, cleanDisjoncteurId });
+                });
+            });
+            console.log('[Client] Tableau rendu avec', tbody.children.length, 'lignes');
+        }
+
+        function handleActionClick(event) {
+            const btn = event.target.closest('.action-btn');
+            if (!btn) {
+                console.log('[Client] Clic ignoré: pas un bouton .action-btn');
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            console.log('[Client] Clic détecté sur bouton d\'action');
+
+            const tableauId = btn.getAttribute('data-tableau-id');
+            const disjoncteurId = btn.getAttribute('data-disjoncteur-id');
+            console.log('[Client] Données du bouton:', { tableauId, disjoncteurId });
+
+            if (!tableauId || !disjoncteurId) {
+                console.error('[Client] Attributs data- manquants ou invalides:', { tableauId, disjoncteurId });
+                return;
+            }
+
+            const now = Date.now();
+            if (now - lastClickTime < 1000) {
+                console.log('[Client] Clic ignoré (trop rapide)', { timeSinceLast: now - lastClickTime });
+                return;
+            }
+            lastClickTime = now;
+
+            try {
+                // Nettoyer les IDs pour la comparaison
+                const cleanTableauId = tableauId.replace(/"/g, '"').replace(/'/g, "'").trim();
+                const cleanDisjoncteurId = disjoncteurId.replace(/"/g, '"').replace(/'/g, "'").trim();
+                console.log('[Client] IDs nettoyés pour recherche:', { cleanTableauId, cleanDisjoncteurId });
+                const tableau = tableauxData.find(t => t.id.trim() === cleanTableauId);
+                const disjoncteur = tableau?.disjoncteurs.find(d => d.id.trim() === cleanDisjoncteurId);
+                if (!tableau || !disjoncteur) {
+                    console.error('[Client] Erreur: Tableau ou disjoncteur non trouvé:', { cleanTableauId, cleanDisjoncteurId });
+                    console.log('[Client] Contenu de tableauxData pour diagnostic:', JSON.stringify(tableauxData.map(t => ({
+                        id: t.id,
+                        disjoncteurs: t.disjoncteurs.map(d => d.id)
+                    })), null, 2));
+                    return;
+                }
+                console.log('[Client] Appel de openPanel pour:', { cleanTableauId, cleanDisjoncteurId });
+                openPanel(cleanTableauId, cleanDisjoncteurId);
+            } catch (error) {
+                console.error('[Client] Erreur dans handleActionClick:', error.message);
+            }
+        }
+
+        function openPanel(tableauId, disjoncteurId) {
+            console.log('[Client] Ouverture panneau pour', tableauId, disjoncteurId);
+            try {
+                const tableau = tableauxData.find(t => t.id === tableauId);
+                const disjoncteur = tableau.disjoncteurs.find(d => d.id === disjoncteurId);
+                const panel = document.getElementById('details-panel');
+                const content = document.getElementById('panel-content');
+                const errorDiv = document.getElementById('panel-error');
+                const successDiv = document.getElementById('panel-success');
+                const impedanceInfo = document.getElementById('panel-impedance-info');
+
+                if (!tableau || !disjoncteur) {
+                    console.error('[Client] Tableau ou disjoncteur non trouvé:', tableauId, disjoncteurId);
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.textContent = 'Erreur : Disjoncteur ou tableau non trouvé.';
+                    return;
+                }
+
+                const ik = disjoncteur.ik ? (disjoncteur.ik >= 1 ? disjoncteur.ik.toFixed(2) : disjoncteur.ik.toFixed(3)) : 'N/A';
+                const icn = disjoncteur.icn ? parseFloat(disjoncteur.icn).toFixed(2) : 'N/A';
+                const status = disjoncteur.ik != null && disjoncteur.icn ? (disjoncteur.ik <= disjoncteur.icn ? 'OK' : 'KO') : 'Incomplet';
+                const isPrincipal = disjoncteur.isPrincipal;
+                const hasSubTableau = !!disjoncteur.linkedTableauId;
+
+                let impedanceDisplay = 'N/A';
+                if (disjoncteur.cableLength && disjoncteur.section && !disjoncteur.impedance) {
+                    const rho = 0.0175;
+                    const L = parseFloat(disjoncteur.cableLength);
+                    const sectionMatch = disjoncteur.section.match(/[\d.]+/);
+                    const S = sectionMatch ? parseFloat(sectionMatch[0]) : 2.5;
+                    const z = (rho * L * 2) / S; // *2 pour aller-retour
+                    impedanceDisplay = z.toFixed(4) + ' Ω';
+                } else if (disjoncteur.impedance) {
+                    impedanceDisplay = parseFloat(disjoncteur.impedance).toFixed(4) + ' Ω';
+                }
+
+                content.innerHTML = `
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <p><strong>ID:</strong> ${disjoncteur.id}</p>
+                            <p><strong>Tableau:</strong> ${tableau.id}</p>
+                            <p><strong>Marque:</strong> ${disjoncteur.marque}</p>
+                            <p><strong>Référence:</strong> ${disjoncteur.ref}</p>
+                            <p><strong>Principal:</strong> ${isPrincipal ? 'Oui' : 'Non'}</p>
+                            <p><strong>Sous-tableau:</strong> ${disjoncteur.linkedTableauId || 'Aucun'}</p>
+                        </div>
+                        <div>
+                            <p><strong>Ik calculé:</strong> ${ik} kA${ik !== 'N/A' && disjoncteur.ik > 100 ? ' (Aberrant)' : ''}</p>
+                            <p><strong>Icn:</strong> ${icn} kA</p>
+                            <p><strong>Statut:</strong> <span class="${status === 'OK' ? 'text-green-600' : status === 'KO' ? 'text-red-600' : ''}">${status}</span></p>
+                            <p><strong>Explication:</strong> ${status === 'OK' ? 'Le disjoncteur peut supporter le courant de court-circuit.' : status === 'KO' ? 'Le courant de court-circuit dépasse la capacité du disjoncteur. Remplacez-le par un modèle avec un Icn plus élevé ou ajustez l’installation.' : 'Complétez Ue, section, et longueur pour calculer Ik.'}</p>
+                        </div>
+                    </div>
+                    <hr class="my-4">
+                    <h3 class="text-lg font-semibold mb-2">Compléter les données</h3>
+                    <p class="mb-2">Saisissez les données ci-dessous pour calculer Ik. Les valeurs par défaut sont fournies pour simplifier la saisie.</p>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="ue" class="block text-sm font-medium mb-1">Tension nominale Ue (V) <span class="text-red-600">*</span></label>
+                            <input id="ue" type="text" value="${disjoncteur.ue || '400 V'}" class="bg-gray-100 text-gray-900 p-2 rounded w-full border border-gray-300 focus:ring-2 focus:ring-blue-500" placeholder="Ex. 400 V" required>
+                        </div>
+                        <div>
+                            <label for="section" class="block text-sm font-medium mb-1">Section de câble (mm²) <span class="text-red-600">*</span></label>
+                            <input id="section" type="text" value="${disjoncteur.section || '2.5 mm²'}" class="bg-gray-100 text-gray-900 p-2 rounded w-full border border-gray-300 focus:ring-2 focus:ring-blue-500" placeholder="Ex. 2.5 mm²" required>
+                        </div>
+                        <div>
+                            <label for="cable-length" class="block text-sm font-medium mb-1">Longueur de câble (m) ${isPrincipal ? '(Min. 5 m)' : hasSubTableau ? '<span class="text-red-600">* (Min. 20 m)</span>' : ''}</label>
+                            <input id="cable-length" type="number" value="${disjoncteur.cableLength || (isPrincipal ? 5 : 20)}" class="bg-gray-100 text-gray-900 p-2 rounded w-full border border-gray-300 focus:ring-2 focus:ring-blue-500" placeholder="Ex. ${isPrincipal ? 5 : 20}" ${hasSubTableau && !isPrincipal ? 'required' : ''}>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Mode d'impédance</label>
+                            <div class="radio-group">
+                                <label><input type="radio" name="impedance-mode" value="auto" ${!disjoncteur.impedance ? 'checked' : ''}> Calcul automatique (Z = ρ × L / S)</label>
+                                <label><input type="radio" name="impedance-mode" value="manual" ${disjoncteur.impedance ? 'checked' : ''}> Entrée manuelle</label>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="impedance" class="block text-sm font-medium mb-1">Impédance (Ω) ${disjoncteur.impedance ? '' : '(Désactivé en mode automatique)'}</label>
+                            <input id="impedance" type="number" step="0.01" value="${disjoncteur.impedance || ''}" class="bg-gray-100 text-gray-900 p-2 rounded w-full border border-gray-300 focus:ring-2 focus:ring-blue-500" placeholder="Ex. 0.35" ${!disjoncteur.impedance ? 'disabled' : ''}>
+                        </div>
+                    </div>
+                    <p class="text-sm text-gray-400 mt-2">* Champs obligatoires pour calculer Ik. ρ = 0.0175 Ω·mm²/m (cuivre).</p>
+                    <div class="mt-4">
+                        <h3 class="text-lg font-semibold mb-2">Données actuelles</h3>
+                        <table class="w-full border-collapse">
+                            <tr><th class="border p-2">Champ</th><th class="border p-2">Valeur</th></tr>
+                            <tr><td class="border p-2">Tension (Ue)</td><td class="border p-2">${disjoncteur.ue || 'N/A'}</td></tr>
+                            <tr><td class="border p-2">Section</td><td class="border p-2">${disjoncteur.section || 'N/A'}</td></tr>
+                            <tr><td class="border p-2">Longueur</td><td class="border p-2">${disjoncteur.cableLength || 'N/A'} m</td></tr>
+                            <tr><td class="border p-2">Impédance</td><td class="border p-2">${impedanceDisplay}</td></tr>
+                        </table>
+                    </div>
+                `;
+
+                console.log('[Client] Panneau rendu pour:', tableauId, disjoncteurId);
+                errorDiv.classList.add('hidden');
+                successDiv.classList.add('hidden');
+                impedanceInfo.classList.remove('hidden');
+                impedanceInfo.textContent = `Impédance actuelle : ${impedanceDisplay}`;
+                panel.classList.remove('hidden');
+
+                renderDisjoncteurChart(disjoncteur, tableauId);
+
+                const impedanceInput = document.getElementById('impedance');
+                const radioButtons = document.querySelectorAll('input[name="impedance-mode"]');
+                radioButtons.forEach(radio => {
+                    radio.addEventListener('click', () => {
+                        impedanceInput.disabled = radio.value === 'auto';
+                        impedanceInput.value = radio.value === 'auto' ? '' : impedanceInput.value || '0.35';
+                    });
+                });
+
+                const closePanelBtn = document.getElementById('close-panel');
+                closePanelBtn.onclick = () => {
+                    panel.classList.add('hidden');
+                    console.log('[Client] Panneau fermé');
+                };
+
+                document.getElementById('update-cable-data').onclick = async () => {
+                    const ue = document.getElementById('ue').value.trim();
+                    const section = document.getElementById('section').value.trim();
+                    const cableLength = document.getElementById('cable-length').value;
+                    const impedanceMode = document.querySelector('input[name="impedance-mode"]:checked').value;
+                    const impedance = impedanceMode === 'manual' ? document.getElementById('impedance').value : null;
+
+                    console.log('[Client] Données saisies:', { ue, section, cableLength, impedanceMode, impedance });
+
+                    if (!ue || !section || (hasSubTableau && !cableLength && !isPrincipal)) {
+                        errorDiv.classList.remove('hidden');
+                        errorDiv.textContent = 'Veuillez remplir tous les champs obligatoires (Ue, section, et longueur de câble pour les sous-tableaux).';
+                        successDiv.classList.add('hidden');
+                        return;
+                    }
+
+                    if (cableLength && parseFloat(cableLength) < (isPrincipal ? 5 : 20)) {
+                        errorDiv.classList.remove('hidden');
+                        errorDiv.textContent = `La longueur de câble doit être d’au moins ${isPrincipal ? 5 : 20} m.`;
+                        successDiv.classList.add('hidden');
+                        return;
+                    }
+
+                    if (impedanceMode === 'manual' && impedance && parseFloat(impedance) <= 0) {
+                        errorDiv.classList.remove('hidden');
+                        errorDiv.textContent = 'L’impédance manuelle doit être positive.';
+                        successDiv.classList.add('hidden');
+                        return;
+                    }
+
+                    try {
+                        console.log('[Client] Envoi mise à jour:', { tableauId, disjoncteurId, ue, section, cableLength, impedanceMode, impedance });
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 2000);
+                        const response = await fetch('http://localhost:3000/api/fault-level/update', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                tableauId,
+                                disjoncteurId,
+                                ue: ue || null,
+                                section: section || null,
+                                cableLength: cableLength ? parseFloat(cableLength) : isPrincipal ? 5 : 20,
+                                impedance: impedance ? parseFloat(impedance) : null
+                            }),
+                            signal: controller.signal
+                        });
+                        clearTimeout(timeoutId);
+                        const result = await response.json();
+                        console.log('[Client] Réponse serveur:', result);
+                        if (result.success) {
+                            console.log('[Client] Mise à jour réussie');
+                            successDiv.classList.remove('hidden');
+                            successDiv.textContent = 'Données mises à jour avec succès !';
+                            errorDiv.classList.add('hidden');
+                            await loadTableaux();
+                            setTimeout(() => panel.classList.add('hidden'), 1000);
+                        } else {
+                            errorDiv.classList.remove('hidden');
+                            errorDiv.textContent = result.error || 'Erreur lors de la mise à jour des données.';
+                            successDiv.classList.add('hidden');
+                            console.error('[Client] Erreur mise à jour:', result.error);
+                        }
+                    } catch (error) {
+                        errorDiv.classList.remove('hidden');
+                        errorDiv.textContent = 'Erreur réseau lors de la mise à jour. Vérifiez votre connexion.';
+                        successDiv.classList.add('hidden');
+                        console.error('[Client] Erreur mise à jour:', error);
+                    }
+                };
+            } catch (error) {
+                console.error('[Client] Erreur dans openPanel:', error);
+                const errorDiv = document.getElementById('panel-error');
+                errorDiv.classList.remove('hidden');
+                errorDiv.textContent = 'Erreur lors de l’ouverture du panneau.';
+            }
+        }
+
+        function renderDisjoncteurChart(disjoncteur, tableauId) {
+            console.log('[Client] Rendu du graphique pour disjoncteur:', disjoncteur.id);
+            const canvas = document.getElementById('disjoncteur-chart');
+            if (!canvas) {
+                console.error('[Client] Canvas disjoncteur-chart non trouvé');
+                return;
+            }
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                console.error('[Client] Contexte 2D non disponible');
+                return;
+            }
+
+            if (panelChartInstance) {
+                panelChartInstance.destroy();
+                console.log('[Client] Ancien graphique disjoncteur détruit');
+            }
+
+            const ik = disjoncteur.ik ? Math.min(disjoncteur.ik, 100) : 0; // Limiter à 100 kA
+            const icn = disjoncteur.icn ? parseFloat(disjoncteur.icn) : 0;
+            const labels = ['Ik (Court-circuit)', 'Icn (Capacité)'];
+            const data = [ik, icn];
+            const backgroundColors = [ik > icn ? '#EF4444' : '#10B981', '#FF4500'];
+
+            try {
+                panelChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: `Disjoncteur ${disjoncteur.id} (${tableauId})`,
+                            data,
+                            backgroundColor: backgroundColors
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: Math.max(ik, icn, 100),
+                                title: { display: true, text: 'kA' },
+                                grid: { color: '#4B5563' }
+                            },
+                            x: { grid: { display: false } }
+                        },
+                        plugins: {
+                            legend: { display: true, position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => {
+                                        const label = context.dataset.label || '';
+                                        const value = context.parsed.y;
+                                        return `${context.label}: ${value} kA ${context.label === 'Ik' && disjoncteur.ik > 100 ? '(Aberrant)' : context.label === 'Ik' && ik > icn ? '(Risque !)' : ''}`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                console.log('[Client] Graphique disjoncteur rendu avec succès');
+            } catch (error) {
+                console.error('[Client] Erreur rendu graphique disjoncteur:', error);
+            }
+        }
+
+        function updateMissingDataAlert() {
+            console.log('[Client] Mise à jour alerte données manquantes');
+            const missing = tableauxData.flatMap(t => t.disjoncteurs.filter(d => !d.ue || !d.section || (!d.cableLength && !d.impedance && !d.isPrincipal && d.linkedTableauId)));
+            const alert = document.getElementById('missing-data-alert');
+            const countSpan = document.getElementById('missing-count');
+            if (missing.length > 0) {
+                alert.classList.remove('hidden');
+                countSpan.textContent = missing.length;
+                console.log('[Client] Données manquantes détectées:', missing.length);
+            } else {
+                alert.classList.add('hidden');
+                console.log('[Client] Aucune donnée manquante');
+            }
+        }
+
+        // Ajout des fonctions manquantes
+        function renderBubbleChart(data = tableauxData) {
+            console.log('[Client] Rendu du graphique à bulles');
+            const canvas = document.getElementById('bubble-chart');
+            if (!canvas) {
+                console.error('[Client] Canvas bubble-chart non trouvé');
+                return;
+            }
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                console.error('[Client] Contexte 2D non disponible pour bubble-chart');
+                return;
+            }
+
+            // Détruire l'ancien graphique s'il existe
+            if (bubbleChartInstance) {
+                bubbleChartInstance.destroy();
+                console.log('[Client] Ancien graphique à bulles détruit');
+            }
+
+            const datasets = [];
+            let maxIk = 0;
+            let maxIcn = 0;
+
+            // Collecter les données valides
+            data.forEach(tableau => {
+                tableau.disjoncteurs.forEach(disjoncteur => {
+                    const ik = disjoncteur.ik ? parseFloat(disjoncteur.ik) : null;
+                    const icn = disjoncteur.icn ? parseFloat(disjoncteur.icn) : null;
+                    if (ik != null && icn != null && ik <= 100) {
+                        datasets.push({
+                            label: `${tableau.id} - ${disjoncteur.id}`,
+                            data: [{ x: ik, y: icn, r: 8 }],
+                            backgroundColor: ik > icn ? 'rgba(220, 38, 38, 0.7)' : 'rgba(34, 197, 94, 0.7)',
+                            borderColor: ik > icn ? '#dc2626' : '#22c55e',
+                            borderWidth: 1
+                        });
+                        maxIk = Math.max(maxIk, ik);
+                        maxIcn = Math.max(maxIcn, icn);
+                    }
+                });
+            });
+
+            // Vérifier s'il y a des données à afficher
+            if (datasets.length === 0) {
+                console.log('[Client] Aucune donnée valide pour le graphique à bulles');
+                const parent = canvas.parentElement;
+                const existingError = parent.querySelector('.error-message');
+                if (!existingError) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'text-red-600 mt-2 error-message';
+                    errorDiv.textContent = 'Aucune donnée valide pour afficher le graphique. Veuillez compléter les données des disjoncteurs.';
+                    parent.appendChild(errorDiv);
+                }
+                return;
+            }
+
+            // Supprimer tout message d'erreur existant
+            const existingError = canvas.parentElement.querySelector('.error-message');
+            if (existingError) {
+                existingError.remove();
+            }
+
+            // Ajouter la ligne diagonale Icn = Ik
+            const diagonalData = {
+                label: 'Icn = Ik',
+                data: [{ x: 0, y: 0 }, { x: maxIk * 1.1, y: maxIcn * 1.1 }],
+                type: 'line',
+                borderColor: '#4B5563',
+                borderWidth: 2,
+                fill: false,
+                pointRadius: 0
+            };
+
+            try {
+                bubbleChartInstance = new Chart(ctx, {
+                    type: 'bubble',
+                    data: { datasets: [...datasets, diagonalData] },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => context.dataset.label
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                title: { display: true, text: 'Ik (kA)', color: '#ffffff' },
+                                grid: { color: '#4B5563' },
+                                ticks: { color: '#ffffff' },
+                                min: 0,
+                                max: maxIk * 1.1
+                            },
+                            y: {
+                                title: { display: true, text: 'Icn (kA)', color: '#ffffff' },
+                                grid: { color: '#4B5563' },
+                                ticks: { color: '#ffffff' },
+                                min: 0,
+                                max: maxIcn * 1.1
+                            }
+                        }
+                    }
+                });
+                console.log('[Client] Graphique à bulles rendu avec succès');
+            } catch (error) {
+                console.error('[Client] Erreur rendu graphique à bulles:', error);
+            }
+        }
+
+        function renderNetwork(data = tableauxData) {
+            console.log('[Client] Rendu du schéma électrique');
+            const container = document.getElementById('network-schema');
+            if (!container) {
+                console.error('[Client] Conteneur network-schema non trouvé');
+                return;
+            }
+
+            // Détruire l'ancien réseau s'il existe
+            if (networkInstance) {
+                networkInstance.destroy();
+                console.log('[Client] Ancien réseau détruit');
+            }
+
+            const nodes = [];
+            const edges = [];
+            const nodeIds = new Set();
+            const tableauLevels = new Map(); // Map pour stocker le niveau de chaque tableau
+
+            // Étape 1 : Déterminer les niveaux des tableaux en fonction des relations linkedTableauId
+            function assignTableauLevels(tableauId, level = 0, visited = new Set()) {
+                if (visited.has(tableauId)) {
+                    console.warn(`[Client] Boucle détectée pour le tableau ${tableauId}`);
+                    return;
+                }
+                visited.add(tableauId);
+
+                // Assigner le niveau actuel au tableau
+                if (!tableauLevels.has(tableauId)) {
+                    tableauLevels.set(tableauId, level);
+                } else {
+                    // Mettre à jour si un niveau plus profond est trouvé
+                    tableauLevels.set(tableauId, Math.max(tableauLevels.get(tableauId), level));
+                }
+
+                // Trouver les sous-tableaux liés à ce tableau
+                const tableau = data.find(t => t.id === tableauId);
+                if (!tableau) return;
+
+                tableau.disjoncteurs.forEach(disjoncteur => {
+                    if (disjoncteur.linkedTableauId) {
+                        assignTableauLevels(disjoncteur.linkedTableauId, level + 3, new Set(visited));
+                    }
+                });
+            }
+
+            // Initialiser les niveaux pour tous les tableaux
+            data.forEach(tableau => assignTableauLevels(tableau.id));
+
+            // Étape 2 : Créer les nœuds des tableaux
+            data.forEach(tableau => {
+                const tableauId = `tableau-${tableau.id}`;
+                if (!nodeIds.has(tableauId)) {
+                    const level = tableauLevels.get(tableau.id) || 0;
+                    nodes.push({
+                        id: tableauId,
+                        label: tableau.id,
+                        shape: 'box',
+                        color: { background: '#ffffff', border: '#000000' },
+                        level: level
+                    });
+                    nodeIds.add(tableauId);
+                }
+            });
+
+            // Étape 3 : Créer les nœuds des disjoncteurs
+            data.forEach(tableau => {
+                const tableauId = `tableau-${tableau.id}`;
+                const baseLevel = tableauLevels.get(tableau.id) || 0;
+                const principaux = tableau.disjoncteurs.filter(d => d.isPrincipal);
+                const nonPrincipaux = tableau.disjoncteurs.filter(d => !d.isPrincipal);
+
+                // Disjoncteurs principaux (niveau baseLevel + 1)
+                principaux.forEach(disjoncteur => {
+                    const disjoncteurId = `disjoncteur-${tableau.id}-${disjoncteur.id}`;
+                    if (!nodeIds.has(disjoncteurId)) {
+                        nodes.push({
+                            id: disjoncteurId,
+                            label: disjoncteur.id,
+                            shape: 'box',
+                            color: { background: '#d4edda', border: '#22c55e' },
+                            level: baseLevel + 1
+                        });
+                        nodeIds.add(disjoncteurId);
+                        edges.push({ from: tableauId, to: disjoncteurId });
+                    }
+                });
+
+                // Disjoncteurs non principaux (niveau baseLevel + 2)
+                nonPrincipaux.forEach(disjoncteur => {
+                    const disjoncteurId = `disjoncteur-${tableau.id}-${disjoncteur.id}`;
+                    if (!nodeIds.has(disjoncteurId)) {
+                        let color;
+                        if (disjoncteur.ik != null && disjoncteur.icn && disjoncteur.ik > disjoncteur.icn) {
+                            color = { background: '#fee2e2', border: '#dc2626' };
+                        } else if (!disjoncteur.ik || !disjoncteur.icn) {
+                            color = { background: '#D1D5DB', border: '#6B7280' };
+                        } else {
+                            color = { background: '#ffffff', border: '#000000' };
+                        }
+                        nodes.push({
+                            id: disjoncteurId,
+                            label: disjoncteur.id,
+                            shape: 'box',
+                            color,
+                            level: baseLevel + 2
+                        });
+                        nodeIds.add(disjoncteurId);
+
+                        // Connecter au premier disjoncteur principal ou au tableau
+                        if (principaux.length > 0) {
+                            const principalId = `disjoncteur-${tableau.id}-${principaux[0].id}`;
+                            edges.push({ from: principalId, to: disjoncteurId });
+                        } else {
+                            edges.push({ from: tableauId, to: disjoncteurId });
+                        }
+                    }
+                });
+            });
+
+            // Étape 4 : Créer les connexions aux sous-tableaux
+            data.forEach(tableau => {
+                tableau.disjoncteurs.forEach(disjoncteur => {
+                    if (disjoncteur.linkedTableauId) {
+                        const disjoncteurId = `disjoncteur-${tableau.id}-${disjoncteur.id}`;
+                        const toId = `tableau-${disjoncteur.linkedTableauId}`;
+                        if (nodeIds.has(toId)) {
+                            edges.push({ from: disjoncteurId, to: toId, dashes: true });
+                        } else {
+                            console.warn(`[Client] Sous-tableau ${disjoncteur.linkedTableauId} non trouvé pour ${disjoncteurId}`);
+                        }
+                    }
+                });
+            });
+
+            // Vérifier s'il y a des données à afficher
+            if (nodes.length === 0) {
+                console.log('[Client] Aucune donnée valide pour le schéma électrique');
+                const existingError = container.querySelector('.error-message');
+                if (!existingError) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'text-red-600 mt-2 error-message';
+                    errorDiv.textContent = 'Aucune donnée valide pour afficher le schéma. Veuillez vérifier les données des tableaux.';
+                    container.appendChild(errorDiv);
+                }
+                return;
+            }
+
+            // Supprimer tout message d'erreur existant
+            const existingError = container.querySelector('.error-message');
+            if (existingError) {
+                existingError.remove();
+            }
+
+            try {
+                const visData = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
+                const options = {
+                    nodes: {
+                        font: { size: 12, color: '#000000' },
+                        borderWidth: 2,
+                        widthConstraint: { minimum: 80, maximum: 150 }, // Réduire la taille des nœuds
+                        shapeProperties: { borderRadius: 6 }
+                    },
+                    edges: {
+                        width: 2,
+                        color: '#000000',
+                        smooth: { type: 'curvedCW', roundness: 0.2 }
+                    },
+                    physics: {
+                        enabled: true, // Activer la physique pour les grands graphes
+                        hierarchicalRepulsion: {
+                            centralGravity: 0.0,
+                            springLength: 100,
+                            springConstant: 0.01,
+                            nodeDistance: 120,
+                            damping: 0.09
+                        },
+                        solver: 'hierarchicalRepulsion'
+                    },
+                    layout: {
+                        hierarchical: {
+                            enabled: true,
+                            levelSeparation: 250, // Plus d'espace vertical
+                            nodeSpacing: 120, // Espace horizontal réduit
+                            treeSpacing: 200,
+                            direction: 'UD',
+                            sortMethod: 'directed',
+                            shakeTowards: 'roots'
+                        }
+                    },
+                    interaction: {
+                        hover: true,
+                        zoomView: true,
+                        dragView: true,
+                        navigationButtons: true // Ajouter des boutons de navigation
+                    },
+                    manipulation: { enabled: false }
+                };
+                networkInstance = new vis.Network(container, visData, options);
+                console.log('[Client] Schéma électrique rendu avec succès', { nodes: nodes.length, edges: edges.length, levels: [...tableauLevels.entries()] });
+            } catch (error) {
+                console.error('[Client] Erreur rendu schéma électrique:', error);
+            }
+        }
+    </script>
+</body>
+</html>

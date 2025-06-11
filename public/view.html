@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomix Elec - Voir les tableaux</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-gray-900 text-white font-sans">
+    <nav class="bg-blue-700 p-4 shadow-lg fixed w-full top-0 z-50">
+        <ul class="flex space-x-6 justify-center">
+            <li><a href="index.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-home"></i> Accueil</a></li>
+            <li><a href="create.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-plus-circle"></i> Créer un tableau</a></li>
+            <li><a href="view.html" class="text-yellow-300 font-bold"><i class="fas fa-table"></i> Voir les tableaux</a></li>
+            <li><a href="selectivity.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-link"></i> Sélectivité</a></li>
+            <li><a href="obsolescence.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-clock"></i> Obsolescence</a></li>
+            <li><a href="fault_level_assessment.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-bolt"></i> Évaluation du Niveau de Défaut</a></li>
+        </ul>
+    </nav>
+
+    <div class="container mx-auto mt-28 p-6">
+        <h1 class="text-3xl font-bold text-center mb-6">Liste des tableaux électriques</h1>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-2xl font-semibold mb-4">Comment utiliser cette page</h2>
+            <ol class="list-decimal list-inside space-y-2">
+                <li>Consultez la liste des tableaux enregistrés.</li>
+                <li>Filtrez par bâtiment en entrant un numéro (ex. 27).</li>
+                <li>Cliquez sur "Modifier" pour éditer un tableau.</li>
+                <li>Cliquez sur "Supprimer" pour supprimer un tableau (une confirmation sera demandée).</li>
+                <li>Revenez à la page <a href="create.html" class="text-blue-400 underline">Créer un tableau</a> pour ajouter un nouveau tableau.</li>
+            </ol>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Filtrer par bâtiment</h2>
+            <div class="flex space-x-4">
+                <input id="batiment-filter" type="text" class="bg-gray-700 text-white p-2 border rounded w-full" placeholder="Ex. 27">
+                <button onclick="filtrerTableaux()" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Filtrer</button>
+                <button onclick="resetFiltre()" class="bg-gray-600 text-white p-2 rounded hover:bg-gray-700">Réinitialiser</button>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-md">
+            <table id="tableaux-table" class="w-full">
+                <thead>
+                    <tr class="bg-gray-700">
+                        <th class="p-2">Identifiant</th>
+                        <th class="p-2">Bâtiment</th>
+                        <th class="p-2">Disjoncteurs</th>
+                        <th class="p-2">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="popup" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <p id="popup-message" class="mb-4 text-gray-900"></p>
+            <div class="flex space-x-4">
+                <button id="popup-confirm" class="bg-green-600 text-white p-2 rounded hover:bg-green-700">Confirmer</button>
+                <button id="popup-cancel" class="bg-red-600 text-white p-2 rounded hover:bg-red-700">Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let tableaux = [];
+
+        async function chargerTableaux() {
+            console.log('[Client] Chargement tableaux');
+            try {
+                const response = await fetch('http://localhost:3000/api/tableaux');
+                if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
+                tableaux = await response.json();
+                console.log('[Client] Tableaux chargés:', tableaux.length);
+                filtrerTableaux();
+            } catch (error) {
+                console.error('[Client] Erreur chargement tableaux:', error);
+                showPopup('Erreur lors du chargement des tableaux.', () => hidePopup());
+            }
+        }
+
+        function filtrerTableaux() {
+            console.log('[Client] Filtrage tableaux');
+            const batimentFilter = document.getElementById('batiment-filter').value.trim();
+            console.log('[Client] Filtre bâtiment:', batimentFilter);
+            const tbody = document.querySelector('#tableaux-table tbody');
+            tbody.innerHTML = '';
+            const filteredTableaux = batimentFilter
+                ? tableaux.filter(tableau => tableau.id.split('-')[0] === batimentFilter)
+                : tableaux;
+            console.log('[Client] Tableaux filtrés:', filteredTableaux.length);
+            filteredTableaux.forEach(tableau => {
+                const batiment = tableau.id.split('-')[0];
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-2">${tableau.id}</td>
+                    <td class="p-2">${batiment}</td>
+                    <td class="p-2">${tableau.disjoncteurs.length}</td>
+                    <td class="p-2">
+                        <a href="edit.html?id=${tableau.id}" class="bg-blue-600 text-white p-1 rounded hover:bg-blue-700">Modifier</a>
+                        <button onclick="supprimerTableau('${tableau.id}')" class="bg-red-600 text-white p-1 rounded hover:bg-red-700">Supprimer</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            if (filteredTableaux.length === 0) {
+                console.log('[Client] Aucun tableau trouvé pour le filtre');
+                tbody.innerHTML = '<tr><td colspan="4" class="p-2 text-center">Aucun tableau trouvé</td></tr>';
+            }
+        }
+
+        function resetFiltre() {
+            console.log('[Client] Réinitialisation filtre');
+            document.getElementById('batiment-filter').value = '';
+            filtrerTableaux();
+        }
+
+        function supprimerTableau(id) {
+            console.log('[Client] Suppression tableau:', id);
+            showPopup(`Voulez-vous supprimer le tableau ${id} ?`, async () => {
+                try {
+                    const response = await fetch(`http://localhost:3000/api/tableaux/${id}`, {
+                        method: 'DELETE'
+                    });
+                    if (response.ok) {
+                        console.log(`[Client] Tableau ${id} supprimé`);
+                        await chargerTableaux();
+                        hidePopup();
+                    } else {
+                        const error = await response.json();
+                        console.error('[Client] Erreur suppression serveur:', error);
+                        showPopup(`Erreur lors de la suppression : ${error.error || 'Erreur inconnue.'}`, () => hidePopup());
+                    }
+                } catch (error) {
+                    console.error('[Client] Erreur suppression:', error);
+                    showPopup('Erreur réseau lors de la suppression. Vérifiez votre connexion.', () => hidePopup());
+                }
+            });
+        }
+
+        function showPopup(message, confirmCallback) {
+            console.log('[Client] Affichage pop-up:', message);
+            document.getElementById('popup-message').textContent = message;
+            document.getElementById('popup').classList.remove('hidden');
+            document.getElementById('popup-confirm').onclick = confirmCallback;
+            document.getElementById('popup-cancel').onclick = hidePopup;
+        }
+
+        function hidePopup() {
+            console.log('[Client] Masquage pop-up');
+            document.getElementById('popup').classList.add('hidden');
+        }
+
+        window.onload = chargerTableaux;
+    </script>
+</body>
+</html>

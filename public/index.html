@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomix Elec - Accueil</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white font-sans">
+    <nav class="bg-blue-700 p-4 shadow-lg fixed w-full top-0 z-50">
+        <ul class="flex space-x-6 justify-center">
+            <li><a href="index.html" class="text-yellow-300 font-bold"><i class="fas fa-home mr-2"></i> Accueil</a></li>
+            <li><a href="create.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-plus-circle mr-2"></i> Créer un tableau</a></li>
+            <li><a href="view.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-table mr-2"></i> Voir les tableaux</a></li>
+            <li><a href="selectivity.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-shield-alt mr-2"></i> Sélectivité</a></li>
+            <li><a href="obsolescence.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-clock mr-2"></i> Obsolescence</a></li>
+            <li><a href="fault_level_assessment.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-bolt mr-2"></i> Évaluation du Niveau de Défaut</a></li>
+            <li><a href="hazards_assessment.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-exclamation-triangle mr-2"></i> Évaluation des Risques</a></li>
+            <li><a href="maintenance_chart.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-sitemap mr-2"></i> Organigramme Maintenance</a></li>
+            <li><a href="distribution_emergency.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-siren mr-2"></i> Urgence Distribution</a></li>
+            <li><a href="reports.html" class="hover:text-yellow-300 transition duration-200"><i class="fas fa-file-pdf mr-2"></i> Rapports</a></li>
+        </ul>
+    </nav>
+
+    <div class="container mx-auto mt-20 p-6">
+        <h1 class="text-3xl font-bold mb-6">Bienvenue sur Autonomix Elec</h1>
+        <p class="text-lg mb-6">Cet outil vous permet de gérer vos tableaux électriques facilement.</p>
+
+        <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
+            <h2 class="text-xl font-semibold mb-4"><i class="fas fa-info-circle mr-2"></i> Comment utiliser l'outil</h2>
+            <ul class="list-disc list-inside space-y-2">
+                <li>Consultez cette page pour comprendre l'outil.</li>
+                <li>Allez à la page <a href="create.html" class="text-blue-400 hover:underline">Créer un tableau</a> pour ajouter un nouveau tableau électrique.</li>
+                <li>Entrez les informations du tableau, comme son identifiant (ex. 27-9-G) et les disjoncteurs associés.</li>
+                <li>Utilisez l'API OpenAI pour récupérer automatiquement les caractéristiques des disjoncteurs en entrant la marque et la référence.</li>
+                <li>Enregistrez le tableau dans la base de données.</li>
+                <li>Consultez la page <a href="view.html" class="text-blue-400 hover:underline">Voir les tableaux</a> pour modifier ou supprimer un tableau existant.</li>
+                <li>Visitez la page <a href="selectivity.html" class="text-blue-400 hover:underline">Sélectivité</a> pour analyser la sélectivité entre les disjoncteurs et tableaux.</li>
+                <li>Consultez la page <a href="obsolescence.html" class="text-blue-400 hover:underline">Obsolescence</a> pour suivre la durée de vie des disjoncteurs et planifier les remplacements.</li>
+                <li>Accédez à la page <a href="fault_level_assessment.html" class="text-blue-400 hover:underline">Évaluation du Niveau de Défaut</a> pour analyser les courants de court-circuit et compléter les données nécessaires.</li>
+                <li>Explorez la page <a href="hazards_assessment.html" class="text-blue-400 hover:underline">Évaluation des Risques</a> pour identifier les risques électriques (arcs, chocs, surchauffes) et mettre à jour les données manquantes.</li>
+                <li>Consultez la page <a href="maintenance_chart.html" class="text-blue-400 hover:underline">Organigramme Maintenance</a> pour visualiser la structure du département de maintenance.</li>
+                <li>Utilisez la page <a href="distribution_emergency.html" class="text-blue-400 hover:underline">Urgence Distribution</a> pour signaler et gérer les pannes électriques critiques.</li>
+                <li>Générez des rapports détaillés via la page <a href="reports.html" class="text-blue-400 hover:underline">Rapports</a> pour exporter vos analyses en PDF.</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

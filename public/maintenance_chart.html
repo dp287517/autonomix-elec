@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organigramme Maintenance - Autonomix Elec</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white">
+    <nav class="bg-blue-700 p-4 sticky top-0 z-50 shadow-lg">
+        <ul class="flex space-x-6 text-white font-semibold">
+            <li><a href="index.html" class="hover:text-yellow-300 transition"><i class="fas fa-home mr-2"></i>Accueil</a></li>
+            <li><a href="create.html" class="hover:text-yellow-300 transition"><i class="fas fa-plus-circle mr-2"></i>Créer un tableau</a></li>
+            <li><a href="view.html" class="hover:text-yellow-300 transition"><i class="fas fa-table mr-2"></i>Voir les tableaux</a></li>
+            <li><a href="selectivity.html" class="hover:text-yellow-300 transition"><i class="fas fa-shield-alt mr-2"></i>Sélectivité</a></li>
+            <li><a href="obsolescence.html" class="hover:text-yellow-300 transition"><i class="fas fa-clock mr-2"></i>Obsolescence</a></li>
+            <li><a href="fault_level_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-bolt mr-2"></i>Évaluation du Niveau de Défaut</a></li>
+            <li><a href="hazards_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-exclamation-triangle mr-2"></i>Évaluation des Risques</a></li>
+            <li><a href="maintenance_chart.html" class="text-yellow-300"><i class="fas fa-sitemap mr-2"></i>Organigramme Maintenance</a></li>
+            <li><a href="distribution_emergency.html" class="hover:text-yellow-300 transition"><i class="fas fa-siren mr-2"></i>Urgence Distribution</a></li>
+            <li><a href="reports.html" class="hover:text-yellow-300 transition"><i class="fas fa-file-pdf mr-2"></i>Rapports</a></li>
+        </ul>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        <h1 class="text-3xl font-bold mb-6 flex items-center"><i class="fas fa-sitemap mr-3"></i>Organigramme du Département Maintenance</h1>
+
+        <!-- Instructions -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
+            <ul class="list-disc pl-6 text-gray-300">
+                <li>Visualisez l’organigramme interactif du département de maintenance électrique.</li>
+                <li>Cliquez sur un nœud pour voir les détails du rôle et des responsabilités.</li>
+                <li>Utilisez le bouton "Ajouter un rôle" pour créer un nouveau poste.</li>
+                <li>Sélectionnez un nœud et cliquez sur "Modifier" pour mettre à jour les informations du poste.</li>
+                <li>Utilisez les boutons de zoom pour naviguer dans l’organigramme.</li>
+            </ul>
+        </div>
+
+        <!-- Bouton Ajouter un Rôle -->
+        <div class="mb-6">
+            <button id="add-role" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"><i class="fas fa-plus-circle mr-2"></i>Ajouter un rôle</button>
+        </div>
+
+        <!-- Organigramme -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-sitemap mr-2"></i>Organigramme Interactif</h2>
+            <div id="org-chart" class="w-full h-96 border border-gray-600 rounded-lg"></div>
+        </div>
+
+        <!-- Modal Détails -->
+        <div id="modal-details" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full animate-zoom-in">
+                <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-user mr-2"></i>Détails du Rôle</h2>
+                <div id="modal-content" class="mb-4 text-gray-300"></div>
+                <div class="flex space-x-4">
+                    <button id="edit-role" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"><i class="fas fa-edit mr-2"></i>Modifier</button>
+                    <button id="close-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Ajouter un Rôle -->
+        <div id="modal-add" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full animate-zoom-in">
+                <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-plus-circle mr-2"></i>Ajouter un Rôle</h2>
+                <div class="mb-4">
+                    <label for="add-label" class="block text-sm font-medium">Nom du rôle</label>
+                    <input id="add-label" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. Technicien Junior">
+                </div>
+                <div class="mb-4">
+                    <label for="add-role" class="block text-sm font-medium">Responsabilités</label>
+                    <textarea id="add-role" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" rows="3" placeholder="Ex. Maintenance des équipements"></textarea>
+                </div>
+                <div class="mb-4">
+                    <label for="add-contact" class="block text-sm font-medium">Contact</label>
+                    <input id="add-contact" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. email@autonomix.fr">
+                </div>
+                <div class="mb-4">
+                    <label for="add-parent" class="block text-sm font-medium">Rôle parent</label>
+                    <select id="add-parent" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full">
+                        <option value="">Aucun (racine)</option>
+                    </select>
+                </div>
+                <div class="flex space-x-4">
+                    <button id="save-add" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"><i class="fas fa-check mr-2"></i>Enregistrer</button>
+                    <button id="close-add" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Annuler</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Modifier un Rôle -->
+        <div id="modal-edit" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full animate-zoom-in">
+                <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-edit mr-2"></i>Modifier un Rôle</h2>
+                <div class="mb-4">
+                    <label for="edit-label" class="block text-sm font-medium">Nom du rôle</label>
+                    <input id="edit-label" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. Technicien Junior">
+                </div>
+                <div class="mb-4">
+                    <label for="edit-role" class="block text-sm font-medium">Responsabilités</label>
+                    <textarea id="edit-role" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" rows="3" placeholder="Ex. Maintenance des équipements"></textarea>
+                </div>
+                <div class="mb-4">
+                    <label for="edit-contact" class="block text-sm font-medium">Contact</label>
+                    <input id="edit-contact" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. email@autonomix.fr">
+                </div>
+                <div class="mb-4">
+                    <label for="edit-parent" class="block text-sm font-medium">Rôle parent</label>
+                    <select id="edit-parent" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full">
+                        <option value="">Aucun (racine)</option>
+                    </select>
+                </div>
+                <div class="flex space-x-4">
+                    <button id="save-edit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"><i class="fas fa-check mr-2"></i>Enregistrer</button>
+                    <button id="close-edit" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Annuler</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let nodesData = [];
+        let edgesData = [];
+
+        // Charger les données de l’organigramme
+        async function loadOrgData() {
+            try {
+                const response = await fetch('http://localhost:3000/api/maintenance-org');
+                const responseData = await response.json();
+                if (!response.ok) throw new Error(responseData.error || 'Erreur lors du chargement');
+                nodesData = responseData.data.nodes;
+                edgesData = responseData.data.edges;
+                console.log('[Client] Données organigramme chargées :', { nodes: nodesData, edges: edgesData });
+                populateParentSelects();
+                initOrgChart();
+            } catch (error) {
+                console.error('[Client] Erreur chargement organigramme:', error.message);
+                alert('Erreur : ' + error.message);
+            }
+        }
+
+        // Remplir les sélecteurs de parent
+        function populateParentSelects() {
+            const addParentSelect = document.getElementById('add-parent');
+            const editParentSelect = document.getElementById('edit-parent');
+            addParentSelect.innerHTML = '<option value="">Aucun (racine)</option>';
+            editParentSelect.innerHTML = '<option value="">Aucun (racine)</option>';
+            nodesData.forEach(node => {
+                const option = document.createElement('option');
+                option.value = node.id;
+                option.textContent = node.label;
+                addParentSelect.appendChild(option.cloneNode(true));
+                editParentSelect.appendChild(option);
+            });
+        }
+
+        // Initialiser l’organigramme
+        function initOrgChart() {
+            const container = document.getElementById('org-chart');
+            const data = { nodes: new vis.DataSet(nodesData), edges: new vis.DataSet(edgesData) };
+            const options = {
+                layout: { hierarchical: { direction: 'UD', sortMethod: 'directed' } },
+                nodes: { shape: 'box', font: { color: '#000' }, color: { background: '#FFFFFF', border: '#000000' } },
+                edges: { arrows: 'to', color: '#000000' }
+            };
+            const network = new vis.Network(container, data, options);
+
+            // Gestion des clics
+            network.on('click', params => {
+                if (params.nodes.length) {
+                    const nodeId = params.nodes[0];
+                    const node = nodesData.find(n => n.id === nodeId);
+                    openDetailsModal(node);
+                }
+            });
+
+            gsap.from('#org-chart', { opacity: 0, scale: 0.8, duration: 1, ease: 'power2.out' });
+        }
+
+        // Ouvrir le modal de détails
+        function openDetailsModal(node) {
+            const modal = document.getElementById('modal-details');
+            const content = `
+                <p><strong>Rôle :</strong> ${node.label}</p>
+                <p><strong>Responsabilités :</strong> ${node.role}</p>
+                <p><strong>Contact :</strong> ${node.contact}</p>
+            `;
+            document.getElementById('modal-content').innerHTML = content;
+            modal.classList.remove('hidden');
+            document.getElementById('edit-role').onclick = () => {
+                modal.classList.add('hidden');
+                openEditModal(node);
+            };
+            document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
+        }
+
+        // Ouvrir le modal d’ajout
+        document.getElementById('add-role').onclick = () => {
+            document.getElementById('add-label').value = '';
+            document.getElementById('add-role').value = '';
+            document.getElementById('add-contact').value = '';
+            document.getElementById('add-parent').value = '';
+            document.getElementById('modal-add').classList.remove('hidden');
+        };
+        document.getElementById('close-add').onclick = () => {
+            document.getElementById('modal-add').classList.add('hidden');
+        };
+        document.getElementById('save-add').onclick = async () => {
+            try {
+                const label = document.getElementById('add-label').value;
+                const role = document.getElementById('add-role').value;
+                const contact = document.getElementById('add-contact').value;
+                const parent_id = document.getElementById('add-parent').value || null;
+                const response = await fetch('http://localhost:3000/api/maintenance-org', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ label, role, contact, parent_id })
+                });
+                const responseData = await response.json();
+                if (!response.ok) throw new Error(responseData.error || 'Erreur lors de l’ajout');
+                console.log('[Client] Nœud ajouté:', responseData.data);
+                alert('Rôle ajouté avec succès !');
+                document.getElementById('modal-add').classList.add('hidden');
+                await loadOrgData();
+            } catch (error) {
+                console.error('[Client] Erreur ajout:', error.message);
+                alert('Erreur : ' + error.message);
+            }
+        };
+
+        // Ouvrir le modal de modification
+        function openEditModal(node) {
+            document.getElementById('edit-label').value = node.label;
+            document.getElementById('edit-role').value = node.role;
+            document.getElementById('edit-contact').value = node.contact;
+            document.getElementById('edit-parent').value = node.parent || '';
+            document.getElementById('modal-edit').classList.remove('hidden');
+            document.getElementById('save-edit').onclick = async () => {
+                try {
+                    const label = document.getElementById('edit-label').value;
+                    const role = document.getElementById('edit-role').value;
+                    const contact = document.getElementById('edit-contact').value;
+                    const parent_id = document.getElementById('edit-parent').value || null;
+                    const response = await fetch(`http://localhost:3000/api/maintenance-org/${node.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ label, role, contact, parent_id })
+                    });
+                    const responseData = await response.json();
+                    if (!response.ok) throw new Error(responseData.error || 'Erreur lors de la mise à jour');
+                    console.log('[Client] Nœud mis à jour:', responseData.data);
+                    alert('Rôle mis à jour avec succès !');
+                    document.getElementById('modal-edit').classList.add('hidden');
+                    await loadOrgData();
+                } catch (error) {
+                    console.error('[Client] Erreur mise à jour:', error.message);
+                    alert('Erreur : ' + error.message);
+                }
+            };
+            document.getElementById('close-edit').onclick = () => {
+                document.getElementById('modal-edit').classList.add('hidden');
+            };
+        }
+
+        // Initialisation
+        window.onload = loadOrgData;
+    </script>
+</body>
+</html>

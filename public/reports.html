@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Générer des rapports - Autonomix Elec</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Styles pour l'indicateur de progression */
+        #progress-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .progress-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .progress-bar {
+            width: 300px;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px auto;
+        }
+        .progress-fill {
+            width: 0;
+            height: 100%;
+            background: #1E40AF;
+            transition: width 0.2s;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <ul>
+            <li><a href="index.html">Accueil</a></li>
+            <li><a href="create.html">Créer un tableau</a></li>
+            <li><a href="view.html">Voir les tableaux</a></li>
+            <li><a href="selectivity.html">Sélectivité</a></li>
+            <li><a href="obsolescence.html">Obsolescence</a></li>
+            <li><a href="fault_level_assessment.html">Évaluation du Niveau de Défaut</a></li>
+            <li><a href="reports.html">Rapports</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <h1>Générer des rapports</h1>
+
+        <section>
+            <h2>Comment utiliser cette page</h2>
+            <ul>
+                <li>Sélectionnez le type de rapport (Tableaux, Sélectivité, Obsolescence, Niveau de Défaut, ou Tous).</li>
+                <li>Utilisez les filtres pour affiner les données (bâtiment, tableau, disjoncteur, etc.).</li>
+                <li>Cliquez sur "Générer le rapport" pour télécharger le PDF.</li>
+                <li>Le rapport inclut un logo en haut à droite et les données filtrées.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>Sélectionner le type de rapport</h2>
+            <select id="report-type">
+                <option value="all">Tous les rapports</option>
+                <option value="tableaux">Tableaux</option>
+                <option value="selectivity">Sélectivité</option>
+                <option value="obsolescence">Obsolescence</option>
+                <option value="fault_level">Évaluation du Niveau de Défaut</option>
+            </select>
+        </section>
+
+        <section>
+            <h2>Filtres</h2>
+            <div>
+                <label for="building-filter">Filtrer par bâtiment</label>
+                <input type="text" id="building-filter" placeholder="Ex. 27">
+            </div>
+            <div>
+                <label for="tableau-filter">Filtrer par tableau</label>
+                <select id="tableau-filter">
+                    <option value="">Tous les tableaux</option>
+                </select>
+            </div>
+            <div>
+                <label for="disjoncteur-filter">Filtrer par disjoncteur (ID)</label>
+                <input type="text" id="disjoncteur-filter" placeholder="Ex. 400Q1 Compresseur">
+            </div>
+            <div>
+                <label for="date-fabrication">Filtrer par date de fabrication</label>
+                <input type="text" id="date-fabrication" placeholder="Ex. 2023-01">
+            </div>
+            <div>
+                <label for="courant-nominal">Filtrer par courant nominal (In)</label>
+                <input type="text" id="courant-nominal" placeholder="Ex. 16 A">
+            </div>
+            <div>
+                <label for="statut-selectivite">Filtrer par statut de sélectivité</label>
+                <select id="statut-selectivite">
+                    <option value="">Tous</option>
+                    <option value="OK">OK</option>
+                    <option value="KO">KO</option>
+                </select>
+            </div>
+            <div>
+                <label for="statut-obsolescence">Filtrer par statut d'obsolescence</label>
+                <select id="statut-obsolescence">
+                    <option value="">Tous</option>
+                    <option value="OK">OK</option>
+                    <option value="Obsolète">Obsolète</option>
+                </select>
+            </div>
+            <div>
+                <label for="statut-fault">Filtrer par statut de niveau de défaut</label>
+                <select id="statut-fault">
+                    <option value="">Tous</option>
+                    <option value="OK">OK</option>
+                    <option value="KO">KO</option>
+                </select>
+            </div>
+            <button onclick="generateReport()">Générer le rapport</button>
+        </section>
+    </div>
+
+    <!-- Modal de progression -->
+    <div id="progress-modal">
+        <div class="progress-container">
+            <h3>Génération du rapport en cours...</h3>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <p id="progress-message">Préparation des données...</p>
+        </div>
+    </div>
+
+    <script>
+        // Charger les tableaux pour le filtre
+        fetch('/api/tableaux/ids')
+            .then(response => response.json())
+            .then(ids => {
+                const select = document.getElementById('tableau-filter');
+                ids.forEach(id => {
+                    const option = document.createElement('option');
+                    option.value = id;
+                    option.textContent = id;
+                    select.appendChild(option);
+                });
+            });
+
+        // Fonction pour afficher l'indicateur de progression
+        function showProgress(message, percentage) {
+            const modal = document.getElementById('progress-modal');
+            const fill = document.getElementById('progress-fill');
+            const messageEl = document.getElementById('progress-message');
+            modal.style.display = 'flex';
+            fill.style.width = `${percentage}%`;
+            messageEl.textContent = message;
+        }
+
+        // Fonction pour masquer l'indicateur
+        function hideProgress() {
+            document.getElementById('progress-modal').style.display = 'none';
+        }
+
+        // Fonction pour générer le rapport
+        function generateReport() {
+            const reportType = document.getElementById('report-type').value;
+            const filters = {
+                building: document.getElementById('building-filter').value,
+                tableau: document.getElementById('tableau-filter').value,
+                disjoncteur: document.getElementById('disjoncteur-filter').value,
+                dateFabrication: document.getElementById('date-fabrication').value,
+                courantNominal: document.getElementById('courant-nominal').value,
+                statutSelectivite: document.getElementById('statut-selectivite').value,
+                statutObsolescence: document.getElementById('statut-obsolescence').value,
+                statutFault: document.getElementById('statut-fault').value
+            };
+
+            showProgress('Préparation des données...', 10);
+
+            // Simuler la progression (approximation car pas de feedback serveur précis)
+            let progress = 10;
+            const progressInterval = setInterval(() => {
+                progress = Math.min(progress + 10, 90);
+                showProgress(`Génération en cours... (${progress}%)`, progress);
+            }, 5000);
+
+            fetch('/api/reports', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reportType, filters })
+            })
+            .then(response => {
+                clearInterval(progressInterval);
+                if (!response.ok) {
+                    throw new Error('Erreur HTTP: ' + response.status);
+                }
+                showProgress('Téléchargement en cours...', 100);
+                return response.blob();
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `rapport_${reportType}_${new Date().toISOString().split('T')[0]}.pdf`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                hideProgress();
+            })
+            .catch(error => {
+                clearInterval(progressInterval);
+                hideProgress();
+                alert('Erreur lors de la génération du rapport : ' + error.message);
+            });
+        }
+    </script>
+</body>
+</html>

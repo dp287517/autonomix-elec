@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Obsolescence - Autonomix Elec</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white">
+    <nav class="bg-blue-700 p-4 sticky top-0 z-50 shadow-lg">
+        <ul class="flex space-x-6 text-white font-semibold">
+            <li><a href="index.html" class="hover:text-yellow-300 transition"><i class="fas fa-home mr-2"></i>Accueil</a></li>
+            <li><a href="create.html" class="hover:text-yellow-300 transition"><i class="fas fa-plus-circle mr-2"></i>Créer un tableau</a></li>
+            <li><a href="view.html" class="hover:text-yellow-300 transition"><i class="fas fa-table mr-2"></i>Voir les tableaux</a></li>
+            <li><a href="selectivity.html" class="hover:text-yellow-300 transition"><i class="fas fa-shield-alt mr-2"></i>Sélectivité</a></li>
+            <li><a href="obsolescence.html" class="text-yellow-300"><i class="fas fa-clock mr-2"></i>Obsolescence</a></li>
+        </ul>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        <h1 class="text-3xl font-bold mb-6 flex items-center"><i class="fas fa-history mr-3"></i>Obsolescence des disjoncteurs</h1>
+
+        <!-- Filtres -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg flex space-x-4">
+            <div>
+                <label for="building-filter" class="block text-sm font-medium">Filtrer par bâtiment</label>
+                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600">
+                    <option value="">Tous les bâtiments</option>
+                </select>
+            </div>
+            <div>
+                <label for="tableau-filter" class="block text-sm font-medium">Filtrer par tableau</label>
+                <select id="tableau-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600">
+                    <option value="">Tous les tableaux</option>
+                </select>
+            </div>
+            <div>
+                <label for="zoom-level" class="block text-sm font-medium">Zoom</label>
+                <select id="zoom-level" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600">
+                    <option value="decade">Par décennie</option>
+                    <option value="year">Par année</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-fade-in">
+            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
+            <ul class="list-disc pl-6 text-gray-300">
+                <li>Utilisez les filtres pour sélectionner un bâtiment ou un tableau spécifique.</li>
+                <li>La Prévision CAPEX montre les remplacements jusqu'en 2066. Cliquez sur une barre pour plus de détails.</li>
+                <li>Barres rouges (< 2 ans), oranges (2-5 ans), vertes (> 5 ans). Icône <i class="fas fa-exclamation-triangle"></i> pour les retards.</li>
+                <li>Les graphiques en anneau montrent la répartition des durées de vie.</li>
+                <li>Le graphique des coûts (£) affiche les dépenses prévues par année.</li>
+                <li>Le graphique de criticité montre les disjoncteurs par courant nominal, avec les retards en rouge.</li>
+                <li>Dates manquantes signalées avec lien pour modifier.</li>
+            </ul>
+        </div>
+
+        <!-- Prévision CAPEX -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-calendar-alt mr-2"></i>Prévision CAPEX</h2>
+            <div class="overflow-x-auto relative">
+                <table class="gantt" id="gantt-table">
+                    <thead>
+                        <tr>
+                            <th class="sticky left-0 bg-gray-700">Tableau</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gantt-body"></tbody>
+                </table>
+                <div id="current-year-line" class="current-year-line"></div>
+            </div>
+            <p id="no-data-message" class="text-red-500 mt-4 hidden">Aucun remplacement prévu pour les critères sélectionnés.</p>
+        </div>
+
+        <!-- Graphiques en anneau -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-chart-pie mr-2"></i>Répartition des durées de vie</h2>
+            <div id="missing-dates-alert" class="hidden bg-red-900 text-red-200 p-3 rounded mb-4">
+                <p><i class="fas fa-exclamation-triangle mr-2"></i>Certaines dates de fabrication sont manquantes. <a href="#" id="missing-dates-link" class="underline">Modifier les disjoncteurs concernés</a></p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="doughnut-container"></div>
+        </div>
+
+        <!-- Graphique des coûts -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-pound-sign mr-2"></i>Coûts estimés de remplacement (£)</h2>
+            <canvas id="cost-chart" class="w-full h-96"></canvas>
+        </div>
+
+        <!-- Graphique de criticité -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-bolt mr-2"></i>Criticité des disjoncteurs par courant nominal</h2>
+            <canvas id="criticality-chart" class="w-full h-96"></canvas>
+        </div>
+
+        <!-- Modal pour ajuster les dates -->
+        <div id="modal-gantt" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-50">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full animate-zoom-in">
+                <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-calendar-check mr-2"></i>Détails du tableau</h2>
+                <div id="modal-content" class="mb-4 text-gray-300"></div>
+                <div class="flex space-x-4">
+                    <button id="advance-date" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"><i class="fas fa-fast-backward mr-2"></i>Avancer (1 an)</button>
+                    <button id="delay-date" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"><i class="fas fa-fast-forward mr-2"></i>Reculer (1 an)</button>
+                    <button id="edit-tableau" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"><i class="fas fa-edit mr-2"></i>Modifier</button>
+                    <button id="close-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let tableauxData = [];
+        let replacementDates = {};
+        let missingDates = [];
+        let zoomLevel = 'decade';
+        const currentYear = 2025; // Date fournie : 10 juin 2025
+
+        // Charger les données
+        async function loadTableaux() {
+            try {
+                const response = await fetch('http://localhost:3000/api/obsolescence');
+                const responseData = await response.json();
+                if (!response.ok) throw new Error(responseData.error || 'Erreur lors du chargement');
+                tableauxData = responseData.data;
+                missingDates = tableauxData.flatMap(t => t.disjoncteurs.filter(d => !d.manufactureYear || d.manufactureYear === 2000).map(d => ({ tableauId: t.id, disjoncteurId: d.id })));
+                console.log('[Client] Données chargées:', tableauxData, 'Dates manquantes:', missingDates);
+                populateFilters();
+                renderGanttChart();
+                renderDoughnuts();
+                renderCostChart();
+                renderCriticalityChart();
+                updateMissingDatesAlert();
+            } catch (error) {
+                console.error('[Client] Erreur chargement:', error);
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        // Remplir les filtres
+        function populateFilters() {
+            const buildingFilter = document.getElementById('building-filter');
+            const tableauFilter = document.getElementById('tableau-filter');
+            const buildings = [...new Set(tableauxData.map(t => t.building))].sort();
+            buildings.forEach(b => {
+                const option = document.createElement('option');
+                option.value = b;
+                option.textContent = b;
+                buildingFilter.appendChild(option);
+            });
+            tableauxData.forEach(t => {
+                const option = document.createElement('option');
+                option.value = t.id;
+                option.textContent = t.id;
+                tableauFilter.appendChild(option);
+            });
+            buildingFilter.onchange = filterData;
+            tableauFilter.onchange = filterData;
+            document.getElementById('zoom-level').onchange = e => {
+                zoomLevel = e.target.value;
+                renderGanttChart();
+            };
+        }
+
+        // Filtrer les données
+        function filterData() {
+            const building = document.getElementById('building-filter').value;
+            const tableau = document.getElementById('tableau-filter').value;
+            const filteredData = tableauxData.filter(t => (!building || t.building === building) && (!tableau || t.id === tableau));
+            renderGanttChart(filteredData);
+            renderDoughnuts(filteredData);
+            renderCostChart(filteredData);
+            renderCriticalityChart(filteredData);
+        }
+
+        // Rendre le diagramme de Gantt
+        function renderGanttChart(data = tableauxData) {
+            const table = document.getElementById('gantt-table');
+            const thead = table.querySelector('thead tr');
+            const tbody = document.getElementById('gantt-body');
+            const noDataMessage = document.getElementById('no-data-message');
+            thead.innerHTML = '<th class="sticky left-0 bg-gray-700">Tableau / Disjoncteur</th>';
+            tbody.innerHTML = '';
+
+            const years = zoomLevel === 'decade' 
+                ? Array.from({ length: 5 }, (_, i) => 2020 + i * 10)
+                : Array.from({ length: 42 }, (_, i) => 2025 + i);
+
+            years.forEach(year => {
+                const th = document.createElement('th');
+                th.textContent = year;
+                th.className = 'text-gray-300';
+                thead.appendChild(th);
+            });
+
+            let hasData = false;
+
+            data.forEach(tableau => {
+                tableau.disjoncteurs.forEach(disjoncteur => {
+                    const tr = document.createElement('tr');
+                    const tdTask = document.createElement('td');
+                    const replacementYear = disjoncteur.replacementDate 
+                        ? new Date(disjoncteur.replacementDate).getFullYear()
+                        : (disjoncteur.manufactureYear || tableau.avgManufactureYear) + (disjoncteur.lifespan || 30);
+                    const startYear = replacementYear - 1; // Début 1 an avant
+                    const endYear = replacementYear + 1;   // Fin 1 an après
+                    const isLate = endYear < currentYear;
+                    tdTask.innerHTML = `${tableau.id} - ${disjoncteur.id}${isLate ? ' <i class="fas fa-exclamation-triangle text-red-500"></i>' : ''}`;
+                    tdTask.className = 'sticky left-0 bg-gray-700 font-medium';
+                    tr.appendChild(tdTask);
+
+                    years.forEach(year => {
+                        const td = document.createElement('td');
+                        let barClass = 'task-bar';
+                        if (endYear <= currentYear + 2) barClass += ' task-bar-red';
+                        else if (endYear <= currentYear + 5) barClass += ' task-bar-orange';
+                        else barClass += ' task-bar-green';
+
+                        if (zoomLevel === 'decade' && year >= Math.floor(startYear / 10) * 10 && year <= Math.floor(endYear / 10) * 10) {
+                            const bar = document.createElement('div');
+                            bar.className = barClass;
+                            bar.dataset.tableauId = tableau.id;
+                            bar.dataset.disjoncteurId = disjoncteur.id;
+                            bar.onclick = () => openModal(tableau.id, disjoncteur.id);
+                            td.appendChild(bar);
+                            hasData = true;
+                        } else if (zoomLevel === 'year' && year >= startYear && year <= endYear) {
+                            const bar = document.createElement('div');
+                            bar.className = barClass;
+                            bar.dataset.tableauId = tableau.id;
+                            bar.dataset.disjoncteurId = disjoncteur.id;
+                            bar.onclick = () => openModal(tableau.id, disjoncteur.id);
+                            td.appendChild(bar);
+                            hasData = true;
+                        }
+                        tr.appendChild(td);
+                    });
+
+                    tbody.appendChild(tr);
+                });
+            });
+
+            // Afficher ou masquer le message d'erreur
+            if (!hasData) {
+                noDataMessage.classList.remove('hidden');
+            } else {
+                noDataMessage.classList.add('hidden');
+            }
+
+            // Positionner la ligne de l'année actuelle
+            if (zoomLevel === 'year') {
+                const index = years.indexOf(currentYear);
+                if (index !== -1) {
+                    const line = document.getElementById('current-year-line');
+                    const cellWidth = document.querySelector('.gantt th:not(.sticky)')?.offsetWidth || 50;
+                    const columnWidth = document.querySelector('.gantt th.sticky')?.offsetWidth || 100;
+                    const leftPosition = index * cellWidth + columnWidth + (cellWidth / 2); // Centrer sur 2025
+                    console.log('[Client] Position ligne actuelle:', { index, cellWidth, columnWidth, leftPosition });
+                    line.style.left = `${leftPosition}px`;
+                    line.style.display = 'block';
+                }
+            } else {
+                document.getElementById('current-year-line').style.display = 'none';
+            }
+
+            gsap.from('.task-bar', { scaleX: 0, duration: 1, stagger: 0.1, ease: 'power2.out' });
+        }
+
+        // Rendre les graphiques en anneau
+        function renderDoughnuts(data = tableauxData) {
+            const container = document.getElementById('doughnut-container');
+            container.innerHTML = '';
+
+            const categories = ['Urgent (< 5 ans)', 'Court terme (5-10 ans)', 'Moyen terme (10-20 ans)', 'Long terme (> 20 ans)'];
+            const colors = ['#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF'];
+            const icons = ['fa-exclamation-triangle', 'fa-hourglass-half', 'fa-clock', 'fa-check-circle'];
+
+            const groups = document.getElementById('building-filter').value 
+                ? data.map(t => ({
+                    id: t.id,
+                    building: t.building,
+                    disjoncteurs: t.disjoncteurs
+                }))
+                : [...new Set(data.map(t => t.building))].map(b => ({
+                    id: b,
+                    building: b,
+                    disjoncteurs: data.filter(t => t.building === b).flatMap(t => t.disjoncteurs)
+                }));
+
+            groups.forEach((group, index) => {
+                const div = document.createElement('div');
+                div.className = 'bg-gray-700 p-4 rounded-lg shadow';
+                const canvas = document.createElement('canvas');
+                canvas.id = `doughnut-${index}`;
+                div.appendChild(canvas);
+                const title = document.createElement('h3');
+                title.className = 'text-lg font-semibold mb-2';
+                title.innerHTML = `<i class="fas ${group.building === group.id ? 'fa-building' : 'fa-table'} mr-2"></i>${group.building === group.id ? `Bâtiment ${group.id}` : `Tableau du Bâtiment ${group.building}`}`;
+                div.insertBefore(title, canvas);
+                container.appendChild(div);
+
+                const counts = categories.reduce((acc, cat, i) => {
+                    acc[cat] = group.disjoncteurs.filter(d => {
+                        const yearsLeft = (d.replacementDate ? new Date(d.replacementDate).getFullYear() : (d.manufactureYear || 2000) + 30) - currentYear;
+                        return (i === 0 && yearsLeft <= 5) || 
+                               (i === 1 && yearsLeft > 5 && yearsLeft <= 10) || 
+                               (i === 2 && yearsLeft > 10 && yearsLeft <= 20) || 
+                               (i === 3 && yearsLeft > 20);
+                    }).length;
+                    return acc;
+                }, {});
+
+                new Chart(canvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: categories,
+                        datasets: [{ data: categories.map(c => counts[c]), backgroundColor: colors }]
+                    },
+                    options: {
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    generateLabels: chart => chart.data.labels.map((label, i) => ({
+                                        text: label,
+                                        fillStyle: colors[i],
+                                        fontColor: '#FFF',
+                                        icon: `<i class="fas ${icons[i]}"></i>`
+                                    }))
+                                }
+                            }
+                        },
+                        animation: { duration: 1500, easing: 'easeOutBounce' }
+                    }
+                });
+
+                gsap.from(canvas, { opacity: 0, y: 20, duration: 1, delay: index * 0.2 });
+            });
+        }
+
+        // Rendre le graphique des coûts
+        function renderCostChart(data = tableauxData) {
+            const ctx = document.getElementById('cost-chart').getContext('2d');
+            const years = Array.from({ length: 42 }, (_, i) => 2025 + i);
+            const costsByYear = years.reduce((acc, year) => {
+                acc[year] = data.reduce((sum, t) => {
+                    return sum + t.disjoncteurs.reduce((innerSum, d) => {
+                        const endYear = (d.replacementDate ? new Date(d.replacementDate).getFullYear() : (d.manufactureYear || t.avgManufactureYear) + 30) + 1;
+                        return innerSum + (endYear === year ? 200 : 0);
+                    }, 0);
+                }, 0);
+                return acc;
+            }, {});
+            const cumulativeCosts = years.reduce((acc, year, i) => {
+                acc[year] = (i === 0 ? 0 : acc[years[i-1]]) + costsByYear[year];
+                return acc;
+            }, {});
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: years,
+                    datasets: [
+                        {
+                            type: 'bar',
+                            label: 'Coût annuel (£)',
+                            data: years.map(year => costsByYear[year]),
+                            backgroundColor: 'rgba(255, 215, 0, 0.7)',
+                            borderColor: '#FFD700',
+                            borderWidth: 1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            type: 'line',
+                            label: 'Coût cumulé (£)',
+                            data: years.map(year => cumulativeCosts[year]),
+                            borderColor: '#10B981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                            fill: true,
+                            tension: 0.3,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Coût annuel (£)', color: '#FFF' },
+                            ticks: { color: '#FFF', callback: value => `£${value.toLocaleString()}` }
+                        },
+                        y1: {
+                            position: 'right',
+                            beginAtZero: true,
+                            title: { display: true, text: 'Coût cumulé (£)', color: '#FFF' },
+                            ticks: { color: '#FFF', callback: value => `£${value.toLocaleString()}` },
+                            grid: { drawOnChartArea: false }
+                        },
+                        x: {
+                            title: { display: true, text: 'Année', color: '#FFF' },
+                            ticks: { color: '#FFF', maxRotation: 45, minRotation: 45 }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#FFF' } },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.dataset.label}: £${ctx.raw.toLocaleString()}`
+                            }
+                        }
+                    },
+                    animation: {
+                        onComplete: () => {
+                            const particles = [];
+                            for (let i = 0; i < 50; i++) {
+                                const particle = document.createElement('div');
+                                particle.className = 'particle';
+                                document.body.appendChild(particle);
+                                gsap.to(particle, {
+                                    x: Math.random() * window.innerWidth,
+                                    y: Math.random() * window.innerHeight,
+                                    scale: Math.random() * 0.5,
+                                    opacity: 0,
+                                    duration: Math.random() * 2 + 1,
+                                    ease: 'power2.out',
+                                    onComplete: () => particle.remove()
+                                });
+                            }
+                        }
+                    }
+                }
+            });
+
+            gsap.from('#cost-chart', { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+        }
+
+        // Rendre le graphique de criticité
+        function renderCriticalityChart(data = tableauxData) {
+            const ctx = document.getElementById('criticality-chart').getContext('2d');
+            const ranges = ['<16A', '16-32A', '32-63A', '>63A'];
+            const disjoncteurs = data.flatMap(t => t.disjoncteurs.map(d => ({
+                ...d,
+                endYear: (d.replacementDate ? new Date(d.replacementDate).getFullYear() : (d.manufactureYear || t.avgManufactureYear) + 30) + 1
+            })));
+            const counts = ranges.map(range => ({
+                total: disjoncteurs.filter(d => {
+                    const inValue = parseFloat(d.in?.replace(/[^0-9.]/g, '') || 0);
+                    return (range === '<16A' && inValue < 16) ||
+                           (range === '16-32A' && inValue >= 16 && inValue <= 32) ||
+                           (range === '32-63A' && inValue > 32 && inValue <= 63) ||
+                           (range === '>63A' && inValue > 63);
+                }).length,
+                late: disjoncteurs.filter(d => {
+                    const inValue = parseFloat(d.in?.replace(/[^0-9.]/g, '') || 0);
+                    return (range === '<16A' && inValue < 16 && d.endYear < currentYear) ||
+                           (range === '16-32A' && inValue >= 16 && inValue <= 32 && d.endYear < currentYear) ||
+                           (range === '32-63A' && inValue > 32 && inValue <= 63 && d.endYear < currentYear) ||
+                           (range === '>63A' && inValue > 63 && d.endYear < currentYear);
+                }).length
+            }));
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ranges,
+                    datasets: [
+                        {
+                            label: 'Disjoncteurs totaux',
+                            data: counts.map(c => c.total),
+                            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                            borderColor: '#3B82F6',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Disjoncteurs en retard',
+                            data: counts.map(c => c.late),
+                            backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                            borderColor: '#EF4444',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Nombre de disjoncteurs', color: '#FFF' },
+                            ticks: { color: '#FFF' }
+                        },
+                        x: {
+                            title: { display: true, text: 'Courant nominal (A)', color: '#FFF' },
+                            ticks: { color: '#FFF' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#FFF' } },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.dataset.label}: ${ctx.raw}`
+                            }
+                        }
+                    }
+                }
+            });
+
+            gsap.from('#criticality-chart', { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+        }
+
+        // Gérer l'alerte des dates manquantes
+        function updateMissingDatesAlert() {
+            const alert = document.getElementById('missing-dates-alert');
+            const link = document.getElementById('missing-dates-link');
+            if (missingDates.length > 0) {
+                alert.classList.remove('hidden');
+                link.onclick = () => {
+                    const tableauId = missingDates[0].tableauId;
+                    window.location.href = `edit.html?id=${tableauId}`;
+                };
+            } else {
+                alert.classList.add('hidden');
+            }
+        }
+
+        // Gérer le modal
+        function openModal(tableauId, disjoncteurId) {
+            const modal = document.getElementById('modal-gantt');
+            const tableau = tableauxData.find(t => t.id === tableauId);
+            const disjoncteur = tableau.disjoncteurs.find(d => d.id === disjoncteurId);
+            const replacementYear = disjoncteur.replacementDate 
+                ? new Date(disjoncteur.replacementDate).getFullYear()
+                : (disjoncteur.manufactureYear || tableau.avgManufactureYear) + (disjoncteur.lifespan || 30);
+            const startYear = replacementYear - 1;
+            const endYear = replacementYear + 1;
+            const isLate = endYear < currentYear;
+
+            let content = `
+                <p><strong>Tableau :</strong> ${tableauId}</p>
+                <p><strong>Disjoncteur :</strong> ${disjoncteur.id}</p>
+                <p><strong>Bâtiment :</strong> ${tableau.building}</p>
+                <p><strong>Année de fabrication :</strong> ${disjoncteur.manufactureYear || 'Inconnue'}</p>
+                <p><strong>Durée de vie :</strong> ${disjoncteur.lifespan || 30} ans</p>
+                <p><strong>Période de remplacement :</strong> ${startYear} - ${endYear}</p>
+                <p><strong>Statut :</strong> ${isLate ? '<span class="text-red-500">En retard !</span>' : endYear <= currentYear + 2 ? '<span class="text-red-500">Urgent</span>' : endYear <= currentYear + 5 ? '<span class="text-orange-500">À court terme</span>' : '<span class="text-green-500">À long terme</span>'}</p>
+                <p class="mt-2"><strong>Explication :</strong> Ce disjoncteur doit être remplacé entre ${startYear} et ${endYear} en raison de la fin de vie estimée (${disjoncteur.lifespan || 30} ans à partir de ${disjoncteur.manufactureYear || tableau.avgManufactureYear}). ${isLate ? 'Le remplacement est en retard, ce qui peut poser des risques de panne.' : 'Planifiez le remplacement en fonction de la période indiquée.'}</p>
+                <h3 class="text-lg font-semibold mt-4">Détails du disjoncteur :</h3>
+                <table class="w-full border border-gray-600 mt-2">
+                    <thead>
+                        <tr class="bg-gray-700">
+                            <th class="p-2">Marque</th>
+                            <th class="p-2">Référence</th>
+                            <th class="p-2">Courant nominal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="p-2">${disjoncteur.marque || 'Inconnu'}</td>
+                            <td class="p-2">${disjoncteur.ref || 'Inconnu'}</td>
+                            <td class="p-2">${disjoncteur.in || 'Inconnu'}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+            document.getElementById('modal-content').innerHTML = content;
+            modal.classList.remove('hidden');
+            document.getElementById('advance-date').onclick = () => adjustDate(tableauId, disjoncteur.id, -1);
+            document.getElementById('delay-date').onclick = () => adjustDate(tableauId, disjoncteur.id, 1);
+            document.getElementById('edit-tableau').onclick = () => window.location.href = `edit.html?id=${tableauId}`;
+            document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
+        }
+
+        async function adjustDate(tableauId, disjoncteurId, years) {
+            const tableau = tableauxData.find(t => t.id === tableauId);
+            const disjoncteur = tableau.disjoncteurs.find(d => d.id === disjoncteurId);
+            const currentReplacementYear = disjoncteur.replacementDate 
+                ? new Date(disjoncteur.replacementDate).getFullYear()
+                : (disjoncteur.manufactureYear || tableau.avgManufactureYear) + (disjoncteur.lifespan || 30);
+            const newReplacementYear = currentReplacementYear + years;
+            const newReplacementDate = `${newReplacementYear}-01-01`;
+            replacementDates[`${tableauId}-${disjoncteurId}`] = newReplacementDate;
+            console.log('[Client] Date ajustée:', { tableauId, disjoncteurId, newReplacementDate });
+            try {
+                const response = await fetch('http://localhost:3000/api/obsolescence/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tableauId, disjoncteurId, replacementDate: newReplacementDate })
+                });
+                const responseData = await response.json();
+                if (!response.ok) throw new Error(responseData.error || 'Erreur lors de la mise à jour');
+                // Mettre à jour les données localement
+                disjoncteur.replacementDate = newReplacementDate;
+                renderGanttChart();
+            } catch (error) {
+                console.error('[Client] Erreur mise à jour date:', error);
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        // Initialisation
+        window.onload = loadTableaux;
+    </script>
+
+    <style>
+        .particle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #FFD700;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+    </style>
+</body>
+</html>

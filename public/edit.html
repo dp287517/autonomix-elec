@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomix Elec - Modifier un tableau</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-blue-600 p-4">
+        <ul class="flex space-x-4 text-white">
+            <li><a href="index.html">Accueil</a></li>
+            <li><a href="create.html">Créer un tableau</a></li>
+            <li><a href="view.html">Voir les tableaux</a></li>
+            <li><a href="selectivity.html" class="hover:underline">Sélectivité</a></li>
+        </ul>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        <h1 class="text-3xl font-bold text-center mb-6">Modifier un tableau électrique</h1>
+
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-2xl font-semibold mb-4">Étapes pour modifier un tableau</h2>
+            <ol class="list-decimal list-inside space-y-2">
+                <li>Vérifiez l'identifiant du tableau (non modifiable).</li>
+                <li>Indiquez si le tableau est le général principal du site.</li>
+                <li>Modifiez les disjoncteurs existants via le bouton "Modifier".</li>
+                <li>Ajoutez des disjoncteurs en :
+                    <ul class="list-disc list-inside ml-6">
+                        <li>Recherchant avec OpenAI (marque et référence).</li>
+                        <li>Sélectionnant un disjoncteur existant (marque et référence).</li>
+                        <li>Entrant les données manuellement.</li>
+                    </ul>
+                </li>
+                <li>Transférer un disjoncteur vers un autre tableau via le bouton "Transférer".</li>
+                <li>Lier un disjoncteur non principal à un tableau aval via le champ "Tableau aval".</li>
+                <li>Vérifiez les conflits d'ID (en rouge).</li>
+                <li>Désignez un disjoncteur comme principal.</li>
+                <li>Enregistrez les modifications.</li>
+            </ol>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4">Informations du tableau</h2>
+            <div class="mb-4">
+                <label class="block text-sm font-medium">Identifiant du tableau</label>
+                <input id="tableau-id" type="text" class="w-full p-2 border rounded" readonly>
+            </div>
+            <div class="mb-4">
+                <label class="inline-flex items-center">
+                    <input id="tableau-isSiteMain" type="checkbox" class="form-checkbox" onchange="saveIsSiteMain()">
+                    <span class="ml-2 text-sm font-medium">Tableau général principal du site</span>
+                </label>
+                <p class="text-xs text-gray-500">Cochez si ce tableau est le principal du site (pas de disjoncteur amont). Modification enregistrée automatiquement.</p>
+                <div id="isSiteMain-message" class="hidden mt-2 p-2 rounded text-sm"></div>
+            </div>
+
+            <h2 class="text-xl font-semibold mb-4">Ajouter un disjoncteur</h2>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium">Marque</label>
+                    <input id="disjoncteur-marque" type="text" class="w-full p-2 border rounded" placeholder="Ex. Schneider Electric">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Référence</label>
+                    <input id="disjoncteur-ref" type="text" class="w-full p-2 border rounded" placeholder="Ex. C60N">
+                </div>
+            </div>
+            <div class="flex space-x-4 mb-4">
+                <button onclick="rechercherDisjoncteur()" class="bg-blue-600 text-white p-2 rounded">Rechercher via OpenAI</button>
+                <button onclick="ajouterManuel()" class="bg-gray-600 text-white p-2 rounded">Ajouter manuellement</button>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium">Sélectionner un disjoncteur existant</label>
+                <select id="disjoncteur-existant" class="w-full p-2 border rounded">
+                    <option value="">-- Choisir un disjoncteur --</option>
+                </select>
+                <button onclick="ajouterDisjoncteurExistant()" class="bg-green-600 text-white p-2 rounded mt-2">Ajouter</button>
+            </div>
+
+            <div id="disjoncteur-form" class="mt-4 hidden">
+                <h3 class="text-lg font-semibold mb-2">Caractéristiques du disjoncteur</h3>
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium">ID <span class="text-red-600">*</span></label>
+                        <input id="disjoncteur-id" type="text" class="w-full p-1 border rounded" placeholder="Ex. 400Q1 Compresseur">
+                        <p class="text-xs text-gray-500">Obligatoire, unique, ex. 400Q1 Compresseur</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Type</label>
+                        <input id="disjoncteur-type" type="text" class="w-full p-1 border rounded" placeholder="Ex. disjoncteur">
+                        <p class="text-xs text-gray-500">Type d'appareil, ex. disjoncteur</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Pôles</label>
+                        <input id="disjoncteur-poles" type="text" class="w-full p-1 border rounded" placeholder="Ex. 2P">
+                        <p class="text-xs text-gray-500">Ex. 1P, 2P, 3P ou 4P</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Montage</label>
+                        <input id="disjoncteur-montage" type="text" class="w-full p-1 border rounded" placeholder="Ex. rail DIN">
+                        <p class="text-xs text-gray-500">Type de montage, ex. rail DIN</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Ue</label>
+                        <input id="disjoncteur-ue" type="text" class="w-full p-1 border rounded" placeholder="Ex. 230/400 V AC">
+                        <p class="text-xs text-gray-500">Tension nominale, ex. 230/400 V AC</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Ui</label>
+                        <input id="disjoncteur-ui" type="text" class="w-full p-1 border rounded" placeholder="Ex. 500 V">
+                        <p class="text-xs text-gray-500">Tension d'isolation, ex. 500 V</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Uimp</label>
+                        <input id="disjoncteur-uimp" type="text" class="w-full p-1 border rounded" placeholder="Ex. 6 kV">
+                        <p class="text-xs text-gray-500">Tension de choc, ex. 6 kV</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Fréquence</label>
+                        <input id="disjoncteur-frequence" type="text" class="w-full p-1 border rounded" placeholder="Ex. 50/60 Hz">
+                        <p class="text-xs text-gray-500">Ex. 50/60 Hz</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">In</label>
+                        <input id="disjoncteur-in" type="text" class="w-full p-1 border rounded" placeholder="Ex. 16 A">
+                        <p class="text-xs text-gray-500">Courant nominal, ex. 16 A</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Ir</label>
+                        <input id="disjoncteur-ir" type="text" class="w-full p-1 border rounded" placeholder="Ex. 63 A">
+                        <p class="text-xs text-gray-500">Courant réglable, ex. 63 A</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Courbe</label>
+                        <input id="disjoncteur-courbe" type="text" class="w-full p-1 border rounded" placeholder="Ex. C">
+                        <p class="text-xs text-gray-500">Une valeur : B, C ou D</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">TripTime</label>
+                        <input id="disjoncteur-triptime" type="text" class="w-full p-1 border rounded" placeholder="Ex. 0.1 s">
+                        <p class="text-xs text-gray-500">Temps de déclenchement, ex. 0.1 s</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Icn</label>
+                        <input id="disjoncteur-icn" type="text" class="w-full p-1 border rounded" placeholder="Ex. 6 kA">
+                        <p class="text-xs text-gray-500">Pouvoir de coupure, ex. 6 kA</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Ics</label>
+                        <input id="disjoncteur-ics" type="text" class="w-full p-1 border rounded" placeholder="Ex. 4.5 kA">
+                        <p class="text-xs text-gray-500">Pouvoir de coupure de service, ex. 4.5 kA</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">IP</label>
+                        <input id="disjoncteur-ip" type="text" class="w-full p-1 border rounded" placeholder="Ex. IP20">
+                        <p class="text-xs text-gray-500">Indice de protection, ex. IP20</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Température</label>
+                        <input id="disjoncteur-temp" type="text" class="w-full p-1 border rounded" placeholder="Ex. -25°C à +70°C">
+                        <p class="text-xs text-gray-500">Plage de température, ex. -25°C à +70°C</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Dimensions</label>
+                        <input id="disjoncteur-dimensions" type="text" class="w-full p-1 border rounded" placeholder="Ex. 18 x 85 x 70 mm">
+                        <p class="text-xs text-gray-500">L x H x P, ex. 18 x 85 x 70 mm</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Section</label>
+                        <input id="disjoncteur-section" type="text" class="w-full p-1 border rounded" placeholder="Ex. 2.5 mm²">
+                        <p class="text-xs text-gray-500">Section de câble, ex. 2.5 mm²</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Date de fabrication</label>
+                        <input id="disjoncteur-date" type="text" class="w-full p-1 border rounded" placeholder="Ex. 2023-01">
+                        <p class="text-xs text-gray-500">Année ou mois/année, ex. 2023-01</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Type de tension</label>
+                        <input id="disjoncteur-tension" type="text" class="w-full p-1 border rounded" placeholder="Ex. AC">
+                        <p class="text-xs text-gray-500">Ex. AC ou DC</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Sélectivité</label>
+                        <input id="disjoncteur-selectivite" type="text" class="w-full p-1 border rounded" placeholder="Ex. sélectif">
+                        <p class="text-xs text-gray-500">Type de sélectivité, ex. sélectif</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Tableau aval</label>
+                        <select id="disjoncteur-linked-tableau" class="w-full p-1 border rounded" disabled>
+                            <option value="">-- Aucun tableau aval --</option>
+                        </select>
+                        <p class="text-xs text-gray-500">Sélectionnez un tableau aval (non principal uniquement)</p>
+                    </div>
+                </div>
+                <div class="flex space-x-4 mt-4">
+                    <button id="disjoncteur-action" onclick="ajouterDisjoncteur()" class="bg-green-600 text-white p-2 rounded">Ajouter au tableau</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md mt-6">
+            <h2 class="text-xl font-semibold mb-4">Disjoncteurs du tableau</h2>
+            <table id="disjoncteurs-table" class="w-full">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="p-2">ID</th>
+                        <th class="p-2">Marque</th>
+                        <th class="p-2">Référence</th>
+                        <th class="p-2">Principal</th>
+                        <th class="p-2">Liaison</th>
+                        <th class="p-2">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <button onclick="enregistrerModifications()" class="bg-blue-600 text-white p-2 rounded mt-4">Enregistrer les modifications</button>
+        </div>
+
+        <div id="popup" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <p id="popup-message" class="mb-4"></p>
+                <div id="popup-content" class="mb-4"></div>
+                <div class="flex space-x-4">
+                    <button id="popup-confirm" class="bg-green-600 text-white p-2 rounded">Confirmer</button>
+                    <button id="popup-cancel" class="bg-red-600 text-white p-2 rounded">Annuler</button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            let disjoncteurs = [];
+            let disjoncteurPrincipalIndex = null;
+            let tableauId = new URLSearchParams(window.location.search).get('id');
+            let editIndex = null;
+            let tableaux = [];
+            let isSiteMain = false;
+
+            async function chargerTableau() {
+                console.log('[Edit] Chargement tableau:', tableauId);
+                try {
+                    const response = await fetch(`http://localhost:3000/api/tableaux/${tableauId}`);
+                    const tableau = await response.json();
+                    console.log('[Edit] Tableau reçu:', tableau);
+                    document.getElementById('tableau-id').value = tableau.id;
+                    document.getElementById('tableau-isSiteMain').checked = tableau.isSiteMain || false;
+                    isSiteMain = tableau.isSiteMain || false;
+                    disjoncteurs = tableau.disjoncteurs || [];
+                    disjoncteurs.forEach(d => {
+                        d.isPrincipal = d.isPrincipal || false;
+                        d.linkedTableauId = d.linkedTableauId || '';
+                    });
+                    disjoncteurPrincipalIndex = disjoncteurs.findIndex(d => d.isPrincipal);
+                    console.log('[Edit] Disjoncteurs normalisés:', disjoncteurs);
+                    afficherDisjoncteurs();
+                    console.log('[Edit] Tableau chargé:', tableau.id, 'Principal index:', disjoncteurPrincipalIndex, 'isSiteMain:', isSiteMain);
+                } catch (error) {
+                    console.error('[Edit] Erreur chargement tableau:', error);
+                    showPopup('Erreur lors du chargement du tableau: ' + error.message, () => {});
+                }
+            }
+
+            async function saveIsSiteMain() {
+                console.log('[Edit] Sauvegarde isSiteMain');
+                const newIsSiteMain = document.getElementById('tableau-isSiteMain').checked;
+                const messageDiv = document.getElementById('isSiteMain-message');
+                
+                try {
+                    const response = await fetch(`http://localhost:3000/api/tableaux/${tableauId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain: newIsSiteMain })
+                    });
+                    const data = await response.json();
+                    console.log('[Edit] Réponse serveur isSiteMain:', data);
+                    if (response.ok) {
+                        isSiteMain = newIsSiteMain;
+                        messageDiv.textContent = 'Statut de tableau principal du site mis à jour.';
+                        messageDiv.className = 'bg-green-100 text-green-800 mt-2 p-2 rounded text-sm';
+                        messageDiv.classList.remove('hidden');
+                        setTimeout(() => messageDiv.classList.add('hidden'), 3000);
+                    } else {
+                        console.log('[Edit] Erreur serveur:', data.error);
+                        document.getElementById('tableau-isSiteMain').checked = isSiteMain; // Revert
+                        messageDiv.textContent = 'Erreur lors de la mise à jour du statut: ' + data.error;
+                        messageDiv.className = 'bg-red-100 text-red-800 mt-2 p-2 rounded text-sm';
+                        messageDiv.classList.remove('hidden');
+                        setTimeout(() => messageDiv.classList.add('hidden'), 3000);
+                    }
+                } catch (error) {
+                    console.error('[Edit] Erreur sauvegarde isSiteMain:', error);
+                    document.getElementById('tableau-isSiteMain').checked = isSiteMain; // Revert
+                    messageDiv.textContent = 'Erreur lors de la mise à jour du statut: ' + error.message;
+                    messageDiv.className = 'bg-red-100 text-red-800 mt-2 p-2 rounded text-sm';
+                    messageDiv.classList.remove('hidden');
+                    setTimeout(() => messageDiv.classList.add('hidden'), 3000);
+                }
+            }
+
+            async function chargerDisjoncteursExistants() {
+                console.log('[Edit] Chargement disjoncteurs existants');
+                try {
+                    const response = await fetch('http://localhost:3000/api/disjoncteurs');
+                    const disjoncteursExistants = await response.json();
+                    console.log('[Edit] Disjoncteurs existants reçus:', disjoncteursExistants);
+                    const select = document.getElementById('disjoncteur-existant');
+                    disjoncteursExistants.forEach(d => {
+                        const option = document.createElement('option');
+                        option.value = JSON.stringify(d);
+                        option.textContent = `${d.marque} ${d.ref}`;
+                        select.appendChild(option);
+                    });
+                    console.log('[Edit] Disjoncteurs existants chargés:', disjoncteursExistants.length);
+                } catch (error) {
+                    console.error('[Edit] Erreur chargement disjoncteurs existants:', error);
+                    showPopup('Erreur lors du chargement des disjoncteurs existants: ' + error.message, () => {});
+                }
+            }
+
+            async function chargerTableaux() {
+                console.log('[Edit] Chargement liste tableaux');
+                try {
+                    const response = await fetch('http://localhost:3000/api/tableaux/ids');
+                    tableaux = await response.json();
+                    console.log('[Edit] Tableaux chargés:', tableaux);
+                    const select = document.getElementById('disjoncteur-linked-tableau');
+                    select.innerHTML = '<option value="">-- Aucun tableau aval --</option>';
+                    tableaux
+                        .filter(t => t !== tableauId)
+                        .forEach(t => {
+                            const option = document.createElement('option');
+                            option.value = t;
+                            option.textContent = t;
+                            select.appendChild(option);
+                        });
+                } catch (error) {
+                    console.error('[Edit] Erreur chargement tableaux:', error);
+                    showPopup('Erreur lors du chargement des tableaux: ' + error.message, () => {});
+                }
+            }
+
+            async function rechercherDisjoncteur() {
+                console.log('[Edit] Bouton Rechercher via OpenAI cliqué');
+                const marque = document.getElementById('disjoncteur-marque').value.trim();
+                const ref = document.getElementById('disjoncteur-ref').value.trim();
+                if (!marque || !ref) {
+                    console.log('[Edit] Erreur: Marque ou référence vide');
+                    showPopup('Veuillez entrer la marque et la référence.', () => {});
+                    return;
+                }
+
+                try {
+                    console.log('[Edit] Envoi requête OpenAI pour', { marque, ref });
+                    const response = await fetch('http://localhost:3000/api/disjoncteur', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ marque, ref })
+                    });
+                    const data = await response.json();
+                    console.log('[Edit] Données OpenAI reçues:', data);
+                    if (response.ok && data && Object.keys(data).length > 0) {
+                        document.getElementById('disjoncteur-form').classList.remove('hidden');
+                        document.getElementById('disjoncteur-id').value = '';
+                        document.getElementById('disjoncteur-type').value = data.type || '';
+                        document.getElementById('disjoncteur-poles').value = data.poles || '';
+                        document.getElementById('disjoncteur-montage').value = data.montage || '';
+                        document.getElementById('disjoncteur-ue').value = data.ue || '';
+                        document.getElementById('disjoncteur-ui').value = data.ui || '';
+                        document.getElementById('disjoncteur-uimp').value = data.uimp || '';
+                        document.getElementById('disjoncteur-frequence').value = data.frequence || '';
+                        document.getElementById('disjoncteur-in').value = data.in || '';
+                        document.getElementById('disjoncteur-ir').value = data.ir || '';
+                        document.getElementById('disjoncteur-courbe').value = data.courbe || '';
+                        document.getElementById('disjoncteur-triptime').value = data.triptime || '';
+                        document.getElementById('disjoncteur-icn').value = data.icn || '';
+                        document.getElementById('disjoncteur-ics').value = data.ics || '';
+                        document.getElementById('disjoncteur-ip').value = data.ip || '';
+                        document.getElementById('disjoncteur-temp').value = data.temp || '';
+                        document.getElementById('disjoncteur-dimensions').value = data.dimensions || '';
+                        document.getElementById('disjoncteur-section').value = data.section || '';
+                        document.getElementById('disjoncteur-date').value = data.date || '';
+                        document.getElementById('disjoncteur-tension').value = data.tension || '';
+                        document.getElementById('disjoncteur-selectivite').value = data.selectivite || '';
+                        document.getElementById('disjoncteur-marque').value = marque;
+                        document.getElementById('disjoncteur-ref').value = ref;
+                        document.getElementById('disjoncteur-action').textContent = 'Ajouter au tableau';
+                        document.getElementById('disjoncteur-linked-tableau').value = '';
+                        document.getElementById('disjoncteur-linked-tableau').disabled = false;
+                        editIndex = null;
+                        console.log('[Edit] Formulaire rempli avec données OpenAI');
+                    } else {
+                        console.log('[Edit] Aucune donnée OpenAI reçue');
+                        showPopup('Aucune donnée trouvée pour ce disjoncteur. Essayez manuellement ou vérifiez la marque/référence.', () => {});
+                    }
+                } catch (error) {
+                    console.error('[Edit] Erreur recherche OpenAI:', error);
+                    showPopup('Erreur lors de la recherche OpenAI: ' + error.message, () => {});
+                }
+            }
+
+            function ajouterManuel() {
+                console.log('[Edit] Bouton Ajouter manuellement cliqué');
+                document.getElementById('disjoncteur-form').classList.remove('hidden');
+                document.getElementById('disjoncteur-id').value = '';
+                document.getElementById('disjoncteur-type').value = '';
+                document.getElementById('disjoncteur-poles').value = '';
+                document.getElementById('disjoncteur-montage').value = '';
+                document.getElementById('disjoncteur-ue').value = '';
+                document.getElementById('disjoncteur-ui').value = '';
+                document.getElementById('disjoncteur-uimp').value = '';
+                document.getElementById('disjoncteur-frequence').value = '';
+                document.getElementById('disjoncteur-in').value = '';
+                document.getElementById('disjoncteur-ir').value = '';
+                document.getElementById('disjoncteur-courbe').value = '';
+                document.getElementById('disjoncteur-triptime').value = '';
+                document.getElementById('disjoncteur-icn').value = '';
+                document.getElementById('disjoncteur-ics').value = '';
+                document.getElementById('disjoncteur-ip').value = '';
+                document.getElementById('disjoncteur-temp').value = '';
+                document.getElementById('disjoncteur-dimensions').value = '';
+                document.getElementById('disjoncteur-section').value = '';
+                document.getElementById('disjoncteur-date').value = '';
+                document.getElementById('disjoncteur-tension').value = '';
+                document.getElementById('disjoncteur-selectivite').value = '';
+                document.getElementById('disjoncteur-marque').value = '';
+                document.getElementById('disjoncteur-ref').value = '';
+                document.getElementById('disjoncteur-action').textContent = 'Ajouter au tableau';
+                document.getElementById('disjoncteur-linked-tableau').value = '';
+                document.getElementById('disjoncteur-linked-tableau').disabled = false;
+                editIndex = null;
+                console.log('[Edit] Formulaire manuel ouvert');
+            }
+
+            async function ajouterDisjoncteurExistant() {
+                console.log('[Edit] Bouton Ajouter (liste déroulante) cliqué');
+                const select = document.getElementById('disjoncteur-existant');
+                const selected = select.value;
+                if (!selected) {
+                    console.log('[Edit] Erreur: Aucun disjoncteur sélectionné');
+                    showPopup('Veuillez sélectionner un disjoncteur.', () => {});
+                    return;
+                }
+                try {
+                    const disjoncteurBase = JSON.parse(selected);
+                    console.log('[Edit] Disjoncteur sélectionné:', disjoncteurBase);
+                    const disjoncteur = { ...disjoncteurBase, id: '', isPrincipal: false, linkedTableauId: '' };
+                    document.getElementById('disjoncteur-form').classList.remove('hidden');
+                    document.getElementById('disjoncteur-id').value = '';
+                    document.getElementById('disjoncteur-marque').value = disjoncteur.marque || '';
+                    document.getElementById('disjoncteur-ref').value = disjoncteur.ref || '';
+                    document.getElementById('disjoncteur-type').value = disjoncteur.type || '';
+                    document.getElementById('disjoncteur-poles').value = disjoncteur.poles || '';
+                    document.getElementById('disjoncteur-montage').value = disjoncteur.montage || '';
+                    document.getElementById('disjoncteur-ue').value = disjoncteur.ue || '';
+                    document.getElementById('disjoncteur-ui').value = disjoncteur.ui || '';
+                    document.getElementById('disjoncteur-uimp').value = disjoncteur.uimp || '';
+                    document.getElementById('disjoncteur-frequence').value = disjoncteur.frequence || '';
+                    document.getElementById('disjoncteur-in').value = disjoncteur.in || '';
+                    document.getElementById('disjoncteur-ir').value = disjoncteur.ir || '';
+                    document.getElementById('disjoncteur-courbe').value = disjoncteur.courbe || '';
+                    document.getElementById('disjoncteur-triptime').value = disjoncteur.triptime || '';
+                    document.getElementById('disjoncteur-icn').value = disjoncteur.icn || '';
+                    document.getElementById('disjoncteur-ics').value = disjoncteur.ics || '';
+                    document.getElementById('disjoncteur-ip').value = disjoncteur.ip || '';
+                    document.getElementById('disjoncteur-temp').value = disjoncteur.temp || '';
+                    document.getElementById('disjoncteur-dimensions').value = disjoncteur.dimensions || '';
+                    document.getElementById('disjoncteur-section').value = disjoncteur.section || '';
+                    document.getElementById('disjoncteur-date').value = disjoncteur.date || '';
+                    document.getElementById('disjoncteur-tension').value = disjoncteur.tension || '';
+                    document.getElementById('disjoncteur-selectivite').value = disjoncteur.selectivite || '';
+                    document.getElementById('disjoncteur-action').textContent = 'Ajouter au tableau';
+                    document.getElementById('disjoncteur-linked-tableau').value = '';
+                    document.getElementById('disjoncteur-linked-tableau').disabled = false;
+                    editIndex = null;
+                    console.log('[Edit] Formulaire ouvert pour disjoncteur existant');
+                } catch (error) {
+                    console.error('[Edit] Erreur parsing disjoncteur:', error);
+                    showPopup('Erreur lors de la sélection du disjoncteur: ' + error.message, () => {});
+                }
+            }
+
+            function modifierDisjoncteur(index) {
+                console.log('[Edit] Bouton Modifier cliqué, index:', index);
+                const disjoncteur = disjoncteurs[index];
+                if (!disjoncteur) {
+                    console.error('[Edit] Disjoncteur non trouvé à l\'index:', index);
+                    showPopup('Erreur: Disjoncteur non trouvé.', () => {});
+                    return;
+                }
+                console.log('[Edit] Disjoncteur à modifier:', disjoncteur);
+                document.getElementById('disjoncteur-form').classList.remove('hidden');
+                document.getElementById('disjoncteur-id').value = disjoncteur.id || '';
+                document.getElementById('disjoncteur-marque').value = disjoncteur.marque || '';
+                document.getElementById('disjoncteur-ref').value = disjoncteur.ref || '';
+                document.getElementById('disjoncteur-type').value = disjoncteur.type || '';
+                document.getElementById('disjoncteur-poles').value = disjoncteur.poles || '';
+                document.getElementById('disjoncteur-montage').value = disjoncteur.montage || '';
+                document.getElementById('disjoncteur-ue').value = disjoncteur.ue || '';
+                document.getElementById('disjoncteur-ui').value = disjoncteur.ui || '';
+                document.getElementById('disjoncteur-uimp').value = disjoncteur.uimp || '';
+                document.getElementById('disjoncteur-frequence').value = disjoncteur.frequence || '';
+                document.getElementById('disjoncteur-in').value = disjoncteur.in || '';
+                document.getElementById('disjoncteur-ir').value = disjoncteur.ir || '';
+                document.getElementById('disjoncteur-courbe').value = disjoncteur.courbe || '';
+                document.getElementById('disjoncteur-triptime').value = disjoncteur.triptime || '';
+                document.getElementById('disjoncteur-icn').value = disjoncteur.icn || '';
+                document.getElementById('disjoncteur-ics').value = disjoncteur.ics || '';
+                document.getElementById('disjoncteur-ip').value = disjoncteur.ip || '';
+                document.getElementById('disjoncteur-temp').value = disjoncteur.temp || '';
+                document.getElementById('disjoncteur-dimensions').value = disjoncteur.dimensions || '';
+                document.getElementById('disjoncteur-section').value = disjoncteur.section || '';
+                document.getElementById('disjoncteur-date').value = disjoncteur.date || '';
+                document.getElementById('disjoncteur-tension').value = disjoncteur.tension || '';
+                document.getElementById('disjoncteur-selectivite').value = disjoncteur.selectivite || '';
+                document.getElementById('disjoncteur-action').textContent = 'Modifier le disjoncteur';
+                document.getElementById('disjoncteur-linked-tableau').value = disjoncteur.linkedTableauId || '';
+                document.getElementById('disjoncteur-linked-tableau').disabled = disjoncteur.isPrincipal;
+                editIndex = index;
+                console.log('[Edit] Formulaire ouvert pour modification, disjoncteur ID:', disjoncteur.id, 'Tableau aval:', disjoncteur.linkedTableauId);
+            }
+
+            function transfererDisjoncteur(index) {
+                console.log('[Edit] Bouton Transférer cliqué, index:', index);
+                const disjoncteur = disjoncteurs[index];
+                if (!disjoncteur) {
+                    console.error('[Edit] Disjoncteur non trouvé à l\'index:', index);
+                    showPopup('Erreur: Disjoncteur non trouvé.', () => {});
+                    return;
+                }
+                const options = tableaux
+                    .filter(t => t !== tableauId)
+                    .map(t => `<option value="${t}">${t}</option>`).join('');
+                if (!options.length) {
+                    console.log('[Edit] Aucun autre tableau disponible pour le transfert');
+                    showPopup('Aucun autre tableau disponible pour le transfert.', () => {});
+                    return;
+                }
+                showPopup(`Transférer le disjoncteur ${disjoncteur.id} vers un autre tableau ?`,
+                    `<select id="transfer-tableau" class="w-full p-2 border rounded"><option value="">-- Choisir un tableau --</option>${options}</select>`,
+                    async () => {
+                        const targetId = document.getElementById('transfer-tableau').value;
+                        if (!targetId) {
+                            console.log('[Edit] Erreur: Aucun tableau cible sélectionné');
+                            showPopup('Veuillez sélectionner un tableau.', () => {});
+                            return;
+                        }
+                        console.log('[Edit] Transfert vers tableau:', targetId);
+                        try {
+                            disjoncteurs.splice(index, 1);
+                            if (index === disjoncteurPrincipalIndex) {
+                                disjoncteurPrincipalIndex = null;
+                                console.log('[Edit] Disjoncteur principal transféré, réinitialisation index');
+                            } else if (disjoncteurPrincipalIndex > index) {
+                                disjoncteurPrincipalIndex--;
+                                console.log('[Edit] Ajustement disjoncteurPrincipalIndex:', disjoncteurPrincipalIndex);
+                            }
+                            await fetch(`http://localhost:3000/api/tableaux/${tableauId}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
+                            });
+                            console.log('[Edit] Tableau', tableauId, 'mis à jour après suppression');
+                            const response = await fetch(`http://localhost:3000/api/tableaux/${targetId}`);
+                            const targetTableau = await response.json();
+                            const targetDisjoncteurs = targetTableau.disjoncteurs || [];
+                            targetDisjoncteurs.push(disjoncteur);
+                            await fetch(`http://localhost:3000/api/tableaux/${targetId}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: targetId, disjoncteurs: targetDisjoncteurs, isSiteMain: targetTableau.isSiteMain })
+                            });
+                            console.log('[Edit] Disjoncteur', disjoncteur.id, 'transféré vers', targetId);
+                            afficherDisjoncteurs();
+                            hidePopup();
+                            showPopup('Disjoncteur transféré avec succès.', () => {});
+                        } catch (error) {
+                            console.error('[Edit] Erreur transfert:', error);
+                            showPopup('Erreur lors du transfert: ' + error.message, () => {});
+                        }
+                    });
+            }
+
+            function ajouterDisjoncteur() {
+                console.log('[Edit] Bouton Ajouter/Modifier cliqué, editIndex:', editIndex);
+                const disjoncteur = {
+                    id: document.getElementById('disjoncteur-id').value.trim(),
+                    marque: document.getElementById('disjoncteur-marque').value.trim(),
+                    ref: document.getElementById('disjoncteur-ref').value.trim(),
+                    type: document.getElementById('disjoncteur-type').value.trim(),
+                    poles: document.getElementById('disjoncteur-poles').value.trim(),
+                    montage: document.getElementById('disjoncteur-montage').value.trim(),
+                    ue: document.getElementById('disjoncteur-ue').value.trim(),
+                    ui: document.getElementById('disjoncteur-ui').value.trim(),
+                    uimp: document.getElementById('disjoncteur-uimp').value.trim(),
+                    frequence: document.getElementById('disjoncteur-frequence').value.trim(),
+                    in: document.getElementById('disjoncteur-in').value.trim(),
+                    ir: document.getElementById('disjoncteur-ir').value.trim(),
+                    courbe: document.getElementById('disjoncteur-courbe').value.trim(),
+                    triptime: document.getElementById('disjoncteur-triptime').value.trim(),
+                    icn: document.getElementById('disjoncteur-icn').value.trim(),
+                    ics: document.getElementById('disjoncteur-ics').value.trim(),
+                    ip: document.getElementById('disjoncteur-ip').value.trim(),
+                    temp: document.getElementById('disjoncteur-temp').value.trim(),
+                    dimensions: document.getElementById('disjoncteur-dimensions').value.trim(),
+                    section: document.getElementById('disjoncteur-section').value.trim(),
+                    date: document.getElementById('disjoncteur-date').value.trim(),
+                    tension: document.getElementById('disjoncteur-tension').value.trim(),
+                    selectivite: document.getElementById('disjoncteur-selectivite').value.trim(),
+                    isPrincipal: editIndex !== null ? disjoncteurs[editIndex]?.isPrincipal || false : false,
+                    linkedTableauId: editIndex !== null && !disjoncteurs[editIndex]?.isPrincipal ? document.getElementById('disjoncteur-linked-tableau').value.trim() : ''
+                };
+
+                console.log('[Edit] Disjoncteur à ajouter/modifier:', disjoncteur);
+
+                if (!disjoncteur.id) {
+                    console.log('[Edit] Erreur: ID vide');
+                    showPopup('L\'ID du disjoncteur est obligatoire (ex. 400Q1 Compresseur).', () => {});
+                    return;
+                }
+                if (!disjoncteur.marque || !disjoncteur.ref) {
+                    console.log('[Edit] Erreur: Marque ou référence vide');
+                    showPopup('Veuillez entrer la marque et la référence.', () => {});
+                    return;
+                }
+                if (disjoncteur.courbe && !['B', 'C', 'D'].includes(disjoncteur.courbe)) {
+                    console.log('[Edit] Erreur: Courbe invalide', disjoncteur.courbe);
+                    showPopup('La courbe doit être B, C ou D.', () => {});
+                    return;
+                }
+                if (disjoncteur.ir && !/^\d+(\s*A)?$/.test(disjoncteur.ir)) {
+                    console.log('[Edit] Erreur: Ir invalide', disjoncteur.ir);
+                    showPopup('Ir doit être une valeur numérique, ex. 60 ou 60 A.', () => {});
+                    return;
+                }
+
+                if (editIndex === null || disjoncteurs[editIndex].id !== disjoncteur.id) {
+                    if (disjoncteurs.some(d => d.id === disjoncteur.id)) {
+                        console.log('[Edit] Erreur: ID déjà utilisé', disjoncteur.id);
+                        showPopup('Cet ID est déjà utilisé dans ce tableau. Choisissez un ID unique.', () => {});
+                        return;
+                    }
+                }
+
+                if (editIndex !== null) {
+                    disjoncteurs[editIndex] = disjoncteur;
+                    console.log('[Edit] Disjoncteur modifié:', disjoncteur.id);
+                    editIndex = null;
+                } else {
+                    disjoncteurs.push(disjoncteur);
+                    console.log('[Edit] Disjoncteur ajouté:', disjoncteur.id);
+                }
+                afficherDisjoncteurs();
+                document.getElementById('disjoncteur-form').classList.add('hidden');
+                document.getElementById('disjoncteur-marque').value = '';
+                document.getElementById('disjoncteur-ref').value = '';
+                document.getElementById('disjoncteur-action').textContent = 'Ajouter au tableau';
+                document.getElementById('disjoncteur-linked-tableau').value = '';
+                console.log('[Edit] Formulaire réinitialisé');
+            }
+
+            function designerPrincipal(index) {
+                console.log('[Edit] Bouton Principal cliqué, index:', index);
+                const disjoncteur = disjoncteurs[index];
+                if (!disjoncteur) {
+                    console.error('[Edit] Disjoncteur non trouvé à l\'index:', index);
+                    showPopup('Erreur: Disjoncteur non trouvé.', () => {});
+                    return;
+                }
+                showPopup(`Voulez-vous désigner le disjoncteur ${disjoncteur.id} comme principal ?`, '', () => {
+                    console.log('[Edit] Confirmation principal pour index:', index);
+                    disjoncteurs.forEach(d => d.isPrincipal = false);
+                    disjoncteurs[index].isPrincipal = true;
+                    disjoncteurPrincipalIndex = index;
+                    disjoncteurs.forEach((d, i) => {
+                        console.log('[Edit] Disjoncteur', d.id, 'isPrincipal:', d.isPrincipal);
+                    });
+                    afficherDisjoncteurs();
+                    hidePopup();
+                    console.log('[Edit] Disjoncteur principal mis à jour, index:', disjoncteurPrincipalIndex, 'ID:', disjoncteur.id);
+                });
+            }
+
+            function supprimerDisjoncteur(index) {
+                console.log('[Edit] Bouton Supprimer cliqué, index:', index);
+                const disjoncteur = disjoncteurs[index];
+                if (!disjoncteur) {
+                    console.error('[Edit] Disjoncteur non trouvé à l\'index:', index);
+                    showPopup('Erreur: Disjoncteur non trouvé.', () => {});
+                    return;
+                }
+                showPopup(`Voulez-vous supprimer le disjoncteur ${disjoncteur.id} ?`, '', () => {
+                    console.log('[Edit] Confirmation suppression disjoncteur:', disjoncteur.id);
+                    disjoncteurs.splice(index, 1);
+                    if (index === disjoncteurPrincipalIndex) {
+                        disjoncteurPrincipalIndex = null;
+                        console.log('[Edit] Disjoncteur principal supprimé, réinitialisation index');
+                    } else if (disjoncteurPrincipalIndex > index) {
+                        disjoncteurPrincipalIndex--;
+                        console.log('[Edit] Ajustement disjoncteurPrincipalIndex:', disjoncteurPrincipalIndex);
+                    }
+                    afficherDisjoncteurs();
+                    hidePopup();
+                    console.log('[Edit] Disjoncteur supprimé:', disjoncteur.id);
+                });
+            }
+
+            function afficherDisjoncteurs() {
+                console.log('[Edit] Affichage disjoncteurs, total:', disjoncteurs.length, 'principal index:', disjoncteurPrincipalIndex);
+                const tbody = document.querySelector('#disjoncteurs-table tbody');
+                tbody.innerHTML = '';
+                const idCounts = {};
+                disjoncteurs.forEach(d => {
+                    idCounts[d.id] = (idCounts[d.id] || 0) + 1;
+                });
+                disjoncteurs.forEach((d, index) => {
+                    const isPrincipal = d.isPrincipal || false;
+                    console.log('[Edit] Disjoncteur', d.id, 'index:', index, 'isPrincipal:', isPrincipal);
+                    const hasConflict = idCounts[d.id] > 1;
+                    const row = document.createElement('tr');
+                    if (isPrincipal) row.className = 'disjoncteur-principal bg-yellow-100';
+
+                    const idCell = document.createElement('td');
+                    idCell.className = `p-2 ${hasConflict ? 'text-red-600 font-bold' : ''}`;
+                    idCell.textContent = `${d.id}${hasConflict ? ' (Conflit)' : ''}`;
+                    row.appendChild(idCell);
+
+                    const marqueCell = document.createElement('td');
+                    marqueCell.className = 'p-2';
+                    marqueCell.textContent = d.marque;
+                    row.appendChild(marqueCell);
+
+                    const refCell = document.createElement('td');
+                    refCell.className = 'p-2';
+                    refCell.textContent = d.ref;
+                    row.appendChild(refCell);
+
+                    const principalCell = document.createElement('td');
+                    principalCell.className = 'p-2 text-center';
+                    principalCell.textContent = isPrincipal ? '⭐ Principal' : '';
+                    row.appendChild(principalCell);
+
+                    const liaisonCell = document.createElement('td');
+                    liaisonCell.className = 'p-2';
+                    liaisonCell.textContent = isPrincipal ? 'Lié à tous les avals' : (d.linkedTableauId ? `Lié à ${d.linkedTableauId}` : 'Non lié');
+                    row.appendChild(liaisonCell);
+
+                    const actionsCell = document.createElement('td');
+                    actionsCell.className = 'p-2';
+
+                    const modifierBtn = document.createElement('button');
+                    modifierBtn.className = 'bg-blue-500 text-white p-1 rounded-sm';
+                    modifierBtn.textContent = 'Modifier';
+                    modifierBtn.onclick = () => modifierDisjoncteur(index);
+                    actionsCell.appendChild(modifierBtn);
+
+                    const supprimerBtn = document.createElement('button');
+                    supprimerBtn.className = 'bg-red-500 text-white p-1 rounded-sm';
+                    supprimerBtn.textContent = 'Supprimer';
+                    supprimerBtn.onclick = () => supprimerDisjoncteur(index);
+                    actionsCell.appendChild(supprimerBtn);
+
+                    const transfererBtn = document.createElement('button');
+                    transfererBtn.className = 'bg-purple-500 text-white p-1 rounded-sm';
+                    transfererBtn.textContent = 'Transférer';
+                    transfererBtn.onclick = () => transfererDisjoncteur(index);
+                    actionsCell.appendChild(transfererBtn);
+
+                    if (!isPrincipal) {
+                        const principalBtn = document.createElement('button');
+                        principalBtn.className = 'bg-yellow-500 text-white p-1 rounded-sm';
+                        principalBtn.textContent = 'Principal';
+                        principalBtn.onclick = () => designerPrincipal(index);
+                        actionsCell.appendChild(principalBtn);
+                    }
+
+                    row.appendChild(actionsCell);
+                    tbody.appendChild(row);
+                });
+                console.log('[Edit] Disjoncteurs affichés:', disjoncteurs.map(d => ({ id: d.id, isPrincipal: d.isPrincipal, linkedTableauId: d.linkedTableauId })));
+            }
+
+            async function enregistrerModifications() {
+                console.log('[Edit] Bouton Enregistrer les modifications cliqué');
+                if (disjoncteurs.length === 0) {
+                    console.log('[Edit] Erreur: Aucun disjoncteur');
+                    showPopup('Veuillez ajouter au moins un disjoncteur.', () => {});
+                    return;
+                }
+                try {
+                    isSiteMain = document.getElementById('tableau-isSiteMain').checked;
+                    console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, { disjoncteurs, isSiteMain });
+                    const response = await fetch(`http://localhost:3000/api/tableaux/${tableauId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
+                    });
+                    const data = await response.json();
+                    console.log('[Edit] Réponse serveur:', data);
+                    if (response.ok) {
+                        showPopup('Modifications enregistrées avec succès !', '', () => {
+                            console.log('[Edit] Modifications enregistrées, redirection vers view.html');
+                            window.location.href = 'view.html';
+                        });
+                    } else {
+                        console.log('[Edit] Erreur serveur:', data.error);
+                        showPopup('Erreur lors de l\'enregistrement: ' + data.error, () => {});
+                    }
+                } catch (error) {
+                    console.error('[Edit] Erreur enregistrement:', error);
+                    showPopup('Erreur lors de l\'enregistrement: ' + error.message, () => {});
+                }
+            }
+
+            function showPopup(message, content = '', confirmCallback = () => {}) {
+                console.log('[Edit] Affichage pop-up:', message);
+                document.getElementById('popup-message').textContent = message;
+                document.getElementById('popup-content').innerHTML = content;
+                document.getElementById('popup').classList.remove('hidden');
+                document.getElementById('popup-confirm').onclick = () => {
+                    console.log('[Edit] Pop-up confirmé:', message);
+                    confirmCallback();
+                    hidePopup();
+                };
+                document.getElementById('popup-cancel').onclick = () => {
+                    console.log('[Edit] Pop-up annulé:', message);
+                    hidePopup();
+                };
+            }
+
+            function hidePopup() {
+                console.log('[Edit] Masquage pop-up');
+                document.getElementById('popup').classList.add('hidden');
+            }
+
+            window.onload = () => {
+                console.log('[Edit] Initialisation page edit');
+                chargerTableau();
+                chargerDisjoncteursExistants();
+                chargerTableaux();
+            };
+        </script>
+    </body>
+</html>
