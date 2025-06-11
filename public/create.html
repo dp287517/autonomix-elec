@@ -217,6 +217,9 @@
             console.log('[Create] Chargement disjoncteurs existants');
             try {
                 const response = await fetch('/api/disjoncteurs');
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
                 disjoncteursExistants = await response.json();
                 console.log('[Create] Disjoncteurs existants reçus:', disjoncteursExistants.length);
                 const select = document.getElementById('disjoncteur-existant');
@@ -229,7 +232,8 @@
                 console.log('[Create] Disjoncteurs existants chargés dans la liste déroulante');
             } catch (error) {
                 console.error('[Create] Erreur chargement disjoncteurs existants:', error);
-                showPopup('Erreur lors du chargement des disjoncteurs existants: ' + error.message, () => {});
+                // Afficher un message clair mais ne pas bloquer l'utilisateur
+                showPopup(`Erreur lors du chargement des disjoncteurs existants: ${error.message}. Vous pouvez continuer à utiliser la page.`, '', () => hidePopup());
             }
         }
 
@@ -500,13 +504,19 @@
         }
 
         function showPopup(message, content = '', confirmCallback = () => {}) {
-            console.log('[Create] Affichage pop-up:', message);
+            console.log('[Create] Affichage pop-up:', { message, content, hasCallback: typeof confirmCallback === 'function' });
+            if (!message) {
+                console.warn('[Create] Pop-up appelé sans message, masquage automatique');
+                hidePopup();
+                return;
+            }
             document.getElementById('popup-message').textContent = message;
             document.getElementById('popup-content').innerHTML = content;
             document.getElementById('popup').classList.remove('hidden');
             document.getElementById('popup-confirm').onclick = () => {
                 console.log('[Create] Pop-up confirmé:', message);
                 confirmCallback();
+                hidePopup();
             };
             document.getElementById('popup-cancel').onclick = () => {
                 console.log('[Create] Pop-up annulé:', message);
@@ -517,6 +527,9 @@
         function hidePopup() {
             console.log('[Create] Masquage pop-up');
             document.getElementById('popup').classList.add('hidden');
+            // Réinitialiser les gestionnaires pour éviter les fuites
+            document.getElementById('popup-confirm').onclick = null;
+            document.getElementById('popup-cancel').onclick = null;
         }
 
         window.onload = () => {
