@@ -8,8 +8,9 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-gray-100">
+    <!-- Navigation -->
     <nav class="bg-blue-600 p-4">
-        <ul class="flex flex-wrap space-x-4 sm:space-x-4 justify-center">
+        <ul class="flex space-x-4 text-white">
             <li><a href="index.html">Accueil</a></li>
             <li><a href="create.html" class="font-bold">Créer un tableau</a></li>
             <li><a href="view.html">Voir les tableaux</a></li>
@@ -17,12 +18,14 @@
         </ul>
     </nav>
 
-    <div class="container mx-auto p-4 sm:p-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-center mb-6">Créer un nouveau tableau électrique</h1>
+    <!-- Contenu principal -->
+    <div class="container mx-auto p-6">
+        <h1 class="text-3xl font-bold text-center mb-6">Créer un nouveau tableau électrique</h1>
 
-        <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md mb-6">
-            <h2 class="text-lg sm:text-2xl font-semibold mb-4">Étapes pour créer un tableau</h2>
-            <ol class="list-decimal list-inside space-y-2 text-sm sm:text-base">
+        <!-- Étapes -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-2xl font-semibold mb-4">Étapes pour créer un tableau</h2>
+            <ol class="list-decimal list-inside space-y-2">
                 <li>Entrez l'identifiant du tableau (ex. 27-9-G).</li>
                 <li>Ajoutez des disjoncteurs en :
                     <ul class="list-disc list-inside ml-6">
@@ -36,15 +39,16 @@
             </ol>
         </div>
 
-        <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md">
-            <h2 class="text-lg sm:text-xl font-semibold mb-4">Informations du tableau</h2>
+        <!-- Formulaire -->
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4">Informations du tableau</h2>
             <div class="mb-4">
                 <label class="block text-sm font-medium">Identifiant du tableau</label>
                 <input id="tableau-id" type="text" class="w-full p-2 border rounded" placeholder="Ex. 27-9-G">
             </div>
 
-            <h2 class="text-lg sm:text-xl font-semibold mb-4">Ajouter un disjoncteur</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <h2 class="text-xl font-semibold mb-4">Ajouter un disjoncteur</h2>
+            <div class="grid grid-cols-2 gap-4 mb-4">
                 <div>
                     <label class="block text-sm font-medium">Marque</label>
                     <input id="disjoncteur-marque" type="text" class="w-full p-2 border rounded" placeholder="Ex. Schneider Electric">
@@ -54,7 +58,7 @@
                     <input id="disjoncteur-ref" type="text" class="w-full p-2 border rounded" placeholder="Ex. C60N">
                 </div>
             </div>
-            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
+            <div class="flex space-x-4 mb-4">
                 <button onclick="rechercherDisjoncteur()" class="bg-blue-600 text-white p-2 rounded">Rechercher via OpenAI</button>
                 <button onclick="ajouterManuel()" class="bg-gray-600 text-white p-2 rounded">Ajouter manuellement</button>
             </div>
@@ -66,9 +70,10 @@
                 <button onclick="ajouterDisjoncteurExistant()" class="bg-green-600 text-white p-2 rounded mt-2">Ajouter</button>
             </div>
 
+            <!-- Champs des caractéristiques -->
             <div id="disjoncteur-form" class="mt-4 hidden">
-                <h3 class="text-base sm:text-lg font-semibold mb-2">Caractéristiques du disjoncteur</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <h3 class="text-lg font-semibold mb-2">Caractéristiques du disjoncteur</h3>
+                <div class="grid grid-cols-3 gap-4">
                     <div>
                         <label class="block text-sm font-medium">ID <span class="text-red-600">*</span></label>
                         <input id="disjoncteur-id" type="text" class="w-full p-1 border rounded" placeholder="Ex. 400Q1 Compresseur">
@@ -179,30 +184,30 @@
             </div>
         </div>
 
-        <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md mt-6">
-            <h2 class="text-lg sm:text-xl font-semibold mb-4">Disjoncteurs ajoutés</h2>
-            <div class="overflow-x-auto">
-                <table id="disjoncteurs-table" class="w-full">
-                    <thead>
-                        <tr class="bg-gray-200">
-                            <th class="p-2">ID</th>
-                            <th class="p-2">Marque</th>
-                            <th class="p-2">Référence</th>
-                            <th class="p-2">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
+        <!-- Liste des disjoncteurs ajoutés -->
+        <div class="bg-white p-6 rounded-lg shadow-md mt-6">
+            <h2 class="text-xl font-semibold mb-4">Disjoncteurs ajoutés</h2>
+            <table id="disjoncteurs-table" class="w-full">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="p-2">ID</th>
+                        <th class="p-2">Marque</th>
+                        <th class="p-2">Référence</th>
+                        <th class="p-2">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
             <button onclick="enregistrerTableau()" class="bg-blue-600 text-white p-2 rounded mt-4">Enregistrer le tableau</button>
         </div>
     </div>
 
+    <!-- Pop-up de confirmation -->
     <div id="popup" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-        <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md">
+        <div class="bg-white p-6 rounded-lg shadow-md">
             <p id="popup-message" class="mb-4"></p>
             <div id="popup-content" class="mb-4"></div>
-            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+            <div class="flex space-x-4">
                 <button id="popup-confirm" class="bg-green-600 text-white p-2 rounded">Confirmer</button>
                 <button id="popup-cancel" class="bg-red-600 text-white p-2 rounded">Annuler</button>
             </div>
@@ -217,9 +222,6 @@
             console.log('[Create] Chargement disjoncteurs existants');
             try {
                 const response = await fetch('/api/disjoncteurs');
-                if (!response.ok) {
-                    throw new Error(`Erreur HTTP: ${response.status}`);
-                }
                 disjoncteursExistants = await response.json();
                 console.log('[Create] Disjoncteurs existants reçus:', disjoncteursExistants.length);
                 const select = document.getElementById('disjoncteur-existant');
@@ -232,8 +234,7 @@
                 console.log('[Create] Disjoncteurs existants chargés dans la liste déroulante');
             } catch (error) {
                 console.error('[Create] Erreur chargement disjoncteurs existants:', error);
-                // Afficher un message clair mais ne pas bloquer l'utilisateur
-                showPopup(`Erreur lors du chargement des disjoncteurs existants: ${error.message}. Vous pouvez continuer à utiliser la page.`, '', () => hidePopup());
+                showPopup('Erreur lors du chargement des disjoncteurs existants: ' + error.message, () => {});
             }
         }
 
@@ -504,19 +505,13 @@
         }
 
         function showPopup(message, content = '', confirmCallback = () => {}) {
-            console.log('[Create] Affichage pop-up:', { message, content, hasCallback: typeof confirmCallback === 'function' });
-            if (!message) {
-                console.warn('[Create] Pop-up appelé sans message, masquage automatique');
-                hidePopup();
-                return;
-            }
+            console.log('[Create] Affichage pop-up:', message);
             document.getElementById('popup-message').textContent = message;
             document.getElementById('popup-content').innerHTML = content;
             document.getElementById('popup').classList.remove('hidden');
             document.getElementById('popup-confirm').onclick = () => {
                 console.log('[Create] Pop-up confirmé:', message);
                 confirmCallback();
-                hidePopup();
             };
             document.getElementById('popup-cancel').onclick = () => {
                 console.log('[Create] Pop-up annulé:', message);
@@ -527,9 +522,6 @@
         function hidePopup() {
             console.log('[Create] Masquage pop-up');
             document.getElementById('popup').classList.add('hidden');
-            // Réinitialiser les gestionnaires pour éviter les fuites
-            document.getElementById('popup-confirm').onclick = null;
-            document.getElementById('popup-cancel').onclick = null;
         }
 
         window.onload = () => {
