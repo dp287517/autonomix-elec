@@ -109,7 +109,7 @@
         // Charger les données
         async function loadTableaux() {
             try {
-                const response = await fetch('http://localhost:3000/api/fault-level');
+                const response = await fetch('/api/fault-level');
                 const responseData = await response.json();
                 if (!response.ok) throw new Error(responseData.error || 'Erreur lors du chargement');
                 tableauxData = responseData.data;
@@ -273,7 +273,7 @@
                 try {
                     const ip = document.getElementById('ip-input').value;
                     const temp = document.getElementById('temp-input').value;
-                    const response = await fetch(`http://localhost:3000/api/disjoncteur/${tableauId}/${disjoncteurId}`, {
+                    const response = await fetch(`/api/disjoncteur/${tableauId}/${disjoncteurId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ ip, temp })

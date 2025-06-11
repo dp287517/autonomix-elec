@@ -73,7 +73,7 @@
         async function chargerTableaux() {
             console.log('[Client] Chargement tableaux');
             try {
-                const response = await fetch('http://localhost:3000/api/tableaux');
+                const response = await fetch('/api/tableaux');
                 if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
                 tableaux = await response.json();
                 console.log('[Client] Tableaux chargés:', tableaux.length);
@@ -124,7 +124,7 @@
             console.log('[Client] Suppression tableau:', id);
             showPopup(`Voulez-vous supprimer le tableau ${id} ?`, async () => {
                 try {
-                    const response = await fetch(`http://localhost:3000/api/tableaux/${id}`, {
+                    const response = await fetch(`/api/tableaux/${id}`, {
                         method: 'DELETE'
                     });
                     if (response.ok) {

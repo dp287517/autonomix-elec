@@ -157,7 +157,7 @@
                 console.log('[Client] Chargement des données FLA');
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 2000);
-                const response = await fetch('http://localhost:3000/api/fault-level', { 
+                const response = await fetch('/api/fault-level', { 
                     method: 'GET',
                     signal: controller.signal
                 });
@@ -182,7 +182,7 @@
                 console.log('[Client] Chargement tableau', tableauId);
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 2000);
-                const response = await fetch(`http://localhost:3000/api/tableaux/${tableauId}`, { 
+                const response = await fetch(`/api/tableaux/${tableauId}`, { 
                     method: 'GET',
                     signal: controller.signal
                 });
@@ -493,7 +493,7 @@
                         console.log('[Client] Envoi mise à jour:', { tableauId, disjoncteurId, ue, section, cableLength, impedanceMode, impedance });
                         const controller = new AbortController();
                         const timeoutId = setTimeout(() => controller.abort(), 2000);
-                        const response = await fetch('http://localhost:3000/api/fault-level/update', {
+                        const response = await fetch('/api/fault-level/update', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({

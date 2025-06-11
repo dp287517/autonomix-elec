@@ -124,7 +124,7 @@
         // Charger les données
         async function loadTableaux() {
             try {
-                const response = await fetch('http://localhost:3000/api/obsolescence');
+                const response = await fetch('/api/obsolescence');
                 const responseData = await response.json();
                 if (!response.ok) throw new Error(responseData.error || 'Erreur lors du chargement');
                 tableauxData = responseData.data;
@@ -583,7 +583,7 @@
             replacementDates[`${tableauId}-${disjoncteurId}`] = newReplacementDate;
             console.log('[Client] Date ajustée:', { tableauId, disjoncteurId, newReplacementDate });
             try {
-                const response = await fetch('http://localhost:3000/api/obsolescence/update', {
+                const response = await fetch('/api/obsolescence/update', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ tableauId, disjoncteurId, replacementDate: newReplacementDate })

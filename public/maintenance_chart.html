@@ -131,7 +131,7 @@
         // Charger les données de l’organigramme
         async function loadOrgData() {
             try {
-                const response = await fetch('http://localhost:3000/api/maintenance-org');
+                const response = await fetch('/api/maintenance-org');
                 const responseData = await response.json();
                 if (!response.ok) throw new Error(responseData.error || 'Erreur lors du chargement');
                 nodesData = responseData.data.nodes;
@@ -217,7 +217,7 @@
                 const role = document.getElementById('add-role').value;
                 const contact = document.getElementById('add-contact').value;
                 const parent_id = document.getElementById('add-parent').value || null;
-                const response = await fetch('http://localhost:3000/api/maintenance-org', {
+                const response = await fetch('/api/maintenance-org', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ label, role, contact, parent_id })
@@ -247,7 +247,7 @@
                     const role = document.getElementById('edit-role').value;
                     const contact = document.getElementById('edit-contact').value;
                     const parent_id = document.getElementById('edit-parent').value || null;
-                    const response = await fetch(`http://localhost:3000/api/maintenance-org/${node.id}`, {
+                    const response = await fetch(`/api/maintenance-org/${node.id}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ label, role, contact, parent_id })

@@ -241,7 +241,7 @@
             async function chargerTableau() {
                 console.log('[Edit] Chargement tableau:', tableauId);
                 try {
-                    const response = await fetch(`http://localhost:3000/api/tableaux/${tableauId}`);
+                    const response = await fetch(`/api/tableaux/${tableauId}`);
                     const tableau = await response.json();
                     console.log('[Edit] Tableau reçu:', tableau);
                     document.getElementById('tableau-id').value = tableau.id;
@@ -268,7 +268,7 @@
                 const messageDiv = document.getElementById('isSiteMain-message');
                 
                 try {
-                    const response = await fetch(`http://localhost:3000/api/tableaux/${tableauId}`, {
+                    const response = await fetch(`/api/tableaux/${tableauId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain: newIsSiteMain })
@@ -302,7 +302,7 @@
             async function chargerDisjoncteursExistants() {
                 console.log('[Edit] Chargement disjoncteurs existants');
                 try {
-                    const response = await fetch('http://localhost:3000/api/disjoncteurs');
+                    const response = await fetch('/api/disjoncteurs');
                     const disjoncteursExistants = await response.json();
                     console.log('[Edit] Disjoncteurs existants reçus:', disjoncteursExistants);
                     const select = document.getElementById('disjoncteur-existant');
@@ -322,7 +322,7 @@
             async function chargerTableaux() {
                 console.log('[Edit] Chargement liste tableaux');
                 try {
-                    const response = await fetch('http://localhost:3000/api/tableaux/ids');
+                    const response = await fetch('/api/tableaux/ids');
                     tableaux = await response.json();
                     console.log('[Edit] Tableaux chargés:', tableaux);
                     const select = document.getElementById('disjoncteur-linked-tableau');
@@ -353,7 +353,7 @@
 
                 try {
                     console.log('[Edit] Envoi requête OpenAI pour', { marque, ref });
-                    const response = await fetch('http://localhost:3000/api/disjoncteur', {
+                    const response = await fetch('/api/disjoncteur', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ marque, ref })
@@ -556,17 +556,17 @@
                                 disjoncteurPrincipalIndex--;
                                 console.log('[Edit] Ajustement disjoncteurPrincipalIndex:', disjoncteurPrincipalIndex);
                             }
-                            await fetch(`http://localhost:3000/api/tableaux/${tableauId}`, {
+                            await fetch(`/api/tableaux/${tableauId}`, {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
                             });
                             console.log('[Edit] Tableau', tableauId, 'mis à jour après suppression');
-                            const response = await fetch(`http://localhost:3000/api/tableaux/${targetId}`);
+                            const response = await fetch(`/api/tableaux/${targetId}`);
                             const targetTableau = await response.json();
                             const targetDisjoncteurs = targetTableau.disjoncteurs || [];
                             targetDisjoncteurs.push(disjoncteur);
-                            await fetch(`http://localhost:3000/api/tableaux/${targetId}`, {
+                            await fetch(`/api/tableaux/${targetId}`, {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ id: targetId, disjoncteurs: targetDisjoncteurs, isSiteMain: targetTableau.isSiteMain })
@@ -791,7 +791,7 @@
                 try {
                     isSiteMain = document.getElementById('tableau-isSiteMain').checked;
                     console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, { disjoncteurs, isSiteMain });
-                    const response = await fetch(`http://localhost:3000/api/tableaux/${tableauId}`, {
+                    const response = await fetch(`/api/tableaux/${tableauId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })

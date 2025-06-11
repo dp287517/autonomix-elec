@@ -221,7 +221,7 @@
         async function chargerDisjoncteursExistants() {
             console.log('[Create] Chargement disjoncteurs existants');
             try {
-                const response = await fetch('http://localhost:3000/api/disjoncteurs');
+                const response = await fetch('/api/disjoncteurs');
                 disjoncteursExistants = await response.json();
                 console.log('[Create] Disjoncteurs existants reçus:', disjoncteursExistants.length);
                 const select = document.getElementById('disjoncteur-existant');
@@ -250,7 +250,7 @@
 
             try {
                 console.log('[Create] Envoi requête OpenAI pour', { marque, ref });
-                const response = await fetch('http://localhost:3000/api/disjoncteur', {
+                const response = await fetch('/api/disjoncteur', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ marque, ref })
@@ -482,7 +482,7 @@
 
             try {
                 console.log('[Create] Envoi requête POST /api/tableaux', { id: tableauId, disjoncteurs });
-                const response = await fetch('http://localhost:3000/api/tableaux', {
+                const response = await fetch('/api/tableaux', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: tableauId, disjoncteurs })
