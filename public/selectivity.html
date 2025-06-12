@@ -20,7 +20,7 @@
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5) !important; font-size: 14px !important;
             z-index: 1000 !important; pointer-events: none !important;
         }
-        #mini-modal { z-index: 2000 !important; }
+        #mini-modal, #non-principal-modal { z-index: 2000 !important; }
         #global-graph canvas { width: 100% !important; height: 100% !important; min-height: 800px; }
         #building-filter, #tableau-filter {
             appearance: auto !important; cursor: pointer !important; pointer-events: auto !important;
@@ -31,6 +31,13 @@
         #building-filter:disabled, #tableau-filter:disabled { cursor: not-allowed !important; opacity: 0.5 !important; }
         .bg-gray-800, .bg-gray-800 * { pointer-events: auto !important; z-index: 100 !important; }
         .container, .container * { z-index: 60 !important; pointer-events: auto !important; }
+        .badge {
+            background-color: #10B981; color: #ffffff; padding: 2px 6px; border-radius: 9999px; font-size: 0.75rem; margin-left: 4px;
+        }
+        @media (max-width: 640px) {
+            #non-principal-modal > div { padding: 1rem; max-width: 95vw; }
+            .non-principal-table th, .non-principal-table td { font-size: 0.75rem; padding: 0.5rem; }
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
@@ -41,13 +48,14 @@
             <li><a href="view.html" class="hover:text-yellow-300 transition"><i class="fas fa-table mr-2"></i>Voir les tableaux</a></li>
             <li><a href="selectivity.html" class="text-yellow-300"><i class="fas fa-shield-alt mr-2"></i>Sélectivité</a></li>
             <li><a href="obsolescence.html" class="hover:text-yellow-300 transition"><i class="fas fa-clock mr-2"></i>Obsolescence</a></li>
+            <li><a href="electrical_safety_program.html" class="hover:text-yellow-300 transition"><i class="fas fa-hard-hat mr-2"></i>Programme de Sécurité Électrique</a></li>
         </ul>
     </nav>
 
     <div class="container mx-auto p-6">
         <h1 class="text-3xl font-bold mb-6 flex items-center"><i class="fas fa-shield-alt mr-3"></i>Sélectivité des installations électriques</h1>
 
-        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg flex space-x-4">
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0">
             <div>
                 <label for="building-filter" class="block text-sm font-medium">Filtrer par bâtiment</label>
                 <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600" onchange="filterData()">
@@ -67,7 +75,7 @@
             <ul class="list-disc pl-6 text-gray-300">
                 <li>Utilisez les filtres pour sélectionner un bâtiment ou un tableau spécifique.</li>
                 <li>Consultez le tableau ci-dessous pour voir les tableaux électriques et leurs disjoncteurs.</li>
-                <li>Chaque tableau affiche son disjoncteur principal, les disjoncteurs non principaux, et les liaisons.</li>
+                <li>Chaque tableau affiche son disjoncteur principal, le nombre de disjoncteurs non principaux (cliquez sur la loupe pour les détails), et les liaisons.</li>
                 <li>Cliquez sur l’icône <i class="fas fa-chart-line"></i> ou "Agrandir" pour voir le graphique de sélectivité.</li>
                 <li>Le statut indique si la sélectivité est correcte, avec une explication dans le modal.</li>
                 <li>Le schéma interactif plus bas montre les relations entre tableaux et disjoncteurs.</li>
@@ -78,20 +86,22 @@
 
         <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
             <h2 class="text-xl font-bold mb-4 flex items-center"><i class="fas fa-table mr-2"></i>Tableau des installations</h2>
-            <table class="w-full">
-                <thead>
-                    <tr class="bg-gray-700 text-white">
-                        <th class="p-2">Tableau</th>
-                        <th class="p-2">Disjoncteur Principal</th>
-                        <th class="p-2">Disjoncteurs Non Principaux</th>
-                        <th class="p-2">Liaisons</th>
-                        <th class="p-2">Statut Sélectivité</th>
-                        <th class="p-2">Graphique</th>
-                        <th class="p-2">Données Manquantes</th>
-                    </tr>
-                </thead>
-                <tbody id="tableaux-table"></tbody>
-            </table>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="bg-gray-700 text-white">
+                            <th class="p-2">Tableau</th>
+                            <th class="p-2">Disjoncteur Principal</th>
+                            <th class="p-2">Disjoncteurs Non Principaux</th>
+                            <th class="p-2">Liaisons</th>
+                            <th class="p-2">Statut Sélectivité</th>
+                            <th class="p-2">Graphique</th>
+                            <th class="p-2">Données Manquantes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableaux-table"></tbody>
+                </table>
+            </div>
         </div>
 
         <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
@@ -137,6 +147,30 @@
                     <button onclick="closeMiniModal()" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-blue-700"><i class="fas fa-times"></i></button>
                 </div>
                 <div id="mini-modal-content" class="text-gray-300"></div>
+            </div>
+        </div>
+
+        <div id="non-principal-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-[2000]">
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg w-[90vw] max-w-2xl">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-xl font-bold text-white"><i class="fas fa-magnifying-glass mr-2"></i><span id="non-principal-modal-title">Disjoncteurs Non Principaux</span></h4>
+                    <button onclick="closeNonPrincipalModal()" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full non-principal-table text-sm sm:text-base">
+                        <thead>
+                            <tr class="bg-gray-700 text-white">
+                                <th class="p-2 sm:p-3">ID</th>
+                                <th class="p-2 sm:p-3">Marque</th>
+                                <th class="p-2 sm:p-3">Référence</th>
+                                <th class="p-2 sm:p-3">Ir (A)</th>
+                                <th class="p-2 sm:p-3">In (A)</th>
+                                <th class="p-2 sm:p-3">Courbe</th>
+                            </tr>
+                        </thead>
+                        <tbody id="non-principal-table-body"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -289,7 +323,11 @@
                 row.innerHTML = `
                     <td class="p-2">${tableau.id}${tableau.isSiteMain ? ' (Principal du site)' : ''}</td>
                     <td class="p-2${principal.id ? ' disjoncteur-principal' : ''}">${principal.id || 'Aucun (amont: ' + upstreamInfo + ')'} (${principal.marque || ''} ${principal.ref || ''})</td>
-                    <td class="p-2">${nonPrincipaux.length > 0 ? nonPrincipaux.map(d => `${d.id} (${d.marque} ${d.ref})`).join('<br>') : 'Aucun'}</td>
+                    <td class="p-2">
+                        ${nonPrincipaux.length > 0 
+                            ? `<button class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 flex items-center" onclick="openNonPrincipalModal('${tableau.id}')"><i class="fas fa-magnifying-glass mr-1"></i> Voir ${nonPrincipaux.length} disjoncteur${nonPrincipaux.length > 1 ? 's' : ''}<span class="badge">${nonPrincipaux.length}</span></button>`
+                            : 'Aucun'}
+                    </td>
                     <td class="p-2">${liaisons}</td>
                     <td class="p-2"><span class="${selectivityStatus.status === 'Parfait' ? 'text-green-600' : selectivityStatus.status === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${selectivityStatus.status}: ${selectivityStatus.message}</span></td>
                     <td class="p-2 flex items-center space-x-2"><i class="fas fa-chart-line text-blue-600 text-xl cursor-pointer hover:text-blue-800 graph-icon" onclick="openModal(${index})"></i><button onclick="openModal(${index})" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">Agrandir</button></td>
@@ -297,6 +335,43 @@
                 `;
                 tableBody.appendChild(row);
             });
+        }
+
+        function openNonPrincipalModal(tableauId) {
+            console.log('[Client] Ouverture du modal pour disjoncteurs non principaux:', tableauId);
+            const tableau = tableauxData.find(t => t.id === tableauId);
+            if (!tableau) {
+                console.error('[Client] Tableau non trouvé:', tableauId);
+                return;
+            }
+            const nonPrincipaux = tableau.disjoncteurs.filter(d => !d.isPrincipal);
+            const modal = document.getElementById('non-principal-modal');
+            const tableBody = document.getElementById('non-principal-table-body');
+            const modalTitle = document.getElementById('non-principal-modal-title');
+
+            modalTitle.textContent = `Disjoncteurs Non Principaux - ${tableauId}`;
+            tableBody.innerHTML = '';
+            nonPrincipaux.forEach(d => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-2 sm:p-3">${d.id}</td>
+                    <td class="p-2 sm:p-3">${d.marque || 'N/A'}</td>
+                    <td class="p-2 sm:p-3">${d.ref || 'N/A'}</td>
+                    <td class="p-2 sm:p-3">${d.irValue || 'N/A'}</td>
+                    <td class="p-2 sm:p-3">${d.inValue || 'N/A'}</td>
+                    <td class="p-2 sm:p-3">${d.courbe || 'N/A'}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            modal.classList.remove('hidden');
+            gsap.from(modal, { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+        }
+
+        function closeNonPrincipalModal() {
+            console.log('[Client] Fermeture du modal non-principal');
+            const modal = document.getElementById('non-principal-modal');
+            modal.classList.add('hidden');
         }
 
         function checkMissingData(disjoncteurs) {
@@ -823,7 +898,7 @@
                 textContent += `<p class="mt-4 text-yellow-600 font-semibold"><i class="fas fa-exclamation-triangle mr-2"></i>Données manquantes :</p>`;
                 textContent += `<ul class="list-disc ml-6 mt-2 text-yellow-600">${missingDataIssues.map(i => `<li>${i}</li>`).join('')}</ul>`;
                 missingDataAlert.classList.remove('hidden');
-                missingDataLink.onclick = () => window.location.href = `edit.html?id=${results[0]?.tableauId || ''}`;
+                missingDataLink.onclick = () => window.location.assign(`edit.html?id=${results[0]?.tableauId || ''}`);
             } else {
                 missingDataAlert.classList.add('hidden');
             }
@@ -882,14 +957,16 @@
                             <p><strong>Principal :</strong> ${node.disjoncteurs?.find(d => d.isPrincipal)?.id || 'Aucun'} (Ir=${node.disjoncteurs?.find(d => d.isPrincipal)?.irValue || 'N/A'}A)</p>
                             <p><strong>Détails :</strong> ${node.disjoncteurs?.length || 0} disjoncteurs</p>
                         `;
+                        document.getElementById('mini-modal').classList.remove('hidden');
                     } else if (node.group === 'principal') {
                         document.getElementById('mini-modal-title').textContent = `Disjoncteur Principal ${node.label.split('\n')[0]}`;
                         document.getElementById('mini-modal-content').innerHTML = `
                             <p><strong>Disjoncteur :</strong> ${node.label.split('\n')[0]}</p>
                             <p><strong>Tableau :</strong> ${node.id.split('-principal-')[0]}</p>
-                            <p><strong>Ir :</strong> ${node.label.match(/Ir=([\d.]+)A/)[1]}A</p>
+                            <p><strong>Ir :</strong> ${node.label.match(/Ir=([\d.]+)A/)?.[1] || 'N/A'}A</p>
                             <p><strong>Rôle :</strong> Principal</p>
                         `;
+                        document.getElementById('mini-modal').classList.remove('hidden');
                     } else if (node.group === 'non-principal') {
                         document.getElementById('mini-modal-title').textContent = `Disjoncteur ${node.disjoncteur.id}`;
                         document.getElementById('mini-modal-content').innerHTML = `
@@ -900,8 +977,8 @@
                             <p><strong>Courbe :</strong> ${node.disjoncteur.courbe || 'N/A'}</p>
                             <p><strong>Liaison :</strong> ${node.disjoncteur.linkedTableauId || 'Aucune'}</p>
                         `;
+                        document.getElementById('mini-modal').classList.remove('hidden');
                     }
-                    document.getElementById('mini-modal').classList.remove('hidden');
                 }
             });
 
@@ -928,6 +1005,43 @@
             document.getElementById('mini-modal').classList.add('hidden');
         }
 
+        function openNonPrincipalModal(tableauId) {
+            console.log('[Client] Ouverture du modal pour disjoncteurs non principaux:', tableauId);
+            const tableau = tableauxData.find(t => t.id === tableauId);
+            if (!tableau) {
+                console.error('[Client] Tableau non trouvé:', tableauId);
+                return;
+            }
+            const nonPrincipaux = tableau.disjoncteurs.filter(d => !d.isPrincipal);
+            const modal = document.getElementById('non-principal-modal');
+            const tableBody = document.getElementById('non-principal-table-body');
+            const modalTitle = document.getElementById('non-principal-modal-title');
+
+            modalTitle.textContent = `Disjoncteurs Non Principaux - ${tableauId}`;
+            tableBody.innerHTML = '';
+            nonPrincipaux.forEach(d => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-2 sm:p-3">${d.id}</td>
+                    <td class="p-2 sm:p-3">${d.marque || 'N/A'}</td>
+                    <td class="p-2 sm:p-3">${d.ref || 'N/A'}</td>
+                    <td class="p-2 sm:p-3">${d.irValue || 'N/A'}</td>
+                    <td class="p-2 sm:p-3">${d.inValue || 'N/A'}</td>
+                    <td class="p-2 sm:p-3">${d.courbe || 'N/A'}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            modal.classList.remove('hidden');
+            gsap.from(modal, { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+        }
+
+        function closeNonPrincipalModal() {
+            console.log('[Client] Fermeture du modal non-principal');
+            const modal = document.getElementById('non-principal-modal');
+            modal.classList.add('hidden');
+        }
+
         window.onload = function() {
             console.log('[Client] Page selectivity.html chargée');
             if (window.location.protocol === 'file:') {
@@ -936,7 +1050,9 @@
             }
             try {
                 const miniModal = document.getElementById('mini-modal');
+                const nonPrincipalModal = document.getElementById('non-principal-modal');
                 miniModal.classList.add('hidden');
+                nonPrincipalModal.classList.add('hidden');
                 const buildingFilter = document.getElementById('building-filter');
                 const tableauFilter = document.getElementById('tableau-filter');
                 if (buildingFilter && tableauFilter) {
@@ -959,6 +1075,6 @@
                 console.error('[Client] Erreur lors de l’initialisation:', error.message, error.stack);
             }
         };
-    </script>
-</body>
-</html>
+        </script>
+        </body>
+        </html>
