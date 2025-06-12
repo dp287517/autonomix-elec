@@ -51,16 +51,18 @@
             <ul class="list-disc pl-6 text-gray-300">
                 <li>Filtrez par bâtiment ou tableau pour analyser les risques électriques spécifiques.</li>
                 <li>Le tableau liste les disjoncteurs avec les risques potentiels : arc électrique, choc électrique, surchauffe.</li>
+                <li>La colonne "Obsolète" indique si le disjoncteur a dépassé sa durée de vie.</li>
                 <li>Cliquez sur l’icône <i class="fas fa-eye"></i> pour voir les détails et les recommandations.</li>
                 <li>Le graphique à barres montre la répartition des risques par type.</li>
-                <li>Les alertes signalent les données manquantes (ex. IP, température) nécessaires pour l’évaluation.</li>
+                <li>Les alertes signalent les données manquantes (ex. IP, température, tension, section) nécessaires pour l’évaluation.</li>
                 <li>Complétez les données via le panneau latéral pour réduire les risques.</li>
+                <li>Vérifiez les conditions environnementales (humidité, température ambiante) pour éviter les risques accrus.</li>
             </ul>
         </div>
 
         <!-- Alertes -->
         <div id="missing-data-alert" class="hidden bg-red-900 text-red-200 p-3 rounded mb-4 flex items-center">
-            <p><i class="fas fa-exclamation-triangle mr-2"></i>Données manquantes pour certains disjoncteurs (ex. IP, température). <a href="#" id="missing-data-link" class="underline">Modifier</a></p>
+            <p><i class="fas fa-exclamation-triangle mr-2"></i>Données manquantes pour certains disjoncteurs (ex. IP, température, tension, section). <a href="#" id="missing-data-link" class="underline">Modifier</a></p>
         </div>
 
         <!-- Tableau des Risques -->
@@ -75,6 +77,7 @@
                         <th class="border border-gray-600 p-2">Risque Arc</th>
                         <th class="border border-gray-600 p-2">Risque Choc</th>
                         <th class="border border-gray-600 p-2">Risque Surchauffe</th>
+                        <th class="border border-gray-600 p-2">Obsolète</th>
                         <th class="border border-gray-600 p-2">Actions</th>
                     </tr>
                 </thead>
@@ -105,6 +108,7 @@
         let tableauxData = [];
         let missingData = [];
         const currentYear = 2025;
+        const validIpValues = ['IP20', 'IP40', 'IP54', 'IP65'];
 
         // Charger les données
         async function loadTableaux() {
@@ -113,7 +117,7 @@
                 const responseData = await response.json();
                 if (!response.ok) throw new Error(responseData.error || 'Erreur lors du chargement');
                 tableauxData = responseData.data;
-                missingData = tableauxData.flatMap(t => t.disjoncteurs.filter(d => !d.ip || !d.temp).map(d => ({ tableauId: t.id, disjoncteurId: d.id })));
+                missingData = tableauxData.flatMap(t => t.disjoncteurs.filter(d => !d.ip || !d.temp || !d.ue || !d.section).map(d => ({ tableauId: t.id, disjoncteurId: d.id })));
                 console.log('[Client] Données chargées:', tableauxData, 'Données manquantes:', missingData);
                 populateFilters();
                 renderHazardsTable();
@@ -155,12 +159,35 @@
             renderHazardsChart(filteredData);
         }
 
+        // Vérifier si le disjoncteur est obsolète
+        function isObsolete(disjoncteur) {
+            if (!disjoncteur.date || !disjoncteur.lifespan) return false;
+            const manufactureYear = new Date(disjoncteur.date).getFullYear();
+            const lifespan = parseInt(disjoncteur.lifespan) || 30;
+            return (currentYear - manufactureYear) >= lifespan;
+        }
+
         // Évaluer les risques
         function evaluateRisks(disjoncteur) {
             const risks = { arc: 'Faible', choc: 'Faible', surchauffe: 'Faible' };
-            if (disjoncteur.ik && disjoncteur.icn && disjoncteur.ik > disjoncteur.icn) risks.arc = 'Élevé';
-            if (!disjoncteur.ip || disjoncteur.ip === 'IP20') risks.choc = 'Moyen';
-            if (disjoncteur.temp && disjoncteur.temp.includes('>70')) risks.surchauffe = 'Élevé';
+            // Risque arc électrique
+            if (disjoncteur.ik && disjoncteur.icn && disjoncteur.ik > disjoncteur.icn) {
+                risks.arc = 'Élevé';
+            }
+            // Risque choc électrique
+            if (!disjoncteur.ip || disjoncteur.ip === 'IP20') {
+                risks.choc = 'Moyen';
+            }
+            if (disjoncteur.humidite && parseFloat(disjoncteur.humidite) > 80) {
+                risks.choc = 'Élevé';
+            }
+            // Risque surchauffe
+            if (disjoncteur.temp && parseFloat(disjoncteur.temp) > 70) {
+                risks.surchauffe = 'Élevé';
+            }
+            if (disjoncteur.temp_ambiante && parseFloat(disjoncteur.temp_ambiante) > 40) {
+                risks.surchauffe = 'Moyen';
+            }
             return risks;
         }
 
@@ -171,6 +198,7 @@
             data.forEach(tableau => {
                 tableau.disjoncteurs.forEach(disjoncteur => {
                     const risks = evaluateRisks(disjoncteur);
+                    const isObsoleteStatus = isObsolete(disjoncteur);
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td class="border border-gray-600 p-2">${tableau.id}</td>
@@ -179,6 +207,7 @@
                         <td class="border border-gray-600 p-2 ${risks.arc === 'Élevé' ? 'text-red-600' : risks.arc === 'Moyen' ? 'text-yellow-400' : 'text-green-600'}">${risks.arc}</td>
                         <td class="border border-gray-600 p-2 ${risks.choc === 'Élevé' ? 'text-red-600' : risks.choc === 'Moyen' ? 'text-yellow-400' : 'text-green-600'}">${risks.choc}</td>
                         <td class="border border-gray-600 p-2 ${risks.surchauffe === 'Élevé' ? 'text-red-600' : risks.surchauffe === 'Moyen' ? 'text-yellow-400' : 'text-green-600'}">${risks.surchauffe}</td>
+                        <td class="border border-gray-600 p-2 ${isObsoleteStatus ? 'text-red-600' : 'text-green-600'}">${isObsoleteStatus ? 'Oui' : 'Non'}</td>
                         <td class="border border-gray-600 p-2">
                             <button class="action-btn text-blue-400 hover:text-blue-600" onclick="openModal('${tableau.id}', '${disjoncteur.id}')"><i class="fas fa-eye"></i></button>
                         </td>
@@ -244,6 +273,7 @@
             const tableau = tableauxData.find(t => t.id === tableauId);
             const disjoncteur = tableau.disjoncteurs.find(d => d.id === disjoncteurId);
             const risks = evaluateRisks(disjoncteur);
+            const isObsoleteStatus = isObsolete(disjoncteur);
             const content = `
                 <p><strong>Tableau :</strong> ${tableauId}</p>
                 <p><strong>Disjoncteur :</strong> ${disjoncteur.id}</p>
@@ -251,11 +281,15 @@
                 <p><strong>Risque Arc Électrique :</strong> ${risks.arc}</p>
                 <p><strong>Risque Choc Électrique :</strong> ${risks.choc}</p>
                 <p><strong>Risque Surchauffe :</strong> ${risks.surchauffe}</p>
+                <p><strong>Obsolète :</strong> ${isObsoleteStatus ? 'Oui' : 'Non'}</p>
                 <h3 class="text-lg font-semibold mt-4">Recommandations :</h3>
                 <ul class="list-disc pl-6">
-                    ${risks.arc === 'Élevé' ? '<li>Remplacer le disjoncteur par un modèle avec un Icn supérieur à Ik.</li>' : ''}
-                    ${risks.choc === 'Moyen' || risks.choc === 'Élevé' ? '<li>Améliorer l’indice de protection (ex. IP40 ou plus).</li>' : ''}
-                    ${risks.surchauffe === 'Élevé' ? '<li>Vérifier la ventilation ou réduire la charge.</li>' : ''}
+                    ${risks.arc === 'Élevé' ? '<li>Remplacer le disjoncteur par un modèle avec un pouvoir de coupure (Icn) supérieur au courant de court-circuit (Ik).</li>' : ''}
+                    ${risks.choc === 'Moyen' || risks.choc === 'Élevé' ? '<li>Améliorer l’indice de protection (ex. IP40 ou IP54 pour environnements humides ou poussiéreux).</li>' : ''}
+                    ${risks.choc === 'Élevé' && disjoncteur.humidite > 80 ? '<li>Réduire l’humidité ambiante ou installer un boîtier étanche (ex. IP65).</li>' : ''}
+                    ${risks.surchauffe === 'Élevé' ? '<li>Vérifier la ventilation ou réduire la charge électrique.</li>' : ''}
+                    ${risks.surchauffe === 'Moyen' && disjoncteur.temp_ambiante > 40 ? '<li>Améliorer le refroidissement ou déplacer l’équipement dans un environnement plus frais.</li>' : ''}
+                    ${isObsoleteStatus ? '<li>Planifier le remplacement du disjoncteur obsolète pour éviter les défaillances.</li>' : ''}
                 </ul>
                 <h3 class="text-lg font-semibold mt-4">Modifier les données :</h3>
                 <div class="mb-4">
@@ -263,8 +297,24 @@
                     <input id="ip-input" type="text" value="${disjoncteur.ip || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. IP40">
                 </div>
                 <div class="mb-4">
-                    <label for="temp-input" class="block text-sm font-medium">Température limite :</label>
-                    <input id="temp-input" type="text" value="${disjoncteur.temp || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. >70">
+                    <label for="temp-input" class="block text-sm font-medium">Température limite (°C):</label>
+                    <input id="temp-input" type="number" step="0.1" value="${disjoncteur.temp || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 70">
+                </div>
+                <div class="mb-4">
+                    <label for="ue-input" class="block text-sm font-medium">Tension nominale (V):</label>
+                    <input id="ue-input" type="number" step="0.1" value="${disjoncteur.ue || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 400">
+                </div>
+                <div class="mb-4">
+                    <label for="section-input" class="block text-sm font-medium">Section du câble (mm²):</label>
+                    <input id="section-input" type="number" step="0.1" value="${disjoncteur.section ? parseFloat(disjoncteur.section) : ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 2.5">
+                </div>
+                <div class="mb-4">
+                    <label for="humidite-input" class="block text-sm font-medium">Humidité ambiante (%):</label>
+                    <input id="humidite-input" type="number" step="0.1" value="${disjoncteur.humidite || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 60">
+                </div>
+                <div class="mb-4">
+                    <label for="temp_ambiante-input" class="block text-sm font-medium">Température ambiante (°C):</label>
+                    <input id="temp_ambiante-input" type="number" step="0.1" value="${disjoncteur.temp_ambiante || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 25">
                 </div>
             `;
             document.getElementById('modal-content').innerHTML = content;
@@ -273,10 +323,41 @@
                 try {
                     const ip = document.getElementById('ip-input').value;
                     const temp = document.getElementById('temp-input').value;
+                    const ue = document.getElementById('ue-input').value;
+                    const section = document.getElementById('section-input').value;
+                    const humidite = document.getElementById('humidite-input').value;
+                    const temp_ambiante = document.getElementById('temp_ambiante-input').value;
+
+                    // Validation des données
+                    if (ip && !validIpValues.includes(ip)) {
+                        alert('Indice de protection invalide. Valeurs acceptées : IP20, IP40, IP54, IP65.');
+                        return;
+                    }
+                    if (temp && (isNaN(parseFloat(temp)) || temp < 0)) {
+                        alert('La température doit être une valeur numérique positive (ex. 70).');
+                        return;
+                    }
+                    if (ue && (isNaN(parseFloat(ue)) || ue < 0)) {
+                        alert('La tension nominale doit être une valeur numérique positive (ex. 400).');
+                        return;
+                    }
+                    if (section && (isNaN(parseFloat(section)) || section < 0)) {
+                        alert('La section du câble doit être une valeur numérique positive (ex. 2.5).');
+                        return;
+                    }
+                    if (humidite && (isNaN(parseFloat(humidite)) || humidite < 0 || humidite > 100)) {
+                        alert('L’humidité doit être une valeur numérique entre 0 et 100 (ex. 60).');
+                        return;
+                    }
+                    if (temp_ambiante && (isNaN(parseFloat(temp_ambiante)) || temp_ambiante < -20 || temp_ambiante > 60)) {
+                        alert('La température ambiante doit être une valeur numérique entre -20 et 60 (ex. 25).');
+                        return;
+                    }
+
                     const response = await fetch(`/api/disjoncteur/${tableauId}/${disjoncteurId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ip, temp })
+                        body: JSON.stringify({ ip, temp, ue, section, humidite, temp_ambiante })
                     });
                     const responseData = await response.json();
                     if (!response.ok) throw new Error(responseData.error || 'Erreur lors de la mise à jour');
