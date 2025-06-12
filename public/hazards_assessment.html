@@ -92,7 +92,7 @@
         </div>
 
         <!-- Modal Détails -->
-        <div id="modal-details" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div id="modal-details" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
             <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full animate-zoom-in">
                 <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-info-circle mr-2"></i>Détails du Disjoncteur</h2>
                 <div id="modal-content" class="mb-4 text-gray-300"></div>
@@ -251,10 +251,19 @@
                         <td class="border border-gray-600 p-2 ${risks.surchauffe === 'Élevé' ? 'text-red-600' : risks.surchauffe === 'Moyen' ? 'text-yellow-400' : 'text-green-600'}">${risks.surchauffe}</td>
                         <td class="border border-gray-600 p-2 ${isObsoleteStatus ? 'text-red-600' : 'text-green-600'}">${isObsoleteStatus ? 'Oui' : 'Non'}</td>
                         <td class="border border-gray-600 p-2">
-                            <button class="action-btn text-blue-400 hover:text-blue-600" onclick="openModal('${tableau.id}', '${disjoncteur.id}')"><i class="fas fa-eye"></i></button>
+                            <button class="action-btn text-blue-400 hover:text-blue-600" data-tableau-id="${tableau.id}" data-disjoncteur-id="${disjoncteur.id}"><i class="fas fa-eye"></i></button>
                         </td>
                     `;
                     tbody.appendChild(tr);
+                });
+            });
+            // Associer les événements aux boutons d'action
+            document.querySelectorAll('.action-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const tableauId = btn.dataset.tableauId;
+                    const disjoncteurId = btn.dataset.disjoncteurId;
+                    console.log('[Client] Bouton Action cliqué:', { tableauId, disjoncteurId });
+                    openModal(tableauId, disjoncteurId);
                 });
             });
             gsap.from('tr', { opacity: 0, y: 20, duration: 0.5, stagger: 0.1 });
@@ -308,6 +317,7 @@
                 alert.classList.remove('hidden');
                 link.onclick = () => {
                     const { tableauId, disjoncteurId } = missingData[0];
+                    console.log('[Client] Clic sur lien données manquantes:', { tableauId, disjoncteurId });
                     openModal(tableauId, disjoncteurId);
                 };
             } else {
@@ -317,9 +327,20 @@
 
         // Gérer le modal
         function openModal(tableauId, disjoncteurId) {
+            console.log('[Client] Ouverture modal:', { tableauId, disjoncteurId });
             const modal = document.getElementById('modal-details');
             const tableau = tableauxData.find(t => t.id === tableauId);
+            if (!tableau) {
+                console.error('[Client] Tableau non trouvé:', tableauId);
+                alert('Erreur: Tableau non trouvé');
+                return;
+            }
             const disjoncteur = tableau.disjoncteurs.find(d => d.id === disjoncteurId);
+            if (!disjoncteur) {
+                console.error('[Client] Disjoncteur non trouvé:', disjoncteurId);
+                alert('Erreur: Disjoncteur non trouvé');
+                return;
+            }
             const risks = evaluateRisks(disjoncteur);
             const isObsoleteStatus = isObsolete(disjoncteur);
             const content = `
@@ -368,6 +389,7 @@
             document.getElementById('modal-content').innerHTML = content;
             modal.classList.remove('hidden');
             document.getElementById('save-disjoncteur').onclick = async () => {
+                console.log('[Client] Bouton Enregistrer cliqué:', { tableauId, disjoncteurId });
                 try {
                     const ip = document.getElementById('ip-input').value;
                     const temp = document.getElementById('temp-input').value;
@@ -378,26 +400,32 @@
 
                     // Validation des données
                     if (ip && !validIpValues.includes(ip)) {
+                        console.log('[Client] Validation échouée: IP invalide', ip);
                         alert('Indice de protection invalide. Valeurs acceptées : IP20, IP40, IP54, IP65.');
                         return;
                     }
                     if (temp && (isNaN(parseFloat(temp)) || temp < 0)) {
+                        console.log('[Client] Validation échouée: Température invalide', temp);
                         alert('La température doit être une valeur numérique positive (ex. 70).');
                         return;
                     }
                     if (ue && (isNaN(parseFloat(ue)) || ue < 0)) {
+                        console.log('[Client] Validation échouée: Tension invalide', ue);
                         alert('La tension nominale doit être une valeur numérique positive (ex. 400).');
                         return;
                     }
                     if (section && (isNaN(parseFloat(section)) || section < 0)) {
+                        console.log('[Client] Validation échouée: Section invalide', section);
                         alert('La section du câble doit être une valeur numérique positive (ex. 2.5).');
                         return;
                     }
                     if (humidite && (isNaN(parseFloat(humidite)) || humidite < 0 || humidite > 100)) {
+                        console.log('[Client] Validation échouée: Humidité invalide', humidite);
                         alert('L’humidité doit être une valeur numérique entre 0 et 100 (ex. 60).');
                         return;
                     }
                     if (temp_ambiante && (isNaN(parseFloat(temp_ambiante)) || temp_ambiante < -20 || temp_ambiante > 60)) {
+                        console.log('[Client] Validation échouée: Température ambiante invalide', temp_ambiante);
                         alert('La température ambiante doit être une valeur numérique entre -20 et 60 (ex. 25).');
                         return;
                     }
@@ -408,7 +436,10 @@
                         body: JSON.stringify({ ip, temp, ue, section, humidite, temp_ambiante })
                     });
                     const responseData = await response.json();
-                    if (!response.ok) throw new Error(responseData.error || 'Erreur lors de la mise à jour');
+                    if (!response.ok) {
+                        console.error('[Client] Erreur mise à jour serveur:', responseData.error);
+                        throw new Error(responseData.error || 'Erreur lors de la mise à jour');
+                    }
                     console.log('[Client] Disjoncteur mis à jour:', responseData.data);
                     alert('Données mises à jour avec succès !');
                     modal.classList.add('hidden');
@@ -418,11 +449,19 @@
                     alert('Erreur : ' + error.message);
                 }
             };
-            document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
+            document.getElementById('close-modal').onclick = () => {
+                console.log('[Client] Bouton Fermer cliqué');
+                modal.classList.add('hidden');
+            };
         }
 
         // Initialisation
-        window.onload = loadTableaux;
+        window.onload = () => {
+            console.log('[Client] Initialisation hazards_assessment.html');
+            const modal = document.getElementById('modal-details');
+            if (modal) modal.classList.add('hidden'); // S'assurer que le modal est masqué
+            loadTableaux();
+        };
     </script>
 </body>
 </html>
