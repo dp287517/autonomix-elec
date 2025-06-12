@@ -65,12 +65,12 @@ const cableSections = [
     { in: 400, section: 240 },
     { in: 500, section: 300 },
     { in: 630, section: 400 },
-    { in: 800, section: 500 }, // Gaine à barres typique
+    { in: 800, section: 500 },
     { in: 1000, section: 630 },
     { in: 1250, section: 800 },
     { in: 1600, section: 1000 },
     { in: 2000, section: 1200 },
-    { in: 2500, section: 1600 } // Gaine à barres pour courants élevés
+    { in: 2500, section: 1600 }
 ];
 
 // Fonction pour obtenir la section recommandée selon In
@@ -81,7 +81,7 @@ function getRecommendedSection(inValue) {
             return cableSections[i].section;
         }
     }
-    return 1600; // Par défaut pour In > 2500 A
+    return 1600;
 }
 
 // Validation des données
@@ -104,6 +104,9 @@ function validateDisjoncteurData(data) {
     }
     if (data.temp_ambiante && (isNaN(parseFloat(data.temp_ambiante)) || data.temp_ambiante < -20 || data.temp_ambiante > 60)) {
         errors.push('La température ambiante doit être une valeur numérique entre -20 et 60 (ex. 25).');
+    }
+    if (data.charge && (isNaN(parseFloat(data.charge)) || data.charge < 0 || data.charge > 100)) {
+        errors.push('La charge doit être une valeur numérique entre 0 et 100 (ex. 80).');
     }
     return errors;
 }
@@ -150,6 +153,15 @@ async function initDb() {
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS obsolescence_factors (
+                id SERIAL PRIMARY KEY,
+                disjoncteur_type VARCHAR(50),
+                humidity_factor FLOAT DEFAULT 1.0,
+                temperature_factor FLOAT DEFAULT 1.0,
+                load_factor FLOAT DEFAULT 1.0
+            );
+        `);
         const orgCount = await pool.query('SELECT COUNT(*) FROM maintenance_org');
         if (parseInt(orgCount.rows[0].count) === 0) {
             console.log('[Server] Insertion des données par défaut pour maintenance_org');
@@ -172,8 +184,9 @@ async function initDb() {
                 section: d.section || `${getRecommendedSection(d.in)} mm²`,
                 icn: normalizeIcn(d.icn),
                 replacementDate: d.replacementDate || null,
-                humidite: d.humidite || null,
-                temp_ambiante: d.temp_ambiante || null
+                humidite: d.humidite || 50,
+                temp_ambiante: d.temp_ambiante || 25,
+                charge: d.charge || 80
             }));
             await pool.query('UPDATE tableaux SET disjoncteurs = $1::jsonb WHERE id = $2', [JSON.stringify(disjoncteurs), row.id]);
         }
@@ -239,7 +252,7 @@ app.post('/api/disjoncteur', async (req, res) => {
         if (!marque || !ref) {
             throw new Error('Marque et référence sont requis');
         }
-        const prompt = `Fournis les caractéristiques techniques du disjoncteur de marque "${marque}" et référence "${ref}". Retourne un JSON avec les champs suivants : id (laisser vide), type, poles, montage, ue, ui, uimp, frequence, in, ir, courbe, triptime, icn, ics, ip, temp, dimensions, section, date, tension, selectivite, lifespan (durée de vie en années, ex. 30), cableLength (laisser vide), impedance (laisser vide), humidite (en %), temp_ambiante (en °C). Si une information est manquante, laisse le champ vide.`;
+        const prompt = `Fournis les caractéristiques techniques du disjoncteur de marque "${marque}" et référence "${ref}". Retourne un JSON avec les champs suivants : id (laisser vide), type, poles, montage, ue, ui, uimp, frequence, in, ir, courbe, triptime, icn, ics, ip, temp, dimensions, section, date, tension, selectivite, lifespan (durée de vie en années, ex. 30), cableLength (laisser vide), impedance (laisser vide), humidite (en %, ex. 50), temp_ambiante (en °C, ex. 25), charge (en %, ex. 80). Si une information est manquante, utilise des valeurs par défaut plausibles ou laisse le champ vide.`;
         console.log('[Server] Prompt envoyé à OpenAI:', prompt);
         const response = await openai.chat.completions.create({
             model: 'gpt-4o',
@@ -260,6 +273,9 @@ app.post('/api/disjoncteur', async (req, res) => {
             }
             data.icn = normalizeIcn(data.icn);
             data.section = data.section || `${getRecommendedSection(data.in)} mm²`;
+            data.humidite = data.humidite || 50;
+            data.temp_ambiante = data.temp_ambiante || 25;
+            data.charge = data.charge || 80;
             res.json(data);
         }
     } catch (error) {
@@ -357,7 +373,6 @@ app.post('/api/tableaux', async (req, res) => {
         if (!id || !disjoncteurs || !Array.isArray(disjoncteurs)) {
             throw new Error('ID et disjoncteurs sont requis');
         }
-        // Vérifier si l'ID existe déjà
         const checkResult = await pool.query('SELECT id FROM tableaux WHERE id = $1', [id]);
         if (checkResult.rows.length > 0) {
             console.log('[Server] Erreur: ID tableau déjà utilisé:', id);
@@ -374,8 +389,9 @@ app.post('/api/tableaux', async (req, res) => {
                 icn: normalizeIcn(d.icn),
                 cableLength: isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 5 : 20) : parseFloat(d.cableLength),
                 section: d.section || `${getRecommendedSection(d.in)} mm²`,
-                humidite: d.humidite || null,
-                temp_ambiante: d.temp_ambiante || null
+                humidite: d.humidite || 50,
+                temp_ambiante: d.temp_ambiante || 25,
+                charge: d.charge || 80
             };
         });
         await pool.query('INSERT INTO tableaux (id, disjoncteurs, isSiteMain) VALUES ($1, $2::jsonb, $3)', [
@@ -387,7 +403,7 @@ app.post('/api/tableaux', async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         console.error('[Server] Erreur POST /api/tableaux:', error.message, error.stack);
-        res.status(500).json({ error: 'Erreur lors de la création: ' + error.message });
+        res.status(500).json({ error: 'Erreur lors de la création : ' + error.message });
     }
 });
 
@@ -410,8 +426,9 @@ app.put('/api/tableaux/:id', async (req, res) => {
                 icn: normalizeIcn(d.icn),
                 cableLength: isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 5 : 20) : parseFloat(d.cableLength),
                 section: d.section || `${getRecommendedSection(d.in)} mm²`,
-                humidite: d.humidite || null,
-                temp_ambiante: d.temp_ambiante || null
+                humidite: d.humidite || 50,
+                temp_ambiante: d.temp_ambiante || 25,
+                charge: d.charge || 80
             };
         });
         const result = await pool.query('UPDATE tableaux SET disjoncteurs = $1::jsonb, isSiteMain = $2 WHERE id = $3 RETURNING *', [
@@ -451,6 +468,52 @@ app.delete('/api/tableaux/:id', async (req, res) => {
     }
 });
 
+// Calcul de l'obsolescence avec facteurs environnementaux
+function calculateAdjustedLifespan(disjoncteur) {
+    const lifespan = parseInt(disjoncteur.lifespan) || 30;
+    let humidityFactor = 1.0;
+    let temperatureFactor = 1.0;
+    let loadFactor = 1.0;
+    let criticalReason = [];
+
+    // Facteur humidité
+    const humidite = parseFloat(disjoncteur.humidite) || 50;
+    if (humidite > 70) {
+        const excess = (humidite - 70) / 10;
+        humidityFactor = Math.max(0.5, 1.0 - (0.1 * excess));
+        criticalReason.push(`Humidité élevée (${humidite}%)`);
+    }
+
+    // Facteur température
+    const temp_ambiante = parseFloat(disjoncteur.temp_ambiante) || 25;
+    if (temp_ambiante > 40) {
+        const excess = (temp_ambiante - 40) / 5;
+        temperatureFactor = Math.max(0.5, 1.0 - (0.05 * excess));
+        criticalReason.push(`Température élevée (${temp_ambiante}°C)`);
+    } else if (temp_ambiante < -5) {
+        const excess = (-5 - temp_ambiante) / 5;
+        temperatureFactor = Math.max(0.5, 1.0 - (0.05 * excess));
+        criticalReason.push(`Température basse (${temp_ambiante}°C)`);
+    }
+
+    // Facteur charge
+    const charge = parseFloat(disjoncteur.charge) || 80;
+    if (charge > 80) {
+        const excess = (charge - 80) / 10;
+        loadFactor = Math.max(0.5, 1.0 - (0.05 * excess));
+        criticalReason.push(`Surcharge (${charge}%)`);
+    }
+
+    const adjustedLifespan = Math.round(lifespan * humidityFactor * temperatureFactor * loadFactor);
+    const isCritical = adjustedLifespan <= 5 || criticalReason.length > 0;
+
+    return {
+        adjustedLifespan,
+        isCritical,
+        criticalReason: criticalReason.length > 0 ? criticalReason.join(', ') : null
+    };
+}
+
 // Route pour analyser l'obsolescence
 app.get('/api/obsolescence', async (req, res) => {
     console.log('[Server] GET /api/obsolescence');
@@ -461,8 +524,8 @@ app.get('/api/obsolescence', async (req, res) => {
                 const date = d.date ? new Date(d.date) : null;
                 const manufactureYear = date ? date.getFullYear() : null;
                 const age = manufactureYear !== null ? (new Date().getFullYear() - manufactureYear) : null;
-                const lifespan = parseInt(d.lifespan) || 30;
-                const status = age !== null && age >= lifespan ? 'Obsolète' : 'OK';
+                const { adjustedLifespan, isCritical, criticalReason } = calculateAdjustedLifespan(d);
+                const status = age !== null && age >= adjustedLifespan ? 'Obsolète' : 'OK';
                 let replacementDate = d.replacementDate || replacementDates[`${row.id}-${d.id}`] || null;
                 if (!replacementDate) {
                     if (status === 'Obsolète') {
@@ -476,7 +539,10 @@ app.get('/api/obsolescence', async (req, res) => {
                     manufactureYear,
                     age,
                     status,
-                    replacementDate
+                    replacementDate,
+                    adjustedLifespan,
+                    isCritical,
+                    criticalReason
                 };
             });
             const validYears = disjoncteurs
@@ -612,13 +678,13 @@ app.get('/api/fault-level', async (req, res) => {
 
 // Route pour mettre à jour les données de câble
 app.post('/api/fault-level/update', async (req, res) => {
-    const { tableauId, disjoncteurId, ue, section, cableLength, impedance, humidite, temp_ambiante } = req.body;
-    console.log('[Server] POST /api/fault-level/update - Requête reçue:', { tableauId, disjoncteurId, ue, section, cableLength, impedance, humidite, temp_ambiante });
+    const { tableauId, disjoncteurId, ue, section, cableLength, impedance, humidite, temp_ambiante, charge } = req.body;
+    console.log('[Server] POST /api/fault-level/update - Requête reçue:', { tableauId, disjoncteurId, ue, section, cableLength, impedance, humidite, temp_ambiante, charge });
     try {
         if (!tableauId || !disjoncteurId) {
             throw new Error('Tableau ID et Disjoncteur ID sont requis');
         }
-        const validationErrors = validateDisjoncteurData({ ue, section, humidite, temp_ambiante });
+        const validationErrors = validateDisjoncteurData({ ue, section, humidite, temp_ambiante, charge });
         if (validationErrors.length > 0) {
             console.log('[Server] Erreurs de validation:', validationErrors);
             res.status(400).json({ error: 'Données invalides: ' + validationErrors.join('; ') });
@@ -643,8 +709,9 @@ app.post('/api/fault-level/update', async (req, res) => {
             section: section || disjoncteurs[disjoncteurIndex].section || `${getRecommendedSection(disjoncteurs[disjoncteurIndex].in)} mm²`,
             cableLength: isNaN(parseFloat(cableLength)) ? (disjoncteurs[disjoncteurIndex].isPrincipal ? 5 : 20) : parseFloat(cableLength),
             impedance: impedance ? parseFloat(impedance) : null,
-            humidite: humidite || disjoncteurs[disjoncteurIndex].humidite,
-            temp_ambiante: temp_ambiante || disjoncteurs[disjoncteurIndex].temp_ambiante
+            humidite: humidite || disjoncteurs[disjoncteurIndex].humidite || 50,
+            temp_ambiante: temp_ambiante || disjoncteurs[disjoncteurIndex].temp_ambiante || 25,
+            charge: charge || disjoncteurs[disjoncteurIndex].charge || 80
         };
         const inNum = parseFloat(updatedDisjoncteur.in?.match(/[\d.]+/)?.[0]) || 0;
         const sectionNum = parseFloat(updatedDisjoncteur.section?.match(/[\d.]+/)?.[0]) || 0;
@@ -697,8 +764,8 @@ app.post('/api/reports', async (req, res) => {
                 const date = d.date ? new Date(d.date) : null;
                 const manufactureYear = date ? date.getFullYear() : null;
                 const age = manufactureYear !== null ? (new Date().getFullYear() - manufactureYear) : null;
-                const lifespan = parseInt(d.lifespan) || 30;
-                const status = age !== null && age >= lifespan ? 'Obsolète' : 'OK';
+                const { adjustedLifespan, isCritical, criticalReason } = calculateAdjustedLifespan(d);
+                const status = age !== null && age >= adjustedLifespan ? 'Obsolète' : 'OK';
                 let replacementDate = d.replacementDate || replacementDates[`${row.id}-${d.id}`] || null;
                 if (!replacementDate) {
                     if (status === 'Obsolète') {
@@ -707,7 +774,7 @@ app.post('/api/reports', async (req, res) => {
                         replacementDate = `${new Date().getFullYear() + 2}-01-01`;
                     }
                 }
-                return { ...d, manufactureYear, age, status, replacementDate };
+                return { ...d, manufactureYear, age, status, replacementDate, adjustedLifespan, isCritical, criticalReason };
             });
             return {
                 id: row.id,
@@ -868,17 +935,17 @@ app.post('/api/reports', async (req, res) => {
             doc.fontSize(16).text('Rapport d\'Obsolescence', 50, doc.y);
             doc.moveDown();
             doc.fontSize(12);
-            doc.text('Tableau | Disjoncteur | Âge | Statut', 50, doc.y);
+            doc.text('Tableau | Disjoncteur | Âge | Statut | Durée de vie ajustée | Raison criticité', 50, doc.y);
             doc.moveDown(0.5);
             obsolescenceReportData.forEach(tableau => {
                 tableau.disjoncteurs.forEach(d => {
-                    doc.text(`${tableau.id} | ${d.id} | ${d.age || 'N/A'} | ${d.status}`, 50, doc.y);
+                    doc.text(`${tableau.id} | ${d.id} | ${d.age || 'N/A'} | ${d.status} | ${d.adjustedLifespan} ans | ${d.criticalReason || 'N/A'}`, 50, doc.y);
                     doc.moveDown(0.5);
                 });
             });
             try {
                 console.log('[Server] Capture graphique CAPEX');
-                const capexImage = await captureChart('http://localhost:3000/obsolescence.html', '#capex-chart');
+                const capexImage = await captureChart('http://localhost:3000/obsolescence.html', '#gantt-table');
                 doc.addPage();
                 doc.fontSize(16).text('Prévision CAPEX', 50, 50);
                 doc.image(capexImage, 50, 100, { width: 500 });
@@ -1043,8 +1110,9 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
             section: updatedData.section || disjoncteurs[disjoncteurIndex].section || `${getRecommendedSection(updatedData.in || disjoncteurs[disjoncteurIndex].in)} mm²`,
             cableLength: isNaN(parseFloat(updatedData.cableLength)) ? 
                 (disjoncteurs[disjoncteurIndex].isPrincipal ? 5 : 20) : parseFloat(updatedData.cableLength),
-            humidite: updatedData.humidite || disjoncteurs[disjoncteurIndex].humidite,
-            temp_ambiante: updatedData.temp_ambiante || disjoncteurs[disjoncteurIndex].temp_ambiante
+            humidite: updatedData.humidite || disjoncteurs[disjoncteurIndex].humidite || 50,
+            temp_ambiante: updatedData.temp_ambiante || disjoncteurs[disjoncteurIndex].temp_ambiante || 25,
+            charge: updatedData.charge || disjoncteurs[disjoncteurIndex].charge || 80
         };
         disjoncteurs[disjoncteurIndex] = updatedDisjoncteur;
         await pool.query('UPDATE tableaux SET disjoncteurs = $1::jsonb WHERE id = $2', [JSON.stringify(disjoncteurs), tableauId]);
@@ -1136,7 +1204,7 @@ app.post('/api/safety-actions', async (req, res) => {
             }
         }
         const result = await pool.query(
-            'INSERT INTO safety_actions (type, description, building, tableau_id, status, date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            'INSERT INTO safety_actions (type, description, building, tableau_id, $), status, $), date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
             [type, description, building, tableau || null, status, date || null]
         );
         console.log('[Server] Action créée:', result.rows[0]);
@@ -1181,9 +1249,26 @@ app.put('/api/safety-actions/:id', async (req, res) => {
     }
 });
 
-const path = require('path');
+app.delete('/api/safety-actions/:id', async (req, res) => {
+    const { id } = req.params;
+    console.log('[Server] DELETE /api/safety-actions/', id);
+    try {
+        const result = await pool.query('DELETE FROM safety_actions WHERE id = $1 RETURNING *', [id]);
+        if (result.rows.length === 0) {
+            console.log('[Server] Action non trouvée:', id);
+            res.status(404).json({ error: 'Action non trouvée' });
+        } else {
+            console.log('[Server] Action supprimée:', id);
+            res.json({ success: true });
+        }
+    } catch (error) {
+        console.error('[Server] Erreur DELETE /api/safety-actions/:id:', error.message, error.stack);
+        res.status(500).json({ error: 'Erreur lors de la suppression de l’action: ' + error.message });
+    }
+});
 
 // Servir les fichiers HTML pour toutes les routes
+const path = require('path');
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
