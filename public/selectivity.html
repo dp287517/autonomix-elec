@@ -20,7 +20,7 @@
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5) !important; font-size: 14px !important;
             z-index: 1000 !important; pointer-events: none !important;
         }
-        #mini-modal, #non-principal-modal { z-index: 2000 !important; }
+        #mini-modal, #non-principal-modal, #missing-data-modal { z-index: 2000 !important; }
         #global-graph canvas { width: 100% !important; height: 100% !important; min-height: 800px; }
         #building-filter, #tableau-filter {
             appearance: auto !important; cursor: pointer !important; pointer-events: auto !important;
@@ -32,12 +32,14 @@
         .bg-gray-800, .bg-gray-800 * { pointer-events: auto !important; z-index: 100 !important; }
         .container, .container * { z-index: 60 !important; pointer-events: auto !important; }
         .badge {
-            background-color: #10B981; color: #ffffff; padding: 2px 6px; border-radius: 9999px; font-size: 0.75rem; margin-left: 4px;
+            background-color: #eab308; color: #ffffff; padding: 2px 6px; border-radius: 9999px; font-size: 0.75rem; margin-left: 4px;
         }
+        .badge-critical { background-color: #dc2626; }
         @media (max-width: 640px) {
-            #non-principal-modal > div { padding: 1rem; max-width: 95vw; }
-            .non-principal-table th, .non-principal-table td { font-size: 0.75rem; padding: 0.5rem; }
+            #non-principal-modal > div, #missing-data-modal > div { padding: 1rem; max-width: 95vw; }
+            .non-principal-table th, .non-principal-table td, .missing-data-table th, .missing-data-table td { font-size: 0.75rem; padding: 0.5rem; }
         }
+        .sortable:hover { cursor: pointer; text-decoration: underline; }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
@@ -76,10 +78,10 @@
                 <li>Utilisez les filtres pour sélectionner un bâtiment ou un tableau spécifique.</li>
                 <li>Consultez le tableau ci-dessous pour voir les tableaux électriques et leurs disjoncteurs.</li>
                 <li>Chaque tableau affiche son disjoncteur principal, le nombre de disjoncteurs non principaux (cliquez sur la loupe pour les détails), et les liaisons.</li>
+                <li>Pour les données manquantes, cliquez sur la loupe pour voir les disjoncteurs concernés et leurs champs à compléter.</li>
                 <li>Cliquez sur l’icône <i class="fas fa-chart-line"></i> ou "Agrandir" pour voir le graphique de sélectivité.</li>
                 <li>Le statut indique si la sélectivité est correcte, avec une explication dans le modal.</li>
                 <li>Le schéma interactif plus bas montre les relations entre tableaux et disjoncteurs.</li>
-                <li>Si des données manquent, un bouton "Modifier" vous redirige vers l’édition.</li>
                 <li>Les courbes rouges signalent un risque de coupure incorrecte.</li>
             </ul>
         </div>
@@ -144,7 +146,7 @@
             <div class="bg-gray-800 p-6 rounded-lg shadow-lg w-[600px]">
                 <div class="flex items-center justify-between mb-4">
                     <h4 class="text-xl font-bold text-white"><i class="fas fa-info-circle mr-2"></i><span id="mini-modal-title">Détails</span></h4>
-                    <button onclick="closeMiniModal()" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-blue-700"><i class="fas fa-times"></i></button>
+                    <button onclick="closeMiniModal()" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"><i class="fas fa-times"></i></button>
                 </div>
                 <div id="mini-modal-content" class="text-gray-300"></div>
             </div>
@@ -173,12 +175,34 @@
                 </div>
             </div>
         </div>
+
+        <div id="missing-data-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-[2000]" role="dialog" aria-labelledby="missing-data-modal-title">
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg w-[90vw] max-w-2xl">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-xl font-bold text-white" id="missing-data-modal-title"><i class="fas fa-magnifying-glass mr-2"></i><span>Données Manquantes</span></h4>
+                    <button onclick="closeMissingDataModal()" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700" aria-label="Fermer le modal"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full missing-data-table text-sm sm:text-base">
+                        <thead>
+                            <tr class="bg-gray-700 text-white">
+                                <th class="p-2 sm:p-3 sortable" onclick="sortMissingDataTable('id')">ID <i class="fas fa-sort"></i></th>
+                                <th class="p-2 sm:p-3">Données Manquantes</th>
+                                <th class="p-2 sm:p-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="missing-data-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
         let tableauxData = [];
         let modalChartInstance = null;
         let graphInstance = null;
+        let missingDataSortDirection = 'asc';
 
         function normalizeCurrent(value) {
             if (value === null || value === undefined) return null;
@@ -325,13 +349,17 @@
                     <td class="p-2${principal.id ? ' disjoncteur-principal' : ''}">${principal.id || 'Aucun (amont: ' + upstreamInfo + ')'} (${principal.marque || ''} ${principal.ref || ''})</td>
                     <td class="p-2">
                         ${nonPrincipaux.length > 0 
-                            ? `<button class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 flex items-center" onclick="openNonPrincipalModal('${tableau.id}')"><i class="fas fa-magnifying-glass mr-1"></i> Voir ${nonPrincipaux.length} disjoncteur${nonPrincipaux.length > 1 ? 's' : ''}<span class="badge">${nonPrincipaux.length}</span></button>`
+                            ? `<button class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 flex items-center" onclick="openNonPrincipalModal('${tableau.id}')" aria-label="Voir ${nonPrincipaux.length} disjoncteurs non principaux"><i class="fas fa-magnifying-glass mr-1"></i> Voir ${nonPrincipaux.length} disjoncteur${nonPrincipaux.length > 1 ? 's' : ''}<span class="badge">${nonPrincipaux.length}</span></button>`
                             : 'Aucun'}
                     </td>
                     <td class="p-2">${liaisons}</td>
                     <td class="p-2"><span class="${selectivityStatus.status === 'Parfait' ? 'text-green-600' : selectivityStatus.status === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${selectivityStatus.status}: ${selectivityStatus.message}</span></td>
-                    <td class="p-2 flex items-center space-x-2"><i class="fas fa-chart-line text-blue-600 text-xl cursor-pointer hover:text-blue-800 graph-icon" onclick="openModal(${index})"></i><button onclick="openModal(${index})" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">Agrandir</button></td>
-                    <td class="p-2">${missingData.length > 0 ? missingData.map(d => `<p class="text-red-600 alert-missing">${d.id}: ${d.missing.join(', ')}</p><button onclick="redirigerModifier('${tableau.id}', '${d.id}')" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">Modifier</button>`).join('<br>') : 'Aucune'}</td>
+                    <td class="p-2 flex items-center space-x-2"><i class="fas fa-chart-line text-blue-600 text-xl cursor-pointer hover:text-blue-800 graph-icon" onclick="openModal(${index})" aria-label="Voir le graphique"></i><button onclick="openModal(${index})" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">Agrandir</button></td>
+                    <td class="p-2">
+                        ${missingData.length > 0 
+                            ? `<button class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 flex items-center" onclick="openMissingDataModal('${tableau.id}')" aria-label="Voir ${missingData.length} disjoncteurs avec données manquantes"><i class="fas fa-magnifying-glass mr-1"></i> Voir ${missingData.length} disjoncteur${missingData.length > 1 ? 's' : ''}<span class="badge ${missingData.length > 5 ? 'badge-critical' : ''}">${missingData.length}</span></button>`
+                            : 'Aucune'}
+                    </td>
                 `;
                 tableBody.appendChild(row);
             });
@@ -374,6 +402,70 @@
             modal.classList.add('hidden');
         }
 
+        function openMissingDataModal(tableauId) {
+            console.log('[Client] Ouverture du modal pour données manquantes:', tableauId);
+            const tableau = tableauxData.find(t => t.id === tableauId);
+            if (!tableau) {
+                console.error('[Client] Tableau non trouvé:', tableauId);
+                return;
+            }
+            const missingData = checkMissingData(tableau.disjoncteurs);
+            const modal = document.getElementById('missing-data-modal');
+            const tableBody = document.getElementById('missing-data-table-body');
+            const modalTitle = document.getElementById('missing-data-modal-title');
+
+            modalTitle.textContent = `Données Manquantes - ${tableauId}`;
+            tableBody.innerHTML = '';
+            missingData.forEach(d => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-2 sm:p-3">${d.id}</td>
+                    <td class="p-2 sm:p-3">${d.missing.join(', ')}</td>
+                    <td class="p-2 sm:p-3"><button onclick="redirigerModifier('${tableauId}', '${d.id}')" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">Modifier</button></td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            modal.classList.remove('hidden');
+            gsap.from(modal, { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+        }
+
+        function closeMissingDataModal() {
+            console.log('[Client] Fermeture du modal données manquantes');
+            const modal = document.getElementById('missing-data-modal');
+            modal.classList.add('hidden');
+        }
+
+        function sortMissingDataTable(column) {
+            console.log('[Client] Tri du tableau des données manquantes par:', column);
+            const tableauId = document.getElementById('missing-data-modal-title').textContent.split(' - ')[1];
+            const tableau = tableauxData.find(t => t.id === tableauId);
+            if (!tableau) return;
+            const missingData = checkMissingData(tableau.disjoncteurs);
+            const tableBody = document.getElementById('missing-data-table-body');
+
+            missingData.sort((a, b) => {
+                if (column === 'id') {
+                    return missingDataSortDirection === 'asc'
+                        ? a.id.localeCompare(b.id)
+                        : b.id.localeCompare(a.id);
+                }
+                return 0;
+            });
+
+            missingDataSortDirection = missingDataSortDirection === 'asc' ? 'desc' : 'asc';
+            tableBody.innerHTML = '';
+            missingData.forEach(d => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-2 sm:p-3">${d.id}</td>
+                    <td class="p-2 sm:p-3">${d.missing.join(', ')}</td>
+                    <td class="p-2 sm:p-3"><button onclick="redirigerModifier('${tableauId}', '${d.id}')" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">Modifier</button></td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
         function checkMissingData(disjoncteurs) {
             console.log('[Client] Vérification des données manquantes');
             return disjoncteurs
@@ -390,7 +482,7 @@
 
         function redirigerModifier(tableauId, disjoncteurId) {
             console.log('[Client] Redirection vers edit.html pour', tableauId, disjoncteurId);
-            window.location.href = `edit.html?id=${tableauId}#${disjoncteurId}`;
+            window.location.assign(`edit.html?id=${tableauId}#${disjoncteurId}`);
         }
 
         function findUpstreamDisjoncteur(tableauId, allTableaux) {
@@ -522,7 +614,6 @@
                 const selectivityStatus = checkSelectivityStatus(tableau, tableau.id, tableaux);
                 console.log('[Client] Construire arborescence pour tableau:', tableau.id, { hasPrincipal: !!tableau.disjoncteurs.find(d => d.isPrincipal), isSiteMain: tableau.isSiteMain });
                 
-                // Niveau 0: Tableau
                 graph.nodes.push({
                     id: tableau.id,
                     label: `${tableau.id}${tableau.isSiteMain ? '\n(Principal du site)' : ''}\n${selectivityStatus.status}`,
@@ -542,7 +633,6 @@
                 let nonPrincipalLevel = principal ? levelCounter + 2 : levelCounter + 1;
 
                 if (principal) {
-                    // Niveau 1: Disjoncteur principal
                     principalId = `${tableau.id}-principal-${principal.id}`;
                     graph.nodes.push({
                         id: principalId,
@@ -566,7 +656,6 @@
                 }
 
                 tableau.disjoncteurs.forEach(d => {
-                    // Niveau 2 (ou 1 si pas de principal): Disjoncteurs non principaux
                     const disjoncteurId = `${tableau.id}-non-principal-${d.id}`;
                     let isSelective = false;
                     let upstreamDisjoncteur = principal;
@@ -614,7 +703,6 @@
                     }
 
                     if (d.linkedTableauId && tableauIds.has(d.linkedTableauId)) {
-                        // Niveau 3+: Tableau aval
                         const upstreamResult = findUpstreamDisjoncteur(d.linkedTableauId, tableaux);
                         const upstreamDisjoncteur = upstreamResult ? upstreamResult.disjoncteur : null;
                         const isInterSelective = upstreamDisjoncteur ? (d.irValue || d.inValue) < (upstreamDisjoncteur.irValue || upstreamDisjoncteur.inValue) * 0.9 : false;
@@ -632,7 +720,7 @@
                     }
                 });
 
-                levelCounter += principal ? 3 : 2; // Incrémenter pour le prochain tableau
+                levelCounter += principal ? 3 : 2;
             });
 
             return graph;
@@ -1038,8 +1126,70 @@
 
         function closeNonPrincipalModal() {
             console.log('[Client] Fermeture du modal non-principal');
-            const modal = document.getElementById('non-principal-modal');
-            modal.classList.add('hidden');
+            document.getElementById('non-principal-modal').classList.add('hidden');
+        }
+
+        function openMissingDataModal(tableauId) {
+            console.log('[Client] Ouverture du modal pour données manquantes:', tableauId);
+            const tableau = tableauxData.find(t => t.id === tableauId);
+            if (!tableau) {
+                console.error('[Client] Tableau non trouvé:', tableauId);
+                return;
+            }
+            const missingData = checkMissingData(tableau.disjoncteurs);
+            const modal = document.getElementById('missing-data-modal');
+            const tableBody = document.getElementById('missing-data-table-body');
+            const modalTitle = document.getElementById('missing-data-modal-title');
+
+            modalTitle.textContent = `Données Manquantes - ${tableauId}`;
+            tableBody.innerHTML = '';
+            missingData.forEach(d => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-2 sm:p-3">${d.id}</td>
+                    <td class="p-2 sm:p-3">${d.missing.join(', ')}</td>
+                    <td class="p-2 sm:p-3"><button onclick="redirigerModifier('${tableauId}', '${d.id}')" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">Modifier</button></td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            modal.classList.remove('hidden');
+            gsap.from(modal, { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+        }
+
+        function closeMissingDataModal() {
+            console.log('[Client] Fermeture du modal données manquantes');
+            document.getElementById('missing-data-modal').classList.add('hidden');
+        }
+
+        function sortMissingDataTable(column) {
+            console.log('[Client] Tri du tableau des données manquantes par:', column);
+            const tableauId = document.getElementById('missing-data-modal-title').textContent.split(' - ')[1];
+            const tableau = tableauxData.find(t => t.id === tableauId);
+            if (!tableau) return;
+            const missingData = checkMissingData(tableau.disjoncteurs);
+            const tableBody = document.getElementById('missing-data-table-body');
+
+            missingData.sort((a, b) => {
+                if (column === 'id') {
+                    return missingDataSortDirection === 'asc'
+                        ? a.id.localeCompare(b.id)
+                        : b.id.localeCompare(a.id);
+                }
+                return 0;
+            });
+
+            missingDataSortDirection = missingDataSortDirection === 'asc' ? 'desc' : 'asc';
+            tableBody.innerHTML = '';
+            missingData.forEach(d => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-2 sm:p-3">${d.id}</td>
+                    <td class="p-2 sm:p-3">${d.missing.join(', ')}</td>
+                    <td class="p-2 sm:p-3"><button onclick="redirigerModifier('${tableauId}', '${d.id}')" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">Modifier</button></td>
+                `;
+                tableBody.appendChild(row);
+            });
         }
 
         window.onload = function() {
@@ -1051,8 +1201,10 @@
             try {
                 const miniModal = document.getElementById('mini-modal');
                 const nonPrincipalModal = document.getElementById('non-principal-modal');
+                const missingDataModal = document.getElementById('missing-data-modal');
                 miniModal.classList.add('hidden');
                 nonPrincipalModal.classList.add('hidden');
+                missingDataModal.classList.add('hidden');
                 const buildingFilter = document.getElementById('building-filter');
                 const tableauFilter = document.getElementById('tableau-filter');
                 if (buildingFilter && tableauFilter) {
