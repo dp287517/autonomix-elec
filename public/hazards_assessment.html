@@ -7,7 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="styles.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js" integrity="sha512-SIMG1q/3y07f25n8cmw0n6D7YjQd3J0K2FL2b4mcCGiA+EB5eWoh+SeqAs+n3XeaEdA0+PDxU+V2S8oX5bE7b7w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
 </head>
 <body class="bg-gray-900 text-white">
@@ -412,7 +412,7 @@
                     console.log('[Client] Disjoncteur mis à jour:', responseData.data);
                     alert('Données mises à jour avec succès !');
                     modal.classList.add('hidden');
-                    await loadTableaux(); // Recharger les données
+                    await loadTableaux();
                 } catch (error) {
                     console.error('[Client] Erreur mise à jour:', error.message);
                     alert('Erreur : ' + error.message);
