@@ -403,7 +403,7 @@ app.post('/api/tableaux', async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         console.error('[Server] Erreur POST /api/tableaux:', error.message, error.stack);
-        res.status(500).json({ error: 'Erreur lors de la création : ' + error.message });
+        res.status(500).json({ error: 'Erreur lors de la création: ' + error.message });
     }
 });
 
@@ -1204,7 +1204,7 @@ app.post('/api/safety-actions', async (req, res) => {
             }
         }
         const result = await pool.query(
-            'INSERT INTO safety_actions (type, description, building, tableau_id, $), status, $), date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            'INSERT INTO safety_actions (type, description, building, tableau_id, status, date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
             [type, description, building, tableau || null, status, date || null]
         );
         console.log('[Server] Action créée:', result.rows[0]);
