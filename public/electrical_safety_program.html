@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Programme de Sécurité Électrique - Autonomix Elec</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white">
+    <nav class="bg-blue-700 p-4 sticky top-0 z-50 shadow-lg">
+        <ul class="flex space-x-6 text-white font-semibold">
+            <li><a href="index.html" class="hover:text-yellow-300 transition"><i class="fas fa-home mr-2"></i>Accueil</a></li>
+            <li><a href="create.html" class="hover:text-yellow-300 transition"><i class="fas fa-plus-circle mr-2"></i>Créer un tableau</a></li>
+            <li><a href="view.html" class="hover:text-yellow-300 transition"><i class="fas fa-table mr-2"></i>Voir les tableaux</a></li>
+            <li><a href="selectivity.html" class="hover:text-yellow-300 transition"><i class="fas fa-shield-alt mr-2"></i>Sélectivité</a></li>
+            <li><a href="obsolescence.html" class="hover:text-yellow-300 transition"><i class="fas fa-clock mr-2"></i>Obsolescence</a></li>
+            <li><a href="fault_level_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-bolt mr-2"></i>Évaluation du Niveau de Défaut</a></li>
+            <li><a href="hazards_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-exclamation-triangle mr-2"></i>Évaluation des Risques</a></li>
+            <li><a href="maintenance_org.html" class="hover:text-yellow-300 transition"><i class="fas fa-sitemap mr-2"></i>Organigramme Maintenance</a></li>
+            <li><a href="distribution_emergency.html" class="hover:text-yellow-300 transition"><i class="fas fa-plug mr-2"></i>Urgence Distribution</a></li>
+            <li><a href="reports.html" class="hover:text-yellow-300 transition"><i class="fas fa-file-alt mr-2"></i>Rapports</a></li>
+            <li><a href="electrical_safety_program.html" class="text-yellow-300"><i class="fas fa-hard-hat mr-2"></i>Programme de Sécurité Électrique</a></li>
+        </ul>
+    </nav>
+
+    <div class="container mx-auto p-6">
+        <h1 class="text-3xl font-bold mb-6 flex items-center"><i class="fas fa-hard-hat mr-3"></i>Programme de Sécurité Électrique</h1>
+
+        <!-- Filtres -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg flex space-x-4 animate-fade-in">
+            <div>
+                <label for="building-filter" class="block text-sm font-medium">Filtrer par bâtiment</label>
+                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600">
+                    <option value="">Tous les bâtiments</option>
+                </select>
+            </div>
+            <div>
+                <label for="tableau-filter" class="block text-sm font-medium">Filtrer par tableau</label>
+                <select id="tableau-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600">
+                    <option value="">Tous les tableaux</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
+            <ul class="list-disc pl-6 text-gray-300">
+                <li>Filtrez par bâtiment ou tableau pour cibler les actions de sécurité, maintenance ou formation.</li>
+                <li>Le tableau liste les actions avec leur statut : <i class="fas fa-check-circle text-green-500"></i> Conforme, <i class="fas fa-times-circle text-red-500"></i> Non conforme, <i class="fas fa-hourglass-half text-yellow-400"></i> En attente.</li>
+                <li>Cliquez sur <i class="fas fa-search"></i> pour voir les détails ou modifier une action.</li>
+                <li>Le graphique en anneau montre la répartition des statuts pour une vue rapide.</li>
+                <li>Utilisez <i class="fas fa-plus-circle"></i> Ajouter une Action pour enregistrer une nouvelle procédure ou formation.</li>
+                <li>Les alertes <i class="fas fa-exclamation-triangle"></i> signalent les données manquantes (ex. date d’expiration).</li>
+            </ul>
+        </div>
+
+        <!-- Actions -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold flex items-center"><i class="fas fa-tasks mr-2"></i>Actions</h2>
+                <button id="add-action-btn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"><i class="fas fa-plus-circle mr-2"></i>Ajouter une Action</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full action-table">
+                    <thead>
+                        <tr class="bg-gray-700">
+                            <th class="p-3 sticky left-0 bg-gray-700" title="Type d’action">Type</th>
+                            <th class="p-3" title="Description de l’action">Description</th>
+                            <th class="p-3" title="Bâtiment associé">Bâtiment</th>
+                            <th class="p-3" title="Tableau associé">Tableau</th>
+                            <th class="p-3" title="Statut de conformité">Statut</th>
+                            <th class="p-3" title="Actions disponibles">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="actions-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Graphique -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-chart-pie mr-2"></i>Répartition des Statuts</h2>
+            <canvas id="status-chart" class="w-full h-96"></canvas>
+        </div>
+
+        <!-- Modal -->
+        <div id="modal-details" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-50">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full animate-zoom-in">
+                <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-edit mr-2"></i>Détails de l’Action</h2>
+                <form id="action-form" class="grid gap-4">
+                    <div>
+                        <label for="action-type" class="block text-sm font-medium">Type</label>
+                        <select id="action-type" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" required>
+                            <option value="Sécurité"><i class="fas fa-shield-alt"></i> Sécurité</option>
+                            <option value="Maintenance"><i class="fas fa-tools"></i> Maintenance</option>
+                            <option value="Formation"><i class="fas fa-graduation-cap"></i> Formation</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="action-description" class="block text-sm font-medium">Description</label>
+                        <textarea id="action-description" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" rows="4" placeholder="Ex. Consignation LOTO, Maintenance préventive, Formation BR" required></textarea>
+                    </div>
+                    <div>
+                        <label for="action-building" class="block text-sm font-medium">Bâtiment</label>
+                        <select id="action-building" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" required></select>
+                    </div>
+                    <div>
+                        <label for="action-tableau" class="block text-sm font-medium">Tableau</label>
+                        <select id="action-tableau" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full"></select>
+                    </div>
+                    <div>
+                        <label for="action-status" class="block text-sm font-medium">Statut</label>
+                        <select id="action-status" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" required>
+                            <option value="Conforme">Conforme</option>
+                            <option value="Non conforme">Non conforme</option>
+                            <option value="En attente">En attente</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="action-date" class="block text-sm font-medium">Date/Expiration</label>
+                        <input type="date" id="action-date" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full">
+                    </div>
+                    <div class="flex space-x-4">
+                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"><i class="fas fa-save mr-2"></i>Enregistrer</button>
+                        <button type="button" id="close-modal-btn" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Charger les filtres
+        async function loadFilters() {
+            const buildingFilter = document.getElementById('building-filter');
+            const tableauFilter = document.getElementById('tableau-filter');
+            try {
+                const response = await fetch('/api/tableaux');
+                const tableaux = await response.json();
+                const buildings = [...new Set(tableaux.map(t => t.id.split('-')[0]))].sort();
+                buildings.forEach(building => {
+                    const option = document.createElement('option');
+                    option.value = building;
+                    option.textContent = building;
+                    buildingFilter.appendChild(option);
+                });
+                tableaux.forEach(tableau => {
+                    const option = document.createElement('option');
+                    option.value = tableau.id;
+                    option.textContent = tableau.id;
+                    tableauFilter.appendChild(option);
+                });
+            } catch (error) {
+                console.error('[Client] Erreur chargement filtres:', error);
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        // Charger les actions
+        async function loadActions() {
+            const building = document.getElementById('building-filter').value;
+            const tableau = document.getElementById('tableau-filter').value;
+            try {
+                const response = await fetch(`/api/safety-actions?building=${building}&tableau=${tableau}`);
+                const actions = await response.json();
+                const tbody = document.getElementById('actions-table-body');
+                tbody.innerHTML = '';
+                actions.forEach(action => {
+                    const tr = document.createElement('tr');
+                    const statusIcon = action.status === 'Conforme' ? '<i class="fas fa-check-circle text-green-500 mr-1"></i>' :
+                                       action.status === 'Non conforme' ? '<i class="fas fa-times-circle text-red-500 mr-1"></i>' :
+                                       '<i class="fas fa-hourglass-half text-yellow-400 mr-1"></i>';
+                    tr.innerHTML = `
+                        <td class="p-3 sticky left-0 bg-gray-700" title="${action.type}">${action.type}</td>
+                        <td class="p-3" title="${action.description}">${action.description}</td>
+                        <td class="p-3">${action.building}</td>
+                        <td class="p-3">${action.tableau || 'N/A'}</td>
+                        <td class="p-3 ${action.status === 'Conforme' ? 'text-green-500' : action.status === 'Non conforme' ? 'text-red-500' : 'text-yellow-400'}" title="${action.status}">${statusIcon}${action.status}</td>
+                        <td class="p-3"><button class="action-btn bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition" onclick="openModal('${action.id}')"><i class="fas fa-search"></i></button></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                updateChart(actions);
+                gsap.from('.action-table tr', { opacity: 0, y: 20, duration: 0.8, stagger: 0.1, ease: 'power2.out' });
+            } catch (error) {
+                console.error('[Client] Erreur chargement actions:', error);
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        // Mettre à jour le graphique
+        function updateChart(actions) {
+            const ctx = document.getElementById('status-chart').getContext('2d');
+            const counts = {
+                Conforme: actions.filter(a => a.status === 'Conforme').length,
+                'Non conforme': actions.filter(a => a.status === 'Non conforme').length,
+                'En attente': actions.filter(a => a.status === 'En attente').length
+            };
+            if (window.statusChart) window.statusChart.destroy();
+            window.statusChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Conforme', 'Non conforme', 'En attente'],
+                    datasets: [{
+                        data: [counts.Conforme, counts['Non conforme'], counts['En attente']],
+                        backgroundColor: ['#22c55e', '#dc2626', '#f4b400'],
+                        borderColor: ['#ffffff', '#ffffff', '#ffffff'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    plugins: {
+                        legend: {
+                            labels: {
+                                generateLabels: chart => chart.data.labels.map((label, i) => ({
+                                    text: label,
+                                    fillStyle: ['#22c55e', '#dc2626', '#f4b400'][i],
+                                    fontColor: '#FFF'
+                                }))
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1500,
+                        easing: 'easeOutBounce',
+                        onComplete: () => {
+                            const particles = [];
+                            for (let i = 0; i < 30; i++) {
+                                const particle = document.createElement('div');
+                                particle.className = 'particle';
+                                document.body.appendChild(particle);
+                                gsap.to(particle, {
+                                    x: Math.random() * window.innerWidth,
+                                    y: Math.random() * window.innerHeight,
+                                    scale: Math.random() * 0.5,
+                                    opacity: 0,
+                                    duration: Math.random() * 2 + 1,
+                                    ease: 'power2.out',
+                                    onComplete: () => particle.remove()
+                                });
+                            }
+                        }
+                    }
+                }
+            });
+            gsap.from('#status-chart', { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+        }
+
+        // Ouvrir le modal
+        async function openModal(actionId) {
+            const modal = document.getElementById('modal-details');
+            const form = document.getElementById('action-form');
+            const buildingSelect = document.getElementById('action-building');
+            const tableauSelect = document.getElementById('action-tableau');
+            buildingSelect.innerHTML = '<option value="">Sélectionner un bâtiment</option>';
+            tableauSelect.innerHTML = '<option value="">Aucun tableau</option>';
+            try {
+                const response = await fetch('/api/tableaux');
+                const tableaux = await response.json();
+                const buildings = [...new Set(tableaux.map(t => t.id.split('-')[0]))].sort();
+                buildings.forEach(building => {
+                    const option = document.createElement('option');
+                    option.value = building;
+                    option.textContent = building;
+                    buildingSelect.appendChild(option);
+                });
+                tableaux.forEach(tableau => {
+                    const option = document.createElement('option');
+                    option.value = tableau.id;
+                    option.textContent = tableau.id;
+                    tableauSelect.appendChild(option);
+                });
+                if (actionId) {
+                    const actionResponse = await fetch(`/api/safety-actions/${actionId}`);
+                    const action = await actionResponse.json();
+                    document.getElementById('action-type').value = action.type;
+                    document.getElementById('action-description').value = action.description;
+                    document.getElementById('action-building').value = action.building;
+                    document.getElementById('action-tableau').value = action.tableau || '';
+                    document.getElementById('action-status').value = action.status;
+                    document.getElementById('action-date').value = action.date || '';
+                    form.dataset.actionId = actionId;
+                } else {
+                    form.reset();
+                    form.querySelectorAll('select').forEach(select => select.selectedIndex = 0);
+                    delete form.dataset.actionId;
+                }
+                modal.classList.remove('hidden');
+            } catch (error) {
+                console.error('[Client] Erreur ouverture modal:', error);
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        // Fermer le modal
+        document.getElementById('close-modal-btn').addEventListener('click', () => {
+            document.getElementById('modal-details').classList.add('hidden');
+        });
+
+        // Soumettre le formulaire
+        document.getElementById('action-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const actionId = e.target.dataset.actionId;
+            const action = {
+                type: document.getElementById('action-type').value,
+                description: document.getElementById('action-description').value,
+                building: document.getElementById('action-building').value,
+                tableau: document.getElementById('action-tableau').value || null,
+                status: document.getElementById('action-status').value,
+                date: document.getElementById('action-date').value || null
+            };
+            try {
+                const method = actionId ? 'PUT' : 'POST';
+                const url = actionId ? `/api/safety-actions/${actionId}` : '/api/safety-actions';
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(action)
+                });
+                if (!response.ok) throw new Error((await response.json()).error || 'Erreur lors de l’enregistrement');
+                document.getElementById('modal-details').classList.add('hidden');
+                loadActions();
+            } catch (error) {
+                console.error('[Client] Erreur soumission formulaire:', error);
+                alert('Erreur: ' + error.message);
+            }
+        });
+
+        // Événements
+        document.getElementById('add-action-btn').addEventListener('click', () => openModal());
+        document.getElementById('building-filter').addEventListener('change', loadActions);
+        document.getElementById('tableau-filter').addEventListener('change', loadActions);
+
+        // Initialisation
+        window.onload = () => {
+            loadFilters();
+            loadActions();
+            gsap.from('.container > *', { opacity: 0, y: 50, duration: 1, stagger: 0.2, ease: 'power2.out' });
+        };
+    </script>
+
+    <style>
+        .action-table tr:hover {
+            background-color: rgba(55, 65, 81, 0.3);
+        }
+        .particle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #FFD700;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.8s ease-out;
+        }
+        .animate-slide-up {
+            animation: slideUp 0.8s ease-out;
+        }
+        .animate-zoom-in {
+            animation: zoomIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes zoomIn {
+            from { opacity: 0; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</body>
+</html>
