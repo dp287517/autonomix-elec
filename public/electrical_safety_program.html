@@ -30,6 +30,11 @@
     <div class="container mx-auto p-6">
         <h1 class="text-3xl font-bold mb-6 flex items-center"><i class="fas fa-hard-hat mr-3"></i>Programme de Sécurité Électrique</h1>
 
+        <!-- Alerte d'erreur -->
+        <div id="error-alert" class="hidden bg-red-900 text-red-200 p-3 rounded mb-4">
+            <p><i class="fas fa-exclamation-triangle mr-2"></i><span id="error-message"></span></p>
+        </div>
+
         <!-- Filtres -->
         <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg flex space-x-4 animate-fade-in">
             <div>
@@ -55,7 +60,7 @@
                 <li>Cliquez sur <i class="fas fa-search"></i> pour voir les détails ou modifier une action.</li>
                 <li>Le graphique en anneau montre la répartition des statuts pour une vue rapide.</li>
                 <li>Utilisez <i class="fas fa-plus-circle"></i> Ajouter une Action pour enregistrer une nouvelle procédure ou formation.</li>
-                <li>Les alertes <i class="fas fa-exclamation-triangle"></i> signalent les données manquantes (ex. date d’expiration).</li>
+                <li>Les alertes <i class="fas fa-exclamation-triangle"></i> signalent les données manquantes.</li>
             </ul>
         </div>
 
@@ -96,9 +101,9 @@
                     <div>
                         <label for="action-type" class="block text-sm font-medium">Type</label>
                         <select id="action-type" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" required>
-                            <option value="Sécurité"><i class="fas fa-shield-alt"></i> Sécurité</option>
-                            <option value="Maintenance"><i class="fas fa-tools"></i> Maintenance</option>
-                            <option value="Formation"><i class="fas fa-graduation-cap"></i> Formation</option>
+                            <option value="Sécurité">Sécurité</option>
+                            <option value="Maintenance">Maintenance</option>
+                            <option value="Formation">Formation</option>
                         </select>
                     </div>
                     <div>
@@ -135,12 +140,28 @@
     </div>
 
     <script>
+        // Afficher une alerte d'erreur
+        function showError(message) {
+            const alert = document.getElementById('error-alert');
+            const errorMessage = document.getElementById('error-message');
+            errorMessage.textContent = message;
+            alert.classList.remove('hidden');
+            gsap.from(alert, { opacity: 0, y: -20, duration: 0.5, ease: 'power2.out' });
+        }
+
         // Charger les filtres
         async function loadFilters() {
             const buildingFilter = document.getElementById('building-filter');
             const tableauFilter = document.getElementById('tableau-filter');
             try {
                 const response = await fetch('/api/tableaux');
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP ${response.status}: ${await response.text()}`);
+                }
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Réponse non JSON reçue');
+                }
                 const tableaux = await response.json();
                 const buildings = [...new Set(tableaux.map(t => t.id.split('-')[0]))].sort();
                 buildings.forEach(building => {
@@ -157,7 +178,7 @@
                 });
             } catch (error) {
                 console.error('[Client] Erreur chargement filtres:', error);
-                alert('Erreur: ' + error.message);
+                showError('Impossible de charger les filtres : ' + error.message);
             }
         }
 
@@ -166,7 +187,14 @@
             const building = document.getElementById('building-filter').value;
             const tableau = document.getElementById('tableau-filter').value;
             try {
-                const response = await fetch(`/api/safety-actions?building=${building}&tableau=${tableau}`);
+                const response = await fetch(`/api/safety-actions?building=${encodeURIComponent(building)}&tableau=${encodeURIComponent(tableau)}`);
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP ${response.status}: ${await response.text()}`);
+                }
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Réponse non JSON reçue');
+                }
                 const actions = await response.json();
                 const tbody = document.getElementById('actions-table-body');
                 tbody.innerHTML = '';
@@ -189,7 +217,7 @@
                 gsap.from('.action-table tr', { opacity: 0, y: 20, duration: 0.8, stagger: 0.1, ease: 'power2.out' });
             } catch (error) {
                 console.error('[Client] Erreur chargement actions:', error);
-                alert('Erreur: ' + error.message);
+                showError('Impossible de charger les actions : ' + error.message);
             }
         }
 
@@ -261,6 +289,13 @@
             tableauSelect.innerHTML = '<option value="">Aucun tableau</option>';
             try {
                 const response = await fetch('/api/tableaux');
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP ${response.status}: ${await response.text()}`);
+                }
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Réponse non JSON reçue');
+                }
                 const tableaux = await response.json();
                 const buildings = [...new Set(tableaux.map(t => t.id.split('-')[0]))].sort();
                 buildings.forEach(building => {
@@ -277,6 +312,13 @@
                 });
                 if (actionId) {
                     const actionResponse = await fetch(`/api/safety-actions/${actionId}`);
+                    if (!actionResponse.ok) {
+                        throw new Error(`Erreur HTTP ${actionResponse.status}: ${await actionResponse.text()}`);
+                    }
+                    const actionContentType = actionResponse.headers.get('content-type');
+                    if (!actionContentType || !actionContentType.includes('application/json')) {
+                        throw new Error('Réponse non JSON reçue');
+                    }
                     const action = await actionResponse.json();
                     document.getElementById('action-type').value = action.type;
                     document.getElementById('action-description').value = action.description;
@@ -293,7 +335,7 @@
                 modal.classList.remove('hidden');
             } catch (error) {
                 console.error('[Client] Erreur ouverture modal:', error);
-                alert('Erreur: ' + error.message);
+                showError('Impossible d’ouvrir le formulaire : ' + error.message);
             }
         }
 
@@ -322,12 +364,18 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(action)
                 });
-                if (!response.ok) throw new Error((await response.json()).error || 'Erreur lors de l’enregistrement');
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP ${response.status}: ${await response.text()}`);
+                }
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Réponse non JSON reçue');
+                }
                 document.getElementById('modal-details').classList.add('hidden');
                 loadActions();
             } catch (error) {
                 console.error('[Client] Erreur soumission formulaire:', error);
-                alert('Erreur: ' + error.message);
+                showError('Impossible d’enregistrer l’action : ' + error.message);
             }
         });
 
