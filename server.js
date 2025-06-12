@@ -307,6 +307,13 @@ app.post('/api/tableaux', async (req, res) => {
         if (!id || !disjoncteurs || !Array.isArray(disjoncteurs)) {
             throw new Error('ID et disjoncteurs sont requis');
         }
+        // Vérifier si l'ID existe déjà
+        const checkResult = await pool.query('SELECT id FROM tableaux WHERE id = $1', [id]);
+        if (checkResult.rows.length > 0) {
+            console.log('[Server] Erreur: ID tableau déjà utilisé:', id);
+            res.status(400).json({ error: 'Cet identifiant de tableau existe déjà' });
+            return;
+        }
         const normalizedDisjoncteurs = disjoncteurs.map(d => ({
             ...d,
             icn: normalizeIcn(d.icn),
