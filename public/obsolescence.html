@@ -100,8 +100,8 @@
         </div>
 
         <!-- Modal pour ajuster les dates -->
-        <div id="modal-gantt" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-50">
-            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-4xl w-full animate-zoom-in">
+        <div id="modal-gantt" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 overflow-y-auto pt-4 pb-4 hidden">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-4xl w-full my-4 max-h-[90vh] overflow-y-auto">
                 <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-calendar-check mr-2"></i>Détails du tableau</h2>
                 <div id="modal-content" class="mb-4 text-gray-300"></div>
                 <div class="flex space-x-4">
@@ -126,8 +126,8 @@
             try {
                 const response = await fetch('/api/obsolescence');
                 const responseData = await response.json();
-                if (!response.ok) throw new Error(responseData.error || 'Erreur lors du chargement');
-                tableauxData = responseData.data;
+                if (!response.ok) throw new Error(responseData.error || 'Erreur lors du chargement des données');
+                tableauxData = responseData.data || [];
                 missingDates = tableauxData.flatMap(t => t.disjoncteurs.filter(d => 
                     !d.manufactureYear || d.manufactureYear === 2000 || !d.humidite || !d.temp_ambiante || !d.charge
                 ).map(d => ({ tableauId: t.id, disjoncteurId: d.id })));
@@ -140,7 +140,7 @@
                 updateMissingDatesAlert();
             } catch (error) {
                 console.error('[Client] Erreur chargement:', error);
-                alert('Erreur: ' + error.message);
+                alert('Erreur lors du chargement des données: ' + error.message);
             }
         }
 
@@ -180,7 +180,7 @@
             renderCriticalityChart(filteredData);
         }
 
-        // Rendre le diagramme de Gantt (vue agrégée par tableau)
+        // Rendre le diagramme de Gantt
         function renderGanttChart(data = tableauxData) {
             const table = document.getElementById('gantt-table');
             const thead = table.querySelector('thead tr');
@@ -205,7 +205,6 @@
             data.forEach(tableau => {
                 const tr = document.createElement('tr');
                 const tdTask = document.createElement('td');
-                // Calculer la moyenne pondérée des années de remplacement
                 const totalIn = tableau.disjoncteurs.reduce((sum, d) => sum + (parseFloat(d.in?.match(/[\d.]+/)?.[0]) || 0), 0);
                 const weightedReplacementYear = tableau.disjoncteurs.reduce((sum, d) => {
                     const inValue = parseFloat(d.in?.match(/[\d.]+/)?.[0]) || 0;
@@ -532,6 +531,12 @@
         function openModal(tableauId) {
             const modal = document.getElementById('modal-gantt');
             const tableau = tableauxData.find(t => t.id === tableauId);
+            if (!tableau) {
+                console.error('[Client] Tableau non trouvé:', tableauId);
+                alert('Erreur: Tableau non trouvé');
+                return;
+            }
+
             let content = `
                 <p><strong>Tableau :</strong> ${tableau.id}</p>
                 <p><strong>Bâtiment :</strong> ${tableau.building}</p>
@@ -639,8 +644,18 @@
 
         async function adjustDate(tableauId, disjoncteurId, years) {
             const tableau = tableauxData.find(t => t.id === tableauId);
+            if (!tableau) {
+                console.error('[Client] Tableau non trouvé pour ajustement:', tableauId);
+                alert('Erreur: Tableau non trouvé');
+                return;
+            }
             if (disjoncteurId) {
                 const disjoncteur = tableau.disjoncteurs.find(d => d.id === disjoncteurId);
+                if (!disjoncteur) {
+                    console.error('[Client] Disjoncteur non trouvé:', disjoncteurId);
+                    alert('Erreur: Disjoncteur non trouvé');
+                    return;
+                }
                 const currentReplacementYear = disjoncteur.replacementDate 
                     ? new Date(disjoncteur.replacementDate).getFullYear()
                     : (disjoncteur.manufactureYear || tableau.avgManufactureYear) + (disjoncteur.adjustedLifespan || 30);
@@ -662,7 +677,6 @@
                     alert('Erreur: ' + error.message);
                 }
             } else {
-                // Ajuster tous les disjoncteurs du tableau
                 for (const disjoncteur of tableau.disjoncteurs) {
                     const currentReplacementYear = disjoncteur.replacementDate 
                         ? new Date(disjoncteur.replacementDate).getFullYear()
@@ -689,7 +703,11 @@
         }
 
         // Initialisation
-        window.onload = loadTableaux;
+        window.onload = () => {
+            const modal = document.getElementById('modal-gantt');
+            if (modal) modal.classList.add('hidden'); // S'assurer que le modal est masqué au chargement
+            loadTableaux();
+        };
     </script>
 
     <style>
@@ -710,6 +728,36 @@
         .task-bar-red { background-color: #FF6B6B; }
         .task-bar-orange { background-color: #FFD93D; }
         .task-bar-green { background-color: #6BCB77; }
+        .current-year-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: red;
+            z-index: 10;
+            display: none;
+        }
+        #modal-gantt {
+            align-items: flex-start;
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+        #modal-gantt > div {
+            max-height: 90vh;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #6B7280 #1F2937;
+        }
+        #modal-gantt > div::-webkit-scrollbar {
+            width: 8px;
+        }
+        #modal-gantt > div::-webkit-scrollbar-track {
+            background: #1F2937;
+        }
+        #modal-gantt > div::-webkit-scrollbar-thumb {
+            background: #6B7280;
+            border-radius: 4px;
+        }
     </style>
 </body>
 </html>
