@@ -7,7 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="styles.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
 </head>
 <body class="bg-gray-900 text-white">
@@ -107,8 +107,16 @@
     <script>
         let tableauxData = [];
         let missingData = [];
+        let chartInstance = null; // Stocker l'instance du graphique
         const currentYear = 2025;
         const validIpValues = ['IP20', 'IP40', 'IP54', 'IP65'];
+
+        // Nettoyer les valeurs pour extraire les nombres
+        function cleanNumericValue(value) {
+            if (!value) return '';
+            const match = value.match(/[\d.]+/);
+            return match ? parseFloat(match[0]) : '';
+        }
 
         // Charger les données
         async function loadTableaux() {
@@ -116,7 +124,21 @@
                 const response = await fetch('/api/fault-level');
                 const responseData = await response.json();
                 if (!response.ok) throw new Error(responseData.error || 'Erreur lors du chargement');
-                tableauxData = responseData.data;
+                
+                // Appliquer des valeurs par défaut aux champs manquants
+                tableauxData = responseData.data.map(tableau => ({
+                    ...tableau,
+                    disjoncteurs: tableau.disjoncteurs.map(d => ({
+                        ...d,
+                        ip: d.ip || 'IP20',
+                        temp: cleanNumericValue(d.temp) || 70,
+                        ue: cleanNumericValue(d.ue) || 400,
+                        section: cleanNumericValue(d.section) || (d.in ? getRecommendedSection(d.in) : 2.5),
+                        humidite: d.humidite || 50,
+                        temp_ambiante: d.temp_ambiante || 25
+                    }))
+                }));
+                
                 missingData = tableauxData.flatMap(t => t.disjoncteurs.filter(d => !d.ip || !d.temp || !d.ue || !d.section).map(d => ({ tableauId: t.id, disjoncteurId: d.id })));
                 console.log('[Client] Données chargées:', tableauxData, 'Données manquantes:', missingData);
                 populateFilters();
@@ -127,6 +149,26 @@
                 console.error('[Client] Erreur chargement:', error);
                 alert('Erreur: ' + error.message);
             }
+        }
+
+        // Fonction pour obtenir la section recommandée (simplifiée côté client)
+        function getRecommendedSection(inValue) {
+            const inNum = parseFloat(inValue?.match(/[\d.]+/)?.[0]) || 0;
+            const sections = [
+                { in: 2, section: 1.5 }, { in: 10, section: 1.5 }, { in: 16, section: 2.5 },
+                { in: 20, section: 2.5 }, { in: 25, section: 4 }, { in: 32, section: 6 },
+                { in: 40, section: 10 }, { in: 50, section: 16 }, { in: 63, section: 25 },
+                { in: 80, section: 35 }, { in: 100, section: 50 }, { in: 125, section: 70 },
+                { in: 160, section: 95 }, { in: 200, section: 120 }, { in: 250, section: 150 },
+                { in: 315, section: 185 }, { in: 400, section: 240 }, { in: 500, section: 300 },
+                { in: 630, section: 400 }, { in: 800, section: 500 }, { in: 1000, section: 630 },
+                { in: 1250, section: 800 }, { in: 1600, section: 1000 }, { in: 2000, section: 1200 },
+                { in: 2500, section: 1600 }
+            ];
+            for (let i = 0; i < sections.length; i++) {
+                if (inNum <= sections[i].in) return sections[i].section;
+            }
+            return 1600;
         }
 
         // Remplir les filtres
@@ -221,6 +263,12 @@
         // Rendre le graphique des risques
         function renderHazardsChart(data = tableauxData) {
             const ctx = document.getElementById('hazards-chart').getContext('2d');
+            
+            // Détruire l'instance précédente du graphique si elle existe
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
             const counts = { arc: { faible: 0, moyen: 0, élevé: 0 }, choc: { faible: 0, moyen: 0, élevé: 0 }, surchauffe: { faible: 0, moyen: 0, élevé: 0 } };
             data.forEach(tableau => {
                 tableau.disjoncteurs.forEach(disjoncteur => {
@@ -231,7 +279,7 @@
                 });
             });
 
-            new Chart(ctx, {
+            chartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: ['Arc Électrique', 'Choc Électrique', 'Surchauffe'],
@@ -298,15 +346,15 @@
                 </div>
                 <div class="mb-4">
                     <label for="temp-input" class="block text-sm font-medium">Température limite (°C):</label>
-                    <input id="temp-input" type="number" step="0.1" value="${disjoncteur.temp || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 70">
+                    <input id="temp-input" type="number" step="0.1" value="${cleanNumericValue(disjoncteur.temp)}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 70">
                 </div>
                 <div class="mb-4">
                     <label for="ue-input" class="block text-sm font-medium">Tension nominale (V):</label>
-                    <input id="ue-input" type="number" step="0.1" value="${disjoncteur.ue || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 400">
+                    <input id="ue-input" type="number" step="0.1" value="${cleanNumericValue(disjoncteur.ue)}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 400">
                 </div>
                 <div class="mb-4">
                     <label for="section-input" class="block text-sm font-medium">Section du câble (mm²):</label>
-                    <input id="section-input" type="number" step="0.1" value="${disjoncteur.section ? parseFloat(disjoncteur.section) : ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 2.5">
+                    <input id="section-input" type="number" step="0.1" value="${cleanNumericValue(disjoncteur.section)}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 2.5">
                 </div>
                 <div class="mb-4">
                     <label for="humidite-input" class="block text-sm font-medium">Humidité ambiante (%):</label>
