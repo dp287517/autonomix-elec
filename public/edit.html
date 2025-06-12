@@ -23,7 +23,7 @@
         <div class="bg-white p-6 rounded-lg shadow-md mb-6">
             <h2 class="text-2xl font-semibold mb-4">Étapes pour modifier un tableau</h2>
             <ol class="list-decimal list-inside space-y-2">
-                <li>Vérifiez l'identifiant du tableau (non modifiable).</li>
+                <li>Vérifiez l'identifiant du tableau (modifiable, doit être unique).</li>
                 <li>Indiquez si le tableau est le général principal du site.</li>
                 <li>Modifiez les disjoncteurs existants via le bouton "Modifier".</li>
                 <li>Ajoutez des disjoncteurs en :
@@ -45,7 +45,7 @@
             <h2 class="text-xl font-semibold mb-4">Informations du tableau</h2>
             <div class="mb-4">
                 <label class="block text-sm font-medium">Identifiant du tableau</label>
-                <input id="tableau-id" type="text" class="w-full p-2 border rounded" readonly>
+                <input id="tableau-id" type="text" class="w-full p-2 border rounded">
             </div>
             <div class="mb-4">
                 <label class="inline-flex items-center">
@@ -306,11 +306,14 @@
                     const disjoncteursExistants = await response.json();
                     console.log('[Edit] Disjoncteurs existants reçus:', disjoncteursExistants);
                     const select = document.getElementById('disjoncteur-existant');
+                    const existingOptions = Array.from(select.options).map(opt => opt.value);
                     disjoncteursExistants.forEach(d => {
-                        const option = document.createElement('option');
-                        option.value = JSON.stringify(d);
-                        option.textContent = `${d.marque} ${d.ref}`;
-                        select.appendChild(option);
+                        if (!existingOptions.includes(JSON.stringify(d))) {
+                            const option = document.createElement('option');
+                            option.value = JSON.stringify(d);
+                            option.textContent = `${d.marque} ${d.ref}`;
+                            select.appendChild(option);
+                        }
                     });
                     console.log('[Edit] Disjoncteurs existants chargés:', disjoncteursExistants.length);
                 } catch (error) {
@@ -650,6 +653,16 @@
                 } else {
                     disjoncteurs.push(disjoncteur);
                     console.log('[Edit] Disjoncteur ajouté:', disjoncteur.id);
+                    // Ajouter le disjoncteur à la liste déroulante
+                    const select = document.getElementById('disjoncteur-existant');
+                    const existingOptions = Array.from(select.options).map(opt => opt.value);
+                    if (!existingOptions.includes(JSON.stringify(disjoncteur))) {
+                        const option = document.createElement('option');
+                        option.value = JSON.stringify(disjoncteur);
+                        option.textContent = `${disjoncteur.marque} ${disjoncteur.ref}`;
+                        select.appendChild(option);
+                        console.log('[Edit] Disjoncteur ajouté à la liste déroulante:', `${disjoncteur.marque} ${disjoncteur.ref}`);
+                    }
                 }
                 afficherDisjoncteurs();
                 document.getElementById('disjoncteur-form').classList.add('hidden');
@@ -788,25 +801,51 @@
                     showPopup('Veuillez ajouter au moins un disjoncteur.', () => {});
                     return;
                 }
+                const newTableauId = document.getElementById('tableau-id').value.trim();
+                if (!newTableauId) {
+                    console.log('[Edit] Erreur: ID tableau vide');
+                    showPopup('L\'identifiant du tableau est obligatoire.', () => {});
+                    return;
+                }
+                if (newTableauId !== tableauId && tableaux.includes(newTableauId)) {
+                    console.log('[Edit] Erreur: ID tableau déjà utilisé', newTableauId);
+                    showPopup('Cet identifiant de tableau est déjà utilisé. Choisissez un ID unique.', () => {});
+                    return;
+                }
                 try {
                     isSiteMain = document.getElementById('tableau-isSiteMain').checked;
-                    console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, { disjoncteurs, isSiteMain });
-                    const response = await fetch(`/api/tableaux/${tableauId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
-                    });
-                    const data = await response.json();
-                    console.log('[Edit] Réponse serveur:', data);
-                    if (response.ok) {
-                        showPopup('Modifications enregistrées avec succès !', '', () => {
-                            console.log('[Edit] Modifications enregistrées, redirection vers view.html');
-                            window.location.href = 'view.html';
+                    console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, { disjoncteurs, isSiteMain, newTableauId });
+                    // Si l'ID a changé, supprimer l'ancien tableau et créer un nouveau
+                    if (newTableauId !== tableauId) {
+                        // Mettre à jour les références linkedTableauId dans les disjoncteurs
+                        disjoncteurs.forEach(d => {
+                            if (d.linkedTableauId === tableauId) {
+                                d.linkedTableauId = newTableauId;
+                            }
                         });
+                        // Créer un nouveau tableau avec le nouvel ID
+                        await fetch(`/api/tableaux`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: newTableauId, disjoncteurs, isSiteMain })
+                        });
+                        // Supprimer l'ancien tableau
+                        await fetch(`/api/tableaux/${tableauId}`, {
+                            method: 'DELETE'
+                        });
+                        tableauId = newTableauId; // Mettre à jour l'ID local
                     } else {
-                        console.log('[Edit] Erreur serveur:', data.error);
-                        showPopup('Erreur lors de l\'enregistrement: ' + data.error, () => {});
+                        // Mise à jour standard
+                        await fetch(`/api/tableaux/${tableauId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
+                        });
                     }
+                    showPopup('Modifications enregistrées avec succès !', '', () => {
+                        console.log('[Edit] Modifications enregistrées, redirection vers view.html');
+                        window.location.href = 'view.html';
+                    });
                 } catch (error) {
                     console.error('[Edit] Erreur enregistrement:', error);
                     showPopup('Erreur lors de l\'enregistrement: ' + error.message, () => {});
