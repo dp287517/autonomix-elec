@@ -44,7 +44,7 @@ if (fs.existsSync(REPLACEMENT_FILE)) {
     replacementDates = JSON.parse(raw);
 }
 
-// Tableau des sections de câbles selon le courant assigné (cuivre, monophasé)
+// Tableau des sections de câbles et gaines à barres selon le courant assigné (cuivre, monophasé)
 const cableSections = [
     { in: 2, section: 1.5 },
     { in: 10, section: 1.5 },
@@ -64,7 +64,13 @@ const cableSections = [
     { in: 315, section: 185 },
     { in: 400, section: 240 },
     { in: 500, section: 300 },
-    { in: 630, section: 400 }
+    { in: 630, section: 400 },
+    { in: 800, section: 500 }, // Gaine à barres typique
+    { in: 1000, section: 630 },
+    { in: 1250, section: 800 },
+    { in: 1600, section: 1000 },
+    { in: 2000, section: 1200 },
+    { in: 2500, section: 1600 } // Gaine à barres pour courants élevés
 ];
 
 // Fonction pour obtenir la section recommandée selon In
@@ -75,7 +81,31 @@ function getRecommendedSection(inValue) {
             return cableSections[i].section;
         }
     }
-    return 240; // Par défaut pour In > 630 A
+    return 1600; // Par défaut pour In > 2500 A
+}
+
+// Validation des données
+function validateDisjoncteurData(data) {
+    const errors = [];
+    if (data.ip && !['IP20', 'IP40', 'IP54', 'IP65'].includes(data.ip)) {
+        errors.push('Indice de protection invalide. Valeurs acceptées : IP20, IP40, IP54, IP65.');
+    }
+    if (data.temp && (isNaN(parseFloat(data.temp)) || data.temp < 0)) {
+        errors.push('La température doit être une valeur numérique positive (ex. 70).');
+    }
+    if (data.ue && (isNaN(parseFloat(data.ue)) || data.ue < 0)) {
+        errors.push('La tension nominale doit être une valeur numérique positive (ex. 400).');
+    }
+    if (data.section && (isNaN(parseFloat(data.section)) || data.section < 0)) {
+        errors.push('La section du câble doit être une valeur numérique positive (ex. 2.5).');
+    }
+    if (data.humidite && (isNaN(parseFloat(data.humidite)) || data.humidite < 0 || data.humidite > 100)) {
+        errors.push('L’humidité doit être une valeur numérique entre 0 et 100 (ex. 60).');
+    }
+    if (data.temp_ambiante && (isNaN(parseFloat(data.temp_ambiante)) || data.temp_ambiante < -20 || data.temp_ambiante > 60)) {
+        errors.push('La température ambiante doit être une valeur numérique entre -20 et 60 (ex. 25).');
+    }
+    return errors;
 }
 
 // Initialisation de la base de données
@@ -141,7 +171,9 @@ async function initDb() {
                 ue: d.ue || null,
                 section: d.section || `${getRecommendedSection(d.in)} mm²`,
                 icn: normalizeIcn(d.icn),
-                replacementDate: d.replacementDate || null
+                replacementDate: d.replacementDate || null,
+                humidite: d.humidite || null,
+                temp_ambiante: d.temp_ambiante || null
             }));
             await pool.query('UPDATE tableaux SET disjoncteurs = $1::jsonb WHERE id = $2', [JSON.stringify(disjoncteurs), row.id]);
         }
@@ -207,7 +239,7 @@ app.post('/api/disjoncteur', async (req, res) => {
         if (!marque || !ref) {
             throw new Error('Marque et référence sont requis');
         }
-        const prompt = `Fournis les caractéristiques techniques du disjoncteur de marque "${marque}" et référence "${ref}". Retourne un JSON avec les champs suivants : id (laisser vide), type, poles, montage, ue, ui, uimp, frequence, in, ir, courbe, triptime, icn, ics, ip, temp, dimensions, section, date, tension, selectivite, lifespan (durée de vie en années, ex. 30), cableLength (laisser vide), impedance (laisser vide). Si une information est manquante, laisse le champ vide.`;
+        const prompt = `Fournis les caractéristiques techniques du disjoncteur de marque "${marque}" et référence "${ref}". Retourne un JSON avec les champs suivants : id (laisser vide), type, poles, montage, ue, ui, uimp, frequence, in, ir, courbe, triptime, icn, ics, ip, temp, dimensions, section, date, tension, selectivite, lifespan (durée de vie en années, ex. 30), cableLength (laisser vide), impedance (laisser vide), humidite (en %), temp_ambiante (en °C). Si une information est manquante, laisse le champ vide.`;
         console.log('[Server] Prompt envoyé à OpenAI:', prompt);
         const response = await openai.chat.completions.create({
             model: 'gpt-4o',
@@ -220,6 +252,12 @@ app.post('/api/disjoncteur', async (req, res) => {
             console.log('[Server] Aucune donnée retournée par OpenAI');
             res.status(404).json({ error: 'Aucune donnée trouvée pour ce disjoncteur' });
         } else {
+            const validationErrors = validateDisjoncteurData(data);
+            if (validationErrors.length > 0) {
+                console.log('[Server] Erreurs de validation:', validationErrors);
+                res.status(400).json({ error: 'Données invalides: ' + validationErrors.join('; ') });
+                return;
+            }
             data.icn = normalizeIcn(data.icn);
             data.section = data.section || `${getRecommendedSection(data.in)} mm²`;
             res.json(data);
@@ -326,13 +364,25 @@ app.post('/api/tableaux', async (req, res) => {
             res.status(400).json({ error: 'Cet identifiant de tableau existe déjà' });
             return;
         }
-        const normalizedDisjoncteurs = disjoncteurs.map(d => ({
-            ...d,
-            icn: normalizeIcn(d.icn),
-            cableLength: isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 5 : 20) : parseFloat(d.cableLength),
-            section: d.section || `${getRecommendedSection(d.in)} mm²`
-        }));
-        await pool.query('INSERT INTO tableaux (id, disjoncteurs, isSiteMain) VALUES ($1, $2::jsonb, $3)', [id, JSON.stringify(normalizedDisjoncteurs), isSiteMain || false]);
+        const normalizedDisjoncteurs = disjoncteurs.map(d => {
+            const validationErrors = validateDisjoncteurData(d);
+            if (validationErrors.length > 0) {
+                throw new Error('Données invalides pour disjoncteur: ' + validationErrors.join('; '));
+            }
+            return {
+                ...d,
+                icn: normalizeIcn(d.icn),
+                cableLength: isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 5 : 20) : parseFloat(d.cableLength),
+                section: d.section || `${getRecommendedSection(d.in)} mm²`,
+                humidite: d.humidite || null,
+                temp_ambiante: d.temp_ambiante || null
+            };
+        });
+        await pool.query('INSERT INTO tableaux (id, disjoncteurs, isSiteMain) VALUES ($1, $2::jsonb, $3)', [
+            id,
+            JSON.stringify(normalizedDisjoncteurs),
+            isSiteMain || false
+        ]);
         console.log('[Server] Tableau créé:', id);
         res.json({ success: true });
     } catch (error) {
@@ -350,13 +400,25 @@ app.put('/api/tableaux/:id', async (req, res) => {
         if (!id || !disjoncteurs || !Array.isArray(disjoncteurs)) {
             throw new Error('ID et disjoncteurs sont requis');
         }
-        const normalizedDisjoncteurs = disjoncteurs.map(d => ({
-            ...d,
-            icn: normalizeIcn(d.icn),
-            cableLength: isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 5 : 20) : parseFloat(d.cableLength),
-            section: d.section || `${getRecommendedSection(d.in)} mm²`
-        }));
-        const result = await pool.query('UPDATE tableaux SET disjoncteurs = $1::jsonb, isSiteMain = $2 WHERE id = $3 RETURNING *', [JSON.stringify(normalizedDisjoncteurs), isSiteMain || false, id]);
+        const normalizedDisjoncteurs = disjoncteurs.map(d => {
+            const validationErrors = validateDisjoncteurData(d);
+            if (validationErrors.length > 0) {
+                throw new Error('Données invalides pour disjoncteur: ' + validationErrors.join('; '));
+            }
+            return {
+                ...d,
+                icn: normalizeIcn(d.icn),
+                cableLength: isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 5 : 20) : parseFloat(d.cableLength),
+                section: d.section || `${getRecommendedSection(d.in)} mm²`,
+                humidite: d.humidite || null,
+                temp_ambiante: d.temp_ambiante || null
+            };
+        });
+        const result = await pool.query('UPDATE tableaux SET disjoncteurs = $1::jsonb, isSiteMain = $2 WHERE id = $3 RETURNING *', [
+            JSON.stringify(normalizedDisjoncteurs),
+            isSiteMain || false,
+            id
+        ]);
         if (result.rows.length === 0) {
             console.log('[Server] Tableau non trouvé:', id);
             res.status(404).json({ error: 'Tableau non trouvé' });
@@ -373,7 +435,7 @@ app.put('/api/tableaux/:id', async (req, res) => {
 // Route pour supprimer un tableau
 app.delete('/api/tableaux/:id', async (req, res) => {
     const { id } = req.params;
-    console.log('[Server] DELETE /api/tableaux/', id);
+    console.log('[Server] DELETE /api/tableaux/:id', id);
     try {
         const result = await pool.query('DELETE FROM tableaux WHERE id = $1 RETURNING *', [id]);
         if (result.rows.length === 0) {
@@ -490,7 +552,7 @@ app.get('/api/fault-level', async (req, res) => {
                         L = 5;
                     } else if (!d.isPrincipal && L < 20) {
                         console.log('[Server] Longueur de câble non principal:', { id: d.id, cableLength: L });
-                        L = 1;
+                        L = 20;
                     }
                     if (d.impedance) {
                         z = parseFloat(d.impedance);
@@ -550,11 +612,17 @@ app.get('/api/fault-level', async (req, res) => {
 
 // Route pour mettre à jour les données de câble
 app.post('/api/fault-level/update', async (req, res) => {
-    const { tableauId, disjoncteurId, ue, section, cableLength, impedance } = req.body;
-    console.log('[Server] POST /api/fault-level/update - Requête reçue:', { tableauId, disjoncteurId, ue, section, cableLength, impedance });
+    const { tableauId, disjoncteurId, ue, section, cableLength, impedance, humidite, temp_ambiante } = req.body;
+    console.log('[Server] POST /api/fault-level/update - Requête reçue:', { tableauId, disjoncteurId, ue, section, cableLength, impedance, humidite, temp_ambiante });
     try {
         if (!tableauId || !disjoncteurId) {
             throw new Error('Tableau ID et Disjoncteur ID sont requis');
+        }
+        const validationErrors = validateDisjoncteurData({ ue, section, humidite, temp_ambiante });
+        if (validationErrors.length > 0) {
+            console.log('[Server] Erreurs de validation:', validationErrors);
+            res.status(400).json({ error: 'Données invalides: ' + validationErrors.join('; ') });
+            return;
         }
         const result = await pool.query('SELECT disjoncteurs FROM tableaux WHERE id = $1', [tableauId]);
         if (result.rows.length === 0) {
@@ -574,7 +642,9 @@ app.post('/api/fault-level/update', async (req, res) => {
             ue: ue || disjoncteurs[disjoncteurIndex].ue,
             section: section || disjoncteurs[disjoncteurIndex].section || `${getRecommendedSection(disjoncteurs[disjoncteurIndex].in)} mm²`,
             cableLength: isNaN(parseFloat(cableLength)) ? (disjoncteurs[disjoncteurIndex].isPrincipal ? 5 : 20) : parseFloat(cableLength),
-            impedance: impedance ? parseFloat(impedance) : null
+            impedance: impedance ? parseFloat(impedance) : null,
+            humidite: humidite || disjoncteurs[disjoncteurIndex].humidite,
+            temp_ambiante: temp_ambiante || disjoncteurs[disjoncteurIndex].temp_ambiante
         };
         const inNum = parseFloat(updatedDisjoncteur.in?.match(/[\d.]+/)?.[0]) || 0;
         const sectionNum = parseFloat(updatedDisjoncteur.section?.match(/[\d.]+/)?.[0]) || 0;
@@ -597,18 +667,19 @@ app.post('/api/fault-level/update', async (req, res) => {
 // Route POST pour sauvegarder la date de remplacement manuellement (pour Gantt)
 app.post('/api/obsolescence/replacement', (req, res) => {
     const { tableauId, replacementYear } = req.body;
-    if (!tableauId || !replacementYear) {
-        return res.status(400).json({ error: 'Champs manquants' });
-    }
-    replacementDates[tableauId] = replacementYear;
-    fs.writeFile(REPLACEMENT_FILE, JSON.stringify(replacementDates, null, 2), err => {
-        if (err) {
-            console.error('[Server] Erreur écriture replacementDates:', err);
-            return res.status(500).json({ error: 'Erreur enregistrement' });
+    console.log('[Server] POST /api/obsolescence/replacement - Requête reçue:', { tableauId, replacementYear });
+    try {
+        if (!tableauId || !replacementYear) {
+            throw new Error('Tableau ID et année de remplacement sont requis');
         }
-        console.log(`[Server] Replacement date mise à jour: ${tableauId} => ${replacementYear}`);
+        replacementDates[tableauId] = replacementYear;
+        fs.writeFileSync(REPLACEMENT_FILE, JSON.stringify(replacementDates, null, 2));
+        console.log(`[Server] Date de remplacement mise à jour: ${tableauId} => ${replacementYear}`);
         res.json({ success: true });
-    });
+    } catch (error) {
+        console.error('[Server] Erreur POST /api/obsolescence/replacement:', error.message, error.stack);
+        res.status(500).json({ error: 'Erreur lors de l\'enregistrement: ' + error.message });
+    }
 });
 
 // Route pour générer les rapports PDF
@@ -638,7 +709,12 @@ app.post('/api/reports', async (req, res) => {
                 }
                 return { ...d, manufactureYear, age, status, replacementDate };
             });
-            return { id: row.id, building: row.id.split('-')[0] || 'Inconnu', disjoncteurs, isSiteMain: row.isSiteMain || false };
+            return {
+                id: row.id,
+                building: row.id.split('-')[0] || 'Inconnu',
+                disjoncteurs,
+                isSiteMain: row.isSiteMain || false
+            };
         });
         let faultLevelReportData = tableauxData.map(row => {
             const disjoncteurs = row.disjoncteurs.map(d => {
@@ -667,7 +743,12 @@ app.post('/api/reports', async (req, res) => {
                 }
                 return { ...d, ik, icn: normalizeIcn(d.icn), tableauId: row.id };
             });
-            return { id: row.id, building: row.id.split('-')[0] || 'Inconnu', disjoncteurs, isSiteMain: row.isSiteMain || false };
+            return {
+                id: row.id,
+                building: row.id.split('-')[0] || 'Inconnu',
+                disjoncteurs,
+                isSiteMain: row.isSiteMain || false
+            };
         });
         let safetyReportData = [];
         if (reportType === 'all' || reportType === 'safety') {
@@ -709,8 +790,8 @@ app.post('/api/reports', async (req, res) => {
             }
             if (reportType !== 'all') {
                 const specificData = reportType === 'obsolescence' ? obsolescenceReportData :
-                                    reportType === 'fault_level' ? faultLevelReportData :
-                                    reportType === 'safety' ? safetyReportData : tableauxData;
+                                     reportType === 'fault_level' ? faultLevelReportData :
+                                     reportType === 'safety' ? safetyReportData : tableauxData;
                 const filteredSpecificData = specificData.filter(item => {
                     let keep = true;
                     if (reportType === 'selectivity' && filters.statutSelectivite) {
@@ -867,7 +948,7 @@ app.post('/api/reports', async (req, res) => {
     }
 });
 
-// Nouveau endpoint pour récupérer l’organigramme de maintenance
+// Endpoint pour récupérer l’organigramme de maintenance
 app.get('/api/maintenance-org', async (req, res) => {
     console.log('[Server] GET /api/maintenance-org');
     try {
@@ -901,7 +982,7 @@ app.get('/api/maintenance-org', async (req, res) => {
     }
 });
 
-// Nouveau endpoint pour signaler une panne
+// Endpoint pour signaler une panne
 app.post('/api/emergency-report', async (req, res) => {
     const { tableauId, disjoncteurId, description } = req.body;
     console.log('[Server] POST /api/emergency-report - Requête reçue:', { tableauId, disjoncteurId, description });
@@ -927,7 +1008,7 @@ app.post('/api/emergency-report', async (req, res) => {
     }
 });
 
-// Nouveau endpoint pour mettre à jour un disjoncteur
+// Endpoint pour mettre à jour un disjoncteur
 app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
     const { tableauId, disjoncteurId } = req.params;
     const updatedData = req.body;
@@ -935,6 +1016,12 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
     try {
         if (!tableauId || !disjoncteurId) {
             throw new Error('Tableau ID et Disjoncteur ID sont requis');
+        }
+        const validationErrors = validateDisjoncteurData(updatedData);
+        if (validationErrors.length > 0) {
+            console.log('[Server] Erreurs de validation:', validationErrors);
+            res.status(400).json({ error: 'Données invalides: ' + validationErrors.join('; ') });
+            return;
         }
         const result = await pool.query('SELECT disjoncteurs FROM tableaux WHERE id = $1', [tableauId]);
         if (result.rows.length === 0) {
@@ -955,8 +1042,9 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
             icn: normalizeIcn(updatedData.icn || disjoncteurs[disjoncteurIndex].icn),
             section: updatedData.section || disjoncteurs[disjoncteurIndex].section || `${getRecommendedSection(updatedData.in || disjoncteurs[disjoncteurIndex].in)} mm²`,
             cableLength: isNaN(parseFloat(updatedData.cableLength)) ? 
-                (disjoncteurs[disjoncteurIndex].isPrincipal ? 5 : 20) : 
-                parseFloat(updatedData.cableLength)
+                (disjoncteurs[disjoncteurIndex].isPrincipal ? 5 : 20) : parseFloat(updatedData.cableLength),
+            humidite: updatedData.humidite || disjoncteurs[disjoncteurIndex].humidite,
+            temp_ambiante: updatedData.temp_ambiante || disjoncteurs[disjoncteurIndex].temp_ambiante
         };
         disjoncteurs[disjoncteurIndex] = updatedDisjoncteur;
         await pool.query('UPDATE tableaux SET disjoncteurs = $1::jsonb WHERE id = $2', [JSON.stringify(disjoncteurs), tableauId]);
@@ -968,7 +1056,7 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
     }
 });
 
-// Nouveaux endpoints pour gérer les actions de sécurité
+// Endpoints pour gérer les actions de sécurité
 app.get('/api/safety-actions', async (req, res) => {
     const { building, tableau } = req.query;
     console.log('[Server] GET /api/safety-actions', { building, tableau });
