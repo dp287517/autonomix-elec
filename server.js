@@ -108,6 +108,18 @@ async function initDb() {
                 parent_id INTEGER REFERENCES maintenance_org(id)
             );
         `);
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS safety_actions (
+                id SERIAL PRIMARY KEY,
+                type VARCHAR(20),
+                description TEXT,
+                building VARCHAR(50),
+                tableau_id VARCHAR(50) REFERENCES tableaux(id),
+                status VARCHAR(20),
+                date DATE,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
         const orgCount = await pool.query('SELECT COUNT(*) FROM maintenance_org');
         if (parseInt(orgCount.rows[0].count) === 0) {
             console.log('[Server] Insertion des données par défaut pour maintenance_org');
@@ -477,8 +489,8 @@ app.get('/api/fault-level', async (req, res) => {
                         console.log('[Server] Longueur de câble principal ajustée à 5 m:', { id: d.id, cableLength: L });
                         L = 5;
                     } else if (!d.isPrincipal && L < 20) {
-                        console.log('[Server] Longueur de câble non principal ajustée à 20 m:', { id: d.id, cableLength: L });
-                        L = 20;
+                        console.log('[Server] Longueur de câble non principal:', { id: d.id, cableLength: L });
+                        L = 1;
                     }
                     if (d.impedance) {
                         z = parseFloat(d.impedance);
@@ -607,24 +619,6 @@ app.post('/api/reports', async (req, res) => {
         console.log('[Server] Récupération des données de la base');
         const result = await pool.query('SELECT id, disjoncteurs, isSiteMain FROM tableaux');
         let tableauxData = result.rows;
-        if (filters) {
-            tableauxData = tableauxData.filter(tableau => {
-                let keep = true;
-                if (filters.building && tableau.id.split('-')[0] !== filters.building) keep = false;
-                if (filters.tableau && tableau.id !== filters.tableau) keep = false;
-                if (filters.disjoncteur) {
-                    keep = tableau.disjoncteurs.some(d => d.id === filters.disjoncteur);
-                }
-                if (filters.dateFabrication) {
-                    keep = tableau.disjoncteurs.some(d => d.date === filters.dateFabrication);
-                }
-                if (filters.courantNominal) {
-                    keep = tableau.disjoncteurs.some(d => d.in === filters.courantNominal);
-                }
-                return keep;
-            });
-        }
-        console.log('[Server] Filtrage terminé, tableaux restants:', tableauxData.length);
         let tableauxReportData = tableauxData;
         let selectivityReportData = tableauxData;
         let obsolescenceReportData = tableauxData.map(row => {
@@ -675,24 +669,69 @@ app.post('/api/reports', async (req, res) => {
             });
             return { id: row.id, building: row.id.split('-')[0] || 'Inconnu', disjoncteurs, isSiteMain: row.isSiteMain || false };
         });
-        if (filters && reportType !== 'all') {
-            const specificData = reportType === 'obsolescence' ? obsolescenceReportData : reportType === 'fault_level' ? faultLevelReportData : tableauxData;
-            specificData = specificData.filter(tableau => {
+        let safetyReportData = [];
+        if (reportType === 'all' || reportType === 'safety') {
+            const safetyResult = await pool.query('SELECT * FROM safety_actions');
+            safetyReportData = safetyResult.rows.map(row => ({
+                id: row.id,
+                type: row.type,
+                description: row.description,
+                building: row.building,
+                tableau: row.tableau_id,
+                status: row.status,
+                date: row.date ? row.date.toISOString().split('T')[0] : null
+            }));
+        }
+        if (filters) {
+            tableauxData = tableauxData.filter(tableau => {
                 let keep = true;
-                if (filters.statutSelectivite && reportType === 'selectivity') {
-                    keep = tableau.disjoncteurs.some(d => d.selectivityStatus === filters.statutSelectivite);
+                if (filters.building && tableau.id.split('-')[0] !== filters.building) keep = false;
+                if (filters.tableau && tableau.id !== filters.tableau) keep = false;
+                if (filters.disjoncteur) {
+                    keep = tableau.disjoncteurs.some(d => d.id === filters.disjoncteur);
                 }
-                if (filters.statutObsolescence && reportType === 'obsolescence') {
-                    keep = tableau.disjoncteurs.some(d => d.status === filters.statutObsolescence);
+                if (filters.dateFabrication) {
+                    keep = tableau.disjoncteurs.some(d => d.date === filters.dateFabrication);
                 }
-                if (filters.statutFault && reportType === 'fault_level') {
-                    keep = tableau.disjoncteurs.some(d => (d.ik && d.icn && (d.ik > d.icn ? 'KO' : 'OK') === filters.statutFault));
+                if (filters.courantNominal) {
+                    keep = tableau.disjoncteurs.some(d => d.in === filters.courantNominal);
                 }
                 return keep;
             });
-            if (reportType === 'obsolescence') obsolescenceReportData = specificData;
-            else if (reportType === 'fault_level') faultLevelReportData = specificData;
-            else tableauxData = specificData;
+            if (reportType === 'all' || reportType === 'safety') {
+                safetyReportData = safetyReportData.filter(action => {
+                    let keep = true;
+                    if (filters.building && action.building !== filters.building) keep = false;
+                    if (filters.tableau && action.tableau !== filters.tableau) keep = false;
+                    if (filters.safetyStatus) keep = action.status === filters.safetyStatus;
+                    return keep;
+                });
+            }
+            if (reportType !== 'all') {
+                const specificData = reportType === 'obsolescence' ? obsolescenceReportData :
+                                    reportType === 'fault_level' ? faultLevelReportData :
+                                    reportType === 'safety' ? safetyReportData : tableauxData;
+                const filteredSpecificData = specificData.filter(item => {
+                    let keep = true;
+                    if (reportType === 'selectivity' && filters.statutSelectivite) {
+                        keep = item.disjoncteurs.some(d => d.selectivityStatus === filters.statutSelectivite);
+                    }
+                    if (reportType === 'obsolescence' && filters.statutObsolescence) {
+                        keep = item.disjoncteurs.some(d => d.status === filters.statutObsolescence);
+                    }
+                    if (reportType === 'fault_level' && filters.statutFault) {
+                        keep = item.disjoncteurs.some(d => (d.ik && d.icn && (d.ik > d.icn ? 'KO' : 'OK') === filters.statutFault));
+                    }
+                    if (reportType === 'safety' && filters.safetyStatus) {
+                        keep = item.status === filters.safetyStatus;
+                    }
+                    return keep;
+                });
+                if (reportType === 'obsolescence') obsolescenceReportData = filteredSpecificData;
+                else if (reportType === 'fault_level') faultLevelReportData = filteredSpecificData;
+                else if (reportType === 'safety') safetyReportData = filteredSpecificData;
+                else tableauxData = filteredSpecificData;
+            }
         }
         console.log('[Server] Préparation du PDF');
         const doc = new PDFDocument({ margin: 50 });
@@ -788,6 +827,27 @@ app.post('/api/reports', async (req, res) => {
                 doc.image(bubbleImage, 50, 100, { width: 500 });
             } catch (error) {
                 console.warn('[Server] Erreur capture graphique à bulles:', error.message);
+            }
+        }
+        if (reportType === 'all' || reportType === 'safety') {
+            console.log('[Server] Génération section Sécurité Électrique');
+            doc.fontSize(16).text('Rapport de Sécurité Électrique', 50, doc.y);
+            doc.moveDown();
+            doc.fontSize(12);
+            doc.text('Type | Description | Bâtiment | Tableau | Statut', 50, doc.y);
+            doc.moveDown(0.5);
+            safetyReportData.forEach(action => {
+                doc.text(`${action.type} | ${action.description} | ${action.building} | ${action.tableau || 'N/A'} | ${action.status}`, 50, doc.y);
+                doc.moveDown(0.5);
+            });
+            try {
+                console.log('[Server] Capture graphique des statuts');
+                const statusImage = await captureChart('http://localhost:3000/electrical_safety_program.html', '#status-chart');
+                doc.addPage();
+                doc.fontSize(16).text('Répartition des Statuts', 50, 50);
+                doc.image(statusImage, 50, 100, { width: 500 });
+            } catch (error) {
+                console.warn('[Server] Erreur capture graphique des statuts:', error.message);
             }
         }
         console.log('[Server] Finalisation du PDF');
@@ -905,6 +965,131 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
     } catch (error) {
         console.error('[Server] Erreur PUT /api/disjoncteur/:tableauId/:disjoncteurId:', error.message, error.stack);
         res.status(500).json({ error: 'Erreur lors de la mise à jour du disjoncteur: ' + error.message });
+    }
+});
+
+// Nouveaux endpoints pour gérer les actions de sécurité
+app.get('/api/safety-actions', async (req, res) => {
+    const { building, tableau } = req.query;
+    console.log('[Server] GET /api/safety-actions', { building, tableau });
+    try {
+        let query = 'SELECT * FROM safety_actions';
+        const params = [];
+        const conditions = [];
+        if (building) {
+            conditions.push(`building = $${params.length + 1}`);
+            params.push(building);
+        }
+        if (tableau) {
+            conditions.push(`tableau_id = $${params.length + 1}`);
+            params.push(tableau);
+        }
+        if (conditions.length > 0) {
+            query += ' WHERE ' + conditions.join(' AND ');
+        }
+        const result = await pool.query(query, params);
+        const actions = result.rows.map(row => ({
+            id: row.id,
+            type: row.type,
+            description: row.description,
+            building: row.building,
+            tableau: row.tableau_id,
+            status: row.status,
+            date: row.date ? row.date.toISOString().split('T')[0] : null
+        }));
+        console.log('[Server] Actions récupérées:', actions.length);
+        res.json(actions);
+    } catch (error) {
+        console.error('[Server] Erreur GET /api/safety-actions:', error.message, error.stack);
+        res.status(500).json({ error: 'Erreur lors de la récupération des actions: ' + error.message });
+    }
+});
+
+app.get('/api/safety-actions/:id', async (req, res) => {
+    const { id } = req.params;
+    console.log('[Server] GET /api/safety-actions/', id);
+    try {
+        const result = await pool.query('SELECT * FROM safety_actions WHERE id = $1', [id]);
+        if (result.rows.length === 0) {
+            console.log('[Server] Action non trouvée:', id);
+            res.status(404).json({ error: 'Action non trouvée' });
+        } else {
+            const action = {
+                id: result.rows[0].id,
+                type: result.rows[0].type,
+                description: result.rows[0].description,
+                building: result.rows[0].building,
+                tableau: result.rows[0].tableau_id,
+                status: result.rows[0].status,
+                date: result.rows[0].date ? result.rows[0].date.toISOString().split('T')[0] : null
+            };
+            console.log('[Server] Action trouvée:', action);
+            res.json(action);
+        }
+    } catch (error) {
+        console.error('[Server] Erreur GET /api/safety-actions/:id:', error.message, error.stack);
+        res.status(500).json({ error: 'Erreur lors de la récupération de l’action: ' + error.message });
+    }
+});
+
+app.post('/api/safety-actions', async (req, res) => {
+    const { type, description, building, tableau, status, date } = req.body;
+    console.log('[Server] POST /api/safety-actions - Requête reçue:', { type, description, building, tableau, status, date });
+    try {
+        if (!type || !description || !building || !status) {
+            throw new Error('Type, description, bâtiment et statut sont requis');
+        }
+        if (tableau) {
+            const tableauResult = await pool.query('SELECT id FROM tableaux WHERE id = $1', [tableau]);
+            if (tableauResult.rows.length === 0) {
+                console.log('[Server] Tableau non trouvé:', tableau);
+                res.status(404).json({ error: 'Tableau non trouvé' });
+                return;
+            }
+        }
+        const result = await pool.query(
+            'INSERT INTO safety_actions (type, description, building, tableau_id, status, date) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            [type, description, building, tableau || null, status, date || null]
+        );
+        console.log('[Server] Action créée:', result.rows[0]);
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        console.error('[Server] Erreur POST /api/safety-actions:', error.message, error.stack);
+        res.status(500).json({ error: 'Erreur lors de la création de l’action: ' + error.message });
+    }
+});
+
+app.put('/api/safety-actions/:id', async (req, res) => {
+    const { id } = req.params;
+    const { type, description, building, tableau, status, date } = req.body;
+    console.log('[Server] PUT /api/safety-actions/', id, { type, description, building, tableau, status, date });
+    try {
+        if (!type || !description || !building || !status) {
+            throw new Error('Type, description, bâtiment et statut sont requis');
+        }
+        const result = await pool.query('SELECT * FROM safety_actions WHERE id = $1', [id]);
+        if (result.rows.length === 0) {
+            console.log('[Server] Action non trouvée:', id);
+            res.status(404).json({ error: 'Action non trouvée' });
+            return;
+        }
+        if (tableau) {
+            const tableauResult = await pool.query('SELECT id FROM tableaux WHERE id = $1', [tableau]);
+            if (tableauResult.rows.length === 0) {
+                console.log('[Server] Tableau non trouvé:', tableau);
+                res.status(404).json({ error: 'Tableau non trouvé' });
+                return;
+            }
+        }
+        const updatedResult = await pool.query(
+            'UPDATE safety_actions SET type = $1, description = $2, building = $3, tableau_id = $4, status = $5, date = $6 WHERE id = $7 RETURNING *',
+            [type, description, building, tableau || null, status, date || null, id]
+        );
+        console.log('[Server] Action mise à jour:', updatedResult.rows[0]);
+        res.json({ success: true, data: updatedResult.rows[0] });
+    } catch (error) {
+        console.error('[Server] Erreur PUT /api/safety-actions/:id:', error.message, error.stack);
+        res.status(500).json({ error: 'Erreur lors de la mise à jour de l’action: ' + error.message });
     }
 });
 
