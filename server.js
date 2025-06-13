@@ -1340,6 +1340,14 @@ app.get('/api/breaker-checklists', async (req, res) => {
     const { tableau_id, disjoncteur_id } = req.query;
     console.log('[Server] GET /api/breaker-checklists', { tableau_id, disjoncteur_id });
     try {
+        // Vérifier si le tableau existe
+        if (tableau_id) {
+            const tableauResult = await pool.query('SELECT id FROM tableaux WHERE id = $1', [tableau_id]);
+            if (tableauResult.rows.length === 0) {
+                console.log('[Server] Tableau non trouvé:', tableau_id);
+                return res.status(404).json({ error: 'Tableau non trouvé' });
+            }
+        }
         let query = 'SELECT * FROM breaker_checklists';
         const params = [];
         const conditions = [];
@@ -1349,7 +1357,7 @@ app.get('/api/breaker-checklists', async (req, res) => {
         }
         if (disjoncteur_id) {
             conditions.push(`disjoncteur_id = $${params.length + 1}`);
-            params.push(disjoncteur_id);
+            params.push(disjoncteur_id); // Correction : utiliser disjoncteur_id
         }
         if (conditions.length > 0) {
             query += ' WHERE ' + conditions.join(' AND ');
@@ -1368,7 +1376,11 @@ app.get('/api/breaker-checklists', async (req, res) => {
         console.log('[Server] Checklists récupérées:', checklists.length);
         res.json(checklists);
     } catch (error) {
-        console.error('[Server] Erreur GET /api/breaker-checklists:', error.message, error.stack);
+        console.error('[Server] Erreur GET /api/breaker-checklists:', {
+            message: error.message,
+            stack: error.stack,
+            query: req.query
+        });
         res.status(500).json({ error: 'Erreur lors de la récupération des checklists: ' + error.message });
     }
 });
