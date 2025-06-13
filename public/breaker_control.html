@@ -255,6 +255,32 @@
                 reader.onerror = error => reject(error);
             });
 
+            // Effets pour les graphiques
+            useEffect(() => {
+                if (selectedTableau && stats.byTableau[selectedTableau]) {
+                    renderDoughnutChart('tableau-chart', stats.byTableau[selectedTableau]);
+                }
+            }, [stats.byTableau, selectedTableau]);
+
+            useEffect(() => {
+                if (selectedTableau && selectedBreaker && stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`]) {
+                    renderDoughnutChart('disjoncteur-chart', stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`]);
+                }
+            }, [stats.byDisjoncteur, selectedTableau, selectedBreaker]);
+
+            useEffect(() => {
+                const building = selectedTableau ? tableaux.find(t => t.id === selectedTableau)?.id.split('-')[0] : '';
+                if (building && stats.byBuilding[building]) {
+                    renderDoughnutChart('building-chart', stats.byBuilding[building]);
+                }
+            }, [stats.byBuilding, selectedTableau, tableaux]);
+
+            useEffect(() => {
+                if (selectedTableau && selectedBreaker) {
+                    renderGanttChart(`gantt-${selectedBreaker.id}`, selectedBreaker.id);
+                }
+            }, [checklists, selectedTableau, selectedBreaker]);
+
             return (
                 <div>
                     {error && (
@@ -351,11 +377,6 @@
                                     <i className="fas fa-chart-pie mr-2"></i>Répartition des Contrôles (Tableau)
                                 </h2>
                                 <canvas id="tableau-chart" className="w-full h-64 sm:h-96"></canvas>
-                                {useEffect(() => {
-                                    if (stats.byTableau[selectedTableau]) {
-                                        renderDoughnutChart('tableau-chart', stats.byTableau[selectedTableau]);
-                                    }
-                                }, [stats.byTableau[selectedTableau]])}
                             </div>
                         </>
                     )}
@@ -382,9 +403,6 @@
                                     <i className="fas fa-calendar-alt mr-2"></i>Contrôles du Jour (Disjoncteur)
                                 </h2>
                                 <canvas id={`gantt-${selectedBreaker.id}`} className="w-full h-64 sm:h-96"></canvas>
-                                {useEffect(() => {
-                                    renderGanttChart(`gantt-${selectedBreaker.id}`, selectedBreaker.id);
-                                }, [checklists, selectedBreaker.id])}
                             </div>
 
                             {/* Graphique par disjoncteur */}
@@ -393,11 +411,6 @@
                                     <i className="fas fa-chart-pie mr-2"></i>Répartition des Contrôles (Disjoncteur)
                                 </h2>
                                 <canvas id="disjoncteur-chart" className="w-full h-64 sm:h-96"></canvas>
-                                {useEffect(() => {
-                                    if (stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`]) {
-                                        renderDoughnutChart('disjoncteur-chart', stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`]);
-                                    }
-                                }, [stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`]])}
                             </div>
 
                             {/* Liste de Contrôles */}
@@ -467,12 +480,6 @@
                             <i className="fas fa-chart-pie mr-2"></i>Répartition des Contrôles (Bâtiment)
                         </h2>
                         <canvas id="building-chart" className="w-full h-64 sm:h-96"></canvas>
-                        {useEffect(() => {
-                            const building = selectedTableau ? tableaux.find(t => t.id === selectedTableau)?.id.split('-')[0] : '';
-                            if (building && stats.byBuilding[building]) {
-                                renderDoughnutChart('building-chart', stats.byBuilding[building]);
-                            }
-                        }, [stats.byBuilding, selectedTableau])}
                     </div>
 
                     {/* Modal Ajouter/Modifier Contrôle */}
