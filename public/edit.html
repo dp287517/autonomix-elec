@@ -329,14 +329,12 @@
                     const disjoncteursExistants = await response.json();
                     console.log('[Edit] Disjoncteurs existants reçus:', disjoncteursExistants);
                     const select = document.getElementById('disjoncteur-existant');
-                    const existingOptions = Array.from(select.options).map(opt => opt.value);
+                    select.innerHTML = '<option value="">-- Choisir un disjoncteur --</option>';
                     disjoncteursExistants.forEach(d => {
-                        if (!existingOptions.includes(JSON.stringify(d))) {
-                            const option = document.createElement('option');
-                            option.value = JSON.stringify(d);
-                            option.textContent = `${d.marque} ${d.ref}`;
-                            select.appendChild(option);
-                        }
+                        const option = document.createElement('option');
+                        option.value = JSON.stringify(d);
+                        option.textContent = `${d.marque} ${d.ref}`;
+                        select.appendChild(option);
                     });
                     console.log('[Edit] Disjoncteurs existants chargés:', disjoncteursExistants.length);
                 } catch (error) {
@@ -598,7 +596,7 @@
                                 body: JSON.stringify({ id: targetId, disjoncteurs: targetDisjoncteurs, isSiteMain: targetTableau.isSiteMain })
                             });
                             console.log('[Edit] Disjoncteur', disjoncteur.id, 'transféré vers', targetId);
-                            afficherDisjoncteurs();
+                            await chargerTableau();
                             hidePopup();
                             showPopup('Disjoncteur transféré avec succès.', () => {});
                         } catch (error) {
@@ -676,7 +674,7 @@
 
                 try {
                     if (editIndex !== null) {
-                        // Mode modification : utiliser l'ancien ID pour la requête
+                        // Mode modification
                         const oldId = disjoncteurs[editIndex].id;
                         console.log('[Edit] Envoi requête PUT /api/disjoncteur/', tableauId, '/', oldId, 'avec nouvel ID:', disjoncteur.id);
                         const response = await fetch(`/api/disjoncteur/${tableauId}/${encodeURIComponent(oldId)}`, {
@@ -691,14 +689,25 @@
                         }
                         disjoncteurs[editIndex] = disjoncteur;
                         console.log('[Edit] Disjoncteur modifié:', disjoncteur.id, responseData.data);
-                        // Recharger le tableau pour synchronisation
                         await chargerTableau();
                         showPopup('Disjoncteur modifié avec succès.', () => {});
                     } else {
-                        // Mode ajout : ajout local, enregistré
+                        // Mode ajout : ajouter au tableau et enregistrer dans la base
                         disjoncteurs.push(disjoncteur);
-                        console.log('[Edit] Disjoncteur ajouté:', disjoncteur.id);
-                        // Ajouter le disjoncteur à la liste déroulante
+                        console.log('[Edit] Disjoncteur ajouté localement:', disjoncteur.id);
+                        // Mettre à jour le tableau dans la base de données
+                        const response = await fetch(`/api/tableaux/${tableauId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
+                        });
+                        const responseData = await response.json();
+                        if (!response.ok) {
+                            console.error('[Edit] Erreur ajout serveur:', responseData.error);
+                            throw new Error(responseData.error || 'Erreur lors de l\'ajout');
+                        }
+                        console.log('[Edit] Tableau mis à jour sur le serveur:', tableauId);
+                        // Ajouter à la liste déroulante
                         const select = document.getElementById('disjoncteur-existant');
                         const existingOptions = Array.from(select.options).map(opt => opt.value);
                         if (!existingOptions.includes(JSON.stringify(disjoncteur))) {
@@ -708,7 +717,8 @@
                             select.appendChild(option);
                             console.log('[Edit] Disjoncteur ajouté à la liste déroulante:', `${disjoncteur.marque} ${disjoncteur.ref}`);
                         }
-                        afficherDisjoncteurs();
+                        await chargerTableau();
+                        showPopup('Disjoncteur ajouté avec succès.', () => {});
                     }
                     document.getElementById('disjoncteur-form').classList.add('hidden');
                     document.getElementById('disjoncteur-marque').value = '';
@@ -719,7 +729,7 @@
                     console.log('[Edit] Formulaire réinitialisé');
                 } catch (error) {
                     console.error('[Edit] Erreur mise à jour:', error.message);
-                    showPopup('Erreur lors de la modification : ' + error.message, () => {});
+                    showPopup('Erreur lors de l\'opération : ' + error.message, () => {});
                     return;
                 }
             }
@@ -732,7 +742,7 @@
                     showPopup('Erreur: Disjoncteur non trouvé.', () => {});
                     return;
                 }
-                showPopup(`Voulez-vous désigner le disjoncteur ${disjoncteur.id} comme principal ?`, '', () => {
+                showPopup(`Voulez-vous désigner le disjoncteur ${disjoncteur.id} comme principal ?`, '', async () => {
                     console.log('[Edit] Confirmation principal pour index:', index);
                     disjoncteurs.forEach(d => d.isPrincipal = false);
                     disjoncteurs[index].isPrincipal = true;
@@ -740,9 +750,20 @@
                     disjoncteurs.forEach((d, i) => {
                         console.log('[Edit] Disjoncteur', d.id, 'isPrincipal:', d.isPrincipal);
                     });
-                    afficherDisjoncteurs();
-                    hidePopup();
-                    console.log('[Edit] Disjoncteur principal mis à jour, index:', disjoncteurPrincipalIndex, 'ID:', disjoncteur.id);
+                    try {
+                        await fetch(`/api/tableaux/${tableauId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
+                        });
+                        console.log('[Edit] Tableau mis à jour avec nouveau disjoncteur principal');
+                        await chargerTableau();
+                        hidePopup();
+                        showPopup('Disjoncteur désigné comme principal avec succès.', () => {});
+                    } catch (error) {
+                        console.error('[Edit] Erreur mise à jour principal:', error);
+                        showPopup('Erreur lors de la désignation du principal: ' + error.message, () => {});
+                    }
                 });
             }
 
@@ -754,7 +775,7 @@
                     showPopup('Erreur: Disjoncteur non trouvé.', () => {});
                     return;
                 }
-                showPopup(`Voulez-vous supprimer le disjoncteur ${disjoncteur.id} ?`, '', () => {
+                showPopup(`Voulez-vous supprimer le disjoncteur ${disjoncteur.id} ?`, '', async () => {
                     console.log('[Edit] Confirmation suppression disjoncteur:', disjoncteur.id);
                     disjoncteurs.splice(index, 1);
                     if (index === disjoncteurPrincipalIndex) {
@@ -764,9 +785,20 @@
                         disjoncteurPrincipalIndex--;
                         console.log('[Edit] Ajustement disjoncteurPrincipalIndex:', disjoncteurPrincipalIndex);
                     }
-                    afficherDisjoncteurs();
-                    hidePopup();
-                    console.log('[Edit] Disjoncteur supprimé:', disjoncteur.id);
+                    try {
+                        await fetch(`/api/tableaux/${tableauId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
+                        });
+                        console.log('[Edit] Tableau mis à jour après suppression');
+                        await chargerTableau();
+                        hidePopup();
+                        showPopup('Disjoncteur supprimé avec succès.', () => {});
+                    } catch (error) {
+                        console.error('[Edit] Erreur suppression:', error);
+                        showPopup('Erreur lors de la suppression: ' + error.message, () => {});
+                    }
                 });
             }
 
@@ -894,7 +926,8 @@
                             body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
                         });
                     }
-                    showPopup('Modifications enregistrées avec succès !', '', () => {
+                    await chargerTableau();
+                    showPopup('Modifications enregistrées avec succès !', () => {
                         console.log('[Edit] Modifications enregistrées, redirection vers view.html');
                         window.location.href = 'view.html';
                     });
