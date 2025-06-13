@@ -463,9 +463,13 @@ app.post('/api/tableaux', async (req, res) => {
         if (!Array.isArray(disjoncteurs)) {
             throw new Error('Les disjoncteurs doivent être un tableau');
         }
-        const checkResult = await pool.query('SELECT id FROM tableaux WHERE id = $1', [id]);
+        // Vérification d'unicité insensible à la casse
+        const checkResult = await pool.query('SELECT id FROM tableaux WHERE LOWER(id) = LOWER($1)', [id]);
         if (checkResult.rows.length > 0) {
-            console.log('[Server] Erreur: ID tableau déjà utilisé:', id);
+            console.log('[Server] Erreur: ID tableau déjà utilisé:', {
+                requestedId: id,
+                existingIds: checkResult.rows.map(row => row.id)
+            });
             res.status(400).json({ error: 'Cet identifiant de tableau existe déjà' });
             return;
         }
@@ -492,10 +496,11 @@ app.post('/api/tableaux', async (req, res) => {
                 charge: d.charge || 80
             };
         });
-        await pool.query(
-            'INSERT INTO tableaux (id, disjoncteurs, isSiteMain) VALUES ($1, $2::jsonb, $3)',
-            [id, JSON.stringify(normalizedDisjoncteurs), isSiteMain || false]
-        );
+        await pool.query('INSERT INTO tableaux (id, disjoncteurs, isSiteMain) VALUES ($1, $2::jsonb, $3)', [
+            id,
+            JSON.stringify(normalizedDisjoncteurs),
+            isSiteMain || false
+        ]);
         // Ajouter une checklist par défaut pour chaque disjoncteur
         for (const d of normalizedDisjoncteurs) {
             try {
