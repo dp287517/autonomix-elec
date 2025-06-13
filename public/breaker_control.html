@@ -52,6 +52,9 @@
                 photo: null
             });
 
+            // Stocker les instances des graphiques
+            const chartInstances = {};
+
             // Charger les tableaux et les stats
             useEffect(() => {
                 fetchTableaux();
@@ -61,7 +64,7 @@
             const fetchTableaux = async () => {
                 try {
                     const response = await fetch('/api/tableaux');
-                    if (!response.ok) throw new Error('Erreur lors du chargement des tableaux');
+                    if (!response.ok) throw new Error(`Erreur lors du chargement des tableaux: ${response.statusText}`);
                     const data = await response.json();
                     setTableaux(data);
                 } catch (err) {
@@ -76,7 +79,7 @@
                     if (tableau) query.append('tableau', tableau);
                     if (disjoncteur) query.append('disjoncteur', disjoncteur);
                     const response = await fetch(`/api/breaker-checklists/stats?${query.toString()}`);
-                    if (!response.ok) throw new Error('Erreur lors du chargement des statistiques');
+                    if (!response.ok) throw new Error(`Erreur lors du chargement des statistiques: ${response.statusText}`);
                     const data = await response.json();
                     setStats(data);
                 } catch (err) {
@@ -97,7 +100,7 @@
                     const query = new URLSearchParams({ tableau_id });
                     if (disjoncteur_id) query.append('disjoncteur_id', disjoncteur_id);
                     const response = await fetch(`/api/breaker-checklists?${query.toString()}`);
-                    if (!response.ok) throw new Error('Erreur lors du chargement des checklists');
+                    if (!response.ok) throw new Error(`Erreur lors du chargement des checklists: ${response.statusText}`);
                     const data = await response.json();
                     setChecklists(data);
                 } catch (err) {
@@ -109,9 +112,14 @@
             const renderGanttChart = (canvasId, disjoncteur_id) => {
                 const canvas = document.getElementById(canvasId);
                 if (!canvas) return;
-                const ctx = canvas.getContext('2d');
-                if (window[canvasId]) window[canvasId].destroy();
 
+                // Détruire l'instance précédente si elle existe
+                if (chartInstances[canvasId]) {
+                    chartInstances[canvasId].destroy();
+                    delete chartInstances[canvasId];
+                }
+
+                const ctx = canvas.getContext('2d');
                 const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
                 const checks = checklists.filter(c => c.disjoncteur_id === disjoncteur_id);
                 const data = checks.map(check => ({
@@ -119,7 +127,7 @@
                     status: check.status
                 }));
 
-                window[canvasId] = new Chart(ctx, {
+                chartInstances[canvasId] = new Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: hours,
@@ -167,10 +175,15 @@
             const renderDoughnutChart = (canvasId, statsData) => {
                 const canvas = document.getElementById(canvasId);
                 if (!canvas) return;
-                const ctx = canvas.getContext('2d');
-                if (window[canvasId]) window[canvasId].destroy();
 
-                window[canvasId] = new Chart(ctx, {
+                // Détruire l'instance précédente si elle existe
+                if (chartInstances[canvasId]) {
+                    chartInstances[canvasId].destroy();
+                    delete chartInstances[canvasId];
+                }
+
+                const ctx = canvas.getContext('2d');
+                chartInstances[canvasId] = new Chart(ctx, {
                     type: 'doughnut',
                     data: {
                         labels: ['Conforme', 'Non conforme', 'Non applicable'],
@@ -224,7 +237,7 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(body)
                     });
-                    if (!response.ok) throw new Error('Erreur lors de l’enregistrement du contrôle');
+                    if (!response.ok) throw new Error(`Erreur lors de l’enregistrement du contrôle: ${response.statusText}`);
                     setNewCheckItem({ status: 'Conforme', comment: '', photo: null });
                     setEditCheckId(null);
                     setShowModal(false);
@@ -239,7 +252,7 @@
             const handleDeleteCheck = async (checkId) => {
                 try {
                     const response = await fetch(`/api/breaker-checklists/${checkId}`, { method: 'DELETE' });
-                    if (!response.ok) throw new Error('Erreur lors de la suppression du contrôle');
+                    if (!response.ok) throw new Error(`Erreur lors de la suppression du contrôle: ${response.statusText}`);
                     fetchChecklists(selectedTableau, selectedBreaker ? selectedBreaker.id : '');
                     fetchStats('', selectedTableau, selectedBreaker ? selectedBreaker.id : '');
                 } catch (err) {
@@ -354,7 +367,7 @@
                         <>
                             {/* Alerte disjoncteurs non contrôlés */}
                             {stats.tableauCompliance[selectedTableau]?.nonControlledDisjoncteurs?.length > 0 && (
-                                <div className="alert-missing mb-6 animate-fade-in">
+                                <div className="bg-red-900 text-red-200 p-3 rounded mb-6 animate-fade-in">
                                     <p><i className="fas fa-exclamation-triangle mr-2"></i>Disjoncteurs non contrôlés : {stats.tableauCompliance[selectedTableau].nonControlledDisjoncteurs.join(', ')}</p>
                                 </div>
                             )}
