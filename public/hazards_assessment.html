@@ -28,6 +28,9 @@
 
     <div class="container mx-auto p-6">
         <h1 class="text-3xl font-bold mb-6 flex items-center"><i class="fas fa-exclamation-triangle mr-3"></i>Évaluation des Risques Électriques</h1>
+        <div id="api-error" class="hidden bg-red-900 text-red-200 p-3 rounded mb-6">
+            <p><i class="fas fa-exclamation-triangle mr-2"></i>Erreur lors du chargement des données. Veuillez réessayer plus tard.</p>
+        </div>
 
         <!-- Filtres -->
         <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg flex space-x-4">
@@ -121,10 +124,16 @@
         // Charger les données
         async function loadTableaux() {
             try {
-                const response = await fetch('/api/fault-level');
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 2000);
+                const response = await fetch('/api/fault-level', {
+                    method: 'GET',
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
                 const responseData = await response.json();
                 if (!response.ok) throw new Error(responseData.error || 'Erreur lors du chargement');
-                
+
                 // Appliquer des valeurs par défaut aux champs manquants
                 tableauxData = responseData.data.map(tableau => ({
                     ...tableau,
@@ -138,16 +147,22 @@
                         temp_ambiante: d.temp_ambiante || 25
                     }))
                 }));
-                
+
                 missingData = tableauxData.flatMap(t => t.disjoncteurs.filter(d => !d.ip || !d.temp || !d.ue || !d.section).map(d => ({ tableauId: t.id, disjoncteurId: d.id })));
                 console.log('[Client] Données chargées:', tableauxData, 'Données manquantes:', missingData);
+                document.getElementById('api-error').classList.add('hidden');
                 populateFilters();
                 renderHazardsTable();
                 renderHazardsChart();
                 updateMissingDataAlert();
             } catch (error) {
                 console.error('[Client] Erreur chargement:', error);
-                alert('Erreur: ' + error.message);
+                document.getElementById('api-error').classList.remove('hidden');
+                tableauxData = [];
+                missingData = [];
+                renderHazardsTable();
+                renderHazardsChart();
+                updateMissingDataAlert();
             }
         }
 
