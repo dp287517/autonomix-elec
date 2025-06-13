@@ -108,6 +108,12 @@ function validateDisjoncteurData(data) {
     if (data.charge && (isNaN(parseFloat(data.charge)) || data.charge < 0 || data.charge > 100)) {
         errors.push('La charge doit être une valeur numérique entre 0 et 100 (ex. 80).');
     }
+    if (data.id && !/^[a-zA-Z0-9\s\-_]+$/.test(data.id)) {
+        errors.push('L\'ID du disjoncteur contient des caractères non autorisés. Utilisez lettres, chiffres, espaces, tirets ou underscores.');
+    }
+    if (data.newId && !/^[a-zA-Z0-9\s\-_]+$/.test(data.newId)) {
+        errors.push('Le nouvel ID du disjoncteur contient des caractères non autorisés. Utilisez lettres, chiffres, espaces, tirets ou underscores.');
+    }
     return errors;
 }
 
@@ -992,12 +998,13 @@ app.post('/api/emergency-report', async (req, res) => {
 app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
     const { tableauId, disjoncteurId } = req.params;
     const updatedData = req.body;
-    console.log('[Server] PUT /api/disjoncteur/:tableauId/:disjoncteurId - Requête reçue:', { tableauId, disjoncteurId, updatedData });
+    const newId = updatedData.newId || updatedData.id;
+    console.log('[Server] PUT /api/disjoncteur/:tableauId/:disjoncteurId - Requête reçue:', { tableauId, disjoncteurId, newId, updatedData });
     try {
         if (!tableauId || !disjoncteurId) {
             throw new Error('Tableau ID et Disjoncteur ID sont requis');
         }
-        const validationErrors = validateDisjoncteurData(updatedData);
+        const validationErrors = validateDisjoncteurData({ ...updatedData, id: newId });
         if (validationErrors.length > 0) {
             console.log('[Server] Erreurs de validation:', validationErrors);
             res.status(400).json({ error: 'Données invalides: ' + validationErrors.join('; ') });
@@ -1016,9 +1023,19 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
             res.status(404).json({ error: 'Disjoncteur non trouvé' });
             return;
         }
+        // Vérifier si le nouvel ID est unique dans le tableau
+        if (newId && newId !== disjoncteurId) {
+            const idExists = disjoncteurs.some((d, i) => i !== disjoncteurIndex && d.id === newId);
+            if (idExists) {
+                console.log('[Server] Erreur: Nouvel ID déjà utilisé:', newId);
+                res.status(400).json({ error: `L'ID "${newId}" est déjà utilisé dans ce tableau.` });
+                return;
+            }
+        }
         const updatedDisjoncteur = {
             ...disjoncteurs[disjoncteurIndex],
             ...updatedData,
+            id: newId || disjoncteurId, // Mettre à jour l'ID si newId est fourni
             icn: normalizeIcn(updatedData.icn || disjoncteurs[disjoncteurIndex].icn),
             section: updatedData.section || disjoncteurs[disjoncteurIndex].section || `${getRecommendedSection(updatedData.in || disjoncteurs[disjoncteurIndex].in)} mm²`,
             cableLength: isNaN(parseFloat(updatedData.cableLength)) ? 
@@ -1029,7 +1046,7 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
         };
         disjoncteurs[disjoncteurIndex] = updatedDisjoncteur;
         await pool.query('UPDATE tableaux SET disjoncteurs = $1::jsonb WHERE id = $2', [JSON.stringify(disjoncteurs), tableauId]);
-        console.log('[Server] Disjoncteur mis à jour:', { tableauId, disjoncteurId });
+        console.log('[Server] Disjoncteur mis à jour:', { tableauId, oldId: disjoncteurId, newId: updatedDisjoncteur.id });
         res.json({ success: true, data: updatedDisjoncteur });
     } catch (error) {
         console.error('[Server] Erreur PUT /api/disjoncteur/:tableauId/:disjoncteurId:', error.message, error.stack);
