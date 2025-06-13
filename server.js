@@ -393,22 +393,13 @@ app.post('/api/tableaux', async (req, res) => {
         const uniqueIds = new Set(disjoncteurIds);
         if (uniqueIds.size !== disjoncteurIds.length) {
             console.log('[Server] Erreur: IDs de disjoncteurs non uniques:', disjoncteurIds);
-            throw new Error('Les IDs des disjoncteurs doivent être uniques');
-        }
-        // Vérifier si les IDs des disjoncteurs existent déjà dans d'autres tableaux
-        if (disjoncteurIds.length > 0) {
-            const existingDisjoncteurs = await pool.query('SELECT id, disjoncteurs FROM tableaux');
-            const allExistingIds = existingDisjoncteurs.rows.flatMap(row => row.disjoncteurs.map(d => d.id));
-            const duplicateIds = disjoncteurIds.filter(id => allExistingIds.includes(id));
-            if (duplicateIds.length > 0) {
-                console.log('[Server] Erreur: IDs de disjoncteurs déjà utilisés:', duplicateIds);
-                throw new Error(`Les IDs suivants sont déjà utilisés dans d’autres tableaux : ${duplicateIds.join(', ')}`);
-            }
+            const duplicateIds = disjoncteurIds.filter((id, index) => disjoncteurIds.indexOf(id) !== index);
+            throw new Error(`Les IDs suivants sont dupliqués dans le tableau : ${duplicateIds.join(', ')}`);
         }
         const normalizedDisjoncteurs = disjoncteurs.map(d => {
             const validationErrors = validateDisjoncteurData(d);
             if (validationErrors.length > 0) {
-                throw new Error('Données invalides pour disjoncteur: ' + validationErrors.join('; '));
+                throw new Error(`Données invalides pour disjoncteur ${d.id}: ${validationErrors.join('; ')}`);
             }
             return {
                 ...d,
@@ -447,22 +438,13 @@ app.put('/api/tableaux/:id', async (req, res) => {
         const uniqueIds = new Set(disjoncteurIds);
         if (uniqueIds.size !== disjoncteurIds.length) {
             console.log('[Server] Erreur: IDs de disjoncteurs non uniques:', disjoncteurIds);
-            throw new Error('Les IDs des disjoncteurs doivent être uniques');
-        }
-        // Vérifier que les nouveaux IDs n'existent pas dans d'autres tableaux
-        if (disjoncteurIds.length > 0) {
-            const existingDisjoncteurs = await pool.query('SELECT id, disjoncteurs FROM tableaux WHERE id != $1', [id]);
-            const allExistingIds = existingDisjoncteurs.rows.flatMap(row => row.disjoncteurs.map(d => d.id));
-            const duplicateIds = disjoncteurIds.filter(newId => allExistingIds.includes(newId));
-            if (duplicateIds.length > 0) {
-                console.log('[Server] Erreur: IDs de disjoncteurs déjà utilisés dans d’autres tableaux:', duplicateIds);
-                throw new Error(`Les IDs suivants sont déjà utilisés dans d’autres tableaux : ${duplicateIds.join(', ')}`);
-            }
+            const duplicateIds = disjoncteurIds.filter((id, index) => disjoncteurIds.indexOf(id) !== index);
+            throw new Error(`Les IDs suivants sont dupliqués dans le tableau : ${duplicateIds.join(', ')}`);
         }
         const normalizedDisjoncteurs = disjoncteurs.map(d => {
             const validationErrors = validateDisjoncteurData(d);
             if (validationErrors.length > 0) {
-                throw new Error('Données invalides pour disjoncteur: ' + validationErrors.join('; '));
+                throw new Error(`Données invalides pour disjoncteur ${d.id}: ${validationErrors.join('; ')}`);
             }
             return {
                 ...d,
