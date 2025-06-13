@@ -14,24 +14,24 @@
     <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js"></script>
 </head>
 <body class="bg-gray-900 text-white">
-    <nav class="bg-blue-700 p-4 sticky top-0 z-50 shadow-lg">
-        <ul class="flex flex-wrap space-x-6 text-white font-semibold text-sm sm:text-base">
-            <li><a href="index.html" class="hover:text-yellow-300 transition"><i class="fas fa-home mr-2"></i>Accueil</a></li>
-            <li><a href="create.html" class="hover:text-yellow-300 transition"><i class="fas fa-plus-circle mr-2"></i>Créer un tableau</a></li>
-            <li><a href="view.html" class="hover:text-yellow-300 transition"><i class="fas fa-table mr-2"></i>Voir les tableaux</a></li>
-            <li><a href="selectivity.html" class="hover:text-yellow-300 transition"><i class="fas fa-shield-alt mr-2"></i>Sélectivité</a></li>
-            <li><a href="obsolescence.html" class="hover:text-yellow-300 transition"><i class="fas fa-clock mr-2"></i>Obsolescence</a></li>
-            <li><a href="fault_level_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-bolt mr-2"></i>Évaluation du Niveau de Défaut</a></li>
-            <li><a href="hazards_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-exclamation-triangle mr-2"></i>Évaluation des Risques</a></li>
-            <li><a href="maintenance_org.html" class="hover:text-yellow-300 transition"><i class="fas fa-sitemap mr-2"></i>Organigramme Maintenance</a></li>
-            <li><a href="distribution_emergency.html" class="hover:text-yellow-300 transition"><i class="fas fa-plug mr-2"></i>Urgence Distribution</a></li>
-            <li><a href="reports.html" class="hover:text-yellow-300 transition"><i class="fas fa-file-alt mr-2"></i>Rapports</a></li>
-            <li><a href="electrical_safety_program.html" class="hover:text-yellow-300 transition"><i class="fas fa-hard-hat mr-2"></i>Programme de Sécurité Électrique</a></li>
-            <li><a href="breaker_control.html" class="text-yellow-300"><i class="fas fa-cogs mr-2"></i>Contrôle des Disjoncteurs</a></li>
+    <nav className="bg-blue-700 p-4 sticky top-0 z-50 shadow-lg">
+        <ul className="flex flex-wrap space-x-6 text-white font-semibold text-sm sm:text-base">
+            <li><a href="index.html" className="hover:text-yellow-300 transition"><i className="fas fa-home mr-2"></i>Accueil</a></li>
+            <li><a href="create.html" className="hover:text-yellow-300 transition"><i className="fas fa-plus-circle mr-2"></i>Créer un tableau</a></li>
+            <li><a href="view.html" className="hover:text-yellow-300 transition"><i className="fas fa-table mr-2"></i>Voir les tableaux</a></li>
+            <li><a href="selectivity.html" className="hover:text-yellow-300 transition"><i className="fas fa-shield-alt mr-2"></i>Sélectivité</a></li>
+            <li><a href="obsolescence.html" className="hover:text-yellow-300 transition"><i className="fas fa-clock mr-2"></i>Obsolescence</a></li>
+            <li><a href="fault_level_assessment.html" className="hover:text-yellow-300 transition"><i className="fas fa-bolt mr-2"></i>Évaluation du Niveau de Défaut</a></li>
+            <li><a href="hazards_assessment.html" className="hover:text-yellow-300 transition"><i className="fas fa-exclamation-triangle mr-2"></i>Évaluation des Risques</a></li>
+            <li><a href="maintenance_org.html" className="hover:text-yellow-300 transition"><i className="fas fa-sitemap mr-2"></i>Organigramme Maintenance</a></li>
+            <li><a href="distribution_emergency.html" className="hover:text-yellow-300 transition"><i className="fas fa-plug mr-2"></i>Urgence Distribution</a></li>
+            <li><a href="reports.html" className="hover:text-yellow-300 transition"><i className="fas fa-file-alt mr-2"></i>Rapports</a></li>
+            <li><a href="electrical_safety_program.html" className="hover:text-yellow-300 transition"><i className="fas fa-hard-hat mr-2"></i>Programme de Sécurité Électrique</a></li>
+            <li><a href="breaker_control.html" className="text-yellow-300"><i className="fas fa-cogs mr-2"></i>Contrôle des Disjoncteurs</a></li>
         </ul>
     </nav>
 
-    <div id="root" class="container mx-auto p-4 sm:p-6"></div>
+    <div id="root" className="container mx-auto p-4 sm:p-6"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
@@ -52,11 +52,13 @@
                 photo: null
             });
 
-            // Références pour les conteneurs de graphiques
-            const tableauChartRef = useRef(null);
-            const disjoncteurChartRef = useRef(null);
-            const buildingChartRef = useRef(null);
-            const ganttChartRef = useRef(null);
+            // Références pour les instances Chart.js
+            const chartInstances = useRef({
+                tableauChart: null,
+                disjoncteurChart: null,
+                buildingChart: null,
+                ganttChart: null
+            });
 
             // Charger les tableaux et les stats
             useEffect(() => {
@@ -112,13 +114,15 @@
             };
 
             // Rendre le diagramme de Gantt
-            const renderGanttChart = (container, disjoncteur_id) => {
-                if (!container) return;
+            const renderGanttChart = (canvasId, disjoncteur_id) => {
+                const canvas = document.getElementById(canvasId);
+                if (!canvas) return;
 
-                // Supprimer tout contenu existant
-                container.innerHTML = '';
-                const canvas = document.createElement('canvas');
-                container.appendChild(canvas);
+                // Détruire l'instance précédente si elle existe
+                if (chartInstances.current.ganttChart) {
+                    chartInstances.current.ganttChart.destroy();
+                    chartInstances.current.ganttChart = null;
+                }
 
                 const ctx = canvas.getContext('2d');
                 const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
@@ -128,7 +132,7 @@
                     status: check.status
                 }));
 
-                new Chart(ctx, {
+                chartInstances.current.ganttChart = new Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: hours,
@@ -169,20 +173,22 @@
                     }
                 });
 
-                gsap.from(canvas, { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+                gsap.from(`#${canvasId}`, { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
             };
 
             // Rendre les graphiques en anneau
-            const renderDoughnutChart = (container, statsData) => {
-                if (!container) return;
+            const renderDoughnutChart = (canvasId, statsData) => {
+                const canvas = document.getElementById(canvasId);
+                if (!canvas) return;
 
-                // Supprimer tout contenu existant
-                container.innerHTML = '';
-                const canvas = document.createElement('canvas');
-                container.appendChild(canvas);
+                // Détruire l'instance précédente si elle existe
+                if (chartInstances.current[canvasId]) {
+                    chartInstances.current[canvasId].destroy();
+                    chartInstances.current[canvasId] = null;
+                }
 
                 const ctx = canvas.getContext('2d');
-                new Chart(ctx, {
+                chartInstances.current[canvasId] = new Chart(ctx, {
                     type: 'doughnut',
                     data: {
                         labels: ['Conforme', 'Non conforme', 'Non applicable'],
@@ -211,7 +217,7 @@
                     }
                 });
 
-                gsap.from(canvas, { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+                gsap.from(`#${canvasId}`, { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
             };
 
             // Ajouter ou modifier un contrôle
@@ -267,29 +273,41 @@
                 reader.onerror = error => reject(error);
             });
 
-            // Rendu des graphiques avec useEffect
+            // Nettoyage des graphiques avant démontage
             useEffect(() => {
-                if (selectedTableau && stats.byTableau[selectedTableau] && tableauChartRef.current) {
-                    renderDoughnutChart(tableauChartRef.current, stats.byTableau[selectedTableau]);
+                return () => {
+                    Object.keys(chartInstances.current).forEach(key => {
+                        if (chartInstances.current[key]) {
+                            chartInstances.current[key].destroy();
+                            chartInstances.current[key] = null;
+                        }
+                    });
+                };
+            }, []);
+
+            // Rendu des graphiques
+            useEffect(() => {
+                if (selectedTableau && stats.byTableau[selectedTableau]) {
+                    renderDoughnutChart('tableau-chart', stats.byTableau[selectedTableau]);
                 }
             }, [stats.byTableau, selectedTableau]);
 
             useEffect(() => {
-                if (selectedTableau && selectedBreaker && stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`] && disjoncteurChartRef.current) {
-                    renderDoughnutChart(disjoncteurChartRef.current, stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`]);
+                if (selectedTableau && selectedBreaker && stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`]) {
+                    renderDoughnutChart('disjoncteur-chart', stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`]);
                 }
             }, [stats.byDisjoncteur, selectedTableau, selectedBreaker]);
 
             useEffect(() => {
                 const building = selectedTableau ? tableaux.find(t => t.id === selectedTableau)?.id.split('-')[0] : '';
-                if (building && stats.byBuilding[building] && buildingChartRef.current) {
-                    renderDoughnutChart(buildingChartRef.current, stats.byBuilding[building]);
+                if (building && stats.byBuilding[building]) {
+                    renderDoughnutChart('building-chart', stats.byBuilding[building]);
                 }
             }, [stats.byBuilding, selectedTableau, tableaux]);
 
             useEffect(() => {
-                if (selectedTableau && selectedBreaker && ganttChartRef.current) {
-                    renderGanttChart(ganttChartRef.current, selectedBreaker.id);
+                if (selectedTableau && selectedBreaker) {
+                    renderGanttChart(`gantt-${selectedBreaker.id}`, selectedBreaker.id);
                 }
             }, [checklists, selectedTableau, selectedBreaker]);
 
@@ -388,7 +406,7 @@
                                 <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
                                     <i className="fas fa-chart-pie mr-2"></i>Répartition des Contrôles (Tableau)
                                 </h2>
-                                <div ref={tableauChartRef} className="w-full h-64 sm:h-96"></div>
+                                <canvas id="tableau-chart" className="w-full h-64 sm:h-96"></canvas>
                             </div>
                         </>
                     )}
@@ -414,7 +432,7 @@
                                 <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
                                     <i className="fas fa-calendar-alt mr-2"></i>Contrôles du Jour (Disjoncteur)
                                 </h2>
-                                <div ref={ganttChartRef} className="w-full h-64 sm:h-96"></div>
+                                <canvas id={`gantt-${selectedBreaker.id}`} className="w-full h-64 sm:h-96"></canvas>
                             </div>
 
                             {/* Graphique par disjoncteur */}
@@ -422,7 +440,7 @@
                                 <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
                                     <i className="fas fa-chart-pie mr-2"></i>Répartition des Contrôles (Disjoncteur)
                                 </h2>
-                                <div ref={disjoncteurChartRef} className="w-full h-64 sm:h-96"></div>
+                                <canvas id="disjoncteur-chart" className="w-full h-64 sm:h-96"></canvas>
                             </div>
 
                             {/* Liste de Contrôles */}
@@ -491,7 +509,7 @@
                         <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
                             <i className="fas fa-chart-pie mr-2"></i>Répartition des Contrôles (Bâtiment)
                         </h2>
-                        <div ref={buildingChartRef} className="w-full h-64 sm:h-96"></div>
+                        <canvas id="building-chart" className="w-full h-64 sm:h-96"></canvas>
                     </div>
 
                     {/* Modal Ajouter/Modifier Contrôle */}
