@@ -24,7 +24,7 @@
             <h2 class="text-2xl font-semibold mb-4">Étapes pour modifier un tableau</h2>
             <ol class="list-decimal list-inside space-y-2">
                 <li>Vérifiez l'identifiant du tableau (modifiable, doit être unique).</li>
-                <li>Indiquez si le tableau est le général principal du site.</li>
+                <li>Indiquez si le tableau est le général principal du site (enregistré automatiquement).</li>
                 <li>Modifiez les disjoncteurs existants via le bouton "Modifier" (enregistré immédiatement).</li>
                 <li>Ajoutez des disjoncteurs en :
                     <ul class="list-disc list-inside ml-6">
@@ -53,7 +53,7 @@
                     <span class="ml-2 text-sm font-medium">Tableau général principal du site</span>
                 </label>
                 <p class="text-xs text-gray-500">Cochez si ce tableau est le principal du site (pas de disjoncteur amont). Modification enregistrée automatiquement.</p>
-                <div id="isSiteMain-message" class="hidden mt-2 p-2 rounded text-sm"></div>
+                <div id="isSiteMain-message" class="mt-2 p-2 rounded text-sm hidden"></div>
             </div>
 
             <h2 class="text-xl font-semibold mb-4">Ajouter un disjoncteur</h2>
@@ -85,7 +85,7 @@
                     <div>
                         <label class="block text-sm font-medium">ID <span class="text-red-600">*</span></label>
                         <input id="disjoncteur-id" type="text" class="w-full p-1 border rounded" placeholder="Ex. 400Q1 Compresseur">
-                        <p class="text-xs text-gray-500">Obligatoire, unique, ex. 400Q1 Compresseur</p>
+                        <p class="text-xs text-gray-500">Obligatoire, unique dans ce tableau, ex. 400Q1 Compresseur</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium">Type</label>
@@ -237,6 +237,7 @@
             let editIndex = null;
             let tableaux = [];
             let isSiteMain = false;
+            let isSiteMainError = false;
 
             // Validation de l'ID du disjoncteur
             function validateDisjoncteurId(id) {
@@ -289,7 +290,12 @@
                 console.log('[Edit] Sauvegarde isSiteMain');
                 const newIsSiteMain = document.getElementById('tableau-isSiteMain').checked;
                 const messageDiv = document.getElementById('isSiteMain-message');
-                
+
+                if (isSiteMainError) {
+                    messageDiv.classList.add('hidden');
+                    isSiteMainError = false;
+                }
+
                 try {
                     const response = await fetch(`/api/tableaux/${tableauId}`, {
                         method: 'PUT',
@@ -303,22 +309,19 @@
                         messageDiv.textContent = 'Statut de tableau principal du site mis à jour.';
                         messageDiv.className = 'bg-green-100 text-green-800 mt-2 p-2 rounded text-sm';
                         messageDiv.classList.remove('hidden');
-                        setTimeout(() => messageDiv.classList.add('hidden'), 3000);
+                        setTimeout(() => {
+                            if (!isSiteMainError) messageDiv.classList.add('hidden');
+                        }, 5000);
                     } else {
-                        console.log('[Edit] Erreur serveur:', data.error);
-                        document.getElementById('tableau-isSiteMain').checked = isSiteMain; // Revert
-                        messageDiv.textContent = 'Erreur lors de la mise à jour du statut: ' + data.error;
-                        messageDiv.className = 'bg-red-100 text-red-800 mt-2 p-2 rounded text-sm';
-                        messageDiv.classList.remove('hidden');
-                        setTimeout(() => messageDiv.classList.add('hidden'), 3000);
+                        throw new Error(data.error || 'Erreur serveur inconnue');
                     }
                 } catch (error) {
                     console.error('[Edit] Erreur sauvegarde isSiteMain:', error);
+                    isSiteMainError = true;
                     document.getElementById('tableau-isSiteMain').checked = isSiteMain; // Revert
-                    messageDiv.textContent = 'Erreur lors de la mise à jour du statut: ' + error.message;
+                    messageDiv.innerHTML = `Erreur lors de la mise à jour du statut: ${error.message}. <button onclick="saveIsSiteMain()" class="underline text-blue-600">Réessayer</button>`;
                     messageDiv.className = 'bg-red-100 text-red-800 mt-2 p-2 rounded text-sm';
                     messageDiv.classList.remove('hidden');
-                    setTimeout(() => messageDiv.classList.add('hidden'), 3000);
                 }
             }
 
