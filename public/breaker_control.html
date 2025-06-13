@@ -41,18 +41,21 @@
             const [tableaux, setTableaux] = useState([]);
             const [selectedTableau, setSelectedTableau] = useState('');
             const [selectedBreaker, setSelectedBreaker] = useState(null);
-            const [checklists, setChecklists] = useState({});
+            const [checklists, setChecklists] = useState([]);
+            const [stats, setStats] = useState({ byBuilding: {}, byTableau: {}, byDisjoncteur: {}, tableauCompliance: {} });
             const [error, setError] = useState('');
             const [showModal, setShowModal] = useState(false);
+            const [editCheckId, setEditCheckId] = useState(null);
             const [newCheckItem, setNewCheckItem] = useState({
                 status: 'Conforme',
                 comment: '',
                 photo: null
             });
 
-            // Charger les tableaux
+            // Charger les tableaux et les stats
             useEffect(() => {
                 fetchTableaux();
+                fetchStats();
             }, []);
 
             const fetchTableaux = async () => {
@@ -61,46 +64,62 @@
                     if (!response.ok) throw new Error('Erreur lors du chargement des tableaux');
                     const data = await response.json();
                     setTableaux(data);
-                    // Initialiser les checklists avec un exemple
-                    const initialChecklists = {};
-                    data.forEach(tableau => {
-                        tableau.disjoncteurs.forEach(d => {
-                            initialChecklists[`${tableau.id}-${d.id}`] = [{
-                                id: 'example',
-                                status: 'Conforme',
-                                comment: 'Exemple de contrôle',
-                                photo: null,
-                                timestamp: new Date().toISOString()
-                            }];
-                        });
-                    });
-                    setChecklists(initialChecklists);
                 } catch (err) {
                     setError(err.message);
                 }
             };
 
-            // Gérer le diagramme de Gantt
-            useEffect(() => {
-                if (selectedTableau && selectedBreaker) {
-                    renderGanttChart();
+            const fetchStats = async (building = '', tableau = '', disjoncteur = '') => {
+                try {
+                    const query = new URLSearchParams();
+                    if (building) query.append('building', building);
+                    if (tableau) query.append('tableau', tableau);
+                    if (disjoncteur) query.append('disjoncteur', disjoncteur);
+                    const response = await fetch(`/api/breaker-checklists/stats?${query.toString()}`);
+                    if (!response.ok) throw new Error('Erreur lors du chargement des statistiques');
+                    const data = await response.json();
+                    setStats(data);
+                } catch (err) {
+                    setError(err.message);
                 }
-            }, [selectedTableau, selectedBreaker, checklists]);
+            };
 
-            const renderGanttChart = () => {
-                const canvas = document.getElementById('gantt-chart');
+            // Charger les checklists pour le tableau ou disjoncteur sélectionné
+            useEffect(() => {
+                if (selectedTableau) {
+                    fetchChecklists(selectedTableau, selectedBreaker ? selectedBreaker.id : '');
+                    fetchStats('', selectedTableau, selectedBreaker ? selectedBreaker.id : '');
+                }
+            }, [selectedTableau, selectedBreaker]);
+
+            const fetchChecklists = async (tableau_id, disjoncteur_id = '') => {
+                try {
+                    const query = new URLSearchParams({ tableau_id });
+                    if (disjoncteur_id) query.append('disjoncteur_id', disjoncteur_id);
+                    const response = await fetch(`/api/breaker-checklists?${query.toString()}`);
+                    if (!response.ok) throw new Error('Erreur lors du chargement des checklists');
+                    const data = await response.json();
+                    setChecklists(data);
+                } catch (err) {
+                    setError(err.message);
+                }
+            };
+
+            // Rendre le diagramme de Gantt
+            const renderGanttChart = (canvasId, disjoncteur_id) => {
+                const canvas = document.getElementById(canvasId);
                 if (!canvas) return;
                 const ctx = canvas.getContext('2d');
-                if (window.ganttChart) window.ganttChart.destroy();
+                if (window[canvasId]) window[canvasId].destroy();
 
                 const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
-                const checks = checklists[`${selectedTableau}-${selectedBreaker.id}`] || [];
+                const checks = checklists.filter(c => c.disjoncteur_id === disjoncteur_id);
                 const data = checks.map(check => ({
                     hour: new Date(check.timestamp).getHours(),
                     status: check.status
                 }));
 
-                window.ganttChart = new Chart(ctx, {
+                window[canvasId] = new Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: hours,
@@ -141,35 +160,26 @@
                     }
                 });
 
-                gsap.from('#gantt-chart', { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+                gsap.from(`#${canvasId}`, { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
             };
 
-            // Gérer le graphique de répartition des statuts
-            useEffect(() => {
-                if (selectedTableau && selectedBreaker) {
-                    renderStatusChart();
-                }
-            }, [selectedTableau, selectedBreaker, checklists]);
-
-            const renderStatusChart = () => {
-                const canvas = document.getElementById('status-chart');
+            // Rendre les graphiques en anneau
+            const renderDoughnutChart = (canvasId, statsData) => {
+                const canvas = document.getElementById(canvasId);
                 if (!canvas) return;
                 const ctx = canvas.getContext('2d');
-                if (window.statusChart) window.statusChart.destroy();
+                if (window[canvasId]) window[canvasId].destroy();
 
-                const checks = checklists[`${selectedTableau}-${selectedBreaker.id}`] || [];
-                const counts = {
-                    Conforme: checks.filter(c => c.status === 'Conforme').length,
-                    'Non conforme': checks.filter(c => c.status === 'Non conforme').length,
-                    'Non applicable': checks.filter(c => c.status === 'Non applicable').length
-                };
-
-                window.statusChart = new Chart(ctx, {
+                window[canvasId] = new Chart(ctx, {
                     type: 'doughnut',
                     data: {
                         labels: ['Conforme', 'Non conforme', 'Non applicable'],
                         datasets: [{
-                            data: [counts.Conforme, counts['Non conforme'], counts['Non applicable']],
+                            data: [
+                                statsData.Conforme || 0,
+                                statsData['Non conforme'] || 0,
+                                statsData['Non applicable'] || 0
+                            ],
                             backgroundColor: ['#22c55e', '#dc2626', '#f4b400'],
                             borderColor: ['#ffffff', '#ffffff', '#ffffff'],
                             borderWidth: 2
@@ -189,53 +199,61 @@
                     }
                 });
 
-                gsap.from('#status-chart', { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+                gsap.from(`#${canvasId}`, { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
             };
 
-            // Ajouter un contrôle
-            const handleAddCheck = (e) => {
+            // Ajouter ou modifier un contrôle
+            const handleSaveCheck = async (e) => {
                 e.preventDefault();
                 if (!newCheckItem.comment) {
                     setError('Le commentaire est requis');
                     return;
                 }
-                const newId = Date.now().toString();
-                const newCheck = {
-                    id: newId,
-                    status: newCheckItem.status,
-                    comment: newCheckItem.comment,
-                    photo: newCheckItem.photo ? URL.createObjectURL(newCheckItem.photo) : null,
-                    timestamp: new Date().toISOString()
-                };
-                setChecklists(prev => ({
-                    ...prev,
-                    [`${selectedTableau}-${selectedBreaker.id}`]: [...(prev[`${selectedTableau}-${selectedBreaker.id}`] || []), newCheck]
-                }));
-                setNewCheckItem({ status: 'Conforme', comment: '', photo: null });
-                setShowModal(false);
-                // Simuler sauvegarde backend
-                console.log('[Client] Nouveau contrôle ajouté:', newCheck);
-            };
-
-            // Modifier un contrôle
-            const handleEditCheck = (checkId, updatedCheck) => {
-                setChecklists(prev => ({
-                    ...prev,
-                    [`${selectedTableau}-${selectedBreaker.id}`]: prev[`${selectedTableau}-${selectedBreaker.id}`].map(check =>
-                        check.id === checkId ? { ...check, ...updatedCheck } : check
-                    )
-                }));
-                console.log('[Client] Contrôle modifié:', updatedCheck);
+                try {
+                    const body = {
+                        tableau_id: selectedTableau,
+                        disjoncteur_id: selectedBreaker.id,
+                        status: newCheckItem.status,
+                        comment: newCheckItem.comment,
+                        photo: newCheckItem.photo ? await toBase64(newCheckItem.photo) : null
+                    };
+                    const method = editCheckId ? 'PUT' : 'POST';
+                    const url = editCheckId ? `/api/breaker-checklists/${editCheckId}` : '/api/breaker-checklists';
+                    const response = await fetch(url, {
+                        method,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    if (!response.ok) throw new Error('Erreur lors de l’enregistrement du contrôle');
+                    setNewCheckItem({ status: 'Conforme', comment: '', photo: null });
+                    setEditCheckId(null);
+                    setShowModal(false);
+                    fetchChecklists(selectedTableau, selectedBreaker.id);
+                    fetchStats('', selectedTableau, selectedBreaker.id);
+                } catch (err) {
+                    setError(err.message);
+                }
             };
 
             // Supprimer un contrôle
-            const handleDeleteCheck = (checkId) => {
-                setChecklists(prev => ({
-                    ...prev,
-                    [`${selectedTableau}-${selectedBreaker.id}`]: prev[`${selectedTableau}-${selectedBreaker.id}`].filter(check => check.id !== checkId)
-                }));
-                console.log('[Client] Contrôle supprimé:', checkId);
+            const handleDeleteCheck = async (checkId) => {
+                try {
+                    const response = await fetch(`/api/breaker-checklists/${checkId}`, { method: 'DELETE' });
+                    if (!response.ok) throw new Error('Erreur lors de la suppression du contrôle');
+                    fetchChecklists(selectedTableau, selectedBreaker ? selectedBreaker.id : '');
+                    fetchStats('', selectedTableau, selectedBreaker ? selectedBreaker.id : '');
+                } catch (err) {
+                    setError(err.message);
+                }
             };
+
+            // Convertir fichier en base64
+            const toBase64 = (file) => new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
 
             return (
                 <div>
@@ -296,14 +314,51 @@
                             <i className="fas fa-info-circle mr-2"></i>Comment utiliser cette page
                         </h2>
                         <ul className="list-disc pl-6 text-gray-300 text-sm sm:text-base">
-                            <li>Sélectionnez un tableau et un disjoncteur pour afficher les contrôles.</li>
-                            <li>Le diagramme de Gantt montre les contrôles effectués aujourd'hui, par heure.</li>
-                            <li>Le graphique en anneau affiche la répartition des statuts (Conforme, Non conforme, Non applicable).</li>
-                            <li>Cliquez sur <i className="fas fa-plus-circle"></i> pour ajouter un contrôle avec statut, photo et commentaire.</li>
-                            <li>Modifiez ou supprimez les contrôles via les icônes <i className="fas fa-edit"></i> et <i className="fas fa-trash"></i>.</li>
-                            <li>La page est optimisée pour une utilisation sur smartphone.</li>
+                            <li>Sélectionnez un tableau pour voir l’état des contrôles de ses disjoncteurs.</li>
+                            <li>Les disjoncteurs non contrôlés sont listés dans une alerte rouge.</li>
+                            <li>Choisissez un disjoncteur pour afficher sa liste de contrôles et son diagramme de Gantt (contrôles du jour).</li>
+                            <li>Ajoutez ou modifiez un contrôle via le bouton <i className="fas fa-plus-circle"></i>.</li>
+                            <li>Les graphiques montrent la répartition des statuts par bâtiment, tableau, et disjoncteur.</li>
+                            <li>Un tableau est conforme si tous ses disjoncteurs ont été contrôlés et sont conformes.</li>
+                            <li>Optimisé pour smartphone.</li>
                         </ul>
                     </div>
+
+                    {selectedTableau && (
+                        <>
+                            {/* Alerte disjoncteurs non contrôlés */}
+                            {stats.tableauCompliance[selectedTableau]?.nonControlledDisjoncteurs?.length > 0 && (
+                                <div className="alert-missing mb-6 animate-fade-in">
+                                    <p><i className="fas fa-exclamation-triangle mr-2"></i>Disjoncteurs non contrôlés : {stats.tableauCompliance[selectedTableau].nonControlledDisjoncteurs.join(', ')}</p>
+                                </div>
+                            )}
+
+                            {/* État de conformité du tableau */}
+                            <div className="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+                                <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
+                                    <i className="fas fa-check-circle mr-2"></i>Conformité du Tableau
+                                </h2>
+                                <p className={stats.tableauCompliance[selectedTableau]?.isCompliant ? 'text-green-500' : 'text-red-500'}>
+                                    {stats.tableauCompliance[selectedTableau]?.isCompliant
+                                        ? 'Conforme : Tous les disjoncteurs sont contrôlés et conformes.'
+                                        : 'Non conforme : Certains disjoncteurs ne sont pas contrôlés ou non conformes.'}
+                                </p>
+                            </div>
+
+                            {/* Graphique par tableau */}
+                            <div className="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+                                <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
+                                    <i className="fas fa-chart-pie mr-2"></i>Répartition des Contrôles (Tableau)
+                                </h2>
+                                <canvas id="tableau-chart" className="w-full h-64 sm:h-96"></canvas>
+                                {useEffect(() => {
+                                    if (stats.byTableau[selectedTableau]) {
+                                        renderDoughnutChart('tableau-chart', stats.byTableau[selectedTableau]);
+                                    }
+                                }, [stats.byTableau[selectedTableau]])}
+                            </div>
+                        </>
+                    )}
 
                     {selectedTableau && selectedBreaker && (
                         <>
@@ -311,7 +366,11 @@
                             <div className="flex justify-end mb-4">
                                 <button
                                     className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
-                                    onClick={() => setShowModal(true)}
+                                    onClick={() => {
+                                        setNewCheckItem({ status: 'Conforme', comment: '', photo: null });
+                                        setEditCheckId(null);
+                                        setShowModal(true);
+                                    }}
                                 >
                                     <i className="fas fa-plus-circle mr-2"></i>Ajouter un Contrôle
                                 </button>
@@ -320,23 +379,31 @@
                             {/* Diagramme de Gantt */}
                             <div className="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
                                 <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
-                                    <i className="fas fa-calendar-alt mr-2"></i>Contrôles du Jour
+                                    <i className="fas fa-calendar-alt mr-2"></i>Contrôles du Jour (Disjoncteur)
                                 </h2>
-                                <canvas id="gantt-chart" className="w-full h-64 sm:h-96"></canvas>
+                                <canvas id={`gantt-${selectedBreaker.id}`} className="w-full h-64 sm:h-96"></canvas>
+                                {useEffect(() => {
+                                    renderGanttChart(`gantt-${selectedBreaker.id}`, selectedBreaker.id);
+                                }, [checklists, selectedBreaker.id])}
                             </div>
 
-                            {/* Graphique de Répartition */}
+                            {/* Graphique par disjoncteur */}
                             <div className="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
                                 <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
-                                    <i className="fas fa-chart-pie mr-2"></i>Répartition des Statuts
+                                    <i className="fas fa-chart-pie mr-2"></i>Répartition des Contrôles (Disjoncteur)
                                 </h2>
-                                <canvas id="status-chart" className="w-full h-64 sm:h-96"></canvas>
+                                <canvas id="disjoncteur-chart" className="w-full h-64 sm:h-96"></canvas>
+                                {useEffect(() => {
+                                    if (stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`]) {
+                                        renderDoughnutChart('disjoncteur-chart', stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`]);
+                                    }
+                                }, [stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`]])}
                             </div>
 
                             {/* Liste de Contrôles */}
                             <div className="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
                                 <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
-                                    <i className="fas fa-check-circle mr-2"></i>Liste des Contrôles
+                                    <i className="fas fa-check-circle mr-2"></i>Liste des Contrôles (Disjoncteur)
                                 </h2>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm sm:text-base">
@@ -350,7 +417,7 @@
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {(checklists[`${selectedTableau}-${selectedBreaker.id}`] || []).map(check => (
+                                            {checklists.map(check => (
                                                 <tr key={check.id} className="hover:bg-gray-700">
                                                     <td className={`p-2 sm:p-3 ${check.status === 'Conforme' ? 'text-green-500' : check.status === 'Non conforme' ? 'text-red-500' : 'text-yellow-400'}`}>
                                                         <i className={`fas ${check.status === 'Conforme' ? 'fa-check-circle' : check.status === 'Non conforme' ? 'fa-times-circle' : 'fa-hourglass-half'} mr-1`}></i>
@@ -372,12 +439,8 @@
                                                                     comment: check.comment,
                                                                     photo: null
                                                                 });
+                                                                setEditCheckId(check.id);
                                                                 setShowModal(true);
-                                                                handleEditCheck(check.id, {
-                                                                    status: check.status,
-                                                                    comment: check.comment,
-                                                                    photo: check.photo
-                                                                });
                                                             }}
                                                         >
                                                             <i className="fas fa-edit"></i>
@@ -398,14 +461,28 @@
                         </>
                     )}
 
+                    {/* Graphique par bâtiment */}
+                    <div className="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+                        <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
+                            <i className="fas fa-chart-pie mr-2"></i>Répartition des Contrôles (Bâtiment)
+                        </h2>
+                        <canvas id="building-chart" className="w-full h-64 sm:h-96"></canvas>
+                        {useEffect(() => {
+                            const building = selectedTableau ? tableaux.find(t => t.id === selectedTableau)?.id.split('-')[0] : '';
+                            if (building && stats.byBuilding[building]) {
+                                renderDoughnutChart('building-chart', stats.byBuilding[building]);
+                            }
+                        }, [stats.byBuilding, selectedTableau])}
+                    </div>
+
                     {/* Modal Ajouter/Modifier Contrôle */}
                     {showModal && (
                         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
                             <div className="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg animate-zoom-in">
                                 <h2 className="text-lg sm:text-xl font-semibold mb-4 flex items-center">
-                                    <i className="fas fa-plus-circle mr-2"></i>Ajouter un Contrôle
+                                    <i className="fas fa-plus-circle mr-2"></i>{editCheckId ? 'Modifier' : 'Ajouter'} un Contrôle
                                 </h2>
-                                <form onSubmit={handleAddCheck} className="grid gap-4">
+                                <form onSubmit={handleSaveCheck} className="grid gap-4">
                                     <div>
                                         <label className="block text-sm font-medium">Statut</label>
                                         <div className="radio-group mt-2">
@@ -496,3 +573,5 @@
             canvas { height: 200px !important; }
         }
     </style>
+</body>
+</html>
