@@ -238,6 +238,12 @@
             let tableaux = [];
             let isSiteMain = false;
 
+            // Validation de l'ID du disjoncteur
+            function validateDisjoncteurId(id) {
+                const validIdRegex = /^[a-zA-Z0-9\s\-_]+$/;
+                return validIdRegex.test(id);
+            }
+
             async function chargerTableau() {
                 console.log('[Edit] Chargement tableau:', tableauId);
                 try {
@@ -639,6 +645,11 @@
                     showPopup('L\'ID du disjoncteur est obligatoire (ex. 400Q1 Compresseur).', () => {});
                     return;
                 }
+                if (!validateDisjoncteurId(disjoncteur.id)) {
+                    console.log('[Edit] Erreur: ID invalide', disjoncteur.id);
+                    showPopup('L\'ID du disjoncteur contient des caractères non autorisés. Utilisez lettres, chiffres, espaces, tirets ou underscores.', () => {});
+                    return;
+                }
                 if (!disjoncteur.marque || !disjoncteur.ref) {
                     console.log('[Edit] Erreur: Marque ou référence vide');
                     showPopup('Veuillez entrer la marque et la référence.', () => {});
@@ -665,12 +676,13 @@
 
                 try {
                     if (editIndex !== null) {
-                        // Mode modification : mise à jour immédiate via API
-                        console.log('[Edit] Envoi requête PUT /api/disjoncteur/', tableauId, '/', disjoncteur.id);
-                        const response = await fetch(`/api/disjoncteur/${tableauId}/${disjoncteur.id}`, {
+                        // Mode modification : utiliser l'ancien ID pour la requête
+                        const oldId = disjoncteurs[editIndex].id;
+                        console.log('[Edit] Envoi requête PUT /api/disjoncteur/', tableauId, '/', oldId, 'avec nouvel ID:', disjoncteur.id);
+                        const response = await fetch(`/api/disjoncteur/${tableauId}/${encodeURIComponent(oldId)}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(disjoncteur)
+                            body: JSON.stringify({ ...disjoncteur, newId: disjoncteur.id })
                         });
                         const responseData = await response.json();
                         if (!response.ok) {
