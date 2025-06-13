@@ -27,7 +27,7 @@
             <h2 class="text-2xl font-semibold mb-4">Étapes pour créer un tableau</h2>
             <ol class="list-decimal list-inside space-y-2">
                 <li>Entrez l'identifiant du tableau (unique, ex. 27-9-G).</li>
-                <li>Indiquez si le tableau est le général principal du site.</li>
+                <li>Indiquez si le tableau est le général principal du site (enregistré automatiquement).</li>
                 <li>Ajoutez des disjoncteurs en :
                     <ul class="list-disc list-inside ml-6">
                         <li>Recherchant via OpenAI (marque et référence).</li>
@@ -51,10 +51,11 @@
             </div>
             <div class="mb-4">
                 <label class="inline-flex items-center">
-                    <input id="tableau-isSiteMain" type="checkbox" class="form-checkbox">
+                    <input id="tableau-isSiteMain" type="checkbox" class="form-checkbox" onchange="saveIsSiteMain()">
                     <span class="ml-2 text-sm font-medium">Tableau général principal du site</span>
                 </label>
-                <p class="text-xs text-gray-500">Cochez si ce tableau est le principal du site (pas de disjoncteur amont).</p>
+                <p class="text-xs text-gray-500">Cochez si ce tableau est le principal du site (pas de disjoncteur amont). Modification enregistrée automatiquement.</p>
+                <div id="isSiteMain-message" class="hidden mt-2 p-2 rounded text-sm"></div>
             </div>
 
             <h2 class="text-xl font-semibold mb-4">Ajouter un disjoncteur</h2>
@@ -87,7 +88,7 @@
                     <div>
                         <label class="block text-sm font-medium">ID <span class="text-red-600">*</span></label>
                         <input id="disjoncteur-id" type="text" class="w-full p-1 border rounded" placeholder="Ex. 400Q1 Compresseur">
-                        <p class="text-xs text-gray-500">Obligatoire, unique, ex. 400Q1 Compresseur</p>
+                        <p class="text-xs text-gray-500">Obligatoire, unique dans ce tableau, ex. 400Q1 Compresseur</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium">Type</label>
@@ -239,11 +240,34 @@
             let disjoncteursExistants = [];
             let tableaux = [];
             let disjoncteurPrincipalIndex = null;
+            let isSiteMain = false;
 
             // Validation de l'ID du disjoncteur
             function validateDisjoncteurId(id) {
                 const validIdRegex = /^[\p{L}0-9\s\-_:]+$/u;
                 return validIdRegex.test(id);
+            }
+
+            async function saveIsSiteMain() {
+                console.log('[Create] Sauvegarde isSiteMain');
+                const newIsSiteMain = document.getElementById('tableau-isSiteMain').checked;
+                const messageDiv = document.getElementById('isSiteMain-message');
+
+                try {
+                    // Pas de sauvegarde serveur ici, car le tableau n'existe pas encore
+                    isSiteMain = newIsSiteMain;
+                    messageDiv.textContent = 'Statut de tableau principal du site enregistré localement.';
+                    messageDiv.className = 'bg-green-100 text-green-800 mt-2 p-2 rounded text-sm';
+                    messageDiv.classList.remove('hidden');
+                    setTimeout(() => messageDiv.classList.add('hidden'), 5000);
+                } catch (error) {
+                    console.error('[Create] Erreur sauvegarde isSiteMain:', error);
+                    document.getElementById('tableau-isSiteMain').checked = isSiteMain; // Revert
+                    messageDiv.textContent = 'Erreur lors de la mise à jour du statut: ' + error.message;
+                    messageDiv.className = 'bg-red-100 text-red-800 mt-2 p-2 rounded text-sm';
+                    messageDiv.classList.remove('hidden');
+                    setTimeout(() => messageDiv.classList.add('hidden'), 5000);
+                }
             }
 
             async function chargerDisjoncteursExistants() {
@@ -485,22 +509,6 @@
                     return;
                 }
 
-                // Vérification serveur pour l'unicité de l'ID
-                try {
-                    const response = await fetch('/api/tableaux');
-                    const allTableaux = await response.json();
-                    const allDisjoncteurIds = allTableaux.flatMap(t => t.disjoncteurs.map(d => d.id));
-                    if (allDisjoncteurIds.includes(disjoncteur.id)) {
-                        console.log('[Create] Erreur: ID déjà utilisé dans un autre tableau', disjoncteur.id);
-                        showPopup('Cet ID est déjà utilisé dans un autre tableau. Choisissez un ID unique.', () => {});
-                        return;
-                    }
-                } catch (error) {
-                    console.error('[Create] Erreur vérification ID serveur:', error);
-                    showPopup('Erreur lors de la vérification de l\'ID: ' + error.message, () => {});
-                    return;
-                }
-
                 disjoncteurs.push(disjoncteur);
                 console.log('[Create] Disjoncteur ajouté:', disjoncteur.id);
 
@@ -636,8 +644,8 @@
             async function enregistrerTableau() {
                 console.log('[Create] Bouton Enregistrer le tableau cliqué');
                 const tableauId = document.getElementById('tableau-id').value.trim();
-                const isSiteMain = document.getElementById('tableau-isSiteMain').checked;
-                console.log('[Create] Tableau ID:', tableauId, 'Disjoncteurs:', disjoncteurs.length, 'isSiteMain:', isSiteMain);
+                const currentIsSiteMain = document.getElementById('tableau-isSiteMain').checked;
+                console.log('[Create] Tableau ID:', tableauId, 'Disjoncteurs:', disjoncteurs.length, 'isSiteMain:', currentIsSiteMain);
                 if (!tableauId) {
                     console.log('[Create] Erreur: ID tableau vide');
                     showPopup('Veuillez entrer un identifiant pour le tableau.', () => {});
@@ -650,11 +658,11 @@
                 }
 
                 try {
-                    console.log('[Create] Envoi requête POST /api/tableaux', { id: tableauId, disjoncteurs, isSiteMain });
+                    console.log('[Create] Envoi requête POST /api/tableaux', { id: tableauId, disjoncteurs, isSiteMain: currentIsSiteMain });
                     const response = await fetch('/api/tableaux', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
+                        body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain: currentIsSiteMain })
                     });
                     const data = await response.json();
                     console.log('[Create] Réponse serveur:', data);
@@ -698,6 +706,7 @@
                 console.log('[Create] Initialisation page create');
                 document.getElementById('tableau-id').value = '';
                 document.getElementById('tableau-isSiteMain').checked = false;
+                isSiteMain = false;
                 chargerDisjoncteursExistants();
                 chargerTableaux();
             };
