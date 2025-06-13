@@ -116,7 +116,9 @@
 
         // Nettoyer les valeurs pour extraire les nombres
         function cleanNumericValue(value) {
-            if (!value) return '';
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'number' && !isNaN(value)) return value;
+            if (typeof value !== 'string') return '';
             const match = value.match(/[\d.]+/);
             return match ? parseFloat(match[0]) : '';
         }
@@ -358,6 +360,7 @@
             }
             const risks = evaluateRisks(disjoncteur);
             const isObsoleteStatus = isObsolete(disjoncteur);
+            // Utiliser les valeurs directement sans réappliquer cleanNumericValue
             const content = `
                 <p><strong>Tableau :</strong> ${tableauId}</p>
                 <p><strong>Disjoncteur :</strong> ${disjoncteur.id}</p>
@@ -382,15 +385,15 @@
                 </div>
                 <div class="mb-4">
                     <label for="temp-input" class="block text-sm font-medium">Température limite (°C):</label>
-                    <input id="temp-input" type="number" step="0.1" value="${cleanNumericValue(disjoncteur.temp)}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 70">
+                    <input id="temp-input" type="number" step="0.1" value="${disjoncteur.temp || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 70">
                 </div>
                 <div class="mb-4">
                     <label for="ue-input" class="block text-sm font-medium">Tension nominale (V):</label>
-                    <input id="ue-input" type="number" step="0.1" value="${cleanNumericValue(disjoncteur.ue)}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 400">
+                    <input id="ue-input" type="number" step="0.1" value="${disjoncteur.ue || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 400">
                 </div>
                 <div class="mb-4">
                     <label for="section-input" class="block text-sm font-medium">Section du câble (mm²):</label>
-                    <input id="section-input" type="number" step="0.1" value="${cleanNumericValue(disjoncteur.section)}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 2.5">
+                    <input id="section-input" type="number" step="0.1" value="${disjoncteur.section || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 2.5">
                 </div>
                 <div class="mb-4">
                     <label for="humidite-input" class="block text-sm font-medium">Humidité ambiante (%):</label>
