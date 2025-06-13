@@ -28,6 +28,9 @@
         <!-- Tableau principal -->
         <div class="flex-1 pr-4">
             <h1 class="text-3xl font-bold mb-6">Évaluation du Niveau de Défaut</h1>
+            <div id="api-error" class="hidden bg-red-900 text-red-200 p-3 rounded mb-6">
+                <p><i class="fas fa-exclamation-triangle mr-2"></i>Erreur lors du chargement des données. Veuillez réessayer plus tard.</p>
+            </div>
             <div class="mb-6 bg-gray-800 p-4 rounded-lg shadow-lg">
                 <h2 class="text-xl font-semibold mb-4">Qu’est-ce que l’évaluation du niveau de défaut ?</h2>
                 <p class="mb-2">Imaginez votre installation électrique comme une rivière. Un court-circuit est comme un torrent soudain qui peut tout emporter. Cette page vérifie si vos disjoncteurs (les barrages) peuvent arrêter ce torrent.</p>
@@ -166,6 +169,7 @@
                 const data = await response.json();
                 console.log('[Client] Données reçues:', data);
                 tableauxData = data.data || [];
+                document.getElementById('api-error').classList.add('hidden');
                 populateFilters();
                 renderTable();
                 renderBubbleChart();
@@ -174,6 +178,12 @@
                 checkHighIk();
             } catch (error) {
                 console.error('[Client] Erreur chargement:', error);
+                document.getElementById('api-error').classList.remove('hidden');
+                tableauxData = [];
+                renderTable();
+                renderBubbleChart();
+                renderNetwork();
+                updateMissingDataAlert();
             }
         }
 
@@ -268,8 +278,8 @@
                     const icn = d.icn ? parseFloat(d.icn).toFixed(2) : 'N/A';
                     const status = d.ik != null && d.icn ? (d.ik <= d.icn ? 'OK' : 'KO') : 'Incomplet';
                     // Nettoyer les IDs pour HTML
-                    const cleanTableauId = tableau.id.replace(/"/g, '"').replace(/'/g, "");
-                    const cleanDisjoncteurId = d.id.replace(/"/g, '"').replace(/'/g, "");
+                    const cleanTableauId = tableau.id.replace(/"/g, '&quot;').replace(/'/g, "&#39;");
+                    const cleanDisjoncteurId = d.id.replace(/"/g, '&quot;').replace(/'/g, "&#39;");
                     row.innerHTML = `
                         <td>${tableau.id}</td>
                         <td>${d.id}</td>
@@ -284,7 +294,6 @@
                             <a href="edit.html?id=${tableau.id}" class="bg-yellow-600 text-white px-2 py-1 rounded hover:bg-yellow-700"><i class="fas fa-edit"></i></a>
                         </td>
                     `;
-
                     tbody.appendChild(row);
                     console.log('[Client] Bouton créé pour:', { tableauId: tableau.id, disjoncteurId: d.id, cleanTableauId, cleanDisjoncteurId });
                 });
@@ -321,8 +330,8 @@
 
             try {
                 // Nettoyer les IDs pour la comparaison
-                const cleanTableauId = tableauId.replace(/"/g, '"').replace(/'/g, "'").trim();
-                const cleanDisjoncteurId = disjoncteurId.replace(/"/g, '"').replace(/'/g, "'").trim();
+                const cleanTableauId = tableauId.replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+                const cleanDisjoncteurId = disjoncteurId.replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
                 console.log('[Client] IDs nettoyés pour recherche:', { cleanTableauId, cleanDisjoncteurId });
                 const tableau = tableauxData.find(t => t.id.trim() === cleanTableauId);
                 const disjoncteur = tableau?.disjoncteurs.find(d => d.id.trim() === cleanDisjoncteurId);
@@ -620,7 +629,6 @@
             }
         }
 
-        // Ajout des fonctions manquantes
         function renderBubbleChart(data = tableauxData) {
             console.log('[Client] Rendu du graphique à bulles');
             const canvas = document.getElementById('bubble-chart');
@@ -635,7 +643,6 @@
                 return;
             }
 
-            // Détruire l'ancien graphique s'il existe
             if (bubbleChartInstance) {
                 bubbleChartInstance.destroy();
                 console.log('[Client] Ancien graphique à bulles détruit');
@@ -645,7 +652,6 @@
             let maxIk = 0;
             let maxIcn = 0;
 
-            // Collecter les données valides
             data.forEach(tableau => {
                 tableau.disjoncteurs.forEach(disjoncteur => {
                     const ik = disjoncteur.ik ? parseFloat(disjoncteur.ik) : null;
@@ -664,7 +670,6 @@
                 });
             });
 
-            // Vérifier s'il y a des données à afficher
             if (datasets.length === 0) {
                 console.log('[Client] Aucune donnée valide pour le graphique à bulles');
                 const parent = canvas.parentElement;
@@ -678,13 +683,11 @@
                 return;
             }
 
-            // Supprimer tout message d'erreur existant
             const existingError = canvas.parentElement.querySelector('.error-message');
             if (existingError) {
                 existingError.remove();
             }
 
-            // Ajouter la ligne diagonale Icn = Ik
             const diagonalData = {
                 label: 'Icn = Ik',
                 data: [{ x: 0, y: 0 }, { x: maxIk * 1.1, y: maxIcn * 1.1 }],
@@ -742,7 +745,6 @@
                 return;
             }
 
-            // Détruire l'ancien réseau s'il existe
             if (networkInstance) {
                 networkInstance.destroy();
                 console.log('[Client] Ancien réseau détruit');
@@ -751,9 +753,8 @@
             const nodes = [];
             const edges = [];
             const nodeIds = new Set();
-            const tableauLevels = new Map(); // Map pour stocker le niveau de chaque tableau
+            const tableauLevels = new Map();
 
-            // Étape 1 : Déterminer les niveaux des tableaux en fonction des relations linkedTableauId
             function assignTableauLevels(tableauId, level = 0, visited = new Set()) {
                 if (visited.has(tableauId)) {
                     console.warn(`[Client] Boucle détectée pour le tableau ${tableauId}`);
@@ -761,15 +762,12 @@
                 }
                 visited.add(tableauId);
 
-                // Assigner le niveau actuel au tableau
                 if (!tableauLevels.has(tableauId)) {
                     tableauLevels.set(tableauId, level);
                 } else {
-                    // Mettre à jour si un niveau plus profond est trouvé
                     tableauLevels.set(tableauId, Math.max(tableauLevels.get(tableauId), level));
                 }
 
-                // Trouver les sous-tableaux liés à ce tableau
                 const tableau = data.find(t => t.id === tableauId);
                 if (!tableau) return;
 
@@ -780,10 +778,8 @@
                 });
             }
 
-            // Initialiser les niveaux pour tous les tableaux
             data.forEach(tableau => assignTableauLevels(tableau.id));
 
-            // Étape 2 : Créer les nœuds des tableaux
             data.forEach(tableau => {
                 const tableauId = `tableau-${tableau.id}`;
                 if (!nodeIds.has(tableauId)) {
@@ -799,14 +795,12 @@
                 }
             });
 
-            // Étape 3 : Créer les nœuds des disjoncteurs
             data.forEach(tableau => {
                 const tableauId = `tableau-${tableau.id}`;
                 const baseLevel = tableauLevels.get(tableau.id) || 0;
                 const principaux = tableau.disjoncteurs.filter(d => d.isPrincipal);
                 const nonPrincipaux = tableau.disjoncteurs.filter(d => !d.isPrincipal);
 
-                // Disjoncteurs principaux (niveau baseLevel + 1)
                 principaux.forEach(disjoncteur => {
                     const disjoncteurId = `disjoncteur-${tableau.id}-${disjoncteur.id}`;
                     if (!nodeIds.has(disjoncteurId)) {
@@ -822,7 +816,6 @@
                     }
                 });
 
-                // Disjoncteurs non principaux (niveau baseLevel + 2)
                 nonPrincipaux.forEach(disjoncteur => {
                     const disjoncteurId = `disjoncteur-${tableau.id}-${disjoncteur.id}`;
                     if (!nodeIds.has(disjoncteurId)) {
@@ -843,7 +836,6 @@
                         });
                         nodeIds.add(disjoncteurId);
 
-                        // Connecter au premier disjoncteur principal ou au tableau
                         if (principaux.length > 0) {
                             const principalId = `disjoncteur-${tableau.id}-${principaux[0].id}`;
                             edges.push({ from: principalId, to: disjoncteurId });
@@ -854,7 +846,6 @@
                 });
             });
 
-            // Étape 4 : Créer les connexions aux sous-tableaux
             data.forEach(tableau => {
                 tableau.disjoncteurs.forEach(disjoncteur => {
                     if (disjoncteur.linkedTableauId) {
@@ -869,7 +860,6 @@
                 });
             });
 
-            // Vérifier s'il y a des données à afficher
             if (nodes.length === 0) {
                 console.log('[Client] Aucune donnée valide pour le schéma électrique');
                 const existingError = container.querySelector('.error-message');
@@ -882,7 +872,6 @@
                 return;
             }
 
-            // Supprimer tout message d'erreur existant
             const existingError = container.querySelector('.error-message');
             if (existingError) {
                 existingError.remove();
@@ -894,7 +883,7 @@
                     nodes: {
                         font: { size: 12, color: '#000000' },
                         borderWidth: 2,
-                        widthConstraint: { minimum: 80, maximum: 150 }, // Réduire la taille des nœuds
+                        widthConstraint: { minimum: 80, maximum: 150 },
                         shapeProperties: { borderRadius: 6 }
                     },
                     edges: {
@@ -903,7 +892,7 @@
                         smooth: { type: 'curvedCW', roundness: 0.2 }
                     },
                     physics: {
-                        enabled: true, // Activer la physique pour les grands graphes
+                        enabled: true,
                         hierarchicalRepulsion: {
                             centralGravity: 0.0,
                             springLength: 100,
@@ -916,8 +905,8 @@
                     layout: {
                         hierarchical: {
                             enabled: true,
-                            levelSeparation: 250, // Plus d'espace vertical
-                            nodeSpacing: 120, // Espace horizontal réduit
+                            levelSeparation: 250,
+                            nodeSpacing: 120,
                             treeSpacing: 200,
                             direction: 'UD',
                             sortMethod: 'directed',
@@ -928,7 +917,7 @@
                         hover: true,
                         zoomView: true,
                         dragView: true,
-                        navigationButtons: true // Ajouter des boutons de navigation
+                        navigationButtons: true
                     },
                     manipulation: { enabled: false }
                 };
