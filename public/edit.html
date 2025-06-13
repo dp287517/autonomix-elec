@@ -666,7 +666,7 @@
 
                 if (editIndex === null || disjoncteurs[editIndex].id !== disjoncteur.id) {
                     if (disjoncteurs.some(d => d.id === disjoncteur.id)) {
-                        console.log('[Edit] Erreur: ID déjà utilisé', disjoncteur.id);
+                        console.log('[Edit] Erreur: ID déjà utilisé dans ce tableau', disjoncteur.id);
                         showPopup('Cet ID est déjà utilisé dans ce tableau. Choisissez un ID unique.', () => {});
                         return;
                     }
@@ -687,19 +687,17 @@
                             console.error('[Edit] Erreur mise à jour serveur:', responseData.error);
                             throw new Error(responseData.error || 'Erreur lors de la mise à jour');
                         }
-                        disjoncteurs[editIndex] = disjoncteur;
                         console.log('[Edit] Disjoncteur modifié:', disjoncteur.id, responseData.data);
                         await chargerTableau();
                         showPopup('Disjoncteur modifié avec succès.', () => {});
                     } else {
-                        // Mode ajout : ajouter au tableau et enregistrer dans la base
-                        disjoncteurs.push(disjoncteur);
-                        console.log('[Edit] Disjoncteur ajouté localement:', disjoncteur.id);
-                        // Mettre à jour le tableau dans la base de données
+                        // Mode ajout
+                        console.log('[Edit] Tentative d\'ajout disjoncteur:', disjoncteur.id);
+                        const tempDisjoncteurs = [...disjoncteurs, disjoncteur];
                         const response = await fetch(`/api/tableaux/${tableauId}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
+                            body: JSON.stringify({ id: tableauId, disjoncteurs: tempDisjoncteurs, isSiteMain })
                         });
                         const responseData = await response.json();
                         if (!response.ok) {
@@ -899,27 +897,22 @@
                 try {
                     isSiteMain = document.getElementById('tableau-isSiteMain').checked;
                     console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, { disjoncteurs, isSiteMain, newTableauId });
-                    // Si l'ID a changé, supprimer l'ancien tableau et créer un nouveau
                     if (newTableauId !== tableauId) {
-                        // Mettre à jour les références linkedTableauId dans les disjoncteurs
                         disjoncteurs.forEach(d => {
                             if (d.linkedTableauId === tableauId) {
                                 d.linkedTableauId = newTableauId;
                             }
                         });
-                        // Créer un nouveau tableau avec le nouvel ID
                         await fetch(`/api/tableaux`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ id: newTableauId, disjoncteurs, isSiteMain })
                         });
-                        // Supprimer l'ancien tableau
                         await fetch(`/api/tableaux/${tableauId}`, {
                             method: 'DELETE'
                         });
-                        tableauId = newTableauId; // Mettre à jour l'ID local
+                        tableauId = newTableauId;
                     } else {
-                        // Mise à jour standard
                         await fetch(`/api/tableaux/${tableauId}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
