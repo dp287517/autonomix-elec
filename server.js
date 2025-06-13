@@ -370,14 +370,34 @@ app.post('/api/tableaux', async (req, res) => {
     const { id, disjoncteurs, isSiteMain } = req.body;
     console.log('[Server] POST /api/tableaux - Requête reçue:', { id, disjoncteurs: disjoncteurs?.length, isSiteMain });
     try {
-        if (!id || !disjoncteurs || !Array.isArray(disjoncteurs)) {
-            throw new Error('ID et disjoncteurs sont requis');
+        if (!id) {
+            throw new Error('L’ID du tableau est requis');
+        }
+        if (!Array.isArray(disjoncteurs)) {
+            throw new Error('Les disjoncteurs doivent être un tableau');
         }
         const checkResult = await pool.query('SELECT id FROM tableaux WHERE id = $1', [id]);
         if (checkResult.rows.length > 0) {
             console.log('[Server] Erreur: ID tableau déjà utilisé:', id);
             res.status(400).json({ error: 'Cet identifiant de tableau existe déjà' });
             return;
+        }
+        // Validation des disjoncteurs
+        const disjoncteurIds = disjoncteurs.map(d => d.id).filter(id => id);
+        const uniqueIds = new Set(disjoncteurIds);
+        if (uniqueIds.size !== disjoncteurIds.length) {
+            console.log('[Server] Erreur: IDs de disjoncteurs non uniques:', disjoncteurIds);
+            throw new Error('Les IDs des disjoncteurs doivent être uniques');
+        }
+        // Vérifier si les IDs des disjoncteurs existent déjà dans d'autres tableaux
+        if (disjoncteurIds.length > 0) {
+            const existingDisjoncteurs = await pool.query('SELECT id, disjoncteurs FROM tableaux');
+            const allExistingIds = existingDisjoncteurs.rows.flatMap(row => row.disjoncteurs.map(d => d.id));
+            const duplicateIds = disjoncteurIds.filter(id => allExistingIds.includes(id));
+            if (duplicateIds.length > 0) {
+                console.log('[Server] Erreur: IDs de disjoncteurs déjà utilisés:', duplicateIds);
+                throw new Error(`Les IDs suivants sont déjà utilisés dans d’autres tableaux : ${duplicateIds.join(', ')}`);
+            }
         }
         const normalizedDisjoncteurs = disjoncteurs.map(d => {
             const validationErrors = validateDisjoncteurData(d);
@@ -413,8 +433,25 @@ app.put('/api/tableaux/:id', async (req, res) => {
     const { disjoncteurs, isSiteMain } = req.body;
     console.log('[Server] PUT /api/tableaux/', id);
     try {
-        if (!id || !disjoncteurs || !Array.isArray(disjoncteurs)) {
-            throw new Error('ID et disjoncteurs sont requis');
+        if (!id || !Array.isArray(disjoncteurs)) {
+            throw new Error('ID et disjoncteurs (tableau) sont requis');
+        }
+        // Validation des disjoncteurs
+        const disjoncteurIds = disjoncteurs.map(d => d.id).filter(id => id);
+        const uniqueIds = new Set(disjoncteurIds);
+        if (uniqueIds.size !== disjoncteurIds.length) {
+            console.log('[Server] Erreur: IDs de disjoncteurs non uniques:', disjoncteurIds);
+            throw new Error('Les IDs des disjoncteurs doivent être uniques');
+        }
+        // Vérifier que les nouveaux IDs n'existent pas dans d'autres tableaux
+        if (disjoncteurIds.length > 0) {
+            const existingDisjoncteurs = await pool.query('SELECT id, disjoncteurs FROM tableaux WHERE id != $1', [id]);
+            const allExistingIds = existingDisjoncteurs.rows.flatMap(row => row.disjoncteurs.map(d => d.id));
+            const duplicateIds = disjoncteurIds.filter(newId => allExistingIds.includes(newId));
+            if (duplicateIds.length > 0) {
+                console.log('[Server] Erreur: IDs de disjoncteurs déjà utilisés dans d’autres tableaux:', duplicateIds);
+                throw new Error(`Les IDs suivants sont déjà utilisés dans d’autres tableaux : ${duplicateIds.join(', ')}`);
+            }
         }
         const normalizedDisjoncteurs = disjoncteurs.map(d => {
             const validationErrors = validateDisjoncteurData(d);
@@ -454,6 +491,15 @@ app.delete('/api/tableaux/:id', async (req, res) => {
     const { id } = req.params;
     console.log('[Server] DELETE /api/tableaux/:id', id);
     try {
+        // Supprimer les dépendances dans safety_actions
+        await pool.query('DELETE FROM safety_actions WHERE tableau_id = $1', [id]);
+        console.log('[Server] Actions de sécurité supprimées pour tableau:', id);
+
+        // Supprimer les dépendances dans emergency_reports
+        await pool.query('DELETE FROM emergency_reports WHERE tableau_id = $1', [id]);
+        console.log('[Server] Rapports d’urgence supprimés pour tableau:', id);
+
+        // Supprimer le tableau
         const result = await pool.query('DELETE FROM tableaux WHERE id = $1 RETURNING *', [id]);
         if (result.rows.length === 0) {
             console.log('[Server] Tableau non trouvé:', id);
@@ -598,140 +644,7 @@ app.post('/api/obsolescence/update', async (req, res) => {
     }
 });
 
-// Route pour récupérer les données de niveau de défaut
-app.get('/api/fault-level', async (req, res) => {
-    console.log('[Server] GET /api/fault-level');
-    try {
-        const result = await pool.query('SELECT id, disjoncteurs, isSiteMain FROM tableaux');
-        const tableaux = result.rows.map(row => {
-            const disjoncteurs = row.disjoncteurs.map(d => {
-                let ik = null;
-                let sectionWarning = null;
-                if (d.ue && (d.impedance || d.section)) {
-                    const ueMatch = d.ue.match(/[\d.]+/);
-                    const ue = ueMatch ? parseFloat(ueMatch[0]) : 400;
-                    let z;
-                    let L = isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 5 : 20) : parseFloat(d.cableLength);
-                    let S = null;
-                    if (d.isPrincipal && L < 5) {
-                        console.log('[Server] Longueur de câble principal ajustée à 5 m:', { id: d.id, cableLength: L });
-                        L = 5;
-                    } else if (!d.isPrincipal && L < 20) {
-                        console.log('[Server] Longueur de câble non principal:', { id: d.id, cableLength: L });
-                        L = 20;
-                    }
-                    if (d.impedance) {
-                        z = parseFloat(d.impedance);
-                        if (z < 0.05) {
-                            console.log('[Server] Impédance z trop faible, ajustée à 0.05:', { id: d.id, impedance: z });
-                            z = 0.05;
-                        }
-                    } else {
-                        const rho = 0.0175;
-                        const sectionMatch = d.section ? d.section.match(/[\d.]+/) : null;
-                        S = sectionMatch ? parseFloat(sectionMatch[0]) : getRecommendedSection(d.in);
-                        const recommendedS = getRecommendedSection(d.in);
-                        if (S < recommendedS) {
-                            sectionWarning = `Section ${S} mm² incohérente pour In=${d.in} (recommandé: ${recommendedS} mm²)`;
-                            console.warn('[Server] Section incohérente:', { id: d.id, section: S, recommended: recommendedS });
-                            S = recommendedS;
-                        }
-                        if (S < 0.5) {
-                            console.log('[Server] Section trop faible, ajustée à 0.5 mm²:', { id: d.id, section: d.section, adjusted: S });
-                            S = 0.5;
-                        }
-                        const Z_cable = (rho * L * 2) / S;
-                        const Z_network = 0.01;
-                        z = Z_cable + Z_network;
-                        if (z < 0.05) {
-                            console.log('[Server] Impédance calculée trop faible, ajustée à 0.05:', { id: d.id, z, L, S });
-                            z = 0.05;
-                        }
-                    }
-                    ik = (ue / (Math.sqrt(3) * z)) / 1000;
-                    if (ik > 100) {
-                        console.warn('[Server] Ik trop élevé, défini à null:', { id: d.id, ik, ue, z, L, S });
-                        ik = null;
-                    }
-                    console.log('[Server] Calcul Ik:', { id: d.id, ue, z, L, S: S || 'N/A', ik });
-                } else {
-                    console.log('[Server] Données insuffisantes pour Ik:', { id: d.id, ue: d.ue, cableLength: d.cableLength, section: d.section });
-                }
-                return {
-                    ...d,
-                    ik,
-                    icn: normalizeIcn(d.icn),
-                    sectionWarning,
-                    tableauId: row.id
-                };
-            });
-            const building = row.id.split('-')[0] || 'Inconnu';
-            return { id: row.id, building, disjoncteurs, isSiteMain: row.isSiteMain || false };
-        });
-        console.log('[Server] Données FLA:', tableaux.length);
-        res.json({ data: tableaux });
-    } catch (error) {
-        console.error('[Server] Erreur GET /api/fault-level:', error.message, error.stack);
-        res.status(500).json({ error: 'Erreur lors de la récupération des données: ' + error.message });
-    }
-});
-
-// Route pour mettre à jour les données de câble
-app.post('/api/fault-level/update', async (req, res) => {
-    const { tableauId, disjoncteurId, ue, section, cableLength, impedance, humidite, temp_ambiante, charge } = req.body;
-    console.log('[Server] POST /api/fault-level/update - Requête reçue:', { tableauId, disjoncteurId, ue, section, cableLength, impedance, humidite, temp_ambiante, charge });
-    try {
-        if (!tableauId || !disjoncteurId) {
-            throw new Error('Tableau ID et Disjoncteur ID sont requis');
-        }
-        const validationErrors = validateDisjoncteurData({ ue, section, humidite, temp_ambiante, charge });
-        if (validationErrors.length > 0) {
-            console.log('[Server] Erreurs de validation:', validationErrors);
-            res.status(400).json({ error: 'Données invalides: ' + validationErrors.join('; ') });
-            return;
-        }
-        const result = await pool.query('SELECT disjoncteurs FROM tableaux WHERE id = $1', [tableauId]);
-        if (result.rows.length === 0) {
-            console.log('[Server] Tableau non trouvé:', tableauId);
-            res.status(404).json({ error: 'Tableau non trouvé' });
-            return;
-        }
-        const disjoncteurs = result.rows[0].disjoncteurs;
-        const disjoncteurIndex = disjoncteurs.findIndex(d => d.id === disjoncteurId);
-        if (disjoncteurIndex === -1) {
-            console.log('[Server] Disjoncteur non trouvé:', disjoncteurId);
-            res.status(404).json({ error: 'Disjoncteur non trouvé' });
-            return;
-        }
-        const updatedDisjoncteur = {
-            ...disjoncteurs[disjoncteurIndex],
-            ue: ue || disjoncteurs[disjoncteurIndex].ue,
-            section: section || disjoncteurs[disjoncteurIndex].section || `${getRecommendedSection(disjoncteurs[disjoncteurIndex].in)} mm²`,
-            cableLength: isNaN(parseFloat(cableLength)) ? (disjoncteurs[disjoncteurIndex].isPrincipal ? 5 : 20) : parseFloat(cableLength),
-            impedance: impedance ? parseFloat(impedance) : null,
-            humidite: humidite || disjoncteurs[disjoncteurIndex].humidite || 50,
-            temp_ambiante: temp_ambiante || disjoncteurs[disjoncteurIndex].temp_ambiante || 25,
-            charge: charge || disjoncteurs[disjoncteurIndex].charge || 80
-        };
-        const inNum = parseFloat(updatedDisjoncteur.in?.match(/[\d.]+/)?.[0]) || 0;
-        const sectionNum = parseFloat(updatedDisjoncteur.section?.match(/[\d.]+/)?.[0]) || 0;
-        const recommendedS = getRecommendedSection(updatedDisjoncteur.in);
-        if (sectionNum < recommendedS) {
-            console.warn('[Server] Section incohérente lors de la mise à jour:', { id: disjoncteurId, section: sectionNum, recommended: recommendedS });
-            updatedDisjoncteur.sectionWarning = `Section ${sectionNum} mm² incohérente pour In=${updatedDisjoncteur.in} (recommandé: ${recommendedS} mm²)`;
-        }
-        disjoncteurs[disjoncteurIndex] = updatedDisjoncteur;
-        console.log('[Server] Disjoncteur mis à jour:', { id: disjoncteurId, updated: updatedDisjoncteur });
-        await pool.query('UPDATE tableaux SET disjoncteurs = $1::jsonb WHERE id = $2', [JSON.stringify(disjoncteurs), tableauId]);
-        console.log('[Server] SQL exécuté pour tableau:', tableauId);
-        res.json({ success: true });
-    } catch (error) {
-        console.error('[Server] Erreur POST /api/fault-level/update:', error.message, error.stack);
-        res.status(500).json({ error: 'Erreur lors de la mise à jour: ' + error.message });
-    }
-});
-
-// Route POST pour sauvegarder la date de remplacement manuellement (pour Gantt)
+// Route pour sauvegarder la date de remplacement manuellement (pour Gantt)
 app.post('/api/obsolescence/replacement', (req, res) => {
     const { tableauId, replacementYear } = req.body;
     console.log('[Server] POST /api/obsolescence/replacement - Requête reçue:', { tableauId, replacementYear });
