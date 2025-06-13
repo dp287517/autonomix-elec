@@ -1017,14 +1017,14 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
             return;
         }
         const disjoncteurs = result.rows[0].disjoncteurs;
-        const disjoncteurIndex = disjoncteurs.findIndex(d => d.id === disjoncteurId);
+        const disjoncteurIndex = disjoncteurs.findIndex(d => d.id === decodeURIComponent(disjoncteurId));
         if (disjoncteurIndex === -1) {
             console.log('[Server] Disjoncteur non trouvé:', disjoncteurId);
             res.status(404).json({ error: 'Disjoncteur non trouvé' });
             return;
         }
         // Vérifier si le nouvel ID est unique dans le tableau
-        if (newId && newId !== disjoncteurId) {
+        if (newId && newId !== decodeURIComponent(disjoncteurId)) {
             const idExists = disjoncteurs.some((d, i) => i !== disjoncteurIndex && d.id === newId);
             if (idExists) {
                 console.log('[Server] Erreur: Nouvel ID déjà utilisé:', newId);
@@ -1035,7 +1035,7 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
         const updatedDisjoncteur = {
             ...disjoncteurs[disjoncteurIndex],
             ...updatedData,
-            id: newId || disjoncteurId, // Mettre à jour l'ID si newId est fourni
+            id: newId || decodeURIComponent(disjoncteurId),
             icn: normalizeIcn(updatedData.icn || disjoncteurs[disjoncteurIndex].icn),
             section: updatedData.section || disjoncteurs[disjoncteurIndex].section || `${getRecommendedSection(updatedData.in || disjoncteurs[disjoncteurIndex].in)} mm²`,
             cableLength: isNaN(parseFloat(updatedData.cableLength)) ? 
