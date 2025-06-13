@@ -663,9 +663,9 @@
                     }
                 }
 
-                if (editIndex !== null) {
-                    // Mode modification : mise à jour immédiate via API
-                    try {
+                try {
+                    if (editIndex !== null) {
+                        // Mode modification : mise à jour immédiate via API
                         console.log('[Edit] Envoi requête PUT /api/disjoncteur/', tableauId, '/', disjoncteur.id);
                         const response = await fetch(`/api/disjoncteur/${tableauId}/${disjoncteur.id}`, {
                             method: 'PUT',
@@ -679,35 +679,37 @@
                         }
                         disjoncteurs[editIndex] = disjoncteur;
                         console.log('[Edit] Disjoncteur modifié:', disjoncteur.id, responseData.data);
+                        // Recharger le tableau pour synchronisation
+                        await chargerTableau();
                         showPopup('Disjoncteur modifié avec succès.', () => {});
-                    } catch (error) {
-                        console.error('[Edit] Erreur mise à jour:', error.message);
-                        showPopup('Erreur lors de la modification : ' + error.message, () => {});
-                        return;
+                    } else {
+                        // Mode ajout : ajout local, enregistré
+                        disjoncteurs.push(disjoncteur);
+                        console.log('[Edit] Disjoncteur ajouté:', disjoncteur.id);
+                        // Ajouter le disjoncteur à la liste déroulante
+                        const select = document.getElementById('disjoncteur-existant');
+                        const existingOptions = Array.from(select.options).map(opt => opt.value);
+                        if (!existingOptions.includes(JSON.stringify(disjoncteur))) {
+                            const option = document.createElement('option');
+                            option.value = JSON.stringify(disjoncteur);
+                            option.textContent = `${disjoncteur.marque} ${disjoncteur.ref}`;
+                            select.appendChild(option);
+                            console.log('[Edit] Disjoncteur ajouté à la liste déroulante:', `${disjoncteur.marque} ${disjoncteur.ref}`);
+                        }
+                        afficherDisjoncteurs();
                     }
-                } else {
-                    // Mode ajout : ajout local, enregistré
-                    disjoncteurs.push(disjoncteur);
-                    console.log('[Edit] Disjoncteur ajouté:', disjoncteur.id);
-                    // Ajouter le disjoncteur à la liste déroulante
-                    const select = document.getElementById('disjoncteur-existant');
-                    const existingOptions = Array.from(select.options).map(opt => opt.value);
-                    if (!existingOptions.includes(JSON.stringify(disjoncteur))) {
-                        const option = document.createElement('option');
-                        option.value = JSON.stringify(disjoncteur);
-                        option.textContent = `${disjoncteur.marque} ${disjoncteur.ref}`;
-                        select.appendChild(option);
-                        console.log('[Edit] Disjoncteur ajouté à la liste déroulante:', `${disjoncteur.marque} ${disjoncteur.ref}`);
-                    }
+                    document.getElementById('disjoncteur-form').classList.add('hidden');
+                    document.getElementById('disjoncteur-marque').value = '';
+                    document.getElementById('disjoncteur-ref').value = '';
+                    document.getElementById('disjoncteur-action').textContent = 'Ajouter au tableau';
+                    document.getElementById('disjoncteur-linked-tableau').value = '';
+                    editIndex = null;
+                    console.log('[Edit] Formulaire réinitialisé');
+                } catch (error) {
+                    console.error('[Edit] Erreur mise à jour:', error.message);
+                    showPopup('Erreur lors de la modification : ' + error.message, () => {});
+                    return;
                 }
-                afficherDisjoncteurs();
-                document.getElementById('disjoncteur-form').classList.add('hidden');
-                document.getElementById('disjoncteur-marque').value = '';
-                document.getElementById('disjoncteur-ref').value = '';
-                document.getElementById('disjoncteur-action').textContent = 'Ajouter au tableau';
-                document.getElementById('disjoncteur-linked-tableau').value = '';
-                editIndex = null;
-                console.log('[Edit] Formulaire réinitialisé');
             }
 
             function designerPrincipal(index) {
@@ -764,6 +766,8 @@
                 disjoncteurs.forEach(d => {
                     idCounts[d.id] = (idCounts[d.id] || 0) + 1;
                 });
+                // Trier les disjoncteurs par ID
+                disjoncteurs.sort((a, b) => a.id.localeCompare(b.id));
                 disjoncteurs.forEach((d, index) => {
                     const isPrincipal = d.isPrincipal || false;
                     console.log('[Edit] Disjoncteur', d.id, 'index:', index, 'isPrincipal:', isPrincipal);
@@ -915,6 +919,6 @@
                 chargerDisjoncteursExistants();
                 chargerTableaux();
             };
-            </script>
-            </body>
-            </html>
+        </script>
+    </body>
+</html>
