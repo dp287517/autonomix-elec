@@ -117,6 +117,21 @@ function validateDisjoncteurData(data) {
     return errors;
 }
 
+// Validation des données de checklist
+function validateChecklistData(data) {
+    const errors = [];
+    if (!['Conforme', 'Non conforme', 'Non applicable'].includes(data.status)) {
+        errors.push('Statut invalide. Valeurs acceptées : Conforme, Non conforme, Non applicable.');
+    }
+    if (!data.comment || typeof data.comment !== 'string' || data.comment.trim().length === 0) {
+        errors.push('Le commentaire est requis et doit être une chaîne non vide.');
+    }
+    if (data.photo && !data.photo.startsWith('data:image/')) {
+        errors.push('La photo doit être une URL de données valide (base64).');
+    }
+    return errors;
+}
+
 // Initialisation de la base de données
 async function initDb() {
     console.log('[Server] Initialisation de la base de données');
@@ -168,6 +183,15 @@ async function initDb() {
                 load_factor FLOAT DEFAULT 1.0
             );
         `);
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS breaker_checklists (
+                id SERIAL PRIMARY KEY,
+                status VARCHAR(20) NOT NULL,
+                comment TEXT NOT NULL,
+                photo TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
         const orgCount = await pool.query('SELECT COUNT(*) FROM maintenance_org');
         if (parseInt(orgCount.rows[0].count) === 0) {
             console.log('[Server] Insertion des données par défaut pour maintenance_org');
@@ -178,6 +202,14 @@ async function initDb() {
                 ('Technicien Principal', 'Maintenance des tableaux', 'tech1@autonomix.fr', 2),
                 ('Technicien Secondaire', 'Support technique', 'tech2@autonomix.fr', 2),
                 ('Responsable Sécurité', 'Évaluation des risques', 'secu@autonomix.fr', 1)
+            `);
+        }
+        const checklistCount = await pool.query('SELECT COUNT(*) FROM breaker_checklists');
+        if (parseInt(checklistCount.rows[0].count) === 0) {
+            console.log('[Server] Insertion d’une checklist par défaut');
+            await pool.query(`
+                INSERT INTO breaker_checklists (status, comment, photo) VALUES
+                ('Conforme', 'Exemple de contrôle', NULL)
             `);
         }
         const result = await pool.query('SELECT id, disjoncteurs FROM tableaux');
@@ -1184,10 +1216,10 @@ app.get('/api/safety-actions/:id', async (req, res) => {
                 id: result.rows[0].id,
                 type: result.rows[0].type,
                 description: result.rows[0].description,
-                building: result.rows[0].building,
-                tableau: result.rows[0].tableau_id,
-                status: result.rows[0].status,
-                date: result.rows[0].date ? result.rows[0].date.toISOString().split('T')[0] : null
+                building: row.building,
+                tableau: row.tableau_id,
+                status: row.status,
+                date: row.date ? row.date.toISOString().split('T')[0] : null
             };
             console.log('[Server] Action trouvée:', action);
             res.json(action);
@@ -1274,6 +1306,181 @@ app.delete('/api/safety-actions/:id', async (req, res) => {
     } catch (error) {
         console.error('[Server] Erreur DELETE /api/safety-actions/:id:', error.message, error.stack);
         res.status(500).json({ error: 'Erreur lors de la suppression de l’action: ' + error.message });
+    }
+});
+
+// Endpoints pour gérer les checklists des disjoncteurs
+app.get('/api/breaker-checklists', async (req, res) => {
+    console.log('[Server] GET /api/breaker-checklists');
+    try {
+        const result = await pool.query('SELECT * FROM breaker_checklists ORDER BY timestamp DESC');
+        const checklists = result.rows.map(row => ({
+            id: row.id,
+            status: row.status,
+            comment: row.comment,
+            photo: row.photo || null,
+            timestamp: row.timestamp.toISOString()
+        }));
+        console.log('[Server] Checklists récupérées:', checklists.length);
+        res.json(checklists);
+    } catch (error) {
+        console.error('[Server] Erreur GET /api/breaker-checklists:', error.message, error.stack);
+        res.status(500).json({ error: 'Erreur lors de la récupération des checklists: ' + error.message });
+    }
+});
+
+app.post('/api/breaker-checklists', async (req, res) => {
+    const { status, comment, photo } = req.body;
+    console.log('[Server] POST /api/breaker-checklists - Requête reçue:', { status, comment, photo: photo ? 'Présente' : 'Absente' });
+    try {
+        const validationErrors = validateChecklistData({ status, comment, photo });
+        if (validationErrors.length > 0) {
+            console.log('[Server] Erreurs de validation:', validationErrors);
+            res.status(400).json({ error: 'Données invalides: ' + validationErrors.join('; ') });
+            return;
+        }
+        const result = await pool.query(
+            'INSERT INTO breaker_checklists (status, comment, photo) VALUES ($1, $2, $3) RETURNING *',
+            [status, comment, photo || null]
+        );
+        const checklist = {
+            id: result.rows[0].id,
+            status: result.rows[0].status,
+            comment: result.rows[0].comment,
+            photo: result.rows[0].photo || null,
+            timestamp: result.rows[0].timestamp.toISOString()
+        };
+        console.log('[Server] Checklist créée:', checklist);
+        res.json({ success: true, data: checklist });
+    } catch (error) {
+        console.error('[Server] Erreur POST /api/breaker-checklists:', error.message, error.stack);
+        res.status(500).json({ error: 'Erreur lors de la création de la checklist: ' + error.message });
+    }
+});
+
+app.put('/api/breaker-checklists/:id', async (req, res) => {
+    const { id } = req.params;
+    const { status, comment, photo } = req.body;
+    console.log('[Server] PUT /api/breaker-checklists/', id, { status, comment, photo: photo ? 'Présente' : 'Absente' });
+    try {
+        const validationErrors = validateChecklistData({ status, comment, photo });
+        if (validationErrors.length > 0) {
+            console.log('[Server] Erreurs de validation:', validationErrors);
+            res.status(400).json({ error: 'Données invalides: ' + validationErrors.join('; ') });
+            return;
+        }
+        const result = await pool.query(
+            'UPDATE breaker_checklists SET status = $1, comment = $2, photo = $3 WHERE id = $4 RETURNING *',
+            [status, comment, photo || null, id]
+        );
+        if (result.rows.length === 0) {
+            console.log('[Server] Checklist non trouvée:', id);
+            res.status(404).json({ error: 'Checklist non trouvée' });
+            return;
+        }
+        const checklist = {
+            id: result.rows[0].id,
+            status: result.rows[0].status,
+            comment: result.rows[0].comment,
+            photo: result.rows[0].photo || null,
+            timestamp: result.rows[0].timestamp.toISOString()
+        };
+        console.log('[Server] Checklist mise à jour:', checklist);
+        res.json({ success: true, data: checklist });
+    } catch (error) {
+        console.error('[Server] Erreur PUT /api/breaker-checklists/:id:', error.message, error.stack);
+        res.status(500).json({ error: 'Erreur lors de la mise à jour de la checklist: ' + error.message });
+    }
+});
+
+app.delete('/api/breaker-checklists/:id', async (req, res) => {
+    const { id } = req.params;
+    console.log('[Server] DELETE /api/breaker-checklists/', id);
+    try {
+        const result = await pool.query('DELETE FROM breaker_checklists WHERE id = $1 RETURNING *', [id]);
+        if (result.rows.length === 0) {
+            console.log('[Server] Checklist non trouvée:', id);
+            res.status(404).json({ error: 'Checklist non trouvée' });
+            return;
+        }
+        console.log('[Server] Checklist supprimée:', id);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[Server] Erreur DELETE /api/breaker-checklists/:id:', error.message, error.stack);
+        res.status(500).json({ error: 'Erreur lors de la suppression de la checklist: ' + error.message });
+    }
+});
+
+app.get('/api/breaker-checklists/stats', async (req, res) => {
+    const { building, tableau, disjoncteur } = req.query;
+    console.log('[Server] GET /api/breaker-checklists/stats', { building, tableau, disjoncteur });
+    try {
+        const checklistsResult = await pool.query('SELECT * FROM breaker_checklists');
+        const checklists = checklistsResult.rows.map(row => ({
+            id: row.id,
+            status: row.status,
+            comment: row.comment,
+            photo: row.photo || null,
+            timestamp: row.timestamp.toISOString()
+        }));
+
+        const tableauxResult = await pool.query('SELECT id, disjoncteurs FROM tableaux');
+        const tableaux = tableauxResult.rows.map(row => ({
+            id: row.id,
+            building: row.id.split('-')[0] || 'Inconnu',
+            disjoncteurs: row.disjoncteurs
+        }));
+
+        let stats = {
+            byBuilding: {},
+            byTableau: {},
+            byDisjoncteur: {}
+        };
+
+        // Agrégation par bâtiment
+        const buildings = [...new Set(tableaux.map(t => t.building))];
+        buildings.forEach(b => {
+            const buildingChecklists = checklists; // Checklist globale, donc toutes les checklists s'appliquent
+            stats.byBuilding[b] = {
+                Conforme: buildingChecklists.filter(c => c.status === 'Conforme').length,
+                'Non conforme': buildingChecklists.filter(c => c.status === 'Non conforme').length,
+                'Non applicable': buildingChecklists.filter(c => c.status === 'Non applicable').length
+            };
+        });
+
+        // Agrégation par tableau
+        tableaux.forEach(t => {
+            if (!building || t.building === building) {
+                const tableauChecklists = checklists; // Checklist globale
+                stats.byTableau[t.id] = {
+                    Conforme: tableauChecklists.filter(c => c.status === 'Conforme').length,
+                    'Non conforme': tableauChecklists.filter(c => c.status === 'Non conforme').length,
+                    'Non applicable': tableauChecklists.filter(c => c.status === 'Non applicable').length
+                };
+            }
+        });
+
+        // Agrégation par disjoncteur
+        tableaux.forEach(t => {
+            if ((!building || t.building === building) && (!tableau || t.id === tableau)) {
+                t.disjoncteurs.forEach(d => {
+                    if (!disjoncteur || d.id === disjoncteur) {
+                        const disjoncteurChecklists = checklists; // Checklist globale
+                        stats.byDisjoncteur[`${t.id}-${d.id}`] = {
+                            Conforme: disjoncteurChecklists.filter(c => c.status === 'Conforme').length,
+                            'Non conforme': disjoncteurChecklists.filter(c => c.status === 'Non conforme').length,
+                            'Non applicable': disjoncteurChecklists.filter(c => c.status === 'Non applicable').length
+                        };
+                    }
+                });
+            }
+        });
+
+        console.log('[Server] Statistiques des checklists générées:', stats);
+        res.json(stats);
+    } catch (error) {
+        console.error('[Server] Erreur GET /api/breaker-checklists/stats:', error.message, error.stack);
+        res.status(500).json({ error: 'Erreur lors de la récupération des statistiques: ' + error.message });
     }
 });
 
