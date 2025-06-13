@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contrôle des Disjoncteurs - Autonomix Elec</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="/styles.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white">
+    <nav class="bg-blue-700 p-4 sticky top-0 z-50 shadow-lg">
+        <ul class="flex flex-wrap space-x-6 text-white font-semibold text-sm sm:text-base">
+            <li><a href="index.html" class="hover:text-yellow-300 transition"><i class="fas fa-home mr-2"></i>Accueil</a></li>
+            <li><a href="create.html" class="hover:text-yellow-300 transition"><i class="fas fa-plus-circle mr-2"></i>Créer un tableau</a></li>
+            <li><a href="view.html" class="hover:text-yellow-300 transition"><i class="fas fa-table mr-2"></i>Voir les tableaux</a></li>
+            <li><a href="selectivity.html" class="hover:text-yellow-300 transition"><i class="fas fa-shield-alt mr-2"></i>Sélectivité</a></li>
+            <li><a href="obsolescence.html" class="hover:text-yellow-300 transition"><i class="fas fa-clock mr-2"></i>Obsolescence</a></li>
+            <li><a href="fault_level_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-bolt mr-2"></i>Évaluation du Niveau de Défaut</a></li>
+            <li><a href="hazards_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-exclamation-triangle mr-2"></i>Évaluation des Risques</a></li>
+            <li><a href="maintenance_org.html" class="hover:text-yellow-300 transition"><i class="fas fa-sitemap mr-2"></i>Organigramme Maintenance</a></li>
+            <li><a href="distribution_emergency.html" class="hover:text-yellow-300 transition"><i class="fas fa-plug mr-2"></i>Urgence Distribution</a></li>
+            <li><a href="reports.html" class="hover:text-yellow-300 transition"><i class="fas fa-file-alt mr-2"></i>Rapports</a></li>
+            <li><a href="electrical_safety_program.html" class="hover:text-yellow-300 transition"><i class="fas fa-hard-hat mr-2"></i>Programme de Sécurité Électrique</a></li>
+            <li><a href="breaker_control.html" class="text-yellow-300"><i class="fas fa-cogs mr-2"></i>Contrôle des Disjoncteurs</a></li>
+        </ul>
+    </nav>
+
+    <div id="root" class="container mx-auto p-4 sm:p-6"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Composant principal
+        const BreakerControlApp = () => {
+            const [tableaux, setTableaux] = useState([]);
+            const [selectedTableau, setSelectedTableau] = useState('');
+            const [selectedBreaker, setSelectedBreaker] = useState(null);
+            const [checklists, setChecklists] = useState({});
+            const [error, setError] = useState('');
+            const [showModal, setShowModal] = useState(false);
+            const [newCheckItem, setNewCheckItem] = useState({
+                status: 'Conforme',
+                comment: '',
+                photo: null
+            });
+
+            // Charger les tableaux
+            useEffect(() => {
+                fetchTableaux();
+            }, []);
+
+            const fetchTableaux = async () => {
+                try {
+                    const response = await fetch('/api/tableaux');
+                    if (!response.ok) throw new Error('Erreur lors du chargement des tableaux');
+                    const data = await response.json();
+                    setTableaux(data);
+                    // Initialiser les checklists avec un exemple
+                    const initialChecklists = {};
+                    data.forEach(tableau => {
+                        tableau.disjoncteurs.forEach(d => {
+                            initialChecklists[`${tableau.id}-${d.id}`] = [{
+                                id: 'example',
+                                status: 'Conforme',
+                                comment: 'Exemple de contrôle',
+                                photo: null,
+                                timestamp: new Date().toISOString()
+                            }];
+                        });
+                    });
+                    setChecklists(initialChecklists);
+                } catch (err) {
+                    setError(err.message);
+                }
+            };
+
+            // Gérer le diagramme de Gantt
+            useEffect(() => {
+                if (selectedTableau && selectedBreaker) {
+                    renderGanttChart();
+                }
+            }, [selectedTableau, selectedBreaker, checklists]);
+
+            const renderGanttChart = () => {
+                const canvas = document.getElementById('gantt-chart');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                if (window.ganttChart) window.ganttChart.destroy();
+
+                const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+                const checks = checklists[`${selectedTableau}-${selectedBreaker.id}`] || [];
+                const data = checks.map(check => ({
+                    hour: new Date(check.timestamp).getHours(),
+                    status: check.status
+                }));
+
+                window.ganttChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: hours,
+                        datasets: [{
+                            label: 'Contrôles',
+                            data: hours.map(h => {
+                                const hour = parseInt(h);
+                                const check = data.find(d => d.hour === hour);
+                                return check ? (check.status === 'Conforme' ? 1 : check.status === 'Non conforme' ? -1 : 0) : 0;
+                            }),
+                            backgroundColor: hours.map(h => {
+                                const hour = parseInt(h);
+                                const check = data.find(d => d.hour === hour);
+                                return check ? (check.status === 'Conforme' ? '#22c55e' : check.status === 'Non conforme' ? '#dc2626' : '#f4b400') : 'rgba(0,0,0,0)';
+                            }),
+                            borderColor: '#ffffff',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        scales: {
+                            x: { display: false },
+                            y: { title: { display: true, text: 'Heure', color: '#FFF' }, ticks: { color: '#FFF' } }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: ctx => {
+                                        const value = ctx.raw;
+                                        return value === 1 ? 'Conforme' : value === -1 ? 'Non conforme' : 'Non applicable';
+                                    }
+                                }
+                            }
+                        },
+                        animation: { duration: 1500, easing: 'easeOutBounce' }
+                    }
+                });
+
+                gsap.from('#gantt-chart', { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+            };
+
+            // Gérer le graphique de répartition des statuts
+            useEffect(() => {
+                if (selectedTableau && selectedBreaker) {
+                    renderStatusChart();
+                }
+            }, [selectedTableau, selectedBreaker, checklists]);
+
+            const renderStatusChart = () => {
+                const canvas = document.getElementById('status-chart');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                if (window.statusChart) window.statusChart.destroy();
+
+                const checks = checklists[`${selectedTableau}-${selectedBreaker.id}`] || [];
+                const counts = {
+                    Conforme: checks.filter(c => c.status === 'Conforme').length,
+                    'Non conforme': checks.filter(c => c.status === 'Non conforme').length,
+                    'Non applicable': checks.filter(c => c.status === 'Non applicable').length
+                };
+
+                window.statusChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Conforme', 'Non conforme', 'Non applicable'],
+                        datasets: [{
+                            data: [counts.Conforme, counts['Non conforme'], counts['Non applicable']],
+                            backgroundColor: ['#22c55e', '#dc2626', '#f4b400'],
+                            borderColor: ['#ffffff', '#ffffff', '#ffffff'],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { labels: { color: '#FFF' } },
+                            tooltip: {
+                                callbacks: {
+                                    label: ctx => `${ctx.label}: ${ctx.raw}`
+                                }
+                            }
+                        },
+                        animation: { duration: 1500, easing: 'easeOutBounce' }
+                    }
+                });
+
+                gsap.from('#status-chart', { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+            };
+
+            // Ajouter un contrôle
+            const handleAddCheck = (e) => {
+                e.preventDefault();
+                if (!newCheckItem.comment) {
+                    setError('Le commentaire est requis');
+                    return;
+                }
+                const newId = Date.now().toString();
+                const newCheck = {
+                    id: newId,
+                    status: newCheckItem.status,
+                    comment: newCheckItem.comment,
+                    photo: newCheckItem.photo ? URL.createObjectURL(newCheckItem.photo) : null,
+                    timestamp: new Date().toISOString()
+                };
+                setChecklists(prev => ({
+                    ...prev,
+                    [`${selectedTableau}-${selectedBreaker.id}`]: [...(prev[`${selectedTableau}-${selectedBreaker.id}`] || []), newCheck]
+                }));
+                setNewCheckItem({ status: 'Conforme', comment: '', photo: null });
+                setShowModal(false);
+                // Simuler sauvegarde backend
+                console.log('[Client] Nouveau contrôle ajouté:', newCheck);
+            };
+
+            // Modifier un contrôle
+            const handleEditCheck = (checkId, updatedCheck) => {
+                setChecklists(prev => ({
+                    ...prev,
+                    [`${selectedTableau}-${selectedBreaker.id}`]: prev[`${selectedTableau}-${selectedBreaker.id}`].map(check =>
+                        check.id === checkId ? { ...check, ...updatedCheck } : check
+                    )
+                }));
+                console.log('[Client] Contrôle modifié:', updatedCheck);
+            };
+
+            // Supprimer un contrôle
+            const handleDeleteCheck = (checkId) => {
+                setChecklists(prev => ({
+                    ...prev,
+                    [`${selectedTableau}-${selectedBreaker.id}`]: prev[`${selectedTableau}-${selectedBreaker.id}`].filter(check => check.id !== checkId)
+                }));
+                console.log('[Client] Contrôle supprimé:', checkId);
+            };
+
+            return (
+                <div>
+                    {error && (
+                        <div id="error-alert" className="bg-red-900 text-red-200 p-3 rounded mb-4 animate-fade-in">
+                            <p><i className="fas fa-exclamation-triangle mr-2"></i>{error}</p>
+                        </div>
+                    )}
+
+                    <h1 className="text-2xl sm:text-3xl font-bold mb-6 flex items-center">
+                        <i className="fas fa-cogs mr-3"></i>Contrôle des Disjoncteurs
+                    </h1>
+
+                    {/* Filtres */}
+                    <div className="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0 animate-fade-in">
+                        <div className="flex-1">
+                            <label htmlFor="tableau-filter" className="block text-sm font-medium">Tableau</label>
+                            <select
+                                id="tableau-filter"
+                                className="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full"
+                                value={selectedTableau}
+                                onChange={e => {
+                                    setSelectedTableau(e.target.value);
+                                    setSelectedBreaker(null);
+                                }}
+                            >
+                                <option value="">Sélectionner un tableau</option>
+                                {tableaux.map(t => (
+                                    <option key={t.id} value={t.id}>{t.id}</option>
+                                ))}
+                            </select>
+                        </div>
+                        {selectedTableau && (
+                            <div className="flex-1">
+                                <label htmlFor="breaker-filter" className="block text-sm font-medium">Disjoncteur</label>
+                                <select
+                                    id="breaker-filter"
+                                    className="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full"
+                                    value={selectedBreaker ? selectedBreaker.id : ''}
+                                    onChange={e => {
+                                        const breakerId = e.target.value;
+                                        const breaker = tableaux.find(t => t.id === selectedTableau)?.disjoncteurs.find(d => d.id === breakerId);
+                                        setSelectedBreaker(breaker || null);
+                                    }}
+                                >
+                                    <option value="">Sélectionner un disjoncteur</option>
+                                    {tableaux.find(t => t.id === selectedTableau)?.disjoncteurs.map(d => (
+                                        <option key={d.id} value={d.id}>{d.id}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Instructions */}
+                    <div className="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+                        <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
+                            <i className="fas fa-info-circle mr-2"></i>Comment utiliser cette page
+                        </h2>
+                        <ul className="list-disc pl-6 text-gray-300 text-sm sm:text-base">
+                            <li>Sélectionnez un tableau et un disjoncteur pour afficher les contrôles.</li>
+                            <li>Le diagramme de Gantt montre les contrôles effectués aujourd'hui, par heure.</li>
+                            <li>Le graphique en anneau affiche la répartition des statuts (Conforme, Non conforme, Non applicable).</li>
+                            <li>Cliquez sur <i className="fas fa-plus-circle"></i> pour ajouter un contrôle avec statut, photo et commentaire.</li>
+                            <li>Modifiez ou supprimez les contrôles via les icônes <i className="fas fa-edit"></i> et <i className="fas fa-trash"></i>.</li>
+                            <li>La page est optimisée pour une utilisation sur smartphone.</li>
+                        </ul>
+                    </div>
+
+                    {selectedTableau && selectedBreaker && (
+                        <>
+                            {/* Bouton Ajouter Contrôle */}
+                            <div className="flex justify-end mb-4">
+                                <button
+                                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+                                    onClick={() => setShowModal(true)}
+                                >
+                                    <i className="fas fa-plus-circle mr-2"></i>Ajouter un Contrôle
+                                </button>
+                            </div>
+
+                            {/* Diagramme de Gantt */}
+                            <div className="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+                                <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
+                                    <i className="fas fa-calendar-alt mr-2"></i>Contrôles du Jour
+                                </h2>
+                                <canvas id="gantt-chart" className="w-full h-64 sm:h-96"></canvas>
+                            </div>
+
+                            {/* Graphique de Répartition */}
+                            <div className="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+                                <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
+                                    <i className="fas fa-chart-pie mr-2"></i>Répartition des Statuts
+                                </h2>
+                                <canvas id="status-chart" className="w-full h-64 sm:h-96"></canvas>
+                            </div>
+
+                            {/* Liste de Contrôles */}
+                            <div className="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+                                <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
+                                    <i className="fas fa-check-circle mr-2"></i>Liste des Contrôles
+                                </h2>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm sm:text-base">
+                                        <thead>
+                                            <tr className="bg-gray-700">
+                                                <th className="p-2 sm:p-3">Statut</th>
+                                                <th className="p-2 sm:p-3">Commentaire</th>
+                                                <th className="p-2 sm:p-3">Photo</th>
+                                                <th className="p-2 sm:p-3">Heure</th>
+                                                <th className="p-2 sm:p-3">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(checklists[`${selectedTableau}-${selectedBreaker.id}`] || []).map(check => (
+                                                <tr key={check.id} className="hover:bg-gray-700">
+                                                    <td className={`p-2 sm:p-3 ${check.status === 'Conforme' ? 'text-green-500' : check.status === 'Non conforme' ? 'text-red-500' : 'text-yellow-400'}`}>
+                                                        <i className={`fas ${check.status === 'Conforme' ? 'fa-check-circle' : check.status === 'Non conforme' ? 'fa-times-circle' : 'fa-hourglass-half'} mr-1`}></i>
+                                                        {check.status}
+                                                    </td>
+                                                    <td className="p-2 sm:p-3">{check.comment}</td>
+                                                    <td className="p-2 sm:p-3">
+                                                        {check.photo ? (
+                                                            <img src={check.photo} alt="Photo contrôle" className="w-16 h-16 object-cover rounded" />
+                                                        ) : 'Aucune'}
+                                                    </td>
+                                                    <td className="p-2 sm:p-3">{new Date(check.timestamp).toLocaleTimeString('fr-FR')}</td>
+                                                    <td className="p-2 sm:p-3 flex space-x-2">
+                                                        <button
+                                                            className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition"
+                                                            onClick={() => {
+                                                                setNewCheckItem({
+                                                                    status: check.status,
+                                                                    comment: check.comment,
+                                                                    photo: null
+                                                                });
+                                                                setShowModal(true);
+                                                                handleEditCheck(check.id, {
+                                                                    status: check.status,
+                                                                    comment: check.comment,
+                                                                    photo: check.photo
+                                                                });
+                                                            }}
+                                                        >
+                                                            <i className="fas fa-edit"></i>
+                                                        </button>
+                                                        <button
+                                                            className="bg-red-600 text-white p-2 rounded hover:bg-red-700 transition"
+                                                            onClick={() => handleDeleteCheck(check.id)}
+                                                        >
+                                                            <i className="fas fa-trash"></i>
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    {/* Modal Ajouter/Modifier Contrôle */}
+                    {showModal && (
+                        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+                            <div className="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg animate-zoom-in">
+                                <h2 className="text-lg sm:text-xl font-semibold mb-4 flex items-center">
+                                    <i className="fas fa-plus-circle mr-2"></i>Ajouter un Contrôle
+                                </h2>
+                                <form onSubmit={handleAddCheck} className="grid gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium">Statut</label>
+                                        <div className="radio-group mt-2">
+                                            <label>
+                                                <input
+                                                    type="radio"
+                                                    value="Conforme"
+                                                    checked={newCheckItem.status === 'Conforme'}
+                                                    onChange={e => setNewCheckItem({ ...newCheckItem, status: e.target.value })}
+                                                />
+                                                Conforme
+                                            </label>
+                                            <label>
+                                                <input
+                                                    type="radio"
+                                                    value="Non conforme"
+                                                    checked={newCheckItem.status === 'Non conforme'}
+                                                    onChange={e => setNewCheckItem({ ...newCheckItem, status: e.target.value })}
+                                                />
+                                                Non conforme
+                                            </label>
+                                            <label>
+                                                <input
+                                                    type="radio"
+                                                    value="Non applicable"
+                                                    checked={newCheckItem.status === 'Non applicable'}
+                                                    onChange={e => setNewCheckItem({ ...newCheckItem, status: e.target.value })}
+                                                />
+                                                Non applicable
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="comment" className="block text-sm font-medium">Commentaire</label>
+                                        <textarea
+                                            id="comment"
+                                            className="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full"
+                                            rows="4"
+                                            value={newCheckItem.comment}
+                                            onChange={e => setNewCheckItem({ ...newCheckItem, comment: e.target.value })}
+                                            required
+                                        ></textarea>
+                                    </div>
+                                    <div>
+                                        <label htmlFor="photo" className="block text-sm font-medium">Photo</label>
+                                        <input
+                                            type="file"
+                                            id="photo"
+                                            accept="image/*"
+                                            className="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full"
+                                            onChange={e => setNewCheckItem({ ...newCheckItem, photo: e.target.files[0] })}
+                                        />
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                                        <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition">
+                                            <i className="fas fa-save mr-2"></i>Enregistrer
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"
+                                            onClick={() => setShowModal(false)}
+                                        >
+                                            <i className="fas fa-times mr-2"></i>Fermer
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // Rendu de l'application
+        ReactDOM.render(<BreakerControlApp />, document.getElementById('root'));
+    </script>
+
+    <style>
+        .animate-fade-in { animation: fadeIn 0.8s ease-out; }
+        .animate-slide-up { animation: slideUp 0.8s ease-out; }
+        .animate-zoom-in { animation: zoomIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes zoomIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+        @media (max-width: 640px) {
+            .container { padding: 1rem; }
+            table th, table td { font-size: 0.75rem; padding: 0.5rem; }
+            canvas { height: 200px !important; }
+        }
+    </style>
