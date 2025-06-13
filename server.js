@@ -1037,6 +1037,104 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
     }
 });
 
+// Endpoint pour récupérer les données pour l'évaluation du niveau de défaut
+app.get('/api/fault-level', async (req, res) => {
+    console.log('[Server] GET /api/fault-level');
+    try {
+        const result = await pool.query('SELECT id, disjoncteurs, isSiteMain FROM tableaux');
+        const tableaux = result.rows.map(row => {
+            const disjoncteurs = row.disjoncteurs.map(d => {
+                let ik = null;
+                if (d.ue && (d.impedance || d.section)) {
+                    const ueMatch = d.ue.match(/[\d.]+/);
+                    const ue = ueMatch ? parseFloat(ueMatch[0]) : 400;
+                    let z;
+                    let L = isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 5 : 20) : parseFloat(d.cableLength);
+                    if (d.isPrincipal && L < 5) L = 5;
+                    else if (!d.isPrincipal && L < 20) L = 20;
+                    if (d.impedance) {
+                        z = parseFloat(d.impedance);
+                        if (z < 0.05) z = 0.05;
+                    } else {
+                        const rho = 0.0175;
+                        const sectionMatch = d.section ? d.section.match(/[\d.]+/) : null;
+                        const S = sectionMatch ? parseFloat(sectionMatch[0]) : getRecommendedSection(d.in);
+                        const Z_cable = (rho * L * 2) / S;
+                        const Z_network = 0.01;
+                        z = Z_cable + Z_network;
+                        if (z < 0.05) z = 0.05;
+                    }
+                    ik = (ue / (Math.sqrt(3) * z)) / 1000;
+                    if (ik > 100) ik = null;
+                }
+                return {
+                    ...d,
+                    ik,
+                    icn: normalizeIcn(d.icn),
+                    tableauId: row.id
+                };
+            });
+            return {
+                id: row.id,
+                building: row.id.split('-')[0] || 'Inconnu',
+                disjoncteurs,
+                isSiteMain: row.isSiteMain || false
+            };
+        });
+        console.log('[Server] Données fault-level:', tableaux.length);
+        res.json({ data: tableaux });
+    } catch (error) {
+        console.error('[Server] Erreur GET /api/fault-level:', error.message, error.stack);
+        res.status(500).json({ error: 'Erreur lors de la récupération des données: ' + error.message });
+    }
+});
+
+// Endpoint pour mettre à jour les données pour l'évaluation du niveau de défaut
+app.post('/api/fault-level/update', async (req, res) => {
+    const { tableauId, disjoncteurId, ue, section, cableLength, impedance } = req.body;
+    console.log('[Server] POST /api/fault-level/update - Requête reçue:', { tableauId, disjoncteurId, ue, section, cableLength, impedance });
+    try {
+        if (!tableauId || !disjoncteurId) {
+            throw new Error('Tableau ID et Disjoncteur ID sont requis');
+        }
+        const result = await pool.query('SELECT disjoncteurs FROM tableaux WHERE id = $1', [tableauId]);
+        if (result.rows.length === 0) {
+            console.log('[Server] Tableau non trouvé:', tableauId);
+            res.status(404).json({ error: 'Tableau non trouvé' });
+            return;
+        }
+        const disjoncteurs = result.rows[0].disjoncteurs;
+        const disjoncteurIndex = disjoncteurs.findIndex(d => d.id === disjoncteurId);
+        if (disjoncteurIndex === -1) {
+            console.log('[Server] Disjoncteur non trouvé:', disjoncteurId);
+            res.status(404).json({ error: 'Disjoncteur non trouvé' });
+            return;
+        }
+        const updatedData = {
+            ue: ue || disjoncteurs[disjoncteurIndex].ue,
+            section: section || disjoncteurs[disjoncteurIndex].section,
+            cableLength: cableLength || disjoncteurs[disjoncteurIndex].cableLength,
+            impedance: impedance || disjoncteurs[disjoncteurIndex].impedance
+        };
+        const validationErrors = validateDisjoncteurData(updatedData);
+        if (validationErrors.length > 0) {
+            console.log('[Server] Erreurs de validation:', validationErrors);
+            res.status(400).json({ error: 'Données invalides: ' + validationErrors.join('; ') });
+            return;
+        }
+        disjoncteurs[disjoncteurIndex] = {
+            ...disjoncteurs[disjoncteurIndex],
+            ...updatedData
+        };
+        await pool.query('UPDATE tableaux SET disjoncteurs = $1::jsonb WHERE id = $2', [JSON.stringify(disjoncteurs), tableauId]);
+        console.log('[Server] Données fault-level mises à jour:', { tableauId, disjoncteurId });
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[Server] Erreur POST /api/fault-level/update:', error.message, error.stack);
+        res.status(500).json({ error: 'Erreur lors de la mise à jour des données: ' + error.message });
+    }
+});
+
 // Endpoints pour gérer les actions de sécurité
 app.get('/api/safety-actions', async (req, res) => {
     const { building, tableau } = req.query;
