@@ -1,3 +1,4 @@
+/* styles.css */
 body {
     font-family: 'Inter', Arial, sans-serif;
     transition: background-color 0.3s;
@@ -126,7 +127,7 @@ canvas {
 }
 
 .action-btn {
-    pointer-events: auto !important; /* Assurer que les clics sont capturés */
+    pointer-events: auto !important;
 }
 
 #modal-details input, #modal-details select {
@@ -299,8 +300,66 @@ section button:hover {
     color: #000000;
 }
 
-#global-graph canvas {
-    width: 100% !important;
-    height: 100% !important;
-    min-height: 800px;
+/* Styles pour le schéma global dans selectivity.html */
+#global-graph {
+    background: #FFFFFF !important;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid #10B981;
+    position: relative;
+    z-index: 10;
+}
+
+#global-graph .vis-network {
+    background: #FFFFFF !important;
+}
+
+#global-graph .vis-network .vis-node {
+    border: 2px solid #ffffff;
+    border-radius: 4px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+#global-graph .vis-network .vis-node:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+#global-graph .vis-network .vis-edge {
+    stroke-width: 2;
+    transition: stroke 0.2s;
+}
+
+#global-graph .vis-network .vis-label {
+    background: rgba(255, 255, 255, 0.9);
+    color: #000000;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #D1D5DB;
+    font-size: 14px;
+}
+
+/* Styles pour les modals */
+#modal-graph, #mini-modal, #non-principal-modal, #missing-data-modal {
+    z-index: 2000 !important;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 20px;
+    position: fixed;
+    inset: 0;
+}
+
+#modal-graph.hidden, #mini-modal.hidden, #non-principal-modal.hidden, #missing-data-modal.hidden {
+    display: none !important;
+}
+
+#modal-graph .bg-gray-800, #mini-modal .bg-gray-800, #non-principal-modal .bg-gray-800, #missing-data-modal .bg-gray-800 {
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    scroll-behavior: smooth;
 }
