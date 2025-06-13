@@ -387,6 +387,9 @@
                     if (!response.ok) {
                         throw new Error(data.error || `Erreur serveur (statut ${response.status})`);
                     }
+                    if (!data.success || data.data.isSiteMain !== newIsSiteMain) {
+                        throw new Error('La mise à jour du statut principal n\'a pas été confirmée par le serveur.');
+                    }
                     isSiteMain = newIsSiteMain;
                     messageDiv.textContent = 'Statut de tableau principal du site mis à jour.';
                     messageDiv.className = 'bg-green-100 text-green-800 mt-2 p-2 rounded text-sm';
