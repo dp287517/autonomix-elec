@@ -31,7 +31,10 @@ app.use((req, res, next) => {
 
 const pool = new Pool({
     connectionString: 'postgresql://autonomix_owner:npg_rDMoOyZ8a3Xk@ep-mute-brook-a23892dj-pooler.eu-central-1.aws.neon.tech/autonomix?sslmode=require',
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
+    max: 10, // Limite maximale de connexions
+    idleTimeoutMillis: 30000, // Déconnexion après 30s d'inactivité
+    connectionTimeoutMillis: 5000 // Timeout de connexion
 });
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -142,6 +145,8 @@ function validateChecklistData(data) {
 async function initDb() {
     console.log('[Server] Initialisation de la base de données');
     try {
+        // Vérifier la connexion à la base de données
+        await pool.query('SELECT 1');
         await pool.query(`
             CREATE TABLE IF NOT EXISTS tableaux (
                 id VARCHAR(50) PRIMARY KEY,
@@ -230,7 +235,12 @@ async function initDb() {
         }
         console.log('[Server] Base de données initialisée avec succès');
     } catch (error) {
-        console.error('[Server] Erreur lors de l\'initialisation de la DB:', error.message, error.stack);
+        console.error('[Server] Erreur lors de l\'initialisation de la DB:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
     }
 }
 initDb();
@@ -276,7 +286,10 @@ async function captureChart(url, selector) {
         await page.close();
         return screenshot;
     } catch (error) {
-        console.error(`[Server] Erreur capture graphique (${selector} sur ${url}):`, error.message);
+        console.error(`[Server] Erreur capture graphique (${selector} sur ${url}):`, {
+            message: error.message,
+            stack: error.stack
+        });
         await page.close();
         throw error;
     }
@@ -317,7 +330,12 @@ app.post('/api/disjoncteur', async (req, res) => {
             res.json(data);
         }
     } catch (error) {
-        console.error('[Server] Erreur POST /api/disjoncteur:', error.message, error.stack);
+        console.error('[Server] Erreur POST /api/disjoncteur:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la recherche: ' + error.message });
     }
 });
@@ -326,6 +344,7 @@ app.post('/api/disjoncteur', async (req, res) => {
 app.get('/api/disjoncteurs', async (req, res) => {
     console.log('[Server] GET /api/disjoncteurs');
     try {
+        await pool.query('SELECT 1');
         const result = await pool.query('SELECT disjoncteurs FROM tableaux');
         console.log('[Server] Résultat requête SQL:', result.rows.map(row => `${row.disjoncteurs.length} disjoncteurs`));
         const allDisjoncteurs = result.rows.flatMap(row => row.disjoncteurs);
@@ -333,7 +352,12 @@ app.get('/api/disjoncteurs', async (req, res) => {
         console.log('[Server] Disjoncteurs uniques:', uniqueDisjoncteurs.length);
         res.json(uniqueDisjoncteurs);
     } catch (error) {
-        console.error('[Server] Erreur GET /api/disjoncteurs:', error.message, error.stack);
+        console.error('[Server] Erreur GET /api/disjoncteurs:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la récupération: ' + error.message });
     }
 });
@@ -342,12 +366,18 @@ app.get('/api/disjoncteurs', async (req, res) => {
 app.get('/api/tableaux/ids', async (req, res) => {
     console.log('[Server] GET /api/tableaux/ids');
     try {
+        await pool.query('SELECT 1');
         const result = await pool.query('SELECT id FROM tableaux');
         const ids = result.rows.map(row => row.id);
         console.log('[Server] IDs tableaux:', ids);
         res.json(ids);
     } catch (error) {
-        console.error('[Server] Erreur GET /api/tableaux/ids:', error.message, error.stack);
+        console.error('[Server] Erreur GET /api/tableaux/ids:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la récupération des IDs: ' + error.message });
     }
 });
@@ -357,6 +387,7 @@ app.get('/api/tableaux/:id', async (req, res) => {
     const { id } = req.params;
     console.log('[Server] GET /api/tableaux/', id);
     try {
+        await pool.query('SELECT 1');
         const result = await pool.query('SELECT id, disjoncteurs, isSiteMain FROM tableaux WHERE id = $1', [id]);
         if (result.rows.length === 0) {
             console.log('[Server] Tableau non trouvé:', id);
@@ -366,7 +397,12 @@ app.get('/api/tableaux/:id', async (req, res) => {
             res.json(result.rows[0]);
         }
     } catch (error) {
-        console.error('[Server] Erreur GET /api/tableaux/:id:', error.message, error.stack);
+        console.error('[Server] Erreur GET /api/tableaux/:id:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la récupération: ' + error.message });
     }
 });
@@ -375,12 +411,18 @@ app.get('/api/tableaux/:id', async (req, res) => {
 app.get('/api/tableaux', async (req, res) => {
     console.log('[Server] GET /api/tableaux');
     try {
+        await pool.query('SELECT 1');
         const result = await pool.query('SELECT id, disjoncteurs, isSiteMain FROM tableaux');
         console.log('[Server] Tableaux:', result.rows.length);
         res.json(result.rows);
     } catch (error) {
-        console.error('[Server] Erreur GET /api/tableaux:', error.message, error.stack);
-        res.status(500).json({ error: 'Erreur lors de la récupération: ' + error.message });
+        console.error('[Server] Erreur GET /api/tableaux:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
+        res.status(500).json({ error: 'Erreur lors de la récupération des tableaux: ' + error.message });
     }
 });
 
@@ -388,6 +430,7 @@ app.get('/api/tableaux', async (req, res) => {
 app.get('/api/selectivity', async (req, res) => {
     console.log('[Server] GET /api/selectivity');
     try {
+        await pool.query('SELECT 1');
         const result = await pool.query('SELECT id, disjoncteurs, isSiteMain FROM tableaux');
         const tableaux = result.rows.map(row => ({
             id: row.id,
@@ -398,7 +441,12 @@ app.get('/api/selectivity', async (req, res) => {
         console.log('[Server] Tableaux pour sélectivité:', tableaux.length);
         res.json(tableaux);
     } catch (error) {
-        console.error('[Server] Erreur GET /api/selectivity:', error.message, error.stack);
+        console.error('[Server] Erreur GET /api/selectivity:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la récupération des données de sélectivité: ' + error.message });
     }
 });
@@ -408,6 +456,7 @@ app.post('/api/tableaux', async (req, res) => {
     const { id, disjoncteurs, isSiteMain } = req.body;
     console.log('[Server] POST /api/tableaux - Requête reçue:', { id, disjoncteurs: disjoncteurs?.length, isSiteMain });
     try {
+        await pool.query('SELECT 1');
         if (!id) {
             throw new Error('L’ID du tableau est requis');
         }
@@ -458,7 +507,12 @@ app.post('/api/tableaux', async (req, res) => {
         console.log('[Server] Tableau créé:', id);
         res.json({ success: true });
     } catch (error) {
-        console.error('[Server] Erreur POST /api/tableaux:', error.message, error.stack);
+        console.error('[Server] Erreur POST /api/tableaux:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la création: ' + error.message });
     }
 });
@@ -469,6 +523,7 @@ app.put('/api/tableaux/:id', async (req, res) => {
     const { disjoncteurs, isSiteMain } = req.body;
     console.log('[Server] PUT /api/tableaux/', id, { disjoncteurs: disjoncteurs?.length, isSiteMain });
     try {
+        await pool.query('SELECT 1');
         if (!id || !Array.isArray(disjoncteurs)) {
             throw new Error('ID et disjoncteurs (tableau) sont requis');
         }
@@ -518,7 +573,12 @@ app.put('/api/tableaux/:id', async (req, res) => {
             });
         }
     } catch (error) {
-        console.error('[Server] Erreur PUT /api/tableaux/:id:', error.message, error.stack);
+        console.error('[Server] Erreur PUT /api/tableaux/:id:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la mise à jour: ' + error.message });
     }
 });
@@ -528,6 +588,7 @@ app.delete('/api/tableaux/:id', async (req, res) => {
     const { id } = req.params;
     console.log('[Server] DELETE /api/tableaux/:id', id);
     try {
+        await pool.query('SELECT 1');
         // Supprimer les dépendances dans safety_actions
         await pool.query('DELETE FROM safety_actions WHERE tableau_id = $1', [id]);
         console.log('[Server] Actions de sécurité supprimées pour tableau:', id);
@@ -550,7 +611,12 @@ app.delete('/api/tableaux/:id', async (req, res) => {
             res.json({ success: true });
         }
     } catch (error) {
-        console.error('[Server] Erreur DELETE /api/tableaux/:id:', error.message, error.stack);
+        console.error('[Server] Erreur DELETE /api/tableaux/:id:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la suppression: ' + error.message });
     }
 });
@@ -605,6 +671,7 @@ function calculateAdjustedLifespan(disjoncteur) {
 app.get('/api/obsolescence', async (req, res) => {
     console.log('[Server] GET /api/obsolescence');
     try {
+        await pool.query('SELECT 1');
         const result = await pool.query('SELECT id, disjoncteurs, isSiteMain FROM tableaux');
         const tableaux = result.rows.map(row => {
             const disjoncteurs = row.disjoncteurs.map(d => {
@@ -649,7 +716,12 @@ app.get('/api/obsolescence', async (req, res) => {
         console.log('[Server] Données obsolescence:', tableaux.length);
         res.json({ data: tableaux });
     } catch (error) {
-        console.error('[Server] Erreur GET /api/obsolescence:', error.message, error.stack);
+        console.error('[Server] Erreur GET /api/obsolescence:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de l\'analyse: ' + error.message });
     }
 });
@@ -659,6 +731,7 @@ app.post('/api/obsolescence/update', async (req, res) => {
     const { tableauId, disjoncteurId, replacementDate } = req.body;
     console.log('[Server] POST /api/obsolescence/update - Requête reçue:', { tableauId, disjoncteurId, replacementDate });
     try {
+        await pool.query('SELECT 1');
         if (!tableauId || !disjoncteurId || !replacementDate) {
             throw new Error('Tableau ID, Disjoncteur ID et date de remplacement sont requis');
         }
@@ -680,7 +753,12 @@ app.post('/api/obsolescence/update', async (req, res) => {
         console.log('[Server] Date de remplacement mise à jour dans la DB:', { tableauId, disjoncteurId, replacementDate });
         res.json({ success: true });
     } catch (error) {
-        console.error('[Server] Erreur POST /api/obsolescence/update:', error.message, error.stack);
+        console.error('[Server] Erreur POST /api/obsolescence/update:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la mise à jour: ' + error.message });
     }
 });
@@ -698,7 +776,10 @@ app.post('/api/obsolescence/replacement', (req, res) => {
         console.log(`[Server] Date de remplacement mise à jour: ${tableauId} => ${replacementYear}`);
         res.json({ success: true });
     } catch (error) {
-        console.error('[Server] Erreur POST /api/obsolescence/replacement:', error.message, error.stack);
+        console.error('[Server] Erreur POST /api/obsolescence/replacement:', {
+            message: error.message,
+            stack: error.stack
+        });
         res.status(500).json({ error: 'Erreur lors de l\'enregistrement: ' + error.message });
     }
 });
@@ -708,6 +789,7 @@ app.post('/api/reports', async (req, res) => {
     const { reportType, filters } = req.body;
     console.log('[Server] POST /api/reports - Début de la génération:', { reportType, filters });
     try {
+        await pool.query('SELECT 1');
         console.log('[Server] Récupération des données de la base');
         const result = await pool.query('SELECT id, disjoncteurs, isSiteMain FROM tableaux');
         let tableauxData = result.rows;
@@ -960,7 +1042,12 @@ app.post('/api/reports', async (req, res) => {
             console.log('[Server] Navigateur Puppeteer fermé');
         }
     } catch (error) {
-        console.error('[Server] Erreur POST /api/reports:', error.message, error.stack);
+        console.error('[Server] Erreur POST /api/reports:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         if (browser) {
             await browser.close();
             browser = null;
@@ -973,6 +1060,7 @@ app.post('/api/reports', async (req, res) => {
 app.get('/api/maintenance-org', async (req, res) => {
     console.log('[Server] GET /api/maintenance-org');
     try {
+        await pool.query('SELECT 1');
         const result = await pool.query(`
             WITH RECURSIVE org_tree AS (
                 SELECT id, label, role, contact, parent_id
@@ -998,7 +1086,12 @@ app.get('/api/maintenance-org', async (req, res) => {
         console.log('[Server] Organigramme chargé:', { nodes: nodes.length, edges: edges.length });
         res.json({ data: { nodes, edges } });
     } catch (error) {
-        console.error('[Server] Erreur GET /api/maintenance-org:', error.message, error.stack);
+        console.error('[Server] Erreur GET /api/maintenance-org:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la récupération de l’organigramme: ' + error.message });
     }
 });
@@ -1008,6 +1101,7 @@ app.post('/api/emergency-report', async (req, res) => {
     const { tableauId, disjoncteurId, description } = req.body;
     console.log('[Server] POST /api/emergency-report - Requête reçue:', { tableauId, disjoncteurId, description });
     try {
+        await pool.query('SELECT 1');
         if (!tableauId || !disjoncteurId || !description) {
             throw new Error('Tableau ID, disjoncteur ID et description sont requis');
         }
@@ -1024,7 +1118,12 @@ app.post('/api/emergency-report', async (req, res) => {
         console.log('[Server] Panne signalée:', result.rows[0]);
         res.json({ success: true, data: result.rows[0] });
     } catch (error) {
-        console.error('[Server] Erreur POST /api/emergency-report:', error.message, error.stack);
+        console.error('[Server] Erreur POST /api/emergency-report:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors du signalement de la panne: ' + error.message });
     }
 });
@@ -1036,6 +1135,7 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
     const newId = updatedData.newId || updatedData.id;
     console.log('[Server] PUT /api/disjoncteur/:tableauId/:disjoncteurId - Requête reçue:', { tableauId, disjoncteurId, newId, updatedData });
     try {
+        await pool.query('SELECT 1');
         if (!tableauId || !disjoncteurId) {
             throw new Error('Tableau ID et Disjoncteur ID sont requis');
         }
@@ -1089,7 +1189,12 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
         console.log('[Server] Disjoncteur mis à jour:', { tableauId, oldId: disjoncteurId, newId: updatedDisjoncteur.id });
         res.json({ success: true, data: updatedDisjoncteur });
     } catch (error) {
-        console.error('[Server] Erreur PUT /api/disjoncteur/:tableauId/:disjoncteurId:', error.message, error.stack);
+        console.error('[Server] Erreur PUT /api/disjoncteur/:tableauId/:disjoncteurId:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la mise à jour du disjoncteur: ' + error.message });
     }
 });
@@ -1098,6 +1203,7 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
 app.get('/api/fault-level', async (req, res) => {
     console.log('[Server] GET /api/fault-level');
     try {
+        await pool.query('SELECT 1');
         const result = await pool.query('SELECT id, disjoncteurs, isSiteMain FROM tableaux');
         const tableaux = result.rows.map(row => {
             const disjoncteurs = row.disjoncteurs.map(d => {
@@ -1141,7 +1247,12 @@ app.get('/api/fault-level', async (req, res) => {
         console.log('[Server] Données fault-level:', tableaux.length);
         res.json({ data: tableaux });
     } catch (error) {
-        console.error('[Server] Erreur GET /api/fault-level:', error.message, error.stack);
+        console.error('[Server] Erreur GET /api/fault-level:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la récupération des données: ' + error.message });
     }
 });
@@ -1151,6 +1262,7 @@ app.post('/api/fault-level/update', async (req, res) => {
     const { tableauId, disjoncteurId, ue, section, cableLength, impedance } = req.body;
     console.log('[Server] POST /api/fault-level/update - Requête reçue:', { tableauId, disjoncteurId, ue, section, cableLength, impedance });
     try {
+        await pool.query('SELECT 1');
         if (!tableauId || !disjoncteurId) {
             throw new Error('Tableau ID et Disjoncteur ID sont requis');
         }
@@ -1187,7 +1299,12 @@ app.post('/api/fault-level/update', async (req, res) => {
         console.log('[Server] Données fault-level mises à jour:', { tableauId, disjoncteurId });
         res.json({ success: true });
     } catch (error) {
-        console.error('[Server] Erreur POST /api/fault-level/update:', error.message, error.stack);
+        console.error('[Server] Erreur POST /api/fault-level/update:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la mise à jour des données: ' + error.message });
     }
 });
@@ -1197,6 +1314,7 @@ app.get('/api/safety-actions', async (req, res) => {
     const { building, tableau } = req.query;
     console.log('[Server] GET /api/safety-actions', { building, tableau });
     try {
+        await pool.query('SELECT 1');
         let query = 'SELECT * FROM safety_actions';
         const params = [];
         const conditions = [];
@@ -1224,7 +1342,12 @@ app.get('/api/safety-actions', async (req, res) => {
         console.log('[Server] Actions récupérées:', actions.length);
         res.json(actions);
     } catch (error) {
-        console.error('[Server] Erreur GET /api/safety-actions:', error.message, error.stack);
+        console.error('[Server] Erreur GET /api/safety-actions:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la récupération des actions: ' + error.message });
     }
 });
@@ -1233,6 +1356,7 @@ app.get('/api/safety-actions/:id', async (req, res) => {
     const { id } = req.params;
     console.log('[Server] GET /api/safety-actions/', id);
     try {
+        await pool.query('SELECT 1');
         const result = await pool.query('SELECT * FROM safety_actions WHERE id = $1', [id]);
         if (result.rows.length === 0) {
             console.log('[Server] Action non trouvée:', id);
@@ -1251,7 +1375,12 @@ app.get('/api/safety-actions/:id', async (req, res) => {
             res.json(action);
         }
     } catch (error) {
-        console.error('[Server] Erreur GET /api/safety-actions/:id:', error.message, error.stack);
+        console.error('[Server] Erreur GET /api/safety-actions/:id:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la récupération de l’action: ' + error.message });
     }
 });
@@ -1260,6 +1389,7 @@ app.post('/api/safety-actions', async (req, res) => {
     const { type, description, building, tableau, status, date } = req.body;
     console.log('[Server] POST /api/safety-actions - Requête reçue:', { type, description, building, tableau, status, date });
     try {
+        await pool.query('SELECT 1');
         if (!type || !description || !building || !status) {
             throw new Error('Type, description, bâtiment et statut sont requis');
         }
@@ -1278,7 +1408,12 @@ app.post('/api/safety-actions', async (req, res) => {
         console.log('[Server] Action créée:', result.rows[0]);
         res.json({ success: true, data: result.rows[0] });
     } catch (error) {
-        console.error('[Server] Erreur POST /api/safety-actions:', error.message, error.stack);
+        console.error('[Server] Erreur POST /api/safety-actions:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la création de l’action: ' + error.message });
     }
 });
@@ -1288,6 +1423,7 @@ app.put('/api/safety-actions/:id', async (req, res) => {
     const { type, description, building, tableau, status, date } = req.body;
     console.log('[Server] PUT /api/safety-actions/', id, { type, description, building, tableau, status, date });
     try {
+        await pool.query('SELECT 1');
         if (!type || !description || !building || !status) {
             throw new Error('Type, description, bâtiment et statut sont requis');
         }
@@ -1312,7 +1448,12 @@ app.put('/api/safety-actions/:id', async (req, res) => {
         console.log('[Server] Action mise à jour:', updatedResult.rows[0]);
         res.json({ success: true, data: updatedResult.rows[0] });
     } catch (error) {
-        console.error('[Server] Erreur PUT /api/safety-actions/:id:', error.message, error.stack);
+        console.error('[Server] Erreur PUT /api/safety-actions/:id:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la mise à jour de l’action: ' + error.message });
     }
 });
@@ -1321,6 +1462,7 @@ app.delete('/api/safety-actions/:id', async (req, res) => {
     const { id } = req.params;
     console.log('[Server] DELETE /api/safety-actions/', id);
     try {
+        await pool.query('SELECT 1');
         const result = await pool.query('DELETE FROM safety_actions WHERE id = $1 RETURNING *', [id]);
         if (result.rows.length === 0) {
             console.log('[Server] Action non trouvée:', id);
@@ -1330,7 +1472,12 @@ app.delete('/api/safety-actions/:id', async (req, res) => {
             res.json({ success: true });
         }
     } catch (error) {
-        console.error('[Server] Erreur DELETE /api/safety-actions/:id:', error.message, error.stack);
+        console.error('[Server] Erreur DELETE /api/safety-actions/:id:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la suppression de l’action: ' + error.message });
     }
 });
@@ -1340,6 +1487,8 @@ app.get('/api/breaker-checklists', async (req, res) => {
     const { tableau_id, disjoncteur_id } = req.query;
     console.log('[Server] GET /api/breaker-checklists', { tableau_id, disjoncteur_id });
     try {
+        // Vérifier la connexion à la base de données
+        await pool.query('SELECT 1');
         // Vérifier si le tableau existe
         if (tableau_id) {
             const tableauResult = await pool.query('SELECT id FROM tableaux WHERE id = $1', [tableau_id]);
@@ -1347,6 +1496,12 @@ app.get('/api/breaker-checklists', async (req, res) => {
                 console.log('[Server] Tableau non trouvé:', tableau_id);
                 return res.status(404).json({ error: 'Tableau non trouvé' });
             }
+        }
+        // Vérifier si la table breaker_checklists existe
+        const tableCheck = await pool.query("SELECT to_regclass('public.breaker_checklists') AS table_exists");
+        if (!tableCheck.rows[0].table_exists) {
+            console.log('[Server] Table breaker_checklists non trouvée');
+            return res.status(500).json({ error: 'Table breaker_checklists non trouvée dans la base de données' });
         }
         let query = 'SELECT * FROM breaker_checklists';
         const params = [];
@@ -1357,7 +1512,7 @@ app.get('/api/breaker-checklists', async (req, res) => {
         }
         if (disjoncteur_id) {
             conditions.push(`disjoncteur_id = $${params.length + 1}`);
-            params.push(disjoncteur_id); // Correction : utiliser disjoncteur_id
+            params.push(disjoncteur_id);
         }
         if (conditions.length > 0) {
             query += ' WHERE ' + conditions.join(' AND ');
@@ -1379,6 +1534,8 @@ app.get('/api/breaker-checklists', async (req, res) => {
         console.error('[Server] Erreur GET /api/breaker-checklists:', {
             message: error.message,
             stack: error.stack,
+            code: error.code,
+            detail: error.detail,
             query: req.query
         });
         res.status(500).json({ error: 'Erreur lors de la récupération des checklists: ' + error.message });
@@ -1389,6 +1546,7 @@ app.post('/api/breaker-checklists', async (req, res) => {
     const { tableau_id, disjoncteur_id, status, comment, photo } = req.body;
     console.log('[Server] POST /api/breaker-checklists - Requête reçue:', { tableau_id, disjoncteur_id, status, comment, photo: photo ? 'Présente' : 'Absente' });
     try {
+        await pool.query('SELECT 1');
         const validationErrors = validateChecklistData({ tableau_id, disjoncteur_id, status, comment, photo });
         if (validationErrors.length > 0) {
             console.log('[Server] Erreurs de validation:', validationErrors);
@@ -1423,7 +1581,12 @@ app.post('/api/breaker-checklists', async (req, res) => {
         console.log('[Server] Checklist créée:', checklist);
         res.json({ success: true, data: checklist });
     } catch (error) {
-        console.error('[Server] Erreur POST /api/breaker-checklists:', error.message, error.stack);
+        console.error('[Server] Erreur POST /api/breaker-checklists:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la création de la checklist: ' + error.message });
     }
 });
@@ -1433,6 +1596,7 @@ app.put('/api/breaker-checklists/:id', async (req, res) => {
     const { tableau_id, disjoncteur_id, status, comment, photo } = req.body;
     console.log('[Server] PUT /api/breaker-checklists/', id, { tableau_id, disjoncteur_id, status, comment, photo: photo ? 'Présente' : 'Absente' });
     try {
+        await pool.query('SELECT 1');
         const validationErrors = validateChecklistData({ tableau_id, disjoncteur_id, status, comment, photo });
         if (validationErrors.length > 0) {
             console.log('[Server] Erreurs de validation:', validationErrors);
@@ -1472,7 +1636,12 @@ app.put('/api/breaker-checklists/:id', async (req, res) => {
         console.log('[Server] Checklist mise à jour:', checklist);
         res.json({ success: true, data: checklist });
     } catch (error) {
-        console.error('[Server] Erreur PUT /api/breaker-checklists/:id:', error.message, error.stack);
+        console.error('[Server] Erreur PUT /api/breaker-checklists/:id:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la mise à jour de la checklist: ' + error.message });
     }
 });
@@ -1481,6 +1650,7 @@ app.delete('/api/breaker-checklists/:id', async (req, res) => {
     const { id } = req.params;
     console.log('[Server] DELETE /api/breaker-checklists/', id);
     try {
+        await pool.query('SELECT 1');
         const result = await pool.query('DELETE FROM breaker_checklists WHERE id = $1 RETURNING *', [id]);
         if (result.rows.length === 0) {
             console.log('[Server] Checklist non trouvée:', id);
@@ -1490,7 +1660,12 @@ app.delete('/api/breaker-checklists/:id', async (req, res) => {
         console.log('[Server] Checklist supprimée:', id);
         res.json({ success: true });
     } catch (error) {
-        console.error('[Server] Erreur DELETE /api/breaker-checklists/:id:', error.message, error.stack);
+        console.error('[Server] Erreur DELETE /api/breaker-checklists/:id:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la suppression de la checklist: ' + error.message });
     }
 });
@@ -1499,6 +1674,7 @@ app.get('/api/breaker-checklists/stats', async (req, res) => {
     const { building, tableau, disjoncteur } = req.query;
     console.log('[Server] GET /api/breaker-checklists/stats', { building, tableau, disjoncteur });
     try {
+        await pool.query('SELECT 1');
         const tableauxResult = await pool.query('SELECT id, disjoncteurs FROM tableaux');
         const checklistsResult = await pool.query('SELECT * FROM breaker_checklists');
         const tableaux = tableauxResult.rows.map(row => ({
@@ -1581,7 +1757,12 @@ app.get('/api/breaker-checklists/stats', async (req, res) => {
         console.log('[Server] Statistiques des checklists générées:', stats);
         res.json(stats);
     } catch (error) {
-        console.error('[Server] Erreur GET /api/breaker-checklists/stats:', error.message, error.stack);
+        console.error('[Server] Erreur GET /api/breaker-checklists/stats:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
         res.status(500).json({ error: 'Erreur lors de la récupération des statistiques: ' + error.message });
     }
 });
