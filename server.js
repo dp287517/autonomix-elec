@@ -492,17 +492,23 @@ app.post('/api/tableaux', async (req, res) => {
                 charge: d.charge || 80
             };
         });
-        await pool.query('INSERT INTO tableaux (id, disjoncteurs, isSiteMain) VALUES ($1, $2::jsonb, $3)', [
-            id,
-            JSON.stringify(normalizedDisjoncteurs),
-            isSiteMain || false
-        ]);
+        await pool.query(
+            'INSERT INTO tableaux (id, disjoncteurs, isSiteMain) VALUES ($1, $2::jsonb, $3)',
+            [id, JSON.stringify(normalizedDisjoncteurs), isSiteMain || false]
+        );
         // Ajouter une checklist par défaut pour chaque disjoncteur
         for (const d of normalizedDisjoncteurs) {
-            await pool.query(
-                'INSERT INTO breaker_checklists (tableau_id, disjoncteur_id, status, comment, photo) VALUES ($1, $2, $3, $4, $5)',
-                [id, d.id, 'Conforme', 'Exemple de contrôle', null]
-            );
+            try {
+                await pool.query(
+                    'INSERT INTO breaker_checklists (tableau_id, disjoncteur_id, status, comment, photo) VALUES ($1, $2, $3, $4, $5)',
+                    [id, d.id, 'Conforme', 'Contrôle initial par défaut', null]
+                );
+            } catch (checklistError) {
+                console.warn('[Server] Erreur insertion checklist pour disjoncteur:', d.id, {
+                    message: checklistError.message,
+                    code: checklistError.code
+                });
+            }
         }
         console.log('[Server] Tableau créé:', id);
         res.json({ success: true });
@@ -598,8 +604,15 @@ app.delete('/api/tableaux/:id', async (req, res) => {
         console.log('[Server] Rapports d’urgence supprimés pour tableau:', id);
 
         // Supprimer les checklists associées
-        await pool.query('DELETE FROM breaker_checklists WHERE tableau_id = $1', [id]);
-        console.log('[Server] Checklists supprimées pour tableau:', id);
+        try {
+            await pool.query('DELETE FROM breaker_checklists WHERE tableau_id = $1', [id]);
+            console.log('[Server] Checklists supprimées pour tableau:', id);
+        } catch (checklistError) {
+            console.warn('[Server] Erreur suppression checklists pour tableau:', id, {
+                message: checklistError.message,
+                code: checklistError.code
+            });
+        }
 
         // Supprimer le tableau
         const result = await pool.query('DELETE FROM tableaux WHERE id = $1 RETURNING *', [id]);
@@ -1167,10 +1180,17 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
                 return;
             }
             // Mettre à jour l'ID dans les checklists
-            await pool.query(
-                'UPDATE breaker_checklists SET disjoncteur_id = $1 WHERE tableau_id = $2 AND disjoncteur_id = $3',
-                [newId, tableauId, decodeURIComponent(disjoncteurId)]
-            );
+            try {
+                await pool.query(
+                    'UPDATE breaker_checklists SET disjoncteur_id = $1 WHERE tableau_id = $2 AND disjoncteur_id = $3',
+                    [newId, tableauId, decodeURIComponent(disjoncteurId)]
+                );
+            } catch (checklistError) {
+                console.warn('[Server] Erreur mise à jour ID checklist pour disjoncteur:', disjoncteurId, {
+                    message: checklistError.message,
+                    code: checklistError.code
+                });
+            }
         }
         const updatedDisjoncteur = {
             ...disjoncteurs[disjoncteurIndex],
