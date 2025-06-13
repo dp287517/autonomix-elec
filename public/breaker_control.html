@@ -34,7 +34,7 @@
     <div id="root" class="container mx-auto p-4 sm:p-6"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
         // Composant principal
         const BreakerControlApp = () => {
@@ -52,8 +52,11 @@
                 photo: null
             });
 
-            // Stocker les instances des graphiques
-            const chartInstances = {};
+            // Références pour les conteneurs de graphiques
+            const tableauChartRef = useRef(null);
+            const disjoncteurChartRef = useRef(null);
+            const buildingChartRef = useRef(null);
+            const ganttChartRef = useRef(null);
 
             // Charger les tableaux et les stats
             useEffect(() => {
@@ -109,15 +112,13 @@
             };
 
             // Rendre le diagramme de Gantt
-            const renderGanttChart = (canvasId, disjoncteur_id) => {
-                const canvas = document.getElementById(canvasId);
-                if (!canvas) return;
+            const renderGanttChart = (container, disjoncteur_id) => {
+                if (!container) return;
 
-                // Détruire l'instance précédente si elle existe
-                if (chartInstances[canvasId]) {
-                    chartInstances[canvasId].destroy();
-                    delete chartInstances[canvasId];
-                }
+                // Supprimer tout contenu existant
+                container.innerHTML = '';
+                const canvas = document.createElement('canvas');
+                container.appendChild(canvas);
 
                 const ctx = canvas.getContext('2d');
                 const hours = Array.from({ length: 24 }, (_, i) => `${i}:00`);
@@ -127,7 +128,7 @@
                     status: check.status
                 }));
 
-                chartInstances[canvasId] = new Chart(ctx, {
+                new Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: hours,
@@ -168,22 +169,20 @@
                     }
                 });
 
-                gsap.from(`#${canvasId}`, { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+                gsap.from(canvas, { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
             };
 
             // Rendre les graphiques en anneau
-            const renderDoughnutChart = (canvasId, statsData) => {
-                const canvas = document.getElementById(canvasId);
-                if (!canvas) return;
+            const renderDoughnutChart = (container, statsData) => {
+                if (!container) return;
 
-                // Détruire l'instance précédente si elle existe
-                if (chartInstances[canvasId]) {
-                    chartInstances[canvasId].destroy();
-                    delete chartInstances[canvasId];
-                }
+                // Supprimer tout contenu existant
+                container.innerHTML = '';
+                const canvas = document.createElement('canvas');
+                container.appendChild(canvas);
 
                 const ctx = canvas.getContext('2d');
-                chartInstances[canvasId] = new Chart(ctx, {
+                new Chart(ctx, {
                     type: 'doughnut',
                     data: {
                         labels: ['Conforme', 'Non conforme', 'Non applicable'],
@@ -212,7 +211,7 @@
                     }
                 });
 
-                gsap.from(`#${canvasId}`, { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+                gsap.from(canvas, { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
             };
 
             // Ajouter ou modifier un contrôle
@@ -268,29 +267,29 @@
                 reader.onerror = error => reject(error);
             });
 
-            // Effets pour les graphiques
+            // Rendu des graphiques avec useEffect
             useEffect(() => {
-                if (selectedTableau && stats.byTableau[selectedTableau]) {
-                    renderDoughnutChart('tableau-chart', stats.byTableau[selectedTableau]);
+                if (selectedTableau && stats.byTableau[selectedTableau] && tableauChartRef.current) {
+                    renderDoughnutChart(tableauChartRef.current, stats.byTableau[selectedTableau]);
                 }
             }, [stats.byTableau, selectedTableau]);
 
             useEffect(() => {
-                if (selectedTableau && selectedBreaker && stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`]) {
-                    renderDoughnutChart('disjoncteur-chart', stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`]);
+                if (selectedTableau && selectedBreaker && stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`] && disjoncteurChartRef.current) {
+                    renderDoughnutChart(disjoncteurChartRef.current, stats.byDisjoncteur[`${selectedTableau}-${selectedBreaker.id}`]);
                 }
             }, [stats.byDisjoncteur, selectedTableau, selectedBreaker]);
 
             useEffect(() => {
                 const building = selectedTableau ? tableaux.find(t => t.id === selectedTableau)?.id.split('-')[0] : '';
-                if (building && stats.byBuilding[building]) {
-                    renderDoughnutChart('building-chart', stats.byBuilding[building]);
+                if (building && stats.byBuilding[building] && buildingChartRef.current) {
+                    renderDoughnutChart(buildingChartRef.current, stats.byBuilding[building]);
                 }
             }, [stats.byBuilding, selectedTableau, tableaux]);
 
             useEffect(() => {
-                if (selectedTableau && selectedBreaker) {
-                    renderGanttChart(`gantt-${selectedBreaker.id}`, selectedBreaker.id);
+                if (selectedTableau && selectedBreaker && ganttChartRef.current) {
+                    renderGanttChart(ganttChartRef.current, selectedBreaker.id);
                 }
             }, [checklists, selectedTableau, selectedBreaker]);
 
@@ -389,7 +388,7 @@
                                 <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
                                     <i className="fas fa-chart-pie mr-2"></i>Répartition des Contrôles (Tableau)
                                 </h2>
-                                <canvas id="tableau-chart" className="w-full h-64 sm:h-96"></canvas>
+                                <div ref={tableauChartRef} className="w-full h-64 sm:h-96"></div>
                             </div>
                         </>
                     )}
@@ -415,7 +414,7 @@
                                 <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
                                     <i className="fas fa-calendar-alt mr-2"></i>Contrôles du Jour (Disjoncteur)
                                 </h2>
-                                <canvas id={`gantt-${selectedBreaker.id}`} className="w-full h-64 sm:h-96"></canvas>
+                                <div ref={ganttChartRef} className="w-full h-64 sm:h-96"></div>
                             </div>
 
                             {/* Graphique par disjoncteur */}
@@ -423,7 +422,7 @@
                                 <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
                                     <i className="fas fa-chart-pie mr-2"></i>Répartition des Contrôles (Disjoncteur)
                                 </h2>
-                                <canvas id="disjoncteur-chart" className="w-full h-64 sm:h-96"></canvas>
+                                <div ref={disjoncteurChartRef} className="w-full h-64 sm:h-96"></div>
                             </div>
 
                             {/* Liste de Contrôles */}
@@ -492,7 +491,7 @@
                         <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center">
                             <i className="fas fa-chart-pie mr-2"></i>Répartition des Contrôles (Bâtiment)
                         </h2>
-                        <canvas id="building-chart" className="w-full h-64 sm:h-96"></canvas>
+                        <div ref={buildingChartRef} className="w-full h-64 sm:h-96"></div>
                     </div>
 
                     {/* Modal Ajouter/Modifier Contrôle */}
