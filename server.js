@@ -108,11 +108,11 @@ function validateDisjoncteurData(data) {
     if (data.charge && (isNaN(parseFloat(data.charge)) || data.charge < 0 || data.charge > 100)) {
         errors.push('La charge doit être une valeur numérique entre 0 et 100 (ex. 80).');
     }
-    if (data.id && !/^[a-zA-Z0-9\s\-_]+$/.test(data.id)) {
-        errors.push('L\'ID du disjoncteur contient des caractères non autorisés. Utilisez lettres, chiffres, espaces, tirets ou underscores.');
+    if (data.id && !/^[\p{L}0-9\s\-_:]+$/u.test(data.id)) {
+        errors.push('L\'ID du disjoncteur contient des caractères non autorisés. Utilisez lettres (y compris accentuées), chiffres, espaces, tirets, underscores ou deux-points.');
     }
-    if (data.newId && !/^[a-zA-Z0-9\s\-_]+$/.test(data.newId)) {
-        errors.push('Le nouvel ID du disjoncteur contient des caractères non autorisés. Utilisez lettres, chiffres, espaces, tirets ou underscores.');
+    if (data.newId && !/^[\p{L}0-9\s\-_:]+$/u.test(data.newId)) {
+        errors.push('Le nouvel ID du disjoncteur contient des caractères non autorisés. Utilisez lettres (y compris accentuées), chiffres, espaces, tirets, underscores ou deux-points.');
     }
     return errors;
 }
