@@ -53,9 +53,9 @@
             <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
             <ul class="list-disc pl-6 text-gray-300">
                 <li>Utilisez les filtres pour sélectionner un bâtiment ou un tableau spécifique.</li>
-                <li>Après sélection d’un tableau, un diagramme de Gantt affiche les disjoncteurs avec leur dernier statut de contrôle (Conforme, Non conforme, Non applicable).</li>
-                <li>Cliquez sur un disjoncteur dans le Gantt pour voir ses détails et ses checklists.</li>
-                <li>Utilisez le bouton "Ajouter un contrôle" pour créer une nouvelle checklist via un formulaire.</li>
+                <li>Après sélection d’un tableau, un diagramme de Gantt affiche les disjoncteurs avec leur dernier statut de contrôle (Conforme, Non conforme, Non applicable, Non contrôlé).</li>
+                <li>Cliquez sur un disjoncteur dans le Gantt pour voir l’historique de ses contrôles.</li>
+                <li>Utilisez le bouton "Ajouter une checklist" pour créer une checklist pour tous les disjoncteurs du tableau via un formulaire.</li>
                 <li>Les graphiques en anneau montrent la répartition des statuts par bâtiment et tableau.</li>
                 <li>Un tableau est conforme si tous ses disjoncteurs ont été contrôlés et sont conformes.</li>
             </ul>
@@ -78,26 +78,32 @@
             <p id="no-data-message" class="text-red-500 mt-4 hidden">Aucun disjoncteur trouvé pour les critères sélectionnés.</p>
         </div>
 
+        <!-- Bouton Ajouter une Checklist -->
+        <div id="add-checklist-container" class="flex justify-end mb-4 hidden">
+            <button id="add-checklist" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+                <i class="fas fa-plus-circle mr-2"></i>Ajouter une Checklist
+            </button>
+        </div>
+
         <!-- Graphiques en anneau -->
         <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
             <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-chart-pie mr-2"></i>Répartition des Statuts</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="doughnut-container"></div>
         </div>
 
-        <!-- Modal pour les détails du disjoncteur -->
+        <!-- Modal pour voir l’historique des checklists -->
         <div id="modal-breaker" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 overflow-y-auto pt-4 pb-4 hidden">
             <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-4xl w-full my-4 max-h-[90vh] overflow-y-auto">
-                <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-cogs mr-2"></i>Détails du Disjoncteur</h2>
+                <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-cogs mr-2"></i>Historique des Contrôles</h2>
                 <div id="modal-content" class="mb-4 text-gray-300"></div>
-                <button id="add-checklist" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"><i class="fas fa-plus-circle mr-2"></i>Ajouter un contrôle</button>
-                <button id="close-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition ml-4"><i class="fas fa-times mr-2"></i>Fermer</button>
+                <button id="close-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
             </div>
         </div>
 
         <!-- Modal pour ajouter/modifier une checklist -->
         <div id="modal-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
             <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full">
-                <h2 id="checklist-title" class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-plus-circle mr-2"></i>Ajouter un Contrôle</h2>
+                <h2 id="checklist-title" class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-plus-circle mr-2"></i>Ajouter une Checklist</h2>
                 <form id="checklist-form" class="grid gap-4">
                     <div>
                         <label for="checklist-status" class="block text-sm font-medium">Statut</label>
@@ -128,8 +134,6 @@
         let tableauxData = [];
         let checklistsData = [];
         let currentTableauId = '';
-        let currentBreakerId = '';
-        let editCheckId = null;
 
         // Fonction pour encoder les ID en slug sécurisé
         function sanitizeId(id) {
@@ -189,6 +193,18 @@
             const filteredData = tableauxData.filter(t => (!building || t.id.split('-')[0] === building) && (!currentTableauId || t.id === currentTableauId));
             renderGanttChart(filteredData);
             renderDoughnuts(filteredData);
+            toggleAddChecklistButton();
+        }
+
+        // Afficher/masquer le bouton Ajouter une Checklist
+        function toggleAddChecklistButton() {
+            const container = document.getElementById('add-checklist-container');
+            if (currentTableauId) {
+                container.classList.remove('hidden');
+                document.getElementById('add-checklist').onclick = () => openChecklistModal();
+            } else {
+                container.classList.add('hidden');
+            }
         }
 
         // Rendre le diagramme de Gantt
@@ -321,7 +337,7 @@
             });
         }
 
-        // Ouvrir le modal des détails du disjoncteur
+        // Ouvrir le modal pour voir l’historique des checklists
         function openBreakerModal(tableauId, breakerId, sanitizedId) {
             const modal = document.getElementById('modal-breaker');
             const tableau = tableauxData.find(t => t.id === tableauId);
@@ -384,24 +400,23 @@
             document.getElementById('modal-content').innerHTML = content;
 
             // Gestion des boutons d’action
-            document.getElementById('add-checklist').onclick = () => openChecklistModal(tableauId, breakerId, sanitizedId);
             document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
             document.querySelectorAll('.edit-check').forEach(btn => {
                 btn.onclick = () => {
                     const checkId = btn.dataset.checkId;
                     const check = breakerChecks.find(c => c.id == checkId);
-                    openChecklistModal(tableauId, breakerId, sanitizedId, check);
+                    openChecklistModal(check);
                 };
             });
             document.querySelectorAll('.delete-check').forEach(btn => {
-                btn.onclick = () => deleteChecklist(btn.dataset.checkId);
+                btn.onclick = () => deleteChecklist(btn.dataset.checkId, tableauId, breakerId, sanitizedId);
             });
 
             modal.classList.remove('hidden');
         }
 
         // Ouvrir le modal pour ajouter/modifier une checklist
-        function openChecklistModal(tableauId, breakerId, sanitizedId, check = null) {
+        function openChecklistModal(check = null) {
             const modal = document.getElementById('modal-checklist');
             const form = document.getElementById('checklist-form');
             const title = document.getElementById('checklist-title');
@@ -409,11 +424,7 @@
             const commentInput = document.getElementById('checklist-comment');
             const photoInput = document.getElementById('checklist-photo');
 
-            currentTableauId = tableauId;
-            currentBreakerId = breakerId;
-            editCheckId = check ? check.id : null;
-
-            title.innerHTML = `<i class="fas fa-plus-circle mr-2"></i>${editCheckId ? 'Modifier' : 'Ajouter'} un Contrôle`;
+            title.innerHTML = `<i class="fas fa-plus-circle mr-2"></i>${check ? 'Modifier' : 'Ajouter'} une Checklist`;
             statusSelect.value = check ? check.status : 'Conforme';
             commentInput.value = check ? check.comment : '';
             photoInput.value = '';
@@ -435,25 +446,31 @@
                         photoBase64 = await toBase64(photo);
                     }
 
-                    const body = {
-                        tableau_id: tableauId,
-                        disjoncteur_id: breakerId,
-                        status,
-                        comment,
-                        photo: photoBase64
-                    };
+                    const tableau = tableauxData.find(t => t.id === currentTableauId);
+                    if (!tableau) throw new Error('Tableau non trouvé');
 
-                    const method = editCheckId ? 'PUT' : 'POST';
-                    const url = editCheckId ? `/api/breaker-checklists/${editCheckId}` : '/api/breaker-checklists';
-                    const response = await fetch(url, {
-                        method,
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                    });
-                    if (!response.ok) throw new Error(`Erreur lors de l’enregistrement du contrôle: ${response.statusText}`);
+                    // Créer une checklist pour chaque disjoncteur
+                    for (const breaker of tableau.disjoncteurs) {
+                        const body = {
+                            tableau_id: currentTableauId,
+                            disjoncteur_id: breaker.id,
+                            status,
+                            comment,
+                            photo: photoBase64
+                        };
+
+                        const method = check ? 'PUT' : 'POST';
+                        const url = check ? `/api/breaker-checklists/${check.id}` : '/api/breaker-checklists';
+                        const response = await fetch(url, {
+                            method,
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body)
+                        });
+                        if (!response.ok) throw new Error(`Erreur lors de l’enregistrement du contrôle pour ${breaker.id}: ${response.statusText}`);
+                    }
+
                     modal.classList.add('hidden');
                     await loadData();
-                    openBreakerModal(tableauId, breakerId, sanitizedId); // Rafraîchir le modal
                 } catch (error) {
                     console.error('[Client] Erreur enregistrement checklist:', error);
                     alert('Erreur: ' + error.message);
@@ -465,13 +482,13 @@
         }
 
         // Supprimer une checklist
-        async function deleteChecklist(checkId) {
+        async function deleteChecklist(checkId, tableauId, breakerId, sanitizedId) {
             if (!confirm('Voulez-vous supprimer ce contrôle ?')) return;
             try {
                 const response = await fetch(`/api/breaker-checklists/${checkId}`, { method: 'DELETE' });
                 if (!response.ok) throw new Error(`Erreur lors de la suppression du contrôle: ${response.statusText}`);
                 await loadData();
-                openBreakerModal(currentTableauId, currentBreakerId, sanitizeId(currentBreakerId));
+                openBreakerModal(tableauId, breakerId, sanitizedId);
             } catch (error) {
                 console.error('[Client] Erreur suppression checklist:', error);
                 alert('Erreur: ' + error.message);
