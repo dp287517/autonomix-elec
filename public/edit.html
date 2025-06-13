@@ -240,7 +240,7 @@
 
             // Validation de l'ID du disjoncteur
             function validateDisjoncteurId(id) {
-                const validIdRegex = /^[a-zA-Z0-9\s\-_]+$/;
+                const validIdRegex = /^[\p{L}0-9\s\-_:]+$/u;
                 return validIdRegex.test(id);
             }
 
@@ -647,7 +647,7 @@
                 }
                 if (!validateDisjoncteurId(disjoncteur.id)) {
                     console.log('[Edit] Erreur: ID invalide', disjoncteur.id);
-                    showPopup('L\'ID du disjoncteur contient des caractères non autorisés. Utilisez lettres, chiffres, espaces, tirets ou underscores.', () => {});
+                    showPopup('L\'ID du disjoncteur contient des caractères non autorisés. Utilisez lettres (y compris accentuées), chiffres, espaces, tirets, underscores ou deux-points.', () => {});
                     return;
                 }
                 if (!disjoncteur.marque || !disjoncteur.ref) {
