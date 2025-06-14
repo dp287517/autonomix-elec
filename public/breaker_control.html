@@ -53,11 +53,10 @@
             <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
             <ul class="list-disc pl-6 text-gray-300">
                 <li>Utilisez les filtres pour sélectionner un bâtiment ou un tableau spécifique.</li>
-                <li>Après sélection d’un tableau, un diagramme de Gantt affiche les disjoncteurs avec leur dernier statut de contrôle (Conforme, Non conforme, Non applicable, Non contrôlé).</li>
-                <li>Cliquez sur un disjoncteur dans le Gantt pour voir l’historique de ses contrôles.</li>
-                <li>Utilisez le bouton "Ajouter une checklist" pour créer une checklist pour tous les disjoncteurs du tableau via un formulaire.</li>
+                <li>Après sélection d’un tableau, un diagramme de Gantt affiche les disjoncteurs avec leur dernier statut de contrôle (Conforme, Non conforme, Non applicable, Mixte, Non contrôlé).</li>
+                <li>Cliquez sur un disjoncteur dans le Gantt pour voir l’historique de ses contrôles, incluant les points de contrôle, le commentaire, et la photo.</li>
+                <li>Utilisez le bouton "Ajouter une checklist" pour créer une checklist pour tous les disjoncteurs du tableau, avec jusqu’à 10 points de contrôle, un commentaire global, et une photo globale.</li>
                 <li>Les graphiques en anneau montrent la répartition des statuts par bâtiment et tableau.</li>
-                <li>Un tableau est conforme si tous ses disjoncteurs ont été contrôlés et sont conformes.</li>
             </ul>
         </div>
 
@@ -102,23 +101,21 @@
 
         <!-- Modal pour ajouter/modifier une checklist -->
         <div id="modal-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
-            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-2xl w-full">
                 <h2 id="checklist-title" class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-plus-circle mr-2"></i>Ajouter une Checklist</h2>
                 <form id="checklist-form" class="grid gap-4">
+                    <div id="checklist-points" class="grid gap-2">
+                        <!-- Points de contrôle ajoutés dynamiquement -->
+                    </div>
+                    <button type="button" id="add-point" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+                        <i class="fas fa-plus mr-2"></i>Ajouter un point de contrôle
+                    </button>
                     <div>
-                        <label for="checklist-status" class="block text-sm font-medium">Statut</label>
-                        <select id="checklist-status" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full">
-                            <option value="Conforme">Conforme</option>
-                            <option value="Non conforme">Non conforme</option>
-                            <option value="Non applicable">Non applicable</option>
-                        </select>
+                        <label for="checklist-comment" class="block text-sm font-medium">Commentaire global</label>
+                        <textarea id="checklist-comment" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" rows="4"></textarea>
                     </div>
                     <div>
-                        <label for="checklist-comment" class="block text-sm font-medium">Commentaire</label>
-                        <textarea id="checklist-comment" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" rows="4" required></textarea>
-                    </div>
-                    <div>
-                        <label for="checklist-photo" class="block text-sm font-medium">Photo</label>
+                        <label for="checklist-photo" class="block text-sm font-medium">Photo globale</label>
                         <input type="file" id="checklist-photo" accept="image/*" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full">
                     </div>
                     <div class="flex space-x-4">
@@ -140,16 +137,23 @@
             return id.replace(/[^a-zA-Z0-9-_]/g, '-').replace(/-+/g, '-').toLowerCase();
         }
 
+        // Déterminer le statut global d’une checklist
+        function determineGlobalStatus(points) {
+            const statuses = points.map(p => p.status);
+            if (statuses.every(s => s === 'Conforme')) return 'Conforme';
+            if (statuses.includes('Non conforme')) return 'Non conforme';
+            if (statuses.every(s => s === 'Non applicable')) return 'Non applicable';
+            return 'Mixte';
+        }
+
         // Charger les données
         async function loadData() {
             try {
-                // Charger les tableaux
                 const tableauxResponse = await fetch('/api/tableaux');
                 if (!tableauxResponse.ok) throw new Error(`Erreur lors du chargement des tableaux: ${tableauxResponse.statusText}`);
                 tableauxData = await tableauxResponse.json();
                 console.log('[Client] Tableaux chargés:', tableauxData.length);
 
-                // Charger les checklists
                 const checklistsResponse = await fetch('/api/breaker-checklists');
                 if (!checklistsResponse.ok) throw new Error(`Erreur lors du chargement des checklists: ${checklistsResponse.statusText}`);
                 checklistsData = await checklistsResponse.json();
@@ -236,7 +240,8 @@
                         statusText = latestCheck.status;
                         if (statusText === 'Conforme') statusClass += ' task-bar-green';
                         else if (statusText === 'Non conforme') statusClass += ' task-bar-red';
-                        else statusClass += ' task-bar-orange';
+                        else if (statusText === 'Non applicable') statusClass += ' task-bar-orange';
+                        else statusClass += ' task-bar-blue'; // Pour Mixte
                     } else {
                         statusClass += ' task-bar-gray';
                     }
@@ -269,9 +274,9 @@
             const container = document.getElementById('doughnut-container');
             container.innerHTML = '';
 
-            const categories = ['Conforme', 'Non conforme', 'Non applicable', 'Non contrôlé'];
-            const colors = ['#22c55e', '#dc2626', '#f4b400', '#6B7280'];
-            const icons = ['fa-check-circle', 'fa-times-circle', 'fa-hourglass-half', 'fa-question-circle'];
+            const categories = ['Conforme', 'Non conforme', 'Non applicable', 'Mixte', 'Non contrôlé'];
+            const colors = ['#22c55e', '#dc2626', '#f4b400', '#3b82f6', '#6B7280'];
+            const icons = ['fa-check-circle', 'fa-times-circle', 'fa-hourglass-half', 'fa-balance-scale', 'fa-question-circle'];
 
             const groups = currentTableauId
                 ? data.filter(t => t.id === currentTableauId).map(t => ({
@@ -305,7 +310,8 @@
                         return (i === 0 && latestCheck?.status === 'Conforme') ||
                                (i === 1 && latestCheck?.status === 'Non conforme') ||
                                (i === 2 && latestCheck?.status === 'Non applicable') ||
-                               (i === 3 && !latestCheck);
+                               (i === 3 && latestCheck?.status === 'Mixte') ||
+                               (i === 4 && !latestCheck);
                     }).length;
                     return acc;
                 }, {});
@@ -364,42 +370,44 @@
                 <p><strong>Référence :</strong> ${breaker.ref || 'Inconnu'}</p>
                 <p><strong>Courant nominal :</strong> ${breaker.in || 'Inconnu'}</p>
                 <h3 class="text-lg font-semibold mt-4">Historique des contrôles :</h3>
-                <table class="w-full border border-gray-600 mt-2">
-                    <thead>
-                        <tr class="bg-gray-700">
-                            <th class="p-2">Statut</th>
-                            <th class="p-2">Commentaire</th>
-                            <th class="p-2">Photo</th>
-                            <th class="p-2">Heure</th>
-                            <th class="p-2">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${breakerChecks.length > 0 ? breakerChecks.map(check => `
-                            <tr>
-                                <td class="p-2 ${check.status === 'Conforme' ? 'text-green-500' : check.status === 'Non conforme' ? 'text-red-500' : 'text-yellow-400'}">
-                                    <i class="fas ${check.status === 'Conforme' ? 'fa-check-circle' : check.status === 'Non conforme' ? 'fa-times-circle' : 'fa-hourglass-half'} mr-1"></i>
+                <div class="space-y-4">
+                    ${breakerChecks.length > 0 ? breakerChecks.map(check => {
+                        let points;
+                        try {
+                            points = JSON.parse(check.comment);
+                        } catch (e) {
+                            points = [{ description: check.comment || 'Aucun point défini', status: check.status }];
+                        }
+                        return `
+                            <div class="bg-gray-700 p-4 rounded-lg">
+                                <p><strong>Statut global :</strong> <span class="${check.status === 'Conforme' ? 'text-green-500' : check.status === 'Non conforme' ? 'text-red-500' : check.status === 'Non applicable' ? 'text-yellow-400' : 'text-blue-400'}">
+                                    <i class="fas ${check.status === 'Conforme' ? 'fa-check-circle' : check.status === 'Non conforme' ? 'fa-times-circle' : check.status === 'Non applicable' ? 'fa-hourglass-half' : 'fa-balance-scale'} mr-1"></i>
                                     ${check.status}
-                                </td>
-                                <td class="p-2">${check.comment}</td>
-                                <td class="p-2">${check.photo ? `<img src="${check.photo}" alt="Photo contrôle" class="w-16 h-16 object-cover rounded" />` : 'Aucune'}</td>
-                                <td class="p-2">${new Date(check.timestamp).toLocaleTimeString('fr-FR')}</td>
-                                <td class="p-2 flex space-x-2">
+                                </span></p>
+                                <p><strong>Date :</strong> ${new Date(check.timestamp).toLocaleString('fr-FR')}</p>
+                                <h4 class="text-md font-semibold mt-2">Points de contrôle :</h4>
+                                <ul class="list-disc pl-6">
+                                    ${points.map(p => `
+                                        <li>${p.description} : <span class="${p.status === 'Conforme' ? 'text-green-500' : p.status === 'Non conforme' ? 'text-red-500' : 'text-yellow-400'}">${p.status}</span></li>
+                                    `).join('')}
+                                </ul>
+                                <p><strong>Commentaire global :</strong> ${points[0]?.comment || 'Aucun'}</p>
+                                <p><strong>Photo :</strong> ${check.photo ? `<img src="${check.photo}" alt="Photo contrôle" class="w-32 h-32 object-cover rounded mt-2" />` : 'Aucune'}</p>
+                                <div class="flex space-x-2 mt-2">
                                     <button class="edit-check bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition" data-check-id="${check.id}">
                                         <i class="fas fa-edit"></i>
                                     </button>
                                     <button class="delete-check bg-red-600 text-white p-2 rounded hover:bg-red-700 transition" data-check-id="${check.id}">
                                         <i class="fas fa-trash"></i>
                                     </button>
-                                </td>
-                            </tr>
-                        `).join('') : '<tr><td colspan="5" class="p-2 text-center">Aucun contrôle trouvé</td></tr>'}
-                    </tbody>
-                </table>
+                                </div>
+                            </div>
+                        `;
+                    }).join('') : '<p class="p-2 text-center">Aucun contrôle trouvé</p>'}
+                </div>
             `;
             document.getElementById('modal-content').innerHTML = content;
 
-            // Gestion des boutons d’action
             document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
             document.querySelectorAll('.edit-check').forEach(btn => {
                 btn.onclick = () => {
@@ -420,23 +428,76 @@
             const modal = document.getElementById('modal-checklist');
             const form = document.getElementById('checklist-form');
             const title = document.getElementById('checklist-title');
-            const statusSelect = document.getElementById('checklist-status');
+            const pointsContainer = document.getElementById('checklist-points');
             const commentInput = document.getElementById('checklist-comment');
             const photoInput = document.getElementById('checklist-photo');
+            const addPointBtn = document.getElementById('add-point');
+
+            let points = check ? JSON.parse(check.comment || '[]') : [{ description: '', status: 'Conforme' }];
+            let pointCount = points.length;
 
             title.innerHTML = `<i class="fas fa-plus-circle mr-2"></i>${check ? 'Modifier' : 'Ajouter'} une Checklist`;
-            statusSelect.value = check ? check.status : 'Conforme';
-            commentInput.value = check ? check.comment : '';
+            commentInput.value = check ? (points[0]?.comment || '') : '';
             photoInput.value = '';
+
+            function renderPoints() {
+                pointsContainer.innerHTML = '';
+                points.forEach((point, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-center';
+                    div.innerHTML = `
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium">Point ${index + 1}</label>
+                            <input type="text" class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" value="${point.description}" placeholder="Ex: Est-ce que le tableau est en bon état" required>
+                        </div>
+                        <div class="w-32">
+                            <label class="block text-sm font-medium">Statut</label>
+                            <select class="point-status mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full">
+                                <option value="Conforme" ${point.status === 'Conforme' ? 'selected' : ''}>Conforme</option>
+                                <option value="Non conforme" ${point.status === 'Non conforme' ? 'selected' : ''}>Non conforme</option>
+                                <option value="Non applicable" ${point.status === 'Non applicable' ? 'selected' : ''}>Non applicable</option>
+                            </select>
+                        </div>
+                        <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition ${pointCount === 1 ? 'invisible' : ''}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    `;
+                    pointsContainer.appendChild(div);
+                });
+
+                pointsContainer.querySelectorAll('.remove-point').forEach((btn, index) => {
+                    btn.onclick = () => {
+                        points.splice(index, 1);
+                        pointCount--;
+                        renderPoints();
+                    };
+                });
+            }
+
+            renderPoints();
+
+            addPointBtn.onclick = () => {
+                if (pointCount < 10) {
+                    points.push({ description: '', status: 'Conforme' });
+                    pointCount++;
+                    renderPoints();
+                } else {
+                    alert('Vous ne pouvez pas ajouter plus de 10 points de contrôle.');
+                }
+            };
 
             form.onsubmit = async (e) => {
                 e.preventDefault();
-                const status = statusSelect.value;
                 const comment = commentInput.value;
                 const photo = photoInput.files[0];
 
-                if (!comment) {
-                    alert('Le commentaire est requis');
+                points = Array.from(pointsContainer.children).map(div => ({
+                    description: div.querySelector('.point-description').value,
+                    status: div.querySelector('.point-status').value
+                }));
+
+                if (points.some(p => !p.description)) {
+                    alert('Tous les points de contrôle doivent avoir une description.');
                     return;
                 }
 
@@ -446,6 +507,9 @@
                         photoBase64 = await toBase64(photo);
                     }
 
+                    const globalStatus = determineGlobalStatus(points);
+                    const commentJson = JSON.stringify([{ comment, points }]);
+
                     const tableau = tableauxData.find(t => t.id === currentTableauId);
                     if (!tableau) throw new Error('Tableau non trouvé');
 
@@ -454,8 +518,8 @@
                         const body = {
                             tableau_id: currentTableauId,
                             disjoncteur_id: breaker.id,
-                            status,
-                            comment,
+                            status: globalStatus,
+                            comment: commentJson,
                             photo: photoBase64
                         };
 
@@ -529,6 +593,7 @@
         .task-bar-green { background-color: #22c55e; }
         .task-bar-red { background-color: #dc2626; }
         .task-bar-orange { background-color: #f4b400; }
+        .task-bar-blue { background-color: #3b82f6; }
         .task-bar-gray { background-color: #6B7280; }
         #modal-breaker > div, #modal-checklist > div {
             scrollbar-width: thin;
