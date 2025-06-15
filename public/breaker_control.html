@@ -157,7 +157,7 @@
         // Déterminer le statut global d’une checklist
         function determineGlobalStatus(points) {
             const statuses = points.map(p => p.status).filter(s => s);
-            if (statuses.length === 0) return 'En attente';
+            if (statuses.length === 0) return 'Non applicable'; // Utilisé en interne pour "En attente"
             if (statuses.every(s => s === 'Conforme')) return 'Conforme';
             if (statuses.includes('Non conforme')) return 'Non conforme';
             if (statuses.every(s => s === 'Non applicable')) return 'Non applicable';
@@ -255,7 +255,7 @@
                     let statusClass = 'task-bar';
                     let statusText = 'Non contrôlé';
                     if (latestCheck) {
-                        statusText = latestCheck.status;
+                        statusText = latestCheck.status === 'Non applicable' && JSON.parse(latestCheck.comment || '[]').every(p => !p.status) ? 'En attente' : latestCheck.status;
                         if (statusText === 'Conforme') statusClass += ' task-bar-green';
                         else if (statusText === 'Non conforme') statusClass += ' task-bar-red';
                         else if (statusText === 'Non applicable') statusClass += ' task-bar-orange';
@@ -326,12 +326,13 @@
                         const latestCheck = checklistsData
                             .filter(c => c.tableau_id === (group.building === group.id ? group.id : data.find(t => t.disjoncteurs.includes(d)).id) && c.disjoncteur_id === d.id)
                             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-                        return (i === 0 && latestCheck?.status === 'Conforme') ||
-                               (i === 1 && latestCheck?.status === 'Non conforme') ||
-                               (i === 2 && latestCheck?.status === 'Non applicable') ||
-                               (i === 3 && latestCheck?.status === 'Mixte') ||
-                               (i === 4 && latestCheck?.status === 'En attente') ||
-                               (i === 5 && !latestCheck);
+                        const status = latestCheck ? (latestCheck.status === 'Non applicable' && JSON.parse(latestCheck.comment || '[]').every(p => !p.status) ? 'En attente' : latestCheck.status) : 'Non contrôlé';
+                        return (i === 0 && status === 'Conforme') ||
+                               (i === 1 && status === 'Non conforme') ||
+                               (i === 2 && status === 'Non applicable') ||
+                               (i === 3 && status === 'Mixte') ||
+                               (i === 4 && status === 'En attente') ||
+                               (i === 5 && status === 'Non contrôlé');
                     }).length;
                     return acc;
                 }, {});
@@ -396,13 +397,14 @@
                         try {
                             points = JSON.parse(check.comment || '[]');
                         } catch (e) {
-                            points = [{ description: check.comment || 'Aucun point défini', status: check.status }];
+                            points = [{ description: check.comment || 'Aucun point défini', status: null }];
                         }
+                        const isPending = check.status === 'Non applicable' && points.every(p => !p.status);
                         return `
                             <div class="bg-gray-700 p-4 rounded-lg">
-                                <p><strong>Statut global :</strong> <span class="${check.status === 'Conforme' ? 'text-green-500' : check.status === 'Non conforme' ? 'text-red-500' : check.status === 'Non applicable' ? 'text-yellow-400' : check.status === 'En attente' ? 'text-purple-400' : 'text-blue-400'}">
-                                    <i class="fas ${check.status === 'Conforme' ? 'fa-check-circle' : check.status === 'Non conforme' ? 'fa-times-circle' : check.status === 'Non applicable' ? 'fa-hourglass-half' : check.status === 'En attente' ? 'fa-clock' : 'fa-balance-scale'} mr-1"></i>
-                                    ${check.status}
+                                <p><strong>Statut global :</strong> <span class="${check.status === 'Conforme' ? 'text-green-500' : check.status === 'Non conforme' ? 'text-red-500' : check.status === 'Non applicable' && !isPending ? 'text-yellow-400' : isPending ? 'text-purple-400' : 'text-blue-400'}">
+                                    <i class="fas ${check.status === 'Conforme' ? 'fa-check-circle' : check.status === 'Non conforme' ? 'fa-times-circle' : check.status === 'Non applicable' && !isPending ? 'fa-hourglass-half' : isPending ? 'fa-clock' : 'fa-balance-scale'} mr-1"></i>
+                                    ${isPending ? 'En attente' : check.status}
                                 </span></p>
                                 <p><strong>Date :</strong> ${new Date(check.timestamp).toLocaleString('fr-FR')}</p>
                                 <h4 class="text-md font-semibold mt-2">Points de contrôle :</h4>
@@ -414,15 +416,9 @@
                                 <p><strong>Commentaire global :</strong> ${points[0]?.comment || 'Aucun'}</p>
                                 <p><strong>Photo :</strong> ${check.photo ? `<img src="${check.photo}" alt="Photo contrôle" class="w-32 h-32 object-cover rounded mt-2" />` : 'Aucune'}</p>
                                 <div class="flex space-x-2 mt-2">
-                                    ${check.status === 'En attente' ? `
-                                        <button class="complete-check bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition" data-check-id="${check.id}">
-                                            <i class="fas fa-check"></i> Compléter
-                                        </button>
-                                    ` : `
-                                        <button class="edit-check bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition" data-check-id="${check.id}">
-                                            <i class="fas fa-edit"></i> Modifier
-                                        </button>
-                                    `}
+                                    <button class="${isPending ? 'complete-check' : 'edit-check'} bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition" data-check-id="${check.id}">
+                                        <i class="fas ${isPending ? 'fa-check' : 'fa-edit'}"></i> ${isPending ? 'Compléter' : 'Modifier'}
+                                    </button>
                                     <button class="delete-check bg-red-600 text-white p-2 rounded hover:bg-red-700 transition" data-check-id="${check.id}">
                                         <i class="fas fa-trash"></i> Supprimer
                                     </button>
@@ -513,14 +509,14 @@
                     const tableau = tableauxData.find(t => t.id === currentTableauId);
                     if (!tableau) throw new Error('Tableau non trouvé');
 
-                    const commentJson = JSON.stringify([{ comment: '', points }]);
+                    const commentJson = JSON.stringify({ points });
 
                     // Créer une checklist vide pour chaque disjoncteur
                     for (const breaker of tableau.disjoncteurs) {
                         const body = {
                             tableau_id: currentTableauId,
                             disjoncteur_id: breaker.id,
-                            status: 'En attente',
+                            status: 'Non applicable', // Valeur valide pour le serveur
                             comment: commentJson,
                             photo: null
                         };
@@ -530,7 +526,8 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(body)
                         });
-                        if (!response.ok) throw new Error(`Erreur lors de l’enregistrement du contrôle pour ${breaker.id}: ${response.statusText}`);
+                        const responseData = await response.json();
+                        if (!response.ok) throw new Error(`Erreur lors de l’enregistrement du contrôle pour ${breaker.id}: ${responseData.error || response.statusText}`);
                     }
 
                     modal.classList.add('hidden');
@@ -560,7 +557,7 @@
             } catch (e) {
                 points = [{ description: check.comment || 'Aucun point défini', status: null }];
             }
-            commentInput.value = points[0]?.comment || '';
+            commentInput.value = points.comment || '';
             photoInput.value = '';
 
             pointsContainer.innerHTML = '';
@@ -607,7 +604,7 @@
                     }
 
                     const globalStatus = determineGlobalStatus(updatedPoints);
-                    const commentJson = JSON.stringify([{ comment, points: updatedPoints }]);
+                    const commentJson = JSON.stringify({ comment, points: updatedPoints });
 
                     const body = {
                         tableau_id: tableauId,
