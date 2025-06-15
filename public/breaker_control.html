@@ -53,9 +53,9 @@
             <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
             <ul class="list-disc pl-6 text-gray-300">
                 <li>Utilisez les filtres pour sélectionner un bâtiment ou un tableau spécifique.</li>
-                <li>Après sélection d’un tableau, un diagramme de Gantt affiche les disjoncteurs avec leur dernier statut de contrôle (Conforme, Non conforme, Non applicable, Mixte, Non contrôlé).</li>
-                <li>Cliquez sur un disjoncteur dans le Gantt pour voir l’historique de ses contrôles, incluant les points de contrôle, le commentaire, et la photo.</li>
-                <li>Utilisez le bouton "Ajouter une checklist" pour créer une checklist pour tous les disjoncteurs du tableau, avec jusqu’à 10 points de contrôle, un commentaire global, et une photo globale.</li>
+                <li>Après sélection d’un tableau, un diagramme de Gantt affiche les disjoncteurs avec leur dernier statut de contrôle (Conforme, Non conforme, Non applicable, Mixte, En attente, Non contrôlé).</li>
+                <li>Utilisez le bouton "Créer une checklist" pour définir jusqu’à 10 points de contrôle (sans statuts, commentaire, ni photo), appliqués à tous les disjoncteurs.</li>
+                <li>Cliquez sur un disjoncteur dans le Gantt pour voir ses checklists et compléter une checklist en attente en assignant un statut par point, un commentaire, et une photo.</li>
                 <li>Les graphiques en anneau montrent la répartition des statuts par bâtiment et tableau.</li>
             </ul>
         </div>
@@ -77,10 +77,10 @@
             <p id="no-data-message" class="text-red-500 mt-4 hidden">Aucun disjoncteur trouvé pour les critères sélectionnés.</p>
         </div>
 
-        <!-- Bouton Ajouter une Checklist -->
+        <!-- Bouton Créer une Checklist -->
         <div id="add-checklist-container" class="flex justify-end mb-4 hidden">
             <button id="add-checklist" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
-                <i class="fas fa-plus-circle mr-2"></i>Ajouter une Checklist
+                <i class="fas fa-plus-circle mr-2"></i>Créer une Checklist
             </button>
         </div>
 
@@ -99,28 +99,44 @@
             </div>
         </div>
 
-        <!-- Modal pour ajouter/modifier une checklist -->
-        <div id="modal-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
+        <!-- Modal pour créer une checklist -->
+        <div id="modal-create-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
             <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-2xl w-full">
-                <h2 id="checklist-title" class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-plus-circle mr-2"></i>Ajouter une Checklist</h2>
-                <form id="checklist-form" class="grid gap-4">
+                <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-plus-circle mr-2"></i>Créer une Checklist</h2>
+                <form id="create-checklist-form" class="grid gap-4">
                     <div id="checklist-points" class="grid gap-2">
                         <!-- Points de contrôle ajoutés dynamiquement -->
                     </div>
                     <button type="button" id="add-point" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
                         <i class="fas fa-plus mr-2"></i>Ajouter un point de contrôle
                     </button>
-                    <div>
-                        <label for="checklist-comment" class="block text-sm font-medium">Commentaire global</label>
-                        <textarea id="checklist-comment" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" rows="4"></textarea>
+                    <div class="flex space-x-4">
+                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"><i class="fas fa-save mr-2"></i>Enregistrer</button>
+                        <button type="button" id="close-create-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal pour compléter une checklist -->
+        <div id="modal-complete-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-2xl w-full">
+                <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-check-circle mr-2"></i>Compléter la Checklist</h2>
+                <form id="complete-checklist-form" class="grid gap-4">
+                    <div id="complete-checklist-points" class="grid gap-2">
+                        <!-- Points de contrôle avec statuts -->
                     </div>
                     <div>
-                        <label for="checklist-photo" class="block text-sm font-medium">Photo globale</label>
-                        <input type="file" id="checklist-photo" accept="image/*" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full">
+                        <label for="complete-checklist-comment" class="block text-sm font-medium">Commentaire global</label>
+                        <textarea id="complete-checklist-comment" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" rows="4"></textarea>
+                    </div>
+                    <div>
+                        <label for="complete-checklist-photo" class="block text-sm font-medium">Photo globale</label>
+                        <input type="file" id="complete-checklist-photo" accept="image/*" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full">
                     </div>
                     <div class="flex space-x-4">
                         <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"><i class="fas fa-save mr-2"></i>Enregistrer</button>
-                        <button type="button" id="close-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
+                        <button type="button" id="close-complete-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
                     </div>
                 </form>
             </div>
@@ -131,6 +147,7 @@
         let tableauxData = [];
         let checklistsData = [];
         let currentTableauId = '';
+        let currentCheckId = null;
 
         // Fonction pour encoder les ID en slug sécurisé
         function sanitizeId(id) {
@@ -139,7 +156,8 @@
 
         // Déterminer le statut global d’une checklist
         function determineGlobalStatus(points) {
-            const statuses = points.map(p => p.status);
+            const statuses = points.map(p => p.status).filter(s => s);
+            if (statuses.length === 0) return 'En attente';
             if (statuses.every(s => s === 'Conforme')) return 'Conforme';
             if (statuses.includes('Non conforme')) return 'Non conforme';
             if (statuses.every(s => s === 'Non applicable')) return 'Non applicable';
@@ -200,12 +218,12 @@
             toggleAddChecklistButton();
         }
 
-        // Afficher/masquer le bouton Ajouter une Checklist
+        // Afficher/masquer le bouton Créer une Checklist
         function toggleAddChecklistButton() {
             const container = document.getElementById('add-checklist-container');
             if (currentTableauId) {
                 container.classList.remove('hidden');
-                document.getElementById('add-checklist').onclick = () => openChecklistModal();
+                document.getElementById('add-checklist').onclick = () => openCreateChecklistModal();
             } else {
                 container.classList.add('hidden');
             }
@@ -241,7 +259,8 @@
                         if (statusText === 'Conforme') statusClass += ' task-bar-green';
                         else if (statusText === 'Non conforme') statusClass += ' task-bar-red';
                         else if (statusText === 'Non applicable') statusClass += ' task-bar-orange';
-                        else statusClass += ' task-bar-blue'; // Pour Mixte
+                        else if (statusText === 'Mixte') statusClass += ' task-bar-blue';
+                        else statusClass += ' task-bar-purple'; // En attente
                     } else {
                         statusClass += ' task-bar-gray';
                     }
@@ -274,9 +293,9 @@
             const container = document.getElementById('doughnut-container');
             container.innerHTML = '';
 
-            const categories = ['Conforme', 'Non conforme', 'Non applicable', 'Mixte', 'Non contrôlé'];
-            const colors = ['#22c55e', '#dc2626', '#f4b400', '#3b82f6', '#6B7280'];
-            const icons = ['fa-check-circle', 'fa-times-circle', 'fa-hourglass-half', 'fa-balance-scale', 'fa-question-circle'];
+            const categories = ['Conforme', 'Non conforme', 'Non applicable', 'Mixte', 'En attente', 'Non contrôlé'];
+            const colors = ['#22c55e', '#dc2626', '#f4b400', '#3b82f6', '#9333ea', '#6B7280'];
+            const icons = ['fa-check-circle', 'fa-times-circle', 'fa-hourglass-half', 'fa-balance-scale', 'fa-clock', 'fa-question-circle'];
 
             const groups = currentTableauId
                 ? data.filter(t => t.id === currentTableauId).map(t => ({
@@ -311,7 +330,8 @@
                                (i === 1 && latestCheck?.status === 'Non conforme') ||
                                (i === 2 && latestCheck?.status === 'Non applicable') ||
                                (i === 3 && latestCheck?.status === 'Mixte') ||
-                               (i === 4 && !latestCheck);
+                               (i === 4 && latestCheck?.status === 'En attente') ||
+                               (i === 5 && !latestCheck);
                     }).length;
                     return acc;
                 }, {});
@@ -374,31 +394,37 @@
                     ${breakerChecks.length > 0 ? breakerChecks.map(check => {
                         let points;
                         try {
-                            points = JSON.parse(check.comment);
+                            points = JSON.parse(check.comment || '[]');
                         } catch (e) {
                             points = [{ description: check.comment || 'Aucun point défini', status: check.status }];
                         }
                         return `
                             <div class="bg-gray-700 p-4 rounded-lg">
-                                <p><strong>Statut global :</strong> <span class="${check.status === 'Conforme' ? 'text-green-500' : check.status === 'Non conforme' ? 'text-red-500' : check.status === 'Non applicable' ? 'text-yellow-400' : 'text-blue-400'}">
-                                    <i class="fas ${check.status === 'Conforme' ? 'fa-check-circle' : check.status === 'Non conforme' ? 'fa-times-circle' : check.status === 'Non applicable' ? 'fa-hourglass-half' : 'fa-balance-scale'} mr-1"></i>
+                                <p><strong>Statut global :</strong> <span class="${check.status === 'Conforme' ? 'text-green-500' : check.status === 'Non conforme' ? 'text-red-500' : check.status === 'Non applicable' ? 'text-yellow-400' : check.status === 'En attente' ? 'text-purple-400' : 'text-blue-400'}">
+                                    <i class="fas ${check.status === 'Conforme' ? 'fa-check-circle' : check.status === 'Non conforme' ? 'fa-times-circle' : check.status === 'Non applicable' ? 'fa-hourglass-half' : check.status === 'En attente' ? 'fa-clock' : 'fa-balance-scale'} mr-1"></i>
                                     ${check.status}
                                 </span></p>
                                 <p><strong>Date :</strong> ${new Date(check.timestamp).toLocaleString('fr-FR')}</p>
                                 <h4 class="text-md font-semibold mt-2">Points de contrôle :</h4>
                                 <ul class="list-disc pl-6">
                                     ${points.map(p => `
-                                        <li>${p.description} : <span class="${p.status === 'Conforme' ? 'text-green-500' : p.status === 'Non conforme' ? 'text-red-500' : 'text-yellow-400'}">${p.status}</span></li>
+                                        <li>${p.description} : <span class="${p.status === 'Conforme' ? 'text-green-500' : p.status === 'Non conforme' ? 'text-red-500' : p.status === 'Non applicable' ? 'text-yellow-400' : 'text-gray-400'}">${p.status || 'Non défini'}</span></li>
                                     `).join('')}
                                 </ul>
                                 <p><strong>Commentaire global :</strong> ${points[0]?.comment || 'Aucun'}</p>
                                 <p><strong>Photo :</strong> ${check.photo ? `<img src="${check.photo}" alt="Photo contrôle" class="w-32 h-32 object-cover rounded mt-2" />` : 'Aucune'}</p>
                                 <div class="flex space-x-2 mt-2">
-                                    <button class="edit-check bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition" data-check-id="${check.id}">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
+                                    ${check.status === 'En attente' ? `
+                                        <button class="complete-check bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition" data-check-id="${check.id}">
+                                            <i class="fas fa-check"></i> Compléter
+                                        </button>
+                                    ` : `
+                                        <button class="edit-check bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition" data-check-id="${check.id}">
+                                            <i class="fas fa-edit"></i> Modifier
+                                        </button>
+                                    `}
                                     <button class="delete-check bg-red-600 text-white p-2 rounded hover:bg-red-700 transition" data-check-id="${check.id}">
-                                        <i class="fas fa-trash"></i>
+                                        <i class="fas fa-trash"></i> Supprimer
                                     </button>
                                 </div>
                             </div>
@@ -409,11 +435,11 @@
             document.getElementById('modal-content').innerHTML = content;
 
             document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
-            document.querySelectorAll('.edit-check').forEach(btn => {
+            document.querySelectorAll('.complete-check, .edit-check').forEach(btn => {
                 btn.onclick = () => {
                     const checkId = btn.dataset.checkId;
                     const check = breakerChecks.find(c => c.id == checkId);
-                    openChecklistModal(check);
+                    openCompleteChecklistModal(check, tableauId, breakerId, sanitizedId);
                 };
             });
             document.querySelectorAll('.delete-check').forEach(btn => {
@@ -423,22 +449,15 @@
             modal.classList.remove('hidden');
         }
 
-        // Ouvrir le modal pour ajouter/modifier une checklist
-        function openChecklistModal(check = null) {
-            const modal = document.getElementById('modal-checklist');
-            const form = document.getElementById('checklist-form');
-            const title = document.getElementById('checklist-title');
+        // Ouvrir le modal pour créer une checklist
+        function openCreateChecklistModal() {
+            const modal = document.getElementById('modal-create-checklist');
+            const form = document.getElementById('create-checklist-form');
             const pointsContainer = document.getElementById('checklist-points');
-            const commentInput = document.getElementById('checklist-comment');
-            const photoInput = document.getElementById('checklist-photo');
             const addPointBtn = document.getElementById('add-point');
 
-            let points = check ? JSON.parse(check.comment || '[]') : [{ description: '', status: 'Conforme' }];
-            let pointCount = points.length;
-
-            title.innerHTML = `<i class="fas fa-plus-circle mr-2"></i>${check ? 'Modifier' : 'Ajouter'} une Checklist`;
-            commentInput.value = check ? (points[0]?.comment || '') : '';
-            photoInput.value = '';
+            let points = [{ description: '' }];
+            let pointCount = 1;
 
             function renderPoints() {
                 pointsContainer.innerHTML = '';
@@ -449,14 +468,6 @@
                         <div class="flex-1">
                             <label class="block text-sm font-medium">Point ${index + 1}</label>
                             <input type="text" class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" value="${point.description}" placeholder="Ex: Est-ce que le tableau est en bon état" required>
-                        </div>
-                        <div class="w-32">
-                            <label class="block text-sm font-medium">Statut</label>
-                            <select class="point-status mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full">
-                                <option value="Conforme" ${point.status === 'Conforme' ? 'selected' : ''}>Conforme</option>
-                                <option value="Non conforme" ${point.status === 'Non conforme' ? 'selected' : ''}>Non conforme</option>
-                                <option value="Non applicable" ${point.status === 'Non applicable' ? 'selected' : ''}>Non applicable</option>
-                            </select>
                         </div>
                         <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition ${pointCount === 1 ? 'invisible' : ''}">
                             <i class="fas fa-trash"></i>
@@ -478,7 +489,7 @@
 
             addPointBtn.onclick = () => {
                 if (pointCount < 10) {
-                    points.push({ description: '', status: 'Conforme' });
+                    points.push({ description: '' });
                     pointCount++;
                     renderPoints();
                 } else {
@@ -488,12 +499,9 @@
 
             form.onsubmit = async (e) => {
                 e.preventDefault();
-                const comment = commentInput.value;
-                const photo = photoInput.files[0];
-
                 points = Array.from(pointsContainer.children).map(div => ({
                     description: div.querySelector('.point-description').value,
-                    status: div.querySelector('.point-status').value
+                    status: null
                 }));
 
                 if (points.some(p => !p.description)) {
@@ -502,31 +510,23 @@
                 }
 
                 try {
-                    let photoBase64 = null;
-                    if (photo) {
-                        photoBase64 = await toBase64(photo);
-                    }
-
-                    const globalStatus = determineGlobalStatus(points);
-                    const commentJson = JSON.stringify([{ comment, points }]);
-
                     const tableau = tableauxData.find(t => t.id === currentTableauId);
                     if (!tableau) throw new Error('Tableau non trouvé');
 
-                    // Créer une checklist pour chaque disjoncteur
+                    const commentJson = JSON.stringify([{ comment: '', points }]);
+
+                    // Créer une checklist vide pour chaque disjoncteur
                     for (const breaker of tableau.disjoncteurs) {
                         const body = {
                             tableau_id: currentTableauId,
                             disjoncteur_id: breaker.id,
-                            status: globalStatus,
+                            status: 'En attente',
                             comment: commentJson,
-                            photo: photoBase64
+                            photo: null
                         };
 
-                        const method = check ? 'PUT' : 'POST';
-                        const url = check ? `/api/breaker-checklists/${check.id}` : '/api/breaker-checklists';
-                        const response = await fetch(url, {
-                            method,
+                        const response = await fetch('/api/breaker-checklists', {
+                            method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(body)
                         });
@@ -541,7 +541,99 @@
                 }
             };
 
-            document.getElementById('close-checklist-modal').onclick = () => modal.classList.add('hidden');
+            document.getElementById('close-create-checklist-modal').onclick = () => modal.classList.add('hidden');
+            modal.classList.remove('hidden');
+        }
+
+        // Ouvrir le modal pour compléter ou modifier une checklist
+        function openCompleteChecklistModal(check, tableauId, breakerId, sanitizedId) {
+            const modal = document.getElementById('modal-complete-checklist');
+            const form = document.getElementById('complete-checklist-form');
+            const pointsContainer = document.getElementById('complete-checklist-points');
+            const commentInput = document.getElementById('complete-checklist-comment');
+            const photoInput = document.getElementById('complete-checklist-photo');
+
+            currentCheckId = check.id;
+            let points;
+            try {
+                points = JSON.parse(check.comment || '[]');
+            } catch (e) {
+                points = [{ description: check.comment || 'Aucun point défini', status: null }];
+            }
+            commentInput.value = points[0]?.comment || '';
+            photoInput.value = '';
+
+            pointsContainer.innerHTML = '';
+            points.forEach((point, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-center';
+                div.innerHTML = `
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium">Point ${index + 1}</label>
+                        <p class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full">${point.description}</p>
+                    </div>
+                    <div class="w-32">
+                        <label class="block text-sm font-medium">Statut</label>
+                        <select class="point-status mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" required>
+                            <option value="" ${!point.status ? 'selected' : ''}>Sélectionner</option>
+                            <option value="Conforme" ${point.status === 'Conforme' ? 'selected' : ''}>Conforme</option>
+                            <option value="Non conforme" ${point.status === 'Non conforme' ? 'selected' : ''}>Non conforme</option>
+                            <option value="Non applicable" ${point.status === 'Non applicable' ? 'selected' : ''}>Non applicable</option>
+                        </select>
+                    </div>
+                `;
+                pointsContainer.appendChild(div);
+            });
+
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                const comment = commentInput.value;
+                const photo = photoInput.files[0];
+
+                const updatedPoints = Array.from(pointsContainer.children).map(div => ({
+                    description: div.querySelector('p').textContent,
+                    status: div.querySelector('.point-status').value
+                }));
+
+                if (updatedPoints.some(p => !p.status)) {
+                    alert('Tous les points de contrôle doivent avoir un statut.');
+                    return;
+                }
+
+                try {
+                    let photoBase64 = check.photo;
+                    if (photo) {
+                        photoBase64 = await toBase64(photo);
+                    }
+
+                    const globalStatus = determineGlobalStatus(updatedPoints);
+                    const commentJson = JSON.stringify([{ comment, points: updatedPoints }]);
+
+                    const body = {
+                        tableau_id: tableauId,
+                        disjoncteur_id: breakerId,
+                        status: globalStatus,
+                        comment: commentJson,
+                        photo: photoBase64
+                    };
+
+                    const response = await fetch(`/api/breaker-checklists/${currentCheckId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    if (!response.ok) throw new Error(`Erreur lors de la mise à jour du contrôle: ${response.statusText}`);
+
+                    modal.classList.add('hidden');
+                    await loadData();
+                    openBreakerModal(tableauId, breakerId, sanitizedId);
+                } catch (error) {
+                    console.error('[Client] Erreur mise à jour checklist:', error);
+                    alert('Erreur: ' + error.message);
+                }
+            };
+
+            document.getElementById('close-complete-checklist-modal').onclick = () => modal.classList.add('hidden');
             modal.classList.remove('hidden');
         }
 
@@ -572,9 +664,11 @@
         // Initialisation
         window.onload = () => {
             const breakerModal = document.getElementById('modal-breaker');
-            const checklistModal = document.getElementById('modal-checklist');
+            const createChecklistModal = document.getElementById('modal-create-checklist');
+            const completeChecklistModal = document.getElementById('modal-complete-checklist');
             if (breakerModal) breakerModal.classList.add('hidden');
-            if (checklistModal) checklistModal.classList.add('hidden');
+            if (createChecklistModal) createChecklistModal.classList.add('hidden');
+            if (completeChecklistModal) completeChecklistModal.classList.add('hidden');
             loadData();
         };
     </script>
@@ -594,18 +688,19 @@
         .task-bar-red { background-color: #dc2626; }
         .task-bar-orange { background-color: #f4b400; }
         .task-bar-blue { background-color: #3b82f6; }
+        .task-bar-purple { background-color: #9333ea; }
         .task-bar-gray { background-color: #6B7280; }
-        #modal-breaker > div, #modal-checklist > div {
+        #modal-breaker > div, #modal-create-checklist > div, #modal-complete-checklist > div {
             scrollbar-width: thin;
             scrollbar-color: #6B7280 #1F2937;
         }
-        #modal-breaker > div::-webkit-scrollbar, #modal-checklist > div::-webkit-scrollbar {
+        #modal-breaker > div::-webkit-scrollbar, #modal-create-checklist > div::-webkit-scrollbar, #modal-complete-checklist > div::-webkit-scrollbar {
             width: 8px;
         }
-        #modal-breaker > div::-webkit-scrollbar-track, #modal-checklist > div::-webkit-scrollbar-track {
+        #modal-breaker > div::-webkit-scrollbar-track, #modal-create-checklist > div::-webkit-scrollbar-track, #modal-complete-checklist > div::-webkit-scrollbar-track {
             background: #1F2937;
         }
-        #modal-breaker > div::-webkit-scrollbar-thumb, #modal-checklist > div::-webkit-scrollbar-thumb {
+        #modal-breaker > div::-webkit-scrollbar-thumb, #modal-create-checklist > div::-webkit-scrollbar-thumb, #modal-complete-checklist > div::-webkit-scrollbar-thumb {
             background: #6B7280;
             border-radius: 4px;
         }
