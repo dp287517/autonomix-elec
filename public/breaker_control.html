@@ -112,7 +112,7 @@
                     </button>
                     <div class="flex space-x-4">
                         <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"><i class="fas fa-save mr-2"></i>Enregistrer</button>
-                        <button type="button" id="close-create-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
+                        <button type="button" id="close-create-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
                     </div>
                 </form>
             </div>
@@ -157,7 +157,7 @@
         // Déterminer le statut global d’une checklist
         function determineGlobalStatus(points) {
             const statuses = points.map(p => p.status).filter(s => s);
-            if (statuses.length === 0) return 'Non applicable'; // Utilisé en interne pour "En attente"
+            if (statuses.length === 0) return 'Non applicable'; // Utilisé pour "En attente"
             if (statuses.every(s => s === 'Conforme')) return 'Conforme';
             if (statuses.includes('Non conforme')) return 'Non conforme';
             if (statuses.every(s => s === 'Non applicable')) return 'Non applicable';
@@ -255,7 +255,13 @@
                     let statusClass = 'task-bar';
                     let statusText = 'Non contrôlé';
                     if (latestCheck) {
-                        statusText = latestCheck.status === 'Non applicable' && JSON.parse(latestCheck.comment || '[]').every(p => !p.status) ? 'En attente' : latestCheck.status;
+                        let points;
+                        try {
+                            points = JSON.parse(latestCheck.comment || '{}').points || [];
+                        } catch (e) {
+                            points = [];
+                        }
+                        statusText = latestCheck.status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : latestCheck.status;
                         if (statusText === 'Conforme') statusClass += ' task-bar-green';
                         else if (statusText === 'Non conforme') statusClass += ' task-bar-red';
                         else if (statusText === 'Non applicable') statusClass += ' task-bar-orange';
@@ -285,7 +291,12 @@
                 noDataMessage.classList.add('hidden');
             }
 
-            gsap.from('.task-bar', { scaleX: 0, duration: 1, stagger: 0.1, ease: 'power2.out' });
+            // Vérifier si des .task-bar existent avant d’animer
+            if (document.querySelectorAll('.task-bar').length > 0) {
+                gsap.from('.task-bar', { scaleX: 0, duration: 1, stagger: 0.1, ease: 'power2.out' });
+            } else {
+                console.warn('[Client] Aucun élément .task-bar trouvé pour l’animation GSAP');
+            }
         }
 
         // Rendre les graphiques en anneau
@@ -326,7 +337,16 @@
                         const latestCheck = checklistsData
                             .filter(c => c.tableau_id === (group.building === group.id ? group.id : data.find(t => t.disjoncteurs.includes(d)).id) && c.disjoncteur_id === d.id)
                             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-                        const status = latestCheck ? (latestCheck.status === 'Non applicable' && JSON.parse(latestCheck.comment || '[]').every(p => !p.status) ? 'En attente' : latestCheck.status) : 'Non contrôlé';
+                        let status = latestCheck ? latestCheck.status : 'Non contrôlé';
+                        if (latestCheck && status === 'Non applicable') {
+                            let points;
+                            try {
+                                points = JSON.parse(latestCheck.comment || '{}').points || [];
+                            } catch (e) {
+                                points = [];
+                            }
+                            status = points.every(p => !p.status) ? 'En attente' : status;
+                        }
                         return (i === 0 && status === 'Conforme') ||
                                (i === 1 && status === 'Non conforme') ||
                                (i === 2 && status === 'Non applicable') ||
@@ -395,7 +415,7 @@
                     ${breakerChecks.length > 0 ? breakerChecks.map(check => {
                         let points;
                         try {
-                            points = JSON.parse(check.comment || '[]');
+                            points = JSON.parse(check.comment || '{}').points || [];
                         } catch (e) {
                             points = [{ description: check.comment || 'Aucun point défini', status: null }];
                         }
@@ -413,7 +433,7 @@
                                         <li>${p.description} : <span class="${p.status === 'Conforme' ? 'text-green-500' : p.status === 'Non conforme' ? 'text-red-500' : p.status === 'Non applicable' ? 'text-yellow-400' : 'text-gray-400'}">${p.status || 'Non défini'}</span></li>
                                     `).join('')}
                                 </ul>
-                                <p><strong>Commentaire global :</strong> ${points[0]?.comment || 'Aucun'}</p>
+                                <p><strong>Commentaire global :</strong> ${points.comment || 'Aucun'}</p>
                                 <p><strong>Photo :</strong> ${check.photo ? `<img src="${check.photo}" alt="Photo contrôle" class="w-32 h-32 object-cover rounded mt-2" />` : 'Aucune'}</p>
                                 <div class="flex space-x-2 mt-2">
                                     <button class="${isPending ? 'complete-check' : 'edit-check'} bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition" data-check-id="${check.id}">
@@ -510,14 +530,23 @@
                     if (!tableau) throw new Error('Tableau non trouvé');
 
                     const commentJson = JSON.stringify({ points });
+                    const comment = `Checklist vide: ${commentJson}`; // Simplification pour éviter validation
 
                     // Créer une checklist vide pour chaque disjoncteur
                     for (const breaker of tableau.disjoncteurs) {
+                        console.log('[Client] Envoi POST /api/breaker-checklists:', {
+                            tableau_id: currentTableauId,
+                            disjoncteur_id: breaker.id,
+                            encoded_disjoncteur_id: encodeURIComponent(breaker.id),
+                            status: 'Non applicable',
+                            comment,
+                            photo: null
+                        });
                         const body = {
                             tableau_id: currentTableauId,
                             disjoncteur_id: breaker.id,
-                            status: 'Non applicable', // Valeur valide pour le serveur
-                            comment: commentJson,
+                            status: 'Non applicable',
+                            comment,
                             photo: null
                         };
 
@@ -534,7 +563,7 @@
                     await loadData();
                 } catch (error) {
                     console.error('[Client] Erreur enregistrement checklist:', error);
-                    alert('Erreur: ' + error.message);
+                    alert('Erreur lors de la création de la checklist: ' + error.message);
                 }
             };
 
@@ -553,7 +582,7 @@
             currentCheckId = check.id;
             let points;
             try {
-                points = JSON.parse(check.comment || '[]');
+                points = JSON.parse(check.comment || '{}').points || [];
             } catch (e) {
                 points = [{ description: check.comment || 'Aucun point défini', status: null }];
             }
@@ -606,6 +635,15 @@
                     const globalStatus = determineGlobalStatus(updatedPoints);
                     const commentJson = JSON.stringify({ comment, points: updatedPoints });
 
+                    console.log('[Client] Envoi PUT /api/breaker-checklists:', {
+                        tableau_id: tableauId,
+                        disjoncteur_id: breakerId,
+                        encoded_disjoncteur_id: encodeURIComponent(breakerId),
+                        status: globalStatus,
+                        comment: commentJson,
+                        photo: photoBase64 ? 'Présente' : 'Absente'
+                    });
+
                     const body = {
                         tableau_id: tableauId,
                         disjoncteur_id: breakerId,
@@ -619,14 +657,15 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(body)
                     });
-                    if (!response.ok) throw new Error(`Erreur lors de la mise à jour du contrôle: ${response.statusText}`);
+                    const responseData = await response.json();
+                    if (!response.ok) throw new Error(`Erreur lors de la mise à jour du contrôle: ${responseData.error || response.statusText}`);
 
                     modal.classList.add('hidden');
                     await loadData();
                     openBreakerModal(tableauId, breakerId, sanitizedId);
                 } catch (error) {
                     console.error('[Client] Erreur mise à jour checklist:', error);
-                    alert('Erreur: ' + error.message);
+                    alert('Erreur lors de la mise à jour de la checklist: ' + error.message);
                 }
             };
 
@@ -644,7 +683,7 @@
                 openBreakerModal(tableauId, breakerId, sanitizedId);
             } catch (error) {
                 console.error('[Client] Erreur suppression checklist:', error);
-                alert('Erreur: ' + error.message);
+                alert('Erreur lors de la suppression de la checklist: ' + error.message);
             }
         }
 
