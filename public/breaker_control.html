@@ -112,7 +112,7 @@
                     </button>
                     <div class="flex space-x-4">
                         <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"><i class="fas fa-save mr-2"></i>Enregistrer</button>
-                        <button type="button" id="close-create-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
+                        <button type="button" id="close-create-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
                     </div>
                 </form>
             </div>
@@ -257,7 +257,10 @@
                     if (latestCheck) {
                         let points;
                         try {
-                            points = JSON.parse(latestCheck.comment || '{}').points || [];
+                            const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                : latestCheck.comment;
+                            points = JSON.parse(comment).points || [];
                         } catch (e) {
                             points = [];
                         }
@@ -291,7 +294,6 @@
                 noDataMessage.classList.add('hidden');
             }
 
-            // Vérifier si des .task-bar existent avant d’animer
             if (document.querySelectorAll('.task-bar').length > 0) {
                 gsap.from('.task-bar', { scaleX: 0, duration: 1, stagger: 0.1, ease: 'power2.out' });
             } else {
@@ -341,7 +343,10 @@
                         if (latestCheck && status === 'Non applicable') {
                             let points;
                             try {
-                                points = JSON.parse(latestCheck.comment || '{}').points || [];
+                                const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                    ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                    : latestCheck.comment;
+                                points = JSON.parse(comment).points || [];
                             } catch (e) {
                                 points = [];
                             }
@@ -413,11 +418,18 @@
                 <h3 class="text-lg font-semibold mt-4">Historique des contrôles :</h3>
                 <div class="space-y-4">
                     ${breakerChecks.length > 0 ? breakerChecks.map(check => {
-                        let points;
+                        let points = [];
+                        let commentGlobal = '';
                         try {
-                            points = JSON.parse(check.comment || '{}').points || [];
+                            const comment = check.comment.startsWith('Checklist vide: ') 
+                                ? check.comment.replace('Checklist vide: ', '') 
+                                : check.comment;
+                            const parsed = JSON.parse(comment);
+                            points = parsed.points || [];
+                            commentGlobal = parsed.comment || '';
                         } catch (e) {
-                            points = [{ description: check.comment || 'Aucun point défini', status: null }];
+                            console.warn('[Client] Erreur parsing comment:', check.comment);
+                            points = [{ description: 'Erreur de formatage', status: null }];
                         }
                         const isPending = check.status === 'Non applicable' && points.every(p => !p.status);
                         return `
@@ -429,11 +441,11 @@
                                 <p><strong>Date :</strong> ${new Date(check.timestamp).toLocaleString('fr-FR')}</p>
                                 <h4 class="text-md font-semibold mt-2">Points de contrôle :</h4>
                                 <ul class="list-disc pl-6">
-                                    ${points.map(p => `
+                                    ${points.length > 0 ? points.map(p => `
                                         <li>${p.description} : <span class="${p.status === 'Conforme' ? 'text-green-500' : p.status === 'Non conforme' ? 'text-red-500' : p.status === 'Non applicable' ? 'text-yellow-400' : 'text-gray-400'}">${p.status || 'Non défini'}</span></li>
-                                    `).join('')}
+                                    `).join('') : '<li>Aucun point défini</li>'}
                                 </ul>
-                                <p><strong>Commentaire global :</strong> ${points.comment || 'Aucun'}</p>
+                                <p><strong>Commentaire global :</strong> ${commentGlobal || 'Aucun'}</p>
                                 <p><strong>Photo :</strong> ${check.photo ? `<img src="${check.photo}" alt="Photo contrôle" class="w-32 h-32 object-cover rounded mt-2" />` : 'Aucune'}</p>
                                 <div class="flex space-x-2 mt-2">
                                     <button class="${isPending ? 'complete-check' : 'edit-check'} bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition" data-check-id="${check.id}">
@@ -529,8 +541,7 @@
                     const tableau = tableauxData.find(t => t.id === currentTableauId);
                     if (!tableau) throw new Error('Tableau non trouvé');
 
-                    const commentJson = JSON.stringify({ points });
-                    const comment = `Checklist vide: ${commentJson}`; // Simplification pour éviter validation
+                    const comment = JSON.stringify({ points, comment: '' }); // JSON pur sans préfixe
 
                     // Créer une checklist vide pour chaque disjoncteur
                     for (const breaker of tableau.disjoncteurs) {
@@ -580,13 +591,20 @@
             const photoInput = document.getElementById('complete-checklist-photo');
 
             currentCheckId = check.id;
-            let points;
+            let points = [];
+            let commentGlobal = '';
             try {
-                points = JSON.parse(check.comment || '{}').points || [];
+                const comment = check.comment.startsWith('Checklist vide: ') 
+                    ? check.comment.replace('Checklist vide: ', '') 
+                    : check.comment;
+                const parsed = JSON.parse(comment);
+                points = parsed.points || [];
+                commentGlobal = parsed.comment || '';
             } catch (e) {
-                points = [{ description: check.comment || 'Aucun point défini', status: null }];
+                console.warn('[Client] Erreur parsing comment:', check.comment);
+                points = [{ description: 'Erreur de formatage', status: null }];
             }
-            commentInput.value = points.comment || '';
+            commentInput.value = commentGlobal;
             photoInput.value = '';
 
             pointsContainer.innerHTML = '';
