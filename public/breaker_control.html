@@ -1254,10 +1254,10 @@
             pointsContainer.innerHTML = `
                 <p class="mb-2"><strong>Checklist :</strong> ${checklistName}</p>
                 ${points.map((point, index) => `
-                    <div class="flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start">
+                    <div class="point-item flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start">
                         <div class="flex-1">
                             <label class="block text-sm font-medium">Point ${index + 1}</label>
-                            <p class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">${point.description}</p>
+                            <p class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">${point.description}</p>
                         </div>
                         <div class="flex-1">
                             <label class="block text-sm font-medium">Valeur (facultatif)</label>
@@ -1281,8 +1281,8 @@
                 const comment = commentInput.value;
                 const photo = photoInput.files[0];
 
-                const updatedPoints = Array.from(pointsContainer.children).map(div => ({
-                    description: div.querySelector('p').textContent,
+                const updatedPoints = Array.from(pointsContainer.querySelectorAll('.point-item')).map(div => ({
+                    description: div.querySelector('.point-description').textContent,
                     status: div.querySelector('.point-status').value,
                     value: div.querySelector('.point-value').value || null
                 }));
@@ -1309,56 +1309,56 @@
                     const commentJson = JSON.stringify({ name: checklistName, comment, points: updatedPoints });
 
                     console.log('[Client] Envoi PUT /api/breaker-checklists:', {
-                            tableau_id: tableauId,
-                            disjoncteur_id: breakerId,
-                            encoded_disjoncteur_id: encodeURIComponent(breakerId),
-                            status: globalStatus,
-                            comment: commentJson,
-                            photo: photoBase64 ? `Présente (${(photoBase64.length / 1024).toFixed(2)} KB)` : 'Absente'
-                        });
+                        tableau_id: tableauId,
+                        disjoncteur_id: breakerId,
+                        encoded_disjoncteur_id: encodeURIComponent(breakerId),
+                        status: globalStatus,
+                        comment: commentJson,
+                        photo: photoBase64 ? `Présente (${(photoBase64.length / 1024).toFixed(2)} KB)` : 'Absente'
+                    });
 
-                        const body = {
-                            tableau_id: tableauId,
-                            disjoncteur_id: breakerId,
-                            status: globalStatus,
-                            comment: commentJson,
-                            photo: photoBase64
-                        };
+                    const body = {
+                        tableau_id: tableauId,
+                        disjoncteur_id: breakerId,
+                        status: globalStatus,
+                        comment: commentJson,
+                        photo: photoBase64
+                    };
 
-                        const response = await fetch(`/api/breaker-checklists/${currentCheckId}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(body)
-                        });
-                        if (!response.ok) {
-                            let errorData;
-                            try {
-                                errorData = await response.json();
-                            } catch {
-                                errorData = await response.text();
-                            }
-                            throw new Error(`Erreur lors de la mise à jour du contrôle: ${errorData.error || errorData || response.statusText}`);
+                    const response = await fetch(`/api/breaker-checklists/${currentCheckId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    if (!response.ok) {
+                        let errorData;
+                        try {
+                            errorData = await response.json();
+                        } catch {
+                            errorData = await response.text();
                         }
-                        const responseData = await response.json();
-
-                        modal.classList.add('hidden');
-                        await loadData();
-                        openBreakerModal(tableauId, breakerId, sanitizedId);
-                    } catch (error) {
-                        console.error('[Client] Erreur mise à jour checklist:', error);
-                        if (error.message.includes('L’image')) {
-                            alert(error.message);
-                        } else if (error.message.includes('413') || error.message.includes('Payload Too Large')) {
-                            alert('La photo est trop volumineuse même après compression. Veuillez choisir une image plus petite (max 1 Mo).');
-                        } else {
-                            alert('Erreur lors de la mise à jour de la checklist: ' + error.message);
-                        }
+                        throw new Error(`Erreur lors de la mise à jour du contrôle: ${errorData.error || errorData || response.statusText}`);
                     }
-                };
+                    const responseData = await response.json();
 
-                document.getElementById('close-complete-checklist-modal').onclick = () => modal.classList.add('hidden');
-                modal.classList.remove('hidden');
-            }
+                    modal.classList.add('hidden');
+                    await loadData();
+                    openBreakerModal(tableauId, breakerId, sanitizedId);
+                } catch (error) {
+                    console.error('[Client] Erreur mise à jour checklist:', error);
+                    if (error.message.includes('L’image')) {
+                        alert(error.message);
+                    } else if (error.message.includes('413') || error.message.includes('Payload Too Large')) {
+                        alert('La photo est trop volumineuse même après compression. Veuillez choisir une image plus petite (max 1 Mo).');
+                    } else {
+                        alert('Erreur lors de la mise à jour de la checklist: ' + error.message);
+                    }
+                }
+            };
+
+            document.getElementById('close-complete-checklist-modal').onclick = () => modal.classList.add('hidden');
+            modal.classList.remove('hidden');
+        }
 
             // Supprimer une checklist individuelle
             async function deleteChecklist(checkId, tableauId, breakerId, sanitizedId) {
