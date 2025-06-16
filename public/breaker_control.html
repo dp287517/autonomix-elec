@@ -240,6 +240,16 @@
             return 'Non applicable';
         }
 
+        // Vérifier si un commentaire est un JSON valide
+        function isValidJson(comment) {
+            try {
+                JSON.parse(comment);
+                return true;
+            } catch {
+                return false;
+            }
+        }
+
         // Détruire les graphiques existants
         function destroyCharts() {
             Object.values(chartInstances).forEach(chart => {
@@ -461,19 +471,28 @@
                     let statusText = 'Non contrôlé';
                     if (latestCheck) {
                         let points = [];
-                        try {
-                            const comment = latestCheck.comment.startsWith('Checklist vide: ') 
-                                ? latestCheck.comment.replace('Checklist vide: ', '') 
-                                : latestCheck.comment;
-                            points = JSON.parse(comment).points || [];
-                        } catch (e) {
-                            console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
+                        let isValidChecklist = false;
+                        if (isValidJson(latestCheck.comment)) {
+                            try {
+                                const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                    ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                    : latestCheck.comment;
+                                points = JSON.parse(comment).points || [];
+                                isValidChecklist = true;
+                            } catch (e) {
+                                console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
+                            }
                         }
-                        statusText = latestCheck.status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : latestCheck.status;
+                        if (isValidChecklist) {
+                            statusText = latestCheck.status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : latestCheck.status;
+                        } else {
+                            statusText = 'Non contrôlé'; // Traiter les checklists non-JSON comme non valides
+                        }
                         if (statusText === 'Conforme') statusClass += ' task-bar-green';
                         else if (statusText === 'Non conforme') statusClass += ' task-bar-red';
                         else if (statusText === 'Non applicable') statusClass += ' task-bar-orange';
-                        else statusClass += ' task-bar-purple';
+                        else if (statusText === 'En attente') statusClass += ' task-bar-purple';
+                        else statusClass += ' task-bar-gray';
                     } else {
                         statusClass += ' task-bar-gray';
                     }
@@ -548,15 +567,19 @@
                         let status = latestCheck ? latestCheck.status : 'Non contrôlé';
                         if (latestCheck && status === 'Non applicable') {
                             let points = [];
-                            try {
-                                const comment = latestCheck.comment.startsWith('Checklist vide: ') 
-                                    ? latestCheck.comment.replace('Checklist vide: ', '') 
-                                    : latestCheck.comment;
-                                points = JSON.parse(comment).points || [];
-                            } catch (e) {
-                                console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
+                            let isValidChecklist = false;
+                            if (isValidJson(latestCheck.comment)) {
+                                try {
+                                    const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                        ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                        : latestCheck.comment;
+                                    points = JSON.parse(comment).points || [];
+                                    isValidChecklist = true;
+                                } catch (e) {
+                                    console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
+                                }
                             }
-                            status = points.every(p => !p.status) ? 'En attente' : status;
+                            status = isValidChecklist && points.every(p => !p.status) ? 'En attente' : (isValidChecklist ? status : 'Non contrôlé');
                         }
                         return (i === 0 && status === 'Conforme') ||
                                (i === 1 && status === 'Non conforme') ||
@@ -617,15 +640,19 @@
                         let status = latestCheck ? latestCheck.status : 'Non contrôlé';
                         if (latestCheck && status === 'Non applicable') {
                             let points = [];
-                            try {
-                                const comment = latestCheck.comment.startsWith('Checklist vide: ') 
-                                    ? latestCheck.comment.replace('Checklist vide: ', '') 
-                                    : latestCheck.comment;
-                                points = JSON.parse(comment).points || [];
-                            } catch (e) {
-                                console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
+                            let isValidChecklist = false;
+                            if (isValidJson(latestCheck.comment)) {
+                                try {
+                                    const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                        ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                        : latestCheck.comment;
+                                    points = JSON.parse(comment).points || [];
+                                    isValidChecklist = true;
+                                } catch (e) {
+                                    console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
+                                }
                             }
-                            status = points.every(p => !p.status) ? 'En attente' : status;
+                            status = isValidChecklist && points.every(p => !p.status) ? 'En attente' : (isValidChecklist ? status : 'Non contrôlé');
                         }
                         return status === cat;
                     }).length)
@@ -663,15 +690,19 @@
                     let status = c.status;
                     if (status === 'Non applicable') {
                         let points = [];
-                        try {
-                            const comment = c.comment.startsWith('Checklist vide: ') 
-                                ? c.comment.replace('Checklist vide: ', '') 
-                                : c.comment;
-                            points = JSON.parse(comment).points || [];
-                        } catch (e) {
-                            console.warn('[Client] Erreur parsing comment:', c.comment);
+                        let isValidChecklist = false;
+                        if (isValidJson(c.comment)) {
+                            try {
+                                const comment = c.comment.startsWith('Checklist vide: ') 
+                                    ? c.comment.replace('Checklist vide: ', '') 
+                                    : c.comment;
+                                points = JSON.parse(comment).points || [];
+                                isValidChecklist = true;
+                            } catch (e) {
+                                console.warn('[Client] Erreur parsing comment:', c.comment);
+                            }
+                            status = isValidChecklist && points.every(p => !p.status) ? 'En attente' : (isValidChecklist ? status : 'Non contrôlé');
                         }
-                        status = points.every(p => !p.status) ? 'En attente' : status;
                     }
                     return checkDate === date && status === cat;
                 }).length),
@@ -708,15 +739,19 @@
                     let status = latestCheck ? latestCheck.status : 'Non contrôlé';
                     if (latestCheck && status === 'Non applicable') {
                         let points = [];
-                        try {
-                            const comment = latestCheck.comment.startsWith('Checklist vide: ') 
-                                ? latestCheck.comment.replace('Checklist vide: ', '') 
-                                : latestCheck.comment;
-                            points = JSON.parse(comment).points || [];
-                        } catch (e) {
-                            console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
+                        let isValidChecklist = false;
+                        if (isValidJson(latestCheck.comment)) {
+                            try {
+                                const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                    ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                    : latestCheck.comment;
+                                points = JSON.parse(comment).points || [];
+                                isValidChecklist = true;
+                            } catch (e) {
+                                console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
+                            }
+                            status = isValidChecklist && points.every(p => !p.status) ? 'En attente' : (isValidChecklist ? status : 'Non contrôlé');
                         }
-                        status = points.every(p => !p.status) ? 'En attente' : status;
                     }
                     return status === cat ? { x: parseFloat(d.in) || 0, y: Math.random() * 100 } : null;
                 })).filter(d => d),
@@ -772,19 +807,25 @@
                         let points = [];
                         let commentGlobal = '';
                         let checklistName = 'Sans nom';
-                        try {
-                            const comment = check.comment.startsWith('Checklist vide: ') 
-                                ? check.comment.replace('Checklist vide: ', '') 
-                                : check.comment;
-                            const parsed = JSON.parse(comment);
-                            points = parsed.points || [];
-                            commentGlobal = parsed.comment || '';
-                            checklistName = parsed.name || 'Sans nom';
-                        } catch (e) {
-                            console.warn('[Client] Erreur parsing comment:', check.comment);
-                            points = [{ description: 'Erreur de formatage', status: null, value: null }];
+                        let isValidChecklist = false;
+                        if (isValidJson(check.comment)) {
+                            try {
+                                const comment = check.comment.startsWith('Checklist vide: ') 
+                                    ? check.comment.replace('Checklist vide: ', '') 
+                                    : check.comment;
+                                const parsed = JSON.parse(comment);
+                                points = parsed.points || [];
+                                commentGlobal = parsed.comment || '';
+                                checklistName = parsed.name || 'Sans nom';
+                                isValidChecklist = true;
+                            } catch (e) {
+                                console.warn('[Client] Erreur parsing comment:', check.comment);
+                            }
+                        } else {
+                            points = [{ description: 'Contrôle par défaut', status: null, value: null }];
+                            commentGlobal = check.comment;
                         }
-                        const isPending = check.status === 'Non applicable' && points.every(p => !p.status);
+                        const isPending = isValidChecklist && check.status === 'Non applicable' && points.every(p => !p.status);
                         return `
                             <div class="bg-gray-700 p-4 rounded-lg">
                                 <p><strong>Checklist :</strong> ${checklistName}</p>
@@ -959,17 +1000,18 @@
             const tableauxSelect = document.getElementById('tableaux-select');
 
             checklistSelect.innerHTML = '<option value="">Choisir une checklist</option>';
-            // Regrouper les checklists par nom pour éviter les doublons
             const checklistMap = new Map();
             checklistsData.forEach(c => {
-                try {
-                    const parsed = JSON.parse(c.comment.startsWith('Checklist vide: ') ? c.comment.replace('Checklist vide: ', '') : c.comment);
-                    const key = parsed.name || `Checklist ${checklistsData.filter(ch => ch.comment === c.comment).length}`;
-                    if (!checklistMap.has(key)) {
-                        checklistMap.set(key, { comment: c.comment, points: parsed.points || [], name: key });
+                if (isValidJson(c.comment)) {
+                    try {
+                        const parsed = JSON.parse(c.comment.startsWith('Checklist vide: ') ? c.comment.replace('Checklist vide: ', '') : c.comment);
+                        const key = parsed.name || `Checklist ${checklistsData.filter(ch => ch.comment === c.comment).length}`;
+                        if (!checklistMap.has(key)) {
+                            checklistMap.set(key, { comment: c.comment, points: parsed.points || [], name: key });
+                        }
+                    } catch (e) {
+                        console.warn('[Client] Erreur parsing comment:', c.comment);
                     }
-                } catch (e) {
-                    console.warn('[Client] Erreur parsing comment:', c.comment);
                 }
             });
 
@@ -1009,7 +1051,6 @@
 
                         for (const breaker of tableau.disjoncteurs) {
                             if (!breaker.id) continue;
-                            // Vérifier si le disjoncteur a déjà cette checklist
                             const existingCheck = checklistsData.find(c => 
                                 c.tableau_id === tableauId && 
                                 c.disjoncteur_id === breaker.id && 
@@ -1063,17 +1104,18 @@
             const modal = document.getElementById('modal-view-checklists');
             const content = document.getElementById('checklists-content');
 
-            // Regrouper les checklists par nom pour éviter les doublons
             const checklistMap = new Map();
             checklistsData.forEach(c => {
-                try {
-                    const parsed = JSON.parse(c.comment.startsWith('Checklist vide: ') ? c.comment.replace('Checklist vide: ', '') : c.comment);
-                    const key = parsed.name || `Checklist ${checklistsData.filter(ch => ch.comment === c.comment).length}`;
-                    if (!checklistMap.has(key)) {
-                        checklistMap.set(key, { comment: c.comment, points: parsed.points || [], name: key });
+                if (isValidJson(c.comment)) {
+                    try {
+                        const parsed = JSON.parse(c.comment.startsWith('Checklist vide: ') ? c.comment.replace('Checklist vide: ', '') : c.comment);
+                        const key = parsed.name || `Checklist ${checklistsData.filter(ch => ch.comment === c.comment).length}`;
+                        if (!checklistMap.has(key)) {
+                            checklistMap.set(key, { comment: c.comment, points: parsed.points || [], name: key });
+                        }
+                    } catch (e) {
+                        console.warn('[Client] Erreur parsing comment:', c.comment);
                     }
-                } catch (e) {
-                    console.warn('[Client] Erreur parsing comment:', c.comment);
                 }
             });
 
@@ -1247,140 +1289,146 @@
         }
 
         // Ouvrir le modal pour compléter ou modifier une checklist
-        function openCompleteChecklistModal(check, tableauId, breakerId, sanitizedId) {
-            const modal = document.getElementById('modal-complete-checklist');
-            const form = document.getElementById('complete-checklist-form');
-            const pointsContainer = document.getElementById('complete-checklist-points');
-            const commentInput = document.getElementById('complete-checklist-comment');
-            const photoInput = document.getElementById('complete-checklist-photo');
+            function openCompleteChecklistModal(check, tableauId, breakerId, sanitizedId) {
+                const modal = document.getElementById('modal-complete-checklist');
+                const form = document.getElementById('complete-checklist-form');
+                const pointsContainer = document.getElementById('complete-checklist-points');
+                const commentInput = document.getElementById('complete-checklist-comment');
+                const photoInput = document.getElementById('complete-checklist-photo');
 
-            currentCheckId = check.id;
-            let points = [];
-            let commentGlobal = '';
-            let checklistName = 'Sans nom';
-            try {
-                const comment = check.comment.startsWith('Checklist vide: ') 
-                    ? check.comment.replace('Checklist vide: ', '') 
-                    : check.comment;
-                const parsed = JSON.parse(comment);
-                points = parsed.points || [];
-                commentGlobal = parsed.comment || '';
-                checklistName = parsed.name || 'Sans nom';
-            } catch (e) {
-                console.warn('[Client] Erreur parsing comment:', check.comment);
-                points = [{ description: 'Erreur de formatage', status: null, value: null }];
-            }
-            commentInput.value = commentGlobal;
-            photoInput.value = '';
-
-            pointsContainer.innerHTML = `
-                <p class="mb-2"><strong>Checklist :</strong> ${checklistName}</p>
-                ${points.map((point, index) => `
-                    <div class="point-item flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start">
-                        <div class="flex-1">
-                            <label class="block text-sm font-medium">Point ${index + 1}</label>
-                            <p class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">${point.description}</p>
-                        </div>
-                        <div class="flex-1">
-                            <label class="block text-sm font-medium">Valeur (facultatif)</label>
-                            <input type="text" class="point-value mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.value || ''}" placeholder="Ex: 0.02 Ohm">
-                        </div>
-                        <div class="col-span-2">
-                            <label class="block text-sm font-medium">Statut</label>
-                            <select class="point-status mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
-                                <option value="" ${!point.status ? 'selected' : ''}>Sélectionner</option>
-                                <option value="Conforme" ${point.status === 'Conforme' ? 'selected' : ''}>Conforme</option>
-                                <option value="Non conforme" ${point.status === 'Non conforme' ? 'selected' : ''}>Non conforme</option>
-                                <option value="Non applicable" ${point.status === 'Non applicable' ? 'selected' : ''}>Non applicable</option>
-                            </select>
-                        </div>
-                    </div>
-                `).join('')}
-            `;
-
-            form.onsubmit = async (e) => {
-                e.preventDefault();
-                const comment = commentInput.value;
-                const photo = photoInput.files[0];
-
-                const updatedPoints = Array.from(pointsContainer.querySelectorAll('.point-item')).map(div => ({
-                    description: div.querySelector('.point-description').textContent,
-                    status: div.querySelector('.point-status').value,
-                    value: div.querySelector('.point-value').value || null
-                }));
-
-                if (updatedPoints.some(p => !p.status)) {
-                    alert('Tous les points de contrôle doivent avoir un statut.');
-                    return;
+                currentCheckId = check.id;
+                let points = [];
+                let commentGlobal = '';
+                let checklistName = 'Sans nom';
+                let isValidChecklist = false;
+                if (isValidJson(check.comment)) {
+                    try {
+                        const comment = check.comment.startsWith('Checklist vide: ') 
+                            ? check.comment.replace('Checklist vide: ', '') 
+                            : check.comment;
+                        const parsed = JSON.parse(comment);
+                        points = parsed.points || [];
+                        commentGlobal = parsed.comment || '';
+                        checklistName = parsed.name || 'Sans nom';
+                        isValidChecklist = true;
+                    } catch (e) {
+                        console.warn('[Client] Erreur parsing comment:', check.comment);
+                    }
+                } else {
+                    points = [{ description: 'Contrôle par défaut', status: null, value: null }];
+                    commentGlobal = check.comment;
                 }
+                commentInput.value = commentGlobal;
+                photoInput.value = '';
 
-                try {
-                    let photoBase64 = check.photo;
-                    if (photo) {
-                        try {
-                            photoBase64 = await toBase64(photo);
-                            console.log('[Client] Photo compressée et convertie en Base64, taille:', (photoBase64.length / 1024).toFixed(2), 'KB');
-                        } catch (error) {
-                            console.error('[Client] Erreur compression photo:', error);
+                pointsContainer.innerHTML = `
+                    <p class="mb-2"><strong>Checklist :</strong> ${checklistName}</p>
+                    ${points.map((point, index) => `
+                        <div class="point-item flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start">
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium">Point ${index + 1}</label>
+                                <p class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">${point.description}</p>
+                            </div>
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium">Valeur (facultatif)</label>
+                                <input type="text" class="point-value mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.value || ''}" placeholder="Ex: 0.02 Ohm">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-sm font-medium">Statut</label>
+                                <select class="point-status mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
+                                    <option value="" ${!point.status ? 'selected' : ''}>Sélectionner</option>
+                                    <option value="Conforme" ${point.status === 'Conforme' ? 'selected' : ''}>Conforme</option>
+                                    <option value="Non conforme" ${point.status === 'Non conforme' ? 'selected' : ''}>Non conforme</option>
+                                    <option value="Non applicable" ${point.status === 'Non applicable' ? 'selected' : ''}>Non applicable</option>
+                                </select>
+                            </div>
+                        </div>
+                    `).join('')}
+                `;
+
+                form.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const comment = commentInput.value;
+                    const photo = photoInput.files[0];
+
+                    const updatedPoints = Array.from(pointsContainer.querySelectorAll('.point-item')).map(div => ({
+                        description: div.querySelector('.point-description').textContent,
+                        status: div.querySelector('.point-status').value,
+                        value: div.querySelector('.point-value').value || null
+                    }));
+
+                    if (updatedPoints.some(p => !p.status)) {
+                        alert('Tous les points de contrôle doivent avoir un statut.');
+                        return;
+                    }
+
+                    try {
+                        let photoBase64 = check.photo;
+                        if (photo) {
+                            try {
+                                photoBase64 = await toBase64(photo);
+                                console.log('[Client] Photo compressée et convertie en Base64, taille:', (photoBase64.length / 1024).toFixed(2), 'KB');
+                            } catch (error) {
+                                console.error('[Client] Erreur compression photo:', error);
+                                alert(error.message);
+                                return;
+                            }
+                        }
+
+                        const globalStatus = determineGlobalStatus(updatedPoints);
+                        const commentJson = JSON.stringify({ name: checklistName, comment, points: updatedPoints });
+
+                        console.log('[Client] Envoi PUT /api/breaker-checklists:', {
+                            tableau_id: tableauId,
+                            disjoncteur_id: breakerId,
+                            encoded_disjoncteur_id: encodeURIComponent(breakerId),
+                            status: globalStatus,
+                            comment: commentJson,
+                            photo: photoBase64 ? `Présente (${(photoBase64.length / 1024).toFixed(2)} KB)` : 'Absente'
+                        });
+
+                        const body = {
+                            tableau_id: tableauId,
+                            disjoncteur_id: breakerId,
+                            status: globalStatus,
+                            comment: commentJson,
+                            photo: photoBase64
+                        };
+
+                        const response = await fetch(`/api/breaker-checklists/${currentCheckId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body)
+                        });
+                        if (!response.ok) {
+                            let errorData;
+                            try {
+                                errorData = await response.json();
+                            } catch {
+                                errorData = await response.text();
+                            }
+                            throw new Error(`Erreur lors de la mise à jour du contrôle: ${errorData.error || errorData || response.statusText}`);
+                        }
+                        const responseData = await response.json();
+
+                        modal.classList.add('hidden');
+                        await loadData();
+                        openBreakerModal(tableauId, breakerId, sanitizedId);
+                    } catch (error) {
+                        console.error('[Client] Erreur mise à jour checklist:', error);
+                        if (error.message.includes('L’image')) {
                             alert(error.message);
-                            return;
+                        } else if (error.message.includes('413') || error.message.includes('Payload Too Large')) {
+                            alert('La photo est trop volumineuse même après compression. Veuillez choisir une image plus petite (max 1 Mo).');
+                        } else {
+                            alert('Erreur lors de la mise à jour de la checklist: ' + error.message);
                         }
                     }
+                };
 
-                    const globalStatus = determineGlobalStatus(updatedPoints);
-                    const commentJson = JSON.stringify({ name: checklistName, comment, points: updatedPoints });
-
-                    console.log('[Client] Envoi PUT /api/breaker-checklists:', {
-                        tableau_id: tableauId,
-                        disjoncteur_id: breakerId,
-                        encoded_disjoncteur_id: encodeURIComponent(breakerId),
-                        status: globalStatus,
-                        comment: commentJson,
-                        photo: photoBase64 ? `Présente (${(photoBase64.length / 1024).toFixed(2)} KB)` : 'Absente'
-                    });
-
-                    const body = {
-                        tableau_id: tableauId,
-                        disjoncteur_id: breakerId,
-                        status: globalStatus,
-                        comment: commentJson,
-                        photo: photoBase64
-                    };
-
-                    const response = await fetch(`/api/breaker-checklists/${currentCheckId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                    });
-                    if (!response.ok) {
-                        let errorData;
-                        try {
-                            errorData = await response.json();
-                        } catch {
-                            errorData = await response.text();
-                        }
-                        throw new Error(`Erreur lors de la mise à jour du contrôle: ${errorData.error || errorData || response.statusText}`);
-                    }
-                    const responseData = await response.json();
-
-                    modal.classList.add('hidden');
-                    await loadData();
-                    openBreakerModal(tableauId, breakerId, sanitizedId);
-                } catch (error) {
-                    console.error('[Client] Erreur mise à jour checklist:', error);
-                    if (error.message.includes('L’image')) {
-                        alert(error.message);
-                    } else if (error.message.includes('413') || error.message.includes('Payload Too Large')) {
-                        alert('La photo est trop volumineuse même après compression. Veuillez choisir une image plus petite (max 1 Mo).');
-                    } else {
-                        alert('Erreur lors de la mise à jour de la checklist: ' + error.message);
-                    }
-                }
-            };
-
-            document.getElementById('close-complete-checklist-modal').onclick = () => modal.classList.add('hidden');
-            modal.classList.remove('hidden');
-        }
+                document.getElementById('close-complete-checklist-modal').onclick = () => modal.classList.add('hidden');
+                modal.classList.remove('hidden');
+            }
 
             // Supprimer une checklist individuelle
             async function deleteChecklist(checkId, tableauId, breakerId, sanitizedId) {
