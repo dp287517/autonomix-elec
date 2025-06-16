@@ -58,6 +58,7 @@
                 <li>Utilisez "Appliquer une checklist" pour appliquer une checklist existante à d’autres tableaux.</li>
                 <li>Cliquez sur un disjoncteur dans le Gantt pour voir ses checklists et compléter une checklist en attente.</li>
                 <li>Les graphiques en anneau montrent la répartition des statuts par bâtiment et tableau.</li>
+                <li>Les nouveaux graphiques montrent le nombre de disjoncteurs par statut, l'évolution des contrôles dans le temps, et la répartition selon le courant nominal.</li>
             </ul>
         </div>
 
@@ -92,6 +93,25 @@
         <div class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg animate-slide-up">
             <h2 class="text-lg sm:text-xl font-semibold mb-2 flex items-center"><i class="fas fa-chart-pie mr-2"></i>Répartition des Statuts</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="doughnut-container"></div>
+        </div>
+
+        <!-- Nouveaux graphiques -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-lg sm:text-xl font-semibold mb-2 flex items-center"><i class="fas fa-chart-bar mr-2"></i>Analyses Avancées</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="advanced-charts-container">
+                <div class="bg-gray-700 p-4 rounded-lg shadow">
+                    <h3 class="text-base sm:text-lg font-semibold mb-2"><i class="fas fa-chart-bar mr-2"></i>Disjoncteurs par Statut et Bâtiment</h3>
+                    <canvas id="bar-chart"></canvas>
+                </div>
+                <div class="bg-gray-700 p-4 rounded-lg shadow">
+                    <h3 class="text-base sm:text-lg font-semibold mb-2"><i class="fas fa-chart-line mr-2"></i>Évolution des Contrôles</h3>
+                    <canvas id="line-chart"></canvas>
+                </div>
+                <div class="bg-gray-700 p-4 rounded-lg shadow">
+                    <h3 class="text-base sm:text-lg font-semibold mb-2"><i class="fas fa-chart-scatter mr-2"></i>Répartition par Courant Nominal</h3>
+                    <canvas id="scatter-chart"></canvas>
+                </div>
+            </div>
         </div>
 
         <!-- Modal pour voir l’historique des checklists -->
@@ -204,10 +224,7 @@
         async function loadData() {
             try {
                 const tableauxResponse = await fetch('/api/tableaux');
-                if (!tableauxResponse.ok) throw new Error(`Erreur lors du chargement des tableaux: ${tableauxResponse.statusText}
-    renderControlledBreakersBarChart();
-    renderConformityRateChart();
-    renderWeeklyChecklistChart();`);
+                if (!tableauxResponse.ok) throw new Error(`Erreur lors du chargement des tableaux: ${tableauxResponse.statusText}`);
                 tableauxData = await tableauxResponse.json();
                 console.log('[Client] Tableaux chargés:', tableauxData.length);
 
@@ -219,6 +236,7 @@
                 populateFilters();
                 renderGanttChart();
                 renderDoughnuts();
+                renderAdvancedCharts();
             } catch (error) {
                 console.error('[Client] Erreur chargement:', error);
                 alert('Erreur lors du chargement des données: ' + error.message);
@@ -277,6 +295,7 @@
             );
             renderGanttChart(filteredData);
             renderDoughnuts(filteredData);
+            renderAdvancedCharts(filteredData);
             toggleAddChecklistButton();
         }
 
@@ -449,147 +468,148 @@
             });
         }
 
-        function renderControlledBreakersBarChart(data = tableauxData) {
-            const ctx = document.getElementById('bar-controlled-breakers').getContext('2d');
+        // Rendre les nouveaux graphiques
+        function renderAdvancedCharts(data = tableauxData) {
+            const categories = ['Conforme', 'Non conforme', 'Non applicable', 'En attente', 'Non contrôlé'];
+            const colors = ['#22c55e', '#dc2626', '#f4b400', '#9333ea', '#6B7280'];
+
+            // Graphique à barres
+            const barCanvas = document.getElementById('bar-chart');
             const buildings = [...new Set(data.map(t => t.id.split('-')[0] || 'Inconnu'))];
-            const result = buildings.map(building => {
-                const tableaux = data.filter(t => t.id.split('-')[0] === building);
-                let count = 0;
-                tableaux.forEach(t => {
-                    t.disjoncteurs.forEach(d => {
-                        const last = checklistsData.filter(c => c.tableau_id === t.id && c.disjoncteur_id === d.id).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-                        if (last && last.status !== 'Non contrôlé') count++;
-                    });
-                });
-                return { building, count };
+            const barData = buildings.map(building => {
+                const disjoncteurs = data.filter(t => t.id.split('-')[0] === building).flatMap(t => t.disjoncteurs);
+                return {
+                    label: building,
+                    data: categories.map(cat => disjoncteurs.filter(d => {
+                        const latestCheck = checklistsData
+                            .filter(c => c.tableau_id === data.find(t => t.disjoncteurs.includes(d)).id && c.disjoncteur_id === d.id)
+                            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                        let status = latestCheck ? latestCheck.status : 'Non contrôlé';
+                        if (latestCheck && status === 'Non applicable') {
+                            let points;
+                            try {
+                                const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                    ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                    : latestCheck.comment;
+                                points = JSON.parse(comment).points || [];
+                            } catch (e) {
+                                points = [];
+                            }
+                            status = points.every(p => !p.status) ? 'En attente' : status;
+                        }
+                        return status === cat;
+                    }).length)
+                };
             });
 
-            new Chart(ctx, {
+            new Chart(barCanvas, {
                 type: 'bar',
                 data: {
-                    labels: result.map(r => r.building),
-                    datasets: [{
-                        label: 'Disjoncteurs contrôlés',
-                        data: result.map(r => r.count),
-                        backgroundColor: '#3b82f6'
-                    }]
+                    labels: categories,
+                    datasets: barData.map((d, i) => ({
+                        label: d.label,
+                        data: d.data,
+                        backgroundColor: colors[i % colors.length],
+                        borderColor: colors[i % colors.length],
+                        borderWidth: 1
+                    }))
                 },
                 options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: ctx => `${ctx.raw} disjoncteurs contrôlés`
-                            }
-                        }
-                    },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { color: 'white' }
-                        },
-                        x: {
-                            ticks: { color: 'white' }
-                        }
-                    }
+                        y: { beginAtZero: true, title: { display: true, text: 'Nombre de disjoncteurs' } },
+                        x: { title: { display: true, text: 'Statut' } }
+                    },
+                    plugins: { legend: { position: 'top' } },
+                    animation: { duration: 1500, easing: 'easeOutBounce' }
                 }
             });
-            gsap.from('#bar-controlled-breakers', { opacity: 0, y: 20, duration: 1 });
-        }
 
-        function renderConformityRateChart(data = tableauxData) {
-            const ctx = document.getElementById('bar-conformity-rate').getContext('2d');
-            const buildings = [...new Set(data.map(t => t.id.split('-')[0] || 'Inconnu'))];
-            const result = buildings.map(building => {
-                const tableaux = data.filter(t => t.id.split('-')[0] === building);
-                let total = 0, conformes = 0;
-                tableaux.forEach(t => {
-                    t.disjoncteurs.forEach(d => {
-                        const last = checklistsData.filter(c => c.tableau_id === t.id && c.disjoncteur_id === d.id).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-                        if (last) {
-                            total++;
-                            if (last.status === 'Conforme') conformes++;
+            // Graphique linéaire
+            const lineCanvas = document.getElementById('line-chart');
+            const dates = [...new Set(checklistsData.map(c => new Date(c.timestamp).toLocaleDateString('fr-FR')))].sort();
+            const lineData = categories.map((cat, i) => ({
+                label: cat,
+                data: dates.map(date => checklistsData.filter(c => {
+                    const checkDate = new Date(c.timestamp).toLocaleDateString('fr-FR');
+                    let status = c.status;
+                    if (status === 'Non applicable') {
+                        let points;
+                        try {
+                            const comment = c.comment.startsWith('Checklist vide: ') 
+                                ? c.comment.replace('Checklist vide: ', '') 
+                                : c.comment;
+                            points = JSON.parse(comment).points || [];
+                        } catch (e) {
+                            points = [];
                         }
-                    });
-                });
-                return { building, rate: total ? (conformes / total) * 100 : 0 };
-            });
-
-            new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: result.map(r => r.building),
-                    datasets: [{
-                        label: '% Conforme',
-                        data: result.map(r => r.rate.toFixed(1)),
-                        backgroundColor: '#22c55e'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        tooltip: {
-                            callbacks: {
-                                label: ctx => `${ctx.raw}% de conformité`
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100,
-                            ticks: { color: 'white' }
-                        },
-                        x: {
-                            ticks: { color: 'white' }
-                        }
+                        status = points.every(p => !p.status) ? 'En attente' : status;
                     }
-                }
-            });
-            gsap.from('#bar-conformity-rate', { opacity: 0, y: 20, duration: 1 });
-        }
+                    return checkDate === date && status === cat;
+                }).length),
+                borderColor: colors[i],
+                backgroundColor: colors[i],
+                fill: false,
+                tension: 0.4
+            }));
 
-        function renderWeeklyChecklistChart() {
-            const ctx = document.getElementById('line-weekly-checklists').getContext('2d');
-            const weeks = {};
-            checklistsData.forEach(c => {
-                const d = new Date(c.timestamp);
-                const key = `${d.getFullYear()}-W${Math.ceil((((d - new Date(d.getFullYear(),0,1)) / 86400000) + new Date(d.getFullYear(),0,1).getDay()+1) / 7)}`;
-                weeks[key] = (weeks[key] || 0) + 1;
-            });
-            const sortedKeys = Object.keys(weeks).sort();
-            new Chart(ctx, {
+            new Chart(lineCanvas, {
                 type: 'line',
                 data: {
-                    labels: sortedKeys,
-                    datasets: [{
-                        label: 'Checklists complétées',
-                        data: sortedKeys.map(k => weeks[k]),
-                        fill: false,
-                        tension: 0.1,
-                        borderColor: '#f4b400'
-                    }]
+                    labels: dates,
+                    datasets: lineData
                 },
                 options: {
-                    responsive: true,
                     scales: {
-                        y: { beginAtZero: true, ticks: { color: 'white' } },
-                        x: { ticks: { color: 'white' } }
+                        y: { beginAtZero: true, title: { display: true, text: 'Nombre de contrôles' } },
+                        x: { title: { display: true, text: 'Date' } }
                     },
-                    plugins: {
-                        legend: { labels: { color: 'white' } }
-                    }
+                    plugins: { legend: { position: 'top' } },
+                    animation: { duration: 1500, easing: 'easeOutBounce' }
                 }
             });
-            gsap.from('#line-weekly-checklists', { opacity: 0, y: 20, duration: 1 });
-        }
 
-        // Ajouter à la fin de loadData et filterData
-        // Après renderDoughnuts()
-        renderControlledBreakersBarChart();
-        renderConformityRateChart();
-        renderWeeklyChecklistChart();
+            // Graphique en nuage de points
+            const scatterCanvas = document.getElementById('scatter-chart');
+            const scatterData = categories.map((cat, i) => ({
+                label: cat,
+                data: data.flatMap(t => t.disjoncteurs.map(d => {
+                    const latestCheck = checklistsData
+                        .filter(c => c.tableau_id === t.id && c.disjoncteur_id === d.id)
+                        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                    let status = latestCheck ? latestCheck.status : 'Non contrôlé';
+                    if (latestCheck && status === 'Non applicable') {
+                        let points;
+                        try {
+                            const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                : latestCheck.comment;
+                            points = JSON.parse(comment).points || [];
+                        } catch (e) {
+                            points = [];
+                        }
+                        status = points.every(p => !p.status) ? 'En attente' : status;
+                    }
+                    return status === cat ? { x: parseFloat(d.in) || 0, y: Math.random() * 100 } : null;
+                })).filter(d => d),
+                backgroundColor: colors[i],
+                pointRadius: 5
+            }));
+
+            new Chart(scatterCanvas, {
+                type: 'scatter',
+                data: { datasets: scatterData },
+                options: {
+                    scales: {
+                        x: { title: { display: true, text: 'Courant nominal (A)' }, beginAtZero: true },
+                        y: { title: { display: true, text: 'Valeur aléatoire' }, beginAtZero: true, max: 100 }
+                    },
+                    plugins: { legend: { position: 'top' } },
+                    animation: { duration: 1500, easing: 'easeOutBounce' }
+                }
+            });
+
+            gsap.from('#advanced-charts-container > div', { opacity: 0, y: 20, duration: 1, stagger: 0.2 });
+        }
 
         // Ouvrir le modal pour voir l’historique des checklists
         function openBreakerModal(tableauId, breakerId, sanitizedId) {
