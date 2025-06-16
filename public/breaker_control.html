@@ -57,7 +57,7 @@
                 <li>Utilisez "Créer une checklist" pour définir jusqu’à 10 points de contrôle, appliqués à tous les disjoncteurs du tableau.</li>
                 <li>Utilisez "Appliquer une checklist" pour appliquer une checklist existante à d’autres tableaux.</li>
                 <li>Cliquez sur un disjoncteur dans le Gantt pour voir ses checklists et compléter une checklist en attente.</li>
-                <li>Les graphiques en anneau montrent la répartition des statuts par bâtiment et tableau.</li>
+                <li>Les graphiques montrent la répartition des statuts par bâtiment, tableau, type de disjoncteur, courant nominal, et évolution temporelle.</li>
             </ul>
         </div>
 
@@ -92,6 +92,12 @@
         <div class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg animate-slide-up">
             <h2 class="text-lg sm:text-xl font-semibold mb-2 flex items-center"><i class="fas fa-chart-pie mr-2"></i>Répartition des Statuts</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="doughnut-container"></div>
+        </div>
+
+        <!-- Analyse Avancée -->
+        <div class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-lg sm:text-xl font-semibold mb-2 flex items-center"><i class="fas fa-chart-bar mr-2"></i>Analyse Avancée</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="advanced-charts-container"></div>
         </div>
 
         <!-- Modal pour voir l’historique des checklists -->
@@ -183,8 +189,7 @@
     <script>
         let tableauxData = [];
         let checklistsData = [];
-        let currentTableauId = '';
-        let currentCheckId = null;
+        let currentTableauId = null;
 
         // Fonction pour encoder les ID en slug sécurisé
         function sanitizeId(id) {
@@ -216,6 +221,7 @@
                 populateFilters();
                 renderGanttChart();
                 renderDoughnuts();
+                renderAdvancedCharts();
             } catch (error) {
                 console.error('[Client] Erreur chargement:', error);
                 alert('Erreur lors du chargement des données: ' + error.message);
@@ -274,6 +280,7 @@
             );
             renderGanttChart(filteredData);
             renderDoughnuts(filteredData);
+            renderAdvancedCharts(filteredData);
             toggleAddChecklistButton();
         }
 
@@ -444,6 +451,283 @@
 
                 gsap.from(`#doughnut-${index}`, { opacity: 0, y: 20, duration: 1, delay: index * 0.2 });
             });
+        }
+
+        // Rendre les graphiques avancés
+        function renderAdvancedCharts(data = tableauxData) {
+            const container = document.getElementById('advanced-charts-container');
+            container.innerHTML = '';
+
+            const categories = ['Conforme', 'Non conforme', 'Non applicable', 'En attente', 'Non contrôlé'];
+            const colors = ['#22c55e', '#dc2626', '#f4b400', '#9333ea', '#6B7280'];
+
+            // Graphique par tableau (barres)
+            {
+                const div = document.createElement('div');
+                div.className = 'bg-gray-700 p-4 rounded-lg shadow';
+                const canvas = document.createElement('canvas');
+                canvas.id = `bar-tableau`;
+                div.appendChild(canvas);
+                const title = document.createElement('h3');
+                title.className = 'text-base sm:text-lg font-semibold mb-2';
+                title.innerHTML = `<i class="fas fa-table mr-2"></i>Statuts par Tableau`;
+                div.insertBefore(title, canvas);
+                container.appendChild(div);
+
+                const filteredTableaux = currentTableauId ? data.filter(t => t.id === currentTableauId) : data;
+                const datasets = categories.map((cat, i) => ({
+                    label: cat,
+                    data: filteredTableaux.map(tableau => {
+                        return tableau.disjoncteurs.filter(d => {
+                            const latestCheck = checklistsData
+                                .filter(c => c.tableau_id === tableau.id && c.disjoncteur_id === d.id)
+                                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                            let status = latestCheck ? latestCheck.status : 'Non contrôlé';
+                            if (latestCheck && status === 'Non applicable') {
+                                let points;
+                                try {
+                                    const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                        ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                        : latestCheck.comment;
+                                    points = JSON.parse(comment).points || [];
+                                } catch (e) {
+                                    points = [];
+                                }
+                                status = points.every(p => !p.status) ? 'En attente' : status;
+                            }
+                            return status === cat;
+                        }).length;
+                    }),
+                    backgroundColor: colors[i]
+                }));
+
+                ```chartjs
+                {
+                    type: 'bar',
+                    data: {
+                        labels: filteredTableaux.map(t => t.id),
+                        datasets: datasets
+                    },
+                    options: {
+                        scales: {
+                            x: { stacked: true },
+                            y: { stacked: true, beginAtZero: true }
+                        },
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                }
+                ```
+
+                gsap.from(`#bar-tableau`, { opacity: 0, y: 20, duration: 1, delay: 0.2 });
+            }
+
+            // Graphique par type de disjoncteur (anneau)
+            {
+                const div = document.createElement('div');
+                div.className = 'bg-gray-700 p-4 rounded-lg shadow';
+                const canvas = document.createElement('canvas');
+                canvas.id = `doughnut-type`;
+                div.appendChild(canvas);
+                const title = document.createElement('h3');
+                title.className = 'text-base sm:text-lg font-semibold mb-2';
+                title.innerHTML = `<i class="fas fa-cogs mr-2"></i>Statuts par Type de Disjoncteur`;
+                div.insertBefore(title, canvas);
+                container.appendChild(div);
+
+                const types = [...new Set(data.flatMap(t => t.disjoncteurs.map(d => `${d.marque || 'Inconnu'} ${d.ref || 'Inconnu'}`)))];
+                const counts = categories.reduce((acc, cat, i) => {
+                    acc[cat] = types.map(type => {
+                        return data.flatMap(t => t.disjoncteurs).filter(d => {
+                            if (`${d.marque || 'Inconnu'} ${d.ref || 'Inconnu'}` !== type) return false;
+                            const latestCheck = checklistsData
+                                .filter(c => c.tableau_id === t.id && c.disjoncteur_id === d.id)
+                                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                            let status = latestCheck ? latestCheck.status : 'Non contrôlé';
+                            if (latestCheck && status === 'Non applicable') {
+                                let points;
+                                try {
+                                    const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                        ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                        : latestCheck.comment;
+                                    points = JSON.parse(comment).points || [];
+                                } catch (e) {
+                                    points = [];
+                                }
+                                status = points.every(p => !p.status) ? 'En attente' : status;
+                            }
+                            return status === cat;
+                        }).length;
+                    }).reduce((sum, val) => sum + val, 0);
+                    return acc;
+                }, {});
+
+                ```chartjs
+                {
+                    type: 'doughnut',
+                    data: {
+                        labels: categories,
+                        datasets: [{
+                            data: categories.map(c => counts[c]),
+                            backgroundColor: colors
+                        }]
+                    },
+                    options: {
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                }
+                ```
+
+                gsap.from(`#doughnut-type`, { opacity: 0, y: 20, duration: 1, delay: 0.4 });
+            }
+
+            // Graphique par courant nominal (barres)
+            {
+                const div = document.createElement('div');
+                div.className = 'bg-gray-700 p-4 rounded-lg shadow';
+                const canvas = document.createElement('canvas');
+                canvas.id = `bar-current`;
+                div.appendChild(canvas);
+                const title = document.createElement('h3');
+                title.className = 'text-base sm:text-lg font-semibold mb-2';
+                title.innerHTML = `<i class="fas fa-bolt mr-2"></i>Statuts par Courant Nominal`;
+                div.insertBefore(title, canvas);
+                container.appendChild(div);
+
+                const currentRanges = ['<100A', '100-500A', '>500A'];
+                const datasets = categories.map((cat, i) => ({
+                    label: cat,
+                    data: currentRanges.map(range => {
+                        return data.flatMap(t => t.disjoncteurs).filter(d => {
+                            const inValue = parseFloat(d.in?.match(/[\d.]+/)?.[0]) || 0;
+                            const inRange = range === '<100A' ? inValue < 100 :
+                                            range === '100-500A' ? inValue >= 100 && inValue <= 500 :
+                                            inValue > 500;
+                            if (!inRange) return false;
+                            const latestCheck = checklistsData
+                                .filter(c => c.tableau_id === t.id && c.disjoncteur_id === d.id)
+                                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                            let status = latestCheck ? latestCheck.status : 'Non contrôlé';
+                            if (latestCheck && status === 'Non applicable') {
+                                let points;
+                                try {
+                                    const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                        ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                        : latestCheck.comment;
+                                    points = JSON.parse(comment).points || [];
+                                } catch (e) {
+                                    points = [];
+                                }
+                                status = points.every(p => !p.status) ? 'En attente' : status;
+                            }
+                            return status === cat;
+                        }).length;
+                    }),
+                    backgroundColor: colors[i]
+                }));
+
+                ```chartjs
+                {
+                    type: 'bar',
+                    data: {
+                        labels: currentRanges,
+                        datasets: datasets
+                    },
+                    options: {
+                        scales: {
+                            x: { stacked: true },
+                            y: { stacked: true, beginAtZero: true }
+                        },
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                }
+                ```
+
+                gsap.from(`#bar-current`, { opacity: 0, y: 20, duration: 1, delay: 0.6 });
+            }
+
+            // Graphique temporel (ligne)
+            {
+                const div = document.createElement('div');
+                div.className = 'bg-gray-700 p-4 rounded-lg shadow';
+                const canvas = document.createElement('canvas');
+                canvas.id = `line-temporal`;
+                div.appendChild(canvas);
+                const title = document.createElement('h3');
+                title.className = 'text-base sm:text-lg font-semibold mb-2';
+                title.innerHTML = `<i class="fas fa-chart-line mr-2"></i>Évolution des Statuts (12 mois)`;
+                div.insertBefore(title, canvas);
+                container.appendChild(div);
+
+                const now = new Date();
+                const months = Array.from({ length: 12 }, (_, i) => {
+                    const date = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+                    return date.toLocaleString('fr-FR', { month: 'short', year: 'numeric' });
+                });
+
+                const datasets = categories.map((cat, i) => ({
+                    label: cat,
+                    data: months.map((_, monthIndex) => {
+                        const startDate = new Date(now.getFullYear(), now.getMonth() - 11 + monthIndex, 1);
+                        const endDate = new Date(now.getFullYear(), now.getMonth() - 11 + monthIndex + 1, 0);
+                        return data.flatMap(t => t.disjoncteurs).filter(d => {
+                            const latestCheck = checklistsData
+                                .filter(c => c.tableau_id === t.id && c.disjoncteur_id === d.id && new Date(c.timestamp) >= startDate && new Date(c.timestamp) <= endDate)
+                                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                            let status = latestCheck ? latestCheck.status : 'Non contrôlé';
+                            if (latestCheck && status === 'Non applicable') {
+                                let points;
+                                try {
+                                    const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                        ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                        : latestCheck.comment;
+                                    points = JSON.parse(comment).points || [];
+                                } catch (e) {
+                                    points = [];
+                                }
+                                status = points.every(p => !p.status) ? 'En attente' : status;
+                            }
+                            return status === cat;
+                        }).length;
+                    }),
+                    borderColor: colors[i],
+                    backgroundColor: colors[i] + '80',
+                    fill: true
+                }));
+
+                ```chartjs
+                {
+                    type: 'line',
+                    data: {
+                        labels: months,
+                        datasets: datasets
+                    },
+                    options: {
+                        scales: {
+                            y: { beginAtZero: true }
+                        },
+                        plugins: {
+                            legend: { display: true }
+                        },
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                }
+                ```
+
+                gsap.from(`#line-temporal`, { opacity: 0, y: 20, duration: 1, delay: 0.8 });
+            }
         }
 
         // Ouvrir le modal pour voir l’historique des checklists
@@ -898,7 +1182,7 @@
         .task-bar-purple { background-color: #9333ea; }
         .task-bar-gray { background-color: #6B7280; }
         .touch-friendly {
-            min-height: 44px; /* Taille minimale pour les interactions tactiles */
+            min-height: 44px;
             padding: 0.5rem 1rem;
         }
         #modal-breaker > div, #modal-create-checklist > div, #modal-complete-checklist > div, #modal-apply-checklist > div {
