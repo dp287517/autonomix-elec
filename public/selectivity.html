@@ -14,7 +14,7 @@
     <style>
         #modal-graph { background-color: #ffffff !important; overflow-y: auto !important; }
         #modal-graph > div { overflow: visible !important; max-height: none !important; }
-        #mini-modal, #non-principal-modal, #missing-data-modal { z-index: 2000 !important; }
+        #mini-modal, #non-principal-modal, #missing-data-modal, #add-node-modal { z-index: 2000 !important; }
         #global-graph { position: relative; width: 100% !important; height: 800px !important; min-height: 800px; }
         #building-filter, #tableau-filter {
             appearance: auto !important; cursor: pointer !important; pointer-events: auto !important;
@@ -30,7 +30,7 @@
         }
         .badge-critical { background-color: #dc2626; }
         @media (max-width: 640px) {
-            #non-principal-modal > div, #missing-data-modal > div { padding: 1rem; max-width: 95vw; }
+            #non-principal-modal > div, #missing-data-modal > div, #add-node-modal > div { padding: 1rem; max-width: 95vw; }
             .non-principal-table th, .non-principal-table td, .missing-data-table th, .missing-data-table td { font-size: 0.75rem; padding: 0.5rem; }
         }
         .sortable:hover { cursor: pointer; text-decoration: underline; }
@@ -38,6 +38,9 @@
             position: absolute; background-color: #2D3748; color: #ffffff; padding: 8px;
             border: 2px solid #10B981; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
             font-size: 14px; z-index: 1000; max-width: 300px; white-space: normal; overflow-y: auto; max-height: 200px;
+        }
+        .node {
+            cursor: move;
         }
     </style>
 </head>
@@ -56,9 +59,14 @@
     <div class="container mx-auto p-6">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold flex items-center"><i class="fas fa-shield-alt mr-3"></i>Sélectivité des installations électriques</h1>
-            <button onclick="exportToCSV()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center">
-                <i class="fas fa-file-csv mr-2"></i>Exporter en CSV
-            </button>
+            <div class="flex space-x-4">
+                <button onclick="exportToCSV()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center">
+                    <i class="fas fa-file-csv mr-2"></i>Exporter en CSV
+                </button>
+                <button onclick="openAddNodeModal()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center">
+                    <i class="fas fa-plus mr-2"></i>Ajouter un tableau
+                </button>
+            </div>
         </div>
 
         <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0">
@@ -85,9 +93,9 @@
                 <li>Pour les données manquantes, cliquez sur la loupe pour voir les disjoncteurs concernés et leurs champs à compléter.</li>
                 <li>Cliquez sur l’icône <i class="fas fa-chart-line"></i> ou "Agrandir" pour voir le graphique de sélectivité.</li>
                 <li>Le statut indique si la sélectivité est correcte, avec une explication dans le modal.</li>
-                <li>Le schéma interactif plus bas montre les relations entre tableaux et disjoncteurs. Cliquez sur un tableau pour voir ses disjoncteurs, et sur un disjoncteur pour explorer les tableaux avals.</li>
-                <li>Les courbes rouges signalent un risque de coupure incorrecte.</li>
-                <li>Cliquez sur "Exporter en CSV" pour télécharger les données des tableaux et disjoncteurs au format CSV.</li>
+                <li>Le schéma interactif plus bas montre les relations entre tableaux et disjoncteurs. Déplacez les nœuds librement, cliquez sur "+" pour développer, ou double-cliquez pour éditer.</li>
+                <li>Les lignes rouges signalent un risque de sélectivité incorrecte.</li>
+                <li>Cliquez sur "Exporter en CSV" pour télécharger les données.</li>
             </ul>
         </div>
 
@@ -201,13 +209,43 @@
                 </div>
             </div>
         </div>
+
+        <div id="add-node-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-[2000]">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg w-[400px]">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-xl font-bold text-white"><i class="fas fa-plus-circle mr-2"></i><span id="add-node-modal-title">Ajouter un élément</span></h4>
+                    <button onclick="closeAddNodeModal()" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="flex flex-col space-y-4">
+                    <input type="text" id="node-id" class="p-2 rounded bg-gray-700 text-white border-gray-600" placeholder="ID de l'élément">
+                    <select id="node-type" class="p-2 rounded bg-gray-700 text-white border-gray-600">
+                        <option value="tableau">Tableau</option>
+                        <option value="disjoncteur">Disjoncteur</option>
+                    </select>
+                    <input type="text" id="node-building" class="p-2 rounded bg-gray-700 text-white border-gray-600" placeholder="Bâtiment (pour tableau)">
+                    <input type="text" id="node-marque" class="p-2 rounded bg-gray-700 text-white border-gray-600" placeholder="Marque (pour disjoncteur)">
+                    <input type="text" id="node-ref" class="p-2 rounded bg-gray-700 text-white border-gray-600" placeholder="Référence (pour disjoncteur)">
+                    <input type="number" id="node-ir" class="p-2 rounded bg-gray-700 text-white border-gray-600" placeholder="Ir (A, pour disjoncteur)">
+                    <input type="number" id="node-in" class="p-2 rounded bg-gray-700 text-white border-gray-600" placeholder="In (A, pour disjoncteur)">
+                    <input type="text" id="node-courbe" class="p-2 rounded bg-gray-700 text-white border-gray-600" placeholder="Courbe (pour disjoncteur)">
+                    <select id="node-linked-tableau" class="p-2 rounded bg-gray-700 text-white border-gray-600">
+                        <option value="">Aucun tableau lié</option>
+                    </select>
+                    <div class="flex space-x-4">
+                        <button onclick="saveNode()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Enregistrer</button>
+                        <button onclick="closeAddNodeModal()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Annuler</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
         let tableauxData = [];
         let modalChartInstance = null;
         let missingDataSortDirection = 'asc';
-        let expandedNodes = new Set(); // Suivre les nœuds développés
+        let expandedNodes = new Set();
+        let nodeCounter = 0;
 
         function normalizeCurrent(value) {
             if (value === null || value === undefined) return null;
@@ -273,12 +311,14 @@
             console.log('[Client] Remplissage des filtres, tableauxData:', tableauxData.length);
             const buildingFilter = document.getElementById('building-filter');
             const tableauFilter = document.getElementById('tableau-filter');
-            if (!buildingFilter || !tableauFilter) {
-                console.error('[Client] Éléments de filtre non trouvés:', { buildingFilter, tableauFilter });
+            const linkedTableauSelect = document.getElementById('node-linked-tableau');
+            if (!buildingFilter || !tableauFilter || !linkedTableauSelect) {
+                console.error('[Client] Éléments de filtre non trouvés:', { buildingFilter, tableauFilter, linkedTableauSelect });
                 return;
             }
             buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
             tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
+            linkedTableauSelect.innerHTML = '<option value="">Aucun tableau lié</option>';
             const buildings = [...new Set(tableauxData.map(t => t.building))].sort();
             console.log('[Client] Bâtiments trouvés:', buildings);
             buildings.forEach(b => {
@@ -293,12 +333,11 @@
                 option.value = t.id;
                 option.textContent = t.id;
                 console.log('[Client] Ajout option tableau:', t.id);
-                tableauFilter.appendChild(option);
+                tableauFilter.appendChild(option.cloneNode(true));
+                linkedTableauSelect.appendChild(option);
             });
             console.log('[Client] Options bâtiment après ajout:', Array.from(buildingFilter.options).map(o => o.value));
             console.log('[Client] Options tableau après ajout:', Array.from(tableauFilter.options).map(o => o.value));
-            console.log('[Client] Building filter disabled:', buildingFilter.disabled);
-            console.log('[Client] Tableau filter disabled:', tableauFilter.disabled);
         }
 
         function filterData() {
@@ -558,6 +597,98 @@
         function redirigerModifier(tableauId, disjoncteurId) {
             console.log('[Client] Redirection vers edit.html pour', tableauId, disjoncteurId);
             window.location.assign(`edit.html?id=${tableauId}#${disjoncteurId}`);
+        }
+
+        function openAddNodeModal() {
+            console.log('[Client] Ouverture du modal pour ajouter un nœud');
+            const modal = document.getElementById('add-node-modal');
+            const title = document.getElementById('add-node-modal-title');
+            title.textContent = 'Ajouter un élément';
+            document.getElementById('node-id').value = '';
+            document.getElementById('node-type').value = 'tableau';
+            document.getElementById('node-building').value = '';
+            document.getElementById('node-marque').value = '';
+            document.getElementById('node-ref').value = '';
+            document.getElementById('node-ir').value = '';
+            document.getElementById('node-in').value = '';
+            document.getElementById('node-courbe').value = '';
+            document.getElementById('node-linked-tableau').value = '';
+            modal.classList.remove('hidden');
+            gsap.from(modal, { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+        }
+
+        function closeAddNodeModal() {
+            console.log('[Client] Fermeture du modal ajouter un nœud');
+            const modal = document.getElementById('add-node-modal');
+            modal.classList.add('hidden');
+        }
+
+        async function saveNode() {
+            console.log('[Client] Sauvegarde du nœud');
+            const id = document.getElementById('node-id').value;
+            const type = document.getElementById('node-type').value;
+            const building = document.getElementById('node-building').value;
+            const marque = document.getElementById('node-marque').value;
+            const ref = document.getElementById('node-ref').value;
+            const ir = document.getElementById('node-ir').value;
+            const inValue = document.getElementById('node-in').value;
+            const courbe = document.getElementById('node-courbe').value;
+            const linkedTableau = document.getElementById('node-linked-tableau').value;
+
+            if (!id) {
+                alert('L’ID est requis.');
+                return;
+            }
+
+            if (type === 'tableau') {
+                const newTableau = {
+                    id,
+                    building: building || 'Inconnu',
+                    disjoncteurs: [],
+                    isSiteMain: false
+                };
+                try {
+                    const response = await fetch('/api/tableaux', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(newTableau)
+                    });
+                    if (!response.ok) throw new Error('Erreur lors de l’ajout du tableau');
+                    tableauxData.push(newTableau);
+                    renderSelectivity(tableauxData);
+                    closeAddNodeModal();
+                } catch (error) {
+                    console.error('[Client] Erreur lors de l’ajout du tableau:', error.message);
+                    alert('Erreur lors de l’ajout du tableau.');
+                }
+            } else {
+                const disjoncteur = {
+                    id,
+                    marque: marque || null,
+                    ref: ref || null,
+                    ir: ir || null,
+                    in: inValue || null,
+                    courbe: courbe || null,
+                    isPrincipal: false,
+                    linkedTableauId: linkedTableau || null
+                };
+                // Ajouter le disjoncteur à un tableau existant (par défaut au premier)
+                const tableau = tableauxData[0] || { id: 'TEMP', disjoncteurs: [] };
+                try {
+                    const response = await fetch(`/api/disjoncteur/${tableau.id}/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(disjoncteur)
+                    });
+                    if (!response.ok) throw new Error('Erreur lors de l’ajout du disjoncteur');
+                    tableau.disjoncteurs.push(disjoncteur);
+                    renderSelectivity(tableauxData);
+                    closeAddNodeModal();
+                } catch (error) {
+                    console.error('[Client] Erreur lors de l’ajout du disjoncteur:', error.message);
+                    alert('Erreur lors de l’ajout du disjoncteur.');
+                }
+            }
         }
 
         function findUpstreamDisjoncteur(tableauId, allTableaux) {
@@ -1122,12 +1253,12 @@
             graph.nodes.forEach((node, index) => {
                 let x, y;
                 if (node.parentId) {
-                    const parentPos = nodePositions[node.parentId] || { x: 100, y: 100 };
+                    const parentPos = nodePositions[node.parentId] || { x: 200, y: 200 };
                     x = parentPos.x + (node.group === 'tableau' ? 0 : node.group === 'principal' ? 200 : 400);
                     y = parentPos.y + 100;
                 } else {
-                    x = (node.group === 'tableau' ? 100 : node.group === 'principal' ? 350 : 600) + (index % 3) * 300;
-                    y = 100 + Math.floor(index / 3) * 200;
+                    x = 200 + (index % 4) * 300;
+                    y = 100 + Math.floor(index / 4) * 200;
                 }
                 nodePositions[node.id] = { x, y };
             });
@@ -1138,7 +1269,8 @@
                 const group = new Konva.Group({
                     x: pos.x,
                     y: pos.y,
-                    draggable: true
+                    draggable: true,
+                    name: 'node'
                 });
 
                 // Boîte du nœud
@@ -1173,7 +1305,8 @@
                         radius: 8,
                         fill: node.isExpanded ? '#dc2626' : '#10B981',
                         stroke: '#ffffff',
-                        strokeWidth: 1
+                        strokeWidth: 1,
+                        name: 'expandButton'
                     });
                     const expandText = new Konva.Text({
                         x: boxWidth - 14,
@@ -1187,16 +1320,14 @@
 
                 group.add(box, text);
 
-                
                 // Interaction au clic
                 group.on('click', (e) => {
-                    if (expandButton && e.target === expandButton) {
+                    if (expandButton && e.target.hasName('expandButton')) {
                         node.isExpanded = !node.isExpanded;
                         if (node.isExpanded) {
                             expandedNodes.add(node.id);
                         } else {
                             expandedNodes.delete(node.id);
-                            // Supprimer les nœuds enfants des états développés
                             const childNodes = graph.nodes.filter(n => n.parentId === node.id);
                             childNodes.forEach(child => expandedNodes.delete(child.id));
                         }
@@ -1204,7 +1335,7 @@
                     } else {
                         if (node.group === 'tableau') {
                             document.getElementById('mini-modal-title').textContent = `Tableau ${node.tableauId}`;
-                            const tableau = tableaux.find(t => t.id === node.tableauId);
+                            const tableau = data.find(t => t.id === node.tableauId);
                             document.getElementById('mini-modal-content').innerHTML = `
                                 <p><strong>Tableau :</strong> ${node.tableauId}</p>
                                 <p><strong>Bâtiment :</strong> ${tableau?.building || 'N/A'}</p>
@@ -1239,12 +1370,29 @@
                                 miniModal.classList.remove('hidden');
                                 gsap.from('#mini-modal', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
                             }
-                            // Si le disjoncteur est lié à un tableau aval, recentrer sur ce tableau
                             if (node.hasLink && node.disjoncteur?.linkedTableauId) {
                                 renderSelectivity(data, node.disjoncteur.linkedTableauId);
                             }
                         }
                     }
+                });
+
+                // Double-clic pour éditer
+                group.on('dblclick', () => {
+                    const modal = document.getElementById('add-node-modal');
+                    const title = document.getElementById('add-node-modal-title');
+                    title.textContent = `Éditer ${node.group === 'tableau' ? 'Tableau' : 'Disjoncteur'}`;
+                    document.getElementById('node-id').value = node.tableauId || node.disjoncteurId;
+                    document.getElementById('node-type').value = node.group === 'tableau' ? 'tableau' : 'disjoncteur';
+                    document.getElementById('node-building').value = node.group === 'tableau' ? data.find(t => t.id === node.tableauId)?.building || '' : '';
+                    document.getElementById('node-marque').value = node.disjoncteur?.marque || '';
+                    document.getElementById('node-ref').value = node.disjoncteur?.ref || '';
+                    document.getElementById('node-ir').value = node.disjoncteur?.irValue || '';
+                    document.getElementById('node-in').value = node.disjoncteur?.inValue || '';
+                    document.getElementById('node-courbe').value = node.disjoncteur?.courbe || '';
+                    document.getElementById('node-linked-tableau').value = node.disjoncteur?.linkedTableauId || '';
+                    modal.classList.remove('hidden');
+                    gsap.from(modal, { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
                 });
 
                 // Afficher un tooltip au survol
@@ -1260,7 +1408,6 @@
                     group.tooltip = tooltip;
                 });
 
-                // Cacher le tooltip au sortir
                 group.on('mouseout', () => {
                     if (group.tooltip) {
                         group.tooltip.remove();
@@ -1276,6 +1423,7 @@
                         group.tooltip.style.top = `${boxRect.y}px`;
                     }
                     nodePositions[node.id] = { x: group.x(), y: group.y() };
+                    layer.batchDraw();
                 });
 
                 layer.add(group);
@@ -1397,9 +1545,11 @@
                 const miniModal = document.getElementById('mini-modal');
                 const nonPrincipalModal = document.getElementById('non-principal-modal');
                 const missingDataModal = document.getElementById('missing-data-modal');
+                const addNodeModal = document.getElementById('add-node-modal');
                 if (miniModal) miniModal.classList.add('hidden');
                 if (nonPrincipalModal) nonPrincipalModal.classList.add('hidden');
                 if (missingDataModal) missingDataModal.classList.add('hidden');
+                if (addNodeModal) addNodeModal.classList.add('hidden');
 
                 const buildingFilter = document.getElementById('building-filter');
                 const tableauFilter = document.getElementById('tableau-filter');
