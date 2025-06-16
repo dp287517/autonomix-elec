@@ -75,7 +75,7 @@
                         <li>Le schéma montre les connexions (ex. 01-9-G sous 02-9-G). Cliquez pour explorer les sous-tableaux.</li>
                         <li>Le graphique à bulles montre tous les disjoncteurs : Ik (axe X) vs Icn (axe Y). Les bulles rouges (Ik > Icn) indiquent un risque.</li>
                         <li>Si des données manquent, complétez-les via le panneau latéral.</li>
-                        <li>Cliquez sur "Exporter en CSV" pour télécharger les données au format CSV.</li>
+                        <li>Cliquez sur "Exporter en CSV" pour télécharger les données au format CSV, incluant la longueur de câble et l’impédance.</li>
                     </ul>
                 </div>
 
@@ -319,7 +319,7 @@
 
             const headers = [
                 'Tableau_ID', 'Bâtiment', 'Disjoncteur_ID', 'Marque', 'Référence', 
-                'Ue (V)', 'Icn (kA)', 'Ik (kA)', 'Statut'
+                'Ue (V)', 'Icn (kA)', 'Ik (kA)', 'Cable_Length (m)', 'Impedance (Ω)', 'Statut'
             ];
             const rows = [];
 
@@ -328,6 +328,15 @@
                     const ik = disjoncteur.ik ? (disjoncteur.ik >= 1 ? disjoncteur.ik.toFixed(2) : disjoncteur.ik.toFixed(3)) : 'N/A';
                     const icn = disjoncteur.icn ? parseFloat(disjoncteur.icn).toFixed(2) : 'N/A';
                     const status = disjoncteur.ik != null && disjoncteur.icn ? (disjoncteur.ik <= disjoncteur.icn ? 'OK' : 'KO') : 'Incomplet';
+                    let impedance = disjoncteur.impedance ? parseFloat(disjoncteur.impedance).toFixed(4) : 'N/A';
+                    if (disjoncteur.cableLength && disjoncteur.section && !disjoncteur.impedance) {
+                        const rho = 0.0175;
+                        const L = parseFloat(disjoncteur.cableLength);
+                        const sectionMatch = disjoncteur.section.match(/[\d.]+/);
+                        const S = sectionMatch ? parseFloat(sectionMatch[0]) : 2.5;
+                        const z = (rho * L * 2) / S; // *2 pour aller-retour
+                        impedance = z.toFixed(4);
+                    }
                     rows.push([
                         tableau.id,
                         tableau.building,
@@ -337,6 +346,8 @@
                         disjoncteur.ue || 'N/A',
                         icn,
                         ik,
+                        disjoncteur.cableLength || 'N/A',
+                        impedance,
                         status
                     ]);
                 });
