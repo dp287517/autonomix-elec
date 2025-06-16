@@ -446,6 +446,148 @@
             });
         }
 
+        function renderControlledBreakersBarChart(data = tableauxData) {
+            const ctx = document.getElementById('bar-controlled-breakers').getContext('2d');
+            const buildings = [...new Set(data.map(t => t.id.split('-')[0] || 'Inconnu'))];
+            const result = buildings.map(building => {
+                const tableaux = data.filter(t => t.id.split('-')[0] === building);
+                let count = 0;
+                tableaux.forEach(t => {
+                    t.disjoncteurs.forEach(d => {
+                        const last = checklistsData.filter(c => c.tableau_id === t.id && c.disjoncteur_id === d.id).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                        if (last && last.status !== 'Non contrôlé') count++;
+                    });
+                });
+                return { building, count };
+            });
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: result.map(r => r.building),
+                    datasets: [{
+                        label: 'Disjoncteurs contrôlés',
+                        data: result.map(r => r.count),
+                        backgroundColor: '#3b82f6'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.raw} disjoncteurs contrôlés`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: 'white' }
+                        },
+                        x: {
+                            ticks: { color: 'white' }
+                        }
+                    }
+                }
+            });
+            gsap.from('#bar-controlled-breakers', { opacity: 0, y: 20, duration: 1 });
+        }
+
+        function renderConformityRateChart(data = tableauxData) {
+            const ctx = document.getElementById('bar-conformity-rate').getContext('2d');
+            const buildings = [...new Set(data.map(t => t.id.split('-')[0] || 'Inconnu'))];
+            const result = buildings.map(building => {
+                const tableaux = data.filter(t => t.id.split('-')[0] === building);
+                let total = 0, conformes = 0;
+                tableaux.forEach(t => {
+                    t.disjoncteurs.forEach(d => {
+                        const last = checklistsData.filter(c => c.tableau_id === t.id && c.disjoncteur_id === d.id).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                        if (last) {
+                            total++;
+                            if (last.status === 'Conforme') conformes++;
+                        }
+                    });
+                });
+                return { building, rate: total ? (conformes / total) * 100 : 0 };
+            });
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: result.map(r => r.building),
+                    datasets: [{
+                        label: '% Conforme',
+                        data: result.map(r => r.rate.toFixed(1)),
+                        backgroundColor: '#22c55e'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.raw}% de conformité`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: 'white' }
+                        },
+                        x: {
+                            ticks: { color: 'white' }
+                        }
+                    }
+                }
+            });
+            gsap.from('#bar-conformity-rate', { opacity: 0, y: 20, duration: 1 });
+        }
+
+        function renderWeeklyChecklistChart() {
+            const ctx = document.getElementById('line-weekly-checklists').getContext('2d');
+            const weeks = {};
+            checklistsData.forEach(c => {
+                const d = new Date(c.timestamp);
+                const key = `${d.getFullYear()}-W${Math.ceil((((d - new Date(d.getFullYear(),0,1)) / 86400000) + new Date(d.getFullYear(),0,1).getDay()+1) / 7)}`;
+                weeks[key] = (weeks[key] || 0) + 1;
+            });
+            const sortedKeys = Object.keys(weeks).sort();
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: sortedKeys,
+                    datasets: [{
+                        label: 'Checklists complétées',
+                        data: sortedKeys.map(k => weeks[k]),
+                        fill: false,
+                        tension: 0.1,
+                        borderColor: '#f4b400'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: 'white' } },
+                        x: { ticks: { color: 'white' } }
+                    },
+                    plugins: {
+                        legend: { labels: { color: 'white' } }
+                    }
+                }
+            });
+            gsap.from('#line-weekly-checklists', { opacity: 0, y: 20, duration: 1 });
+        }
+
+        // Ajouter à la fin de loadData et filterData
+        // Après renderDoughnuts()
+        renderControlledBreakersBarChart();
+        renderConformityRateChart();
+        renderWeeklyChecklistChart();
+
         // Ouvrir le modal pour voir l’historique des checklists
         function openBreakerModal(tableauId, breakerId, sanitizedId) {
             const modal = document.getElementById('modal-breaker');
