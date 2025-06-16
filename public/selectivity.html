@@ -55,7 +55,12 @@
     </nav>
 
     <div class="container mx-auto p-6">
-        <h1 class="text-3xl font-bold mb-6 flex items-center"><i class="fas fa-shield-alt mr-3"></i>Sélectivité des installations électriques</h1>
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold flex items-center"><i class="fas fa-shield-alt mr-3"></i>Sélectivité des installations électriques</h1>
+            <button onclick="exportToCSV()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center">
+                <i class="fas fa-file-csv mr-2"></i>Exporter en CSV
+            </button>
+        </div>
 
         <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0">
             <div>
@@ -83,6 +88,7 @@
                 <li>Le statut indique si la sélectivité est correcte, avec une explication dans le modal.</li>
                 <li>Le schéma interactif plus bas montre les relations entre tableaux et disjoncteurs.</li>
                 <li>Les courbes rouges signalent un risque de coupure incorrecte.</li>
+                <li>Cliquez sur "Exporter en CSV" pour télécharger les données des tableaux et disjoncteurs au format CSV.</li>
             </ul>
         </div>
 
@@ -313,6 +319,82 @@
             );
             console.log('[Client] Données filtrées:', filteredData.length);
             afficherTableauxEtSchema(filteredData);
+        }
+
+        function exportToCSV() {
+            console.log('[Client] Exportation des données en CSV');
+            if (!tableauxData || tableauxData.length === 0) {
+                alert('Aucune donnée à exporter.');
+                return;
+            }
+
+            // Créer l'en-tête du CSV
+            const headers = [
+                'Tableau_ID', 'Bâtiment', 'Est_Principal_Site', 'Statut_Sélectivité', 'Message_Sélectivité', 
+                'Liaisons', 'Disjoncteur_ID', 'Disjoncteur_Principal', 'Marque', 'Référence', 
+                'Ir (A)', 'In (A)', 'Courbe', 'Tableau_Lié'
+            ];
+            const rows = [];
+
+            // Parcourir les tableaux pour générer les lignes
+            tableauxData.forEach(tableau => {
+                const selectivityStatus = checkSelectivityStatus(tableau, tableau.id);
+                const liaisons = tableau.disjoncteurs
+                    .filter(d => d.linkedTableauId)
+                    .map(d => `${d.id} → ${d.linkedTableauId}`)
+                    .join('; ') || 'Aucune';
+
+                // Si aucun disjoncteur, ajouter une ligne pour le tableau seul
+                if (tableau.disjoncteurs.length === 0) {
+                    rows.push([
+                        tableau.id,
+                        tableau.building,
+                        tableau.isSiteMain ? 'Oui' : 'Non',
+                        selectivityStatus.status,
+                        selectivityStatus.message.replace(/"/g, '""'), // Échapper les guillemets
+                        liaisons,
+                        '', '', '', '', '', '', '', ''
+                    ]);
+                } else {
+                    // Ajouter une ligne pour chaque disjoncteur
+                    tableau.disjoncteurs.forEach(disjoncteur => {
+                        rows.push([
+                            tableau.id,
+                            tableau.building,
+                            tableau.isSiteMain ? 'Oui' : 'Non',
+                            selectivityStatus.status,
+                            selectivityStatus.message.replace(/"/g, '""'),
+                            liaisons,
+                            disjoncteur.id || 'N/A',
+                            disjoncteur.isPrincipal ? 'Oui' : 'Non',
+                            disjoncteur.marque || 'N/A',
+                            disjoncteur.ref || 'N/A',
+                            disjoncteur.irValue || 'N/A',
+                            disjoncteur.inValue || 'N/A',
+                            disjoncteur.courbe || 'N/A',
+                            disjoncteur.linkedTableauId || 'Aucun'
+                        ]);
+                    });
+                }
+            });
+
+            // Générer le contenu du CSV
+            const csvContent = [
+                headers.map(h => `"${h}"`).join(','),
+                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+            ].join('\n');
+
+            // Créer un blob pour le téléchargement
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `selectivite_donnees_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            console.log('[Client] Fichier CSV téléchargé');
         }
 
         function afficherTableauxEtSchema(tableaux) {
@@ -1120,63 +1202,63 @@
             }
 
             tableBody.innerHTML = '';
-            results.forEach(result => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="p-3">${result.tableauId}</td>
-                    <td class="p-3 ${result.intraStatus === 'Parfait' ? 'text-green-600' : result.intraStatus === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${result.intraStatus}</td>
-                    <td class="p-3">${result.liaisons.map(l => `${l.disjoncteurId} → ${l.target}`).join(', ') || 'Aucune'}</td>
-                    <td class="p-3 ${result.interStatus === 'Parfait' ? 'text-green-600' : result.interStatus === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${result.interStatus}</td>
-                    <td class="p-3">${result.intraMessage}<br>${result.interMessage}</td>
-                `;
-                tableBody.appendChild(row);
-            });
-        }
-
-        function closeMiniModal() {
-            console.log('[Client] Fermeture du mini-modal');
-            const miniModal = document.getElementById('mini-modal');
-            if (miniModal) {
-                miniModal.classList.add('hidden');
+                results.forEach(result => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="p-3">${result.tableauId}</td>
+                        <td class="p-3 ${result.intraStatus === 'Parfait' ? 'text-green-600' : result.intraStatus === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${result.intraStatus}</td>
+                        <td class="p-3">${result.liaisons.map(l => `${l.disjoncteurId} → ${l.target}`).join(', ') || 'Aucune'}</td>
+                        <td class="p-3 ${result.interStatus === 'Parfait' ? 'text-green-600' : result.interStatus === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${result.interStatus}</td>
+                        <td class="p-3">${result.intraMessage}<br>${result.interMessage}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
             }
-        }
 
-        window.onload = function() {
-            console.log('[Client] Page selectivity.html chargée');
-            if (window.location.protocol === 'file:') {
-                alert('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/selectivity.html) pour accéder à l\'API.');
-                return;
-            }
-            try {
+            function closeMiniModal() {
+                console.log('[Client] Fermeture du mini-modal');
                 const miniModal = document.getElementById('mini-modal');
-                const nonPrincipalModal = document.getElementById('non-principal-modal');
-                const missingDataModal = document.getElementById('missing-data-modal');
-                if (miniModal) miniModal.classList.add('hidden');
-                if (nonPrincipalModal) nonPrincipalModal.classList.add('hidden');
-                if (missingDataModal) missingDataModal.classList.add('hidden');
-
-                const buildingFilter = document.getElementById('building-filter');
-                const tableauFilter = document.getElementById('tableau-filter');
-                if (buildingFilter && tableauFilter) {
-                    buildingFilter.addEventListener('change', () => {
-                        console.log('[Client] Filtre bâtiment changé:', buildingFilter.value);
-                        filterData();
-                    });
-                    tableauFilter.addEventListener('change', () => {
-                        console.log('[Client] Filtre tableau changé:', tableauFilter.value);
-                        filterData();
-                    });
-                    console.log('[Client] Gestionnaires d\'événements attachés');
-                    console.log('[Client] Building filter styles:', window.getComputedStyle(buildingFilter).cursor);
-                    console.log('[Client] Tableau filter styles:', window.getComputedStyle(tableauFilter).cursor);
-                } else {
-                    console.error('[Client] Éléments de filtre non trouvés lors de l\'initialisation');
+                if (miniModal) {
+                    miniModal.classList.add('hidden');
                 }
-                chargerTableaux();
-            } catch (error) {
-                console.error('[Client] Erreur lors de l’initialisation:', error.message, error.stack);
             }
-        };
-    </script>
+
+            window.onload = function() {
+                console.log('[Client] Page selectivity.html chargée');
+                if (window.location.protocol === 'file:') {
+                    alert('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/selectivity.html) pour accéder à l\'API.');
+                    return;
+                }
+                try {
+                    const miniModal = document.getElementById('mini-modal');
+                    const nonPrincipalModal = document.getElementById('non-principal-modal');
+                    const missingDataModal = document.getElementById('missing-data-modal');
+                    if (miniModal) miniModal.classList.add('hidden');
+                    if (nonPrincipalModal) nonPrincipalModal.classList.add('hidden');
+                    if (missingDataModal) missingDataModal.classList.add('hidden');
+
+                    const buildingFilter = document.getElementById('building-filter');
+                    const tableauFilter = document.getElementById('tableau-filter');
+                    if (buildingFilter && tableauFilter) {
+                        buildingFilter.addEventListener('change', () => {
+                            console.log('[Client] Filtre bâtiment changé:', buildingFilter.value);
+                            filterData();
+                        });
+                        tableauFilter.addEventListener('change', () => {
+                            console.log('[Client] Filtre tableau changé:', tableauFilter.value);
+                            filterData();
+                        });
+                        console.log('[Client] Gestionnaires d\'événements attachés');
+                        console.log('[Client] Building filter styles:', window.getComputedStyle(buildingFilter).cursor);
+                        console.log('[Client] Tableau filter styles:', window.getComputedStyle(tableauFilter).cursor);
+                    } else {
+                        console.error('[Client] Éléments de filtre non trouvés lors de l\'initialisation');
+                    }
+                    chargerTableaux();
+                } catch (error) {
+                    console.error('[Client] Erreur lors de l’initialisation:', error.message, error.stack);
+                }
+            };
+        </script>
     </body>
-</html>
+    </html>
