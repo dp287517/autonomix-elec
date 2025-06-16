@@ -27,7 +27,12 @@
     <div class="container mx-auto mt-28 p-6 flex">
         <!-- Tableau principal -->
         <div class="flex-1 pr-4">
-            <h1 class="text-3xl font-bold mb-6">Évaluation du Niveau de Défaut</h1>
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-3xl font-bold">Évaluation du Niveau de Défaut</h1>
+                <button id="export-csv-btn" onclick="exportToCSV()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center hidden">
+                    <i class="fas fa-file-csv mr-2"></i>Exporter en CSV
+                </button>
+            </div>
             <div id="api-error" class="hidden bg-red-900 text-red-200 p-3 rounded mb-6">
                 <p><i class="fas fa-exclamation-triangle mr-2"></i>Erreur lors du chargement des données. Veuillez réessayer plus tard.</p>
             </div>
@@ -55,61 +60,68 @@
                 </div>
             </div>
 
-            <div class="mb-6 bg-gray-800 p-4 rounded-lg shadow-lg">
-                <h2 class="text-xl font-semibold mb-4"><i class="fas fa-info-circle"></i> Comment utiliser cette page</h2>
-                <ul class="list-disc list-inside space-y-2">
-                    <li>Filtrez par bâtiment ou tableau pour cibler vos disjoncteurs.</li>
-                    <li>Vérifiez le tableau : Ik (torrent), Icn (barrage), et statut (OK/KO).</li>
-                    <li>Cliquez sur <i class="fas fa-chart-line"></i> pour afficher les détails dans le panneau latéral.</li>
-                    <li>Les disjoncteurs principaux ont un câble minimum de 5 m, les autres de 20 m pour limiter Ik.</li>
-                    <li>Le schéma montre les connexions (ex. 01-9-G sous 02-9-G). Cliquez pour explorer les sous-tableaux.</li>
-                    <li>Le graphique à bulles montre tous les disjoncteurs : Ik (axe X) vs Icn (axe Y). Les bulles rouges (Ik > Icn) indiquent un risque.</li>
-                    <li>Si des données manquent, complétez-les via le panneau latéral.</li>
-                </ul>
+            <div id="no-building-selected" class="bg-gray-800 p-4 rounded-lg shadow-lg mb-6">
+                <p class="text-gray-300">Veuillez sélectionner un bâtiment pour afficher les données.</p>
             </div>
 
-            <div id="missing-data-alert" class="alert-missing hidden mb-6">
-                <p>Certaines données (Ue, section, longueur de câble) sont manquantes pour <span id="missing-count"></span> disjoncteurs. Cliquez sur <i class="fas fa-chart-line"></i> pour les compléter.</p>
-            </div>
+            <div id="data-section" class="hidden">
+                <div class="mb-6 bg-gray-800 p-4 rounded-lg shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4"><i class="fas fa-info-circle"></i> Comment utiliser cette page</h2>
+                    <ul class="list-disc list-inside space-y-2">
+                        <li>Filtrez par bâtiment ou tableau pour cibler vos disjoncteurs.</li>
+                        <li>Vérifiez le tableau : Ik (torrent), Icn (barrage), et statut (OK/KO).</li>
+                        <li>Cliquez sur <i class="fas fa-chart-line"></i> pour afficher les détails dans le panneau latéral.</li>
+                        <li>Les disjoncteurs principaux ont un câble minimum de 5 m, les autres de 20 m pour limiter Ik.</li>
+                        <li>Le schéma montre les connexions (ex. 01-9-G sous 02-9-G). Cliquez pour explorer les sous-tableaux.</li>
+                        <li>Le graphique à bulles montre tous les disjoncteurs : Ik (axe X) vs Icn (axe Y). Les bulles rouges (Ik > Icn) indiquent un risque.</li>
+                        <li>Si des données manquent, complétez-les via le panneau latéral.</li>
+                        <li>Cliquez sur "Exporter en CSV" pour télécharger les données au format CSV.</li>
+                    </ul>
+                </div>
 
-            <div id="no-linked-tableau-alert" class="alert-missing hidden mb-6">
-                <p>Aucune liaison entre tableaux n’a été détectée (ex. 01-9-G lié à 02-9-G). Utilisez <a href="edit.html" class="text-blue-400 underline">Modifier</a> pour ajouter des tableaux avals.</p>
-            </div>
+                <div id="missing-data-alert" class="alert-missing hidden mb-6">
+                    <p>Certaines données (Ue, section, longueur de câble) sont manquantes pour <span id="missing-count"></span> disjoncteurs. Cliquez sur <i class="fas fa-chart-line"></i> pour les compléter.</p>
+                </div>
 
-            <div id="high-ik-alert" class="alert-missing hidden mb-6">
-                <p>Certains disjoncteurs ont un Ik > 100 kA, ce qui est irréaliste. Vérifiez les données (longueur de câble, section, impédance) dans le panneau latéral.</p>
-            </div>
+                <div id="no-linked-tableau-alert" class="alert-missing hidden mb-6">
+                    <p>Aucune liaison entre tableaux n’a été détectée (ex. 01-9-G lié à 02-9-G). Utilisez <a href="edit.html" class="text-blue-400 underline">Modifier</a> pour ajouter des tableaux avals.</p>
+                </div>
 
-            <div class="mb-6">
-                <h2 class="text-xl font-semibold mb-4"><i class="fas fa-table"></i> Tableau des disjoncteurs</h2>
-                <table class="w-full gantt">
-                    <thead>
-                        <tr>
-                            <th>Tableau</th>
-                            <th>Disjoncteur ID</th>
-                            <th>Marque</th>
-                            <th>Référence</th>
-                            <th title="Tension nominale (V)">Ue (V)</th>
-                            <th title="Pouvoir de coupure (kA)">Icn (kA)</th>
-                            <th title="Courant de court-circuit calculé (kA)">Ik (kA)</th>
-                            <th>Statut</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="disjoncteurs-table"></tbody>
-                </table>
-            </div>
+                <div id="high-ik-alert" class="alert-missing hidden mb-6">
+                    <p>Certains disjoncteurs ont un Ik > 100 kA, ce qui est irréaliste. Vérifiez les données (longueur de câble, section, impédance) dans le panneau latéral.</p>
+                </div>
 
-            <div class="mb-6">
-                <h2 class="text-xl font-semibold mb-4"><i class="fas fa-chart-scatter"></i> Graphique à bulles : Ik vs Icn</h2>
-                <p class="mb-4">Ce graphique montre tous les disjoncteurs avec Ik (axe X) et Icn (axe Y). Les bulles rouges indiquent un risque (Ik > Icn), les vertes sont sécurisées (Ik ≤ Icn). La ligne diagonale représente la limite Icn = Ik.</p>
-                <canvas id="bubble-chart" class="bg-gray-800 p-4 rounded-lg" style="height: 400px;"></canvas>
-            </div>
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold mb-4"><i class="fas fa-table"></i> Tableau des disjoncteurs</h2>
+                    <table class="w-full gantt">
+                        <thead>
+                            <tr>
+                                <th>Tableau</th>
+                                <th>Disjoncteur ID</th>
+                                <th>Marque</th>
+                                <th>Référence</th>
+                                <th title="Tension nominale (V)">Ue (V)</th>
+                                <th title="Pouvoir de coupure (kA)">Icn (kA)</th>
+                                <th title="Courant de court-circuit calculé (kA)">Ik (kA)</th>
+                                <th>Statut</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="disjoncteurs-table"></tbody>
+                    </table>
+                </div>
 
-            <div class="mb-6">
-                <h2 class="text-xl font-semibold mb-4"><i class="fas fa-sitemap"></i> Schéma électrique</h2>
-                <p class="mb-4">Ce schéma montre comment les tableaux et disjoncteurs sont connectés. Les disjoncteurs principaux sont en vert, les disjoncteurs à risque (Ik > Icn) en rouge, et ceux sans données en gris. Les liaisons indiquent les sous-tableaux (ex. 01-9-G sous 02-9-G).</p>
-                <div id="network-schema" class="bg-white p-4 rounded-lg border border-gray-300" style="height: 400px;"></div>
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold mb-4"><i class="fas fa-chart-scatter"></i> Graphique à bulles : Ik vs Icn</h2>
+                    <p class="mb-4">Ce graphique montre tous les disjoncteurs avec Ik (axe X) et Icn (axe Y). Les bulles rouges indiquent un risque (Ik > Icn), les vertes sont sécurisées (Ik ≤ Icn). La ligne diagonale représente la limite Icn = Ik.</p>
+                    <canvas id="bubble-chart" class="bg-gray-800 p-4 rounded-lg" style="height: 400px;"></canvas>
+                </div>
+
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold mb-4"><i class="fas fa-sitemap"></i> Schéma électrique</h2>
+                    <p class="mb-4">Ce schéma montre comment les tableaux et disjoncteurs sont connectés. Les disjoncteurs principaux sont en vert, les disjoncteurs à risque (Ik > Icn) en rouge, et ceux sans données en gris. Les liaisons indiquent les sous-tableaux (ex. 01-9-G sous 02-9-G).</p>
+                    <div id="network-schema" class="bg-white p-4 rounded-lg border border-gray-300" style="height: 400px;"></div>
+                </div>
             </div>
         </div>
 
@@ -171,19 +183,13 @@
                 tableauxData = data.data || [];
                 document.getElementById('api-error').classList.add('hidden');
                 populateFilters();
-                renderTable();
-                renderBubbleChart();
-                renderNetwork();
-                updateMissingDataAlert();
-                checkHighIk();
+                // Ne pas rendre les données immédiatement, attendre la sélection d'un bâtiment
+                showNoBuildingMessage();
             } catch (error) {
                 console.error('[Client] Erreur chargement:', error);
                 document.getElementById('api-error').classList.remove('hidden');
                 tableauxData = [];
-                renderTable();
-                renderBubbleChart();
-                renderNetwork();
-                updateMissingDataAlert();
+                showNoBuildingMessage();
             }
         }
 
@@ -225,6 +231,7 @@
         function populateFilters() {
             const buildings = [...new Set(tableauxData.map(t => t.building))].sort();
             const buildingFilter = document.getElementById('building-filter');
+            buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
             buildings.forEach(b => {
                 const option = document.createElement('option');
                 option.value = b;
@@ -232,16 +239,28 @@
                 buildingFilter.appendChild(option);
             });
 
-            const tableauFilter = document.getElementById('tableau-filter');
-            tableauxData.forEach(t => {
-                const option = document.createElement('option');
-                option.value = t.id;
-                option.textContent = t.id;
-                tableauFilter.appendChild(option);
-            });
+            function updateTableauFilter(selectedBuilding) {
+                const tableauFilter = document.getElementById('tableau-filter');
+                tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
+                const filteredTableaux = selectedBuilding
+                    ? tableauxData.filter(t => t.building === selectedBuilding)
+                    : tableauxData;
+                filteredTableaux.forEach(t => {
+                    const option = document.createElement('option');
+                    option.value = t.id;
+                    option.textContent = t.id;
+                    tableauFilter.appendChild(option);
+                });
+            }
 
-            buildingFilter.addEventListener('change', filterData);
-            tableauFilter.addEventListener('change', filterData);
+            updateTableauFilter('');
+
+            buildingFilter.addEventListener('change', () => {
+                const selectedBuilding = buildingFilter.value;
+                updateTableauFilter(selectedBuilding);
+                filterData();
+            });
+            document.getElementById('tableau-filter').addEventListener('change', filterData);
         }
 
         function filterData() {
@@ -249,12 +268,95 @@
             const tableau = document.getElementById('tableau-filter').value;
             let filteredData = tableauxData;
 
-            if (building) filteredData = filteredData.filter(t => t.building === building);
+            if (!building) {
+                showNoBuildingMessage();
+                return;
+            }
+
+            filteredData = filteredData.filter(t => t.building === building);
             if (tableau) filteredData = filteredData.filter(t => t.id === tableau);
 
-            renderTable(filteredData);
-            renderBubbleChart(filteredData);
-            renderNetwork(filteredData);
+            renderData(filteredData);
+        }
+
+        function showNoBuildingMessage() {
+            console.log('[Client] Affichage message aucun bâtiment sélectionné');
+            document.getElementById('no-building-selected').classList.remove('hidden');
+            document.getElementById('data-section').classList.add('hidden');
+            document.getElementById('export-csv-btn').classList.add('hidden');
+        }
+
+        function renderData(data) {
+            console.log('[Client] Rendu des données avec', data.length, 'tableaux');
+            document.getElementById('no-building-selected').classList.add('hidden');
+            document.getElementById('data-section').classList.remove('hidden');
+            document.getElementById('export-csv-btn').classList.remove('hidden');
+            renderTable(data);
+            renderBubbleChart(data);
+            renderNetwork(data);
+            updateMissingDataAlert();
+            checkHighIk();
+        }
+
+        function exportToCSV() {
+            console.log('[Client] Exportation des données en CSV');
+            const building = document.getElementById('building-filter').value;
+            const tableau = document.getElementById('tableau-filter').value;
+            let filteredData = tableauxData;
+
+            if (!building) {
+                alert('Veuillez sélectionner un bâtiment pour exporter les données.');
+                return;
+            }
+
+            filteredData = filteredData.filter(t => t.building === building);
+            if (tableau) filteredData = filteredData.filter(t => t.id === tableau);
+
+            if (!filteredData.length) {
+                alert('Aucune donnée à exporter pour les critères sélectionnés.');
+                return;
+            }
+
+            const headers = [
+                'Tableau_ID', 'Bâtiment', 'Disjoncteur_ID', 'Marque', 'Référence', 
+                'Ue (V)', 'Icn (kA)', 'Ik (kA)', 'Statut'
+            ];
+            const rows = [];
+
+            filteredData.forEach(tableau => {
+                tableau.disjoncteurs.forEach(disjoncteur => {
+                    const ik = disjoncteur.ik ? (disjoncteur.ik >= 1 ? disjoncteur.ik.toFixed(2) : disjoncteur.ik.toFixed(3)) : 'N/A';
+                    const icn = disjoncteur.icn ? parseFloat(disjoncteur.icn).toFixed(2) : 'N/A';
+                    const status = disjoncteur.ik != null && disjoncteur.icn ? (disjoncteur.ik <= disjoncteur.icn ? 'OK' : 'KO') : 'Incomplet';
+                    rows.push([
+                        tableau.id,
+                        tableau.building,
+                        disjoncteur.id || 'N/A',
+                        disjoncteur.marque || 'N/A',
+                        disjoncteur.ref || 'N/A',
+                        disjoncteur.ue || 'N/A',
+                        icn,
+                        ik,
+                        status
+                    ]);
+                });
+            });
+
+            const csvContent = [
+                headers.map(h => `"${h}"`).join(','),
+                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+            ].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `niveau_defaut_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            console.log('[Client] Fichier CSV téléchargé');
         }
 
         function checkHighIk() {
@@ -278,8 +380,8 @@
                     const icn = d.icn ? parseFloat(d.icn).toFixed(2) : 'N/A';
                     const status = d.ik != null && d.icn ? (d.ik <= d.icn ? 'OK' : 'KO') : 'Incomplet';
                     // Nettoyer les IDs pour HTML
-                    const cleanTableauId = tableau.id.replace(/"/g, '&quot;').replace(/'/g, "&#39;");
-                    const cleanDisjoncteurId = d.id.replace(/"/g, '&quot;').replace(/'/g, "&#39;");
+                    const cleanTableauId = tableau.id.replace(/"/g, '"').replace(/'/g, "'");
+                    const cleanDisjoncteurId = d.id.replace(/"/g, '"').replace(/'/g, "'");
                     row.innerHTML = `
                         <td>${tableau.id}</td>
                         <td>${d.id}</td>
@@ -330,8 +432,8 @@
 
             try {
                 // Nettoyer les IDs pour la comparaison
-                const cleanTableauId = tableauId.replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
-                const cleanDisjoncteurId = disjoncteurId.replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+                const cleanTableauId = tableauId.replace(/"/g, '"').replace(/'/g, "'").trim();
+                const cleanDisjoncteurId = disjoncteurId.replace(/"/g, '"').replace(/'/g, "'").trim();
                 console.log('[Client] IDs nettoyés pour recherche:', { cleanTableauId, cleanDisjoncteurId });
                 const tableau = tableauxData.find(t => t.id.trim() === cleanTableauId);
                 const disjoncteur = tableau?.disjoncteurs.find(d => d.id.trim() === cleanDisjoncteurId);
@@ -859,6 +961,10 @@
                     }
                 });
             });
+
+            const noLinkedTableauAlert = document.getElementById('no-linked-tableau-alert');
+            const hasLinks = edges.some(e => e.dashes);
+            noLinkedTableauAlert.classList.toggle('hidden', hasLinks);
 
             if (nodes.length === 0) {
                 console.log('[Client] Aucune donnée valide pour le schéma électrique');
