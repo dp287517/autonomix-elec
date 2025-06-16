@@ -462,7 +462,7 @@
             const colors = ['#22c55e', '#dc2626', '#f4b400', '#9333ea', '#6B7280'];
 
             // Graphique par tableau (barres)
-            {
+            try {
                 const div = document.createElement('div');
                 div.className = 'bg-gray-700 p-4 rounded-lg shadow';
                 const canvas = document.createElement('canvas');
@@ -478,20 +478,26 @@
                 const datasets = categories.map((cat, i) => ({
                     label: cat,
                     data: filteredTableaux.map(tableau => {
+                        if (!tableau.disjoncteurs) {
+                            console.warn('[Client] Disjoncteurs manquants pour tableau:', tableau.id);
+                            return 0;
+                        }
                         return tableau.disjoncteurs.filter(d => {
+                            if (!d.id) return false;
                             const latestCheck = checklistsData
                                 .filter(c => c.tableau_id === tableau.id && c.disjoncteur_id === d.id)
                                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
                             let status = latestCheck ? latestCheck.status : 'Non contrôlé';
                             if (latestCheck && status === 'Non applicable') {
-                                let points;
+                                let points = [];
                                 try {
                                     const comment = latestCheck.comment.startsWith('Checklist vide: ') 
                                         ? latestCheck.comment.replace('Checklist vide: ', '') 
                                         : latestCheck.comment;
-                                    points = JSON.parse(comment).points || [];
+                                    const parsed = JSON.parse(comment);
+                                    points = parsed.points || [];
                                 } catch (e) {
-                                    points = [];
+                                    console.warn('[Client] Erreur parsing comment pour disjoncteur:', d.id, e);
                                 }
                                 status = points.every(p => !p.status) ? 'En attente' : status;
                             }
@@ -501,11 +507,10 @@
                     backgroundColor: colors[i]
                 }));
 
-                ```chartjs
-                {
+                const chart = new Chart(canvas, {
                     type: 'bar',
                     data: {
-                        labels: filteredTableaux.map(t => t.id),
+                        labels: filteredTableaux.map(t => t.id || 'Inconnu'),
                         datasets: datasets
                     },
                     options: {
@@ -519,14 +524,15 @@
                         responsive: true,
                         maintainAspectRatio: false
                     }
-                }
-                ```
+                });
 
                 gsap.from(`#bar-tableau`, { opacity: 0, y: 20, duration: 1, delay: 0.2 });
+            } catch (e) {
+                console.error('[Client] Erreur graphique par tableau:', e);
             }
 
             // Graphique par type de disjoncteur (anneau)
-            {
+            try {
                 const div = document.createElement('div');
                 div.className = 'bg-gray-700 p-4 rounded-lg shadow';
                 const canvas = document.createElement('canvas');
@@ -538,24 +544,30 @@
                 div.insertBefore(title, canvas);
                 container.appendChild(div);
 
-                const types = [...new Set(data.flatMap(t => t.disjoncteurs.map(d => `${d.marque || 'Inconnu'} ${d.ref || 'Inconnu'}`)))];
+                const types = [...new Set(data.flatMap(t => t.disjoncteurs.map(d => {
+                    const marque = d.marque && d.marque.trim() ? d.marque : 'Inconnu';
+                    const ref = d.ref && d.ref.trim() ? d.ref : 'Inconnu';
+                    return `${marque} ${ref}`;
+                })))];
                 const counts = categories.reduce((acc, cat, i) => {
                     acc[cat] = types.map(type => {
                         return data.flatMap(t => t.disjoncteurs).filter(d => {
-                            if (`${d.marque || 'Inconnu'} ${d.ref || 'Inconnu'}` !== type) return false;
+                            const dType = `${d.marque && d.marque.trim() ? d.marque : 'Inconnu'} ${d.ref && d.ref.trim() ? d.ref : 'Inconnu'}`;
+                            if (dType !== type) return false;
                             const latestCheck = checklistsData
                                 .filter(c => c.tableau_id === t.id && c.disjoncteur_id === d.id)
                                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
                             let status = latestCheck ? latestCheck.status : 'Non contrôlé';
                             if (latestCheck && status === 'Non applicable') {
-                                let points;
+                                let points = [];
                                 try {
                                     const comment = latestCheck.comment.startsWith('Checklist vide: ') 
                                         ? latestCheck.comment.replace('Checklist vide: ', '') 
                                         : latestCheck.comment;
-                                    points = JSON.parse(comment).points || [];
+                                    const parsed = JSON.parse(comment);
+                                    points = parsed.points || [];
                                 } catch (e) {
-                                    points = [];
+                                    console.warn('[Client] Erreur parsing comment pour disjoncteur:', d.id, e);
                                 }
                                 status = points.every(p => !p.status) ? 'En attente' : status;
                             }
@@ -565,8 +577,7 @@
                     return acc;
                 }, {});
 
-                ```chartjs
-                {
+                const chart = new Chart(canvas, {
                     type: 'doughnut',
                     data: {
                         labels: categories,
@@ -582,14 +593,15 @@
                         responsive: true,
                         maintainAspectRatio: false
                     }
-                }
-                ```
+                });
 
                 gsap.from(`#doughnut-type`, { opacity: 0, y: 20, duration: 1, delay: 0.4 });
+            } catch (e) {
+                console.error('[Client] Erreur graphique par type:', e);
             }
 
             // Graphique par courant nominal (barres)
-            {
+            try {
                 const div = document.createElement('div');
                 div.className = 'bg-gray-700 p-4 rounded-lg shadow';
                 const canvas = document.createElement('canvas');
@@ -616,14 +628,15 @@
                                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
                             let status = latestCheck ? latestCheck.status : 'Non contrôlé';
                             if (latestCheck && status === 'Non applicable') {
-                                let points;
+                                let points = [];
                                 try {
                                     const comment = latestCheck.comment.startsWith('Checklist vide: ') 
                                         ? latestCheck.comment.replace('Checklist vide: ', '') 
                                         : latestCheck.comment;
-                                    points = JSON.parse(comment).points || [];
+                                    const parsed = JSON.parse(comment);
+                                    points = parsed.points || [];
                                 } catch (e) {
-                                    points = [];
+                                    console.warn('[Client] Erreur parsing comment pour disjoncteur:', d.id, e);
                                 }
                                 status = points.every(p => !p.status) ? 'En attente' : status;
                             }
@@ -633,8 +646,7 @@
                     backgroundColor: colors[i]
                 }));
 
-                ```chartjs
-                {
+                const chart = new Chart(canvas, {
                     type: 'bar',
                     data: {
                         labels: currentRanges,
@@ -651,14 +663,15 @@
                         responsive: true,
                         maintainAspectRatio: false
                     }
-                }
-                ```
+                });
 
                 gsap.from(`#bar-current`, { opacity: 0, y: 20, duration: 1, delay: 0.6 });
+            } catch (e) {
+                console.error('[Client] Erreur graphique par courant:', e);
             }
 
             // Graphique temporel (ligne)
-            {
+            try {
                 const div = document.createElement('div');
                 div.className = 'bg-gray-700 p-4 rounded-lg shadow';
                 const canvas = document.createElement('canvas');
@@ -682,19 +695,21 @@
                         const startDate = new Date(now.getFullYear(), now.getMonth() - 11 + monthIndex, 1);
                         const endDate = new Date(now.getFullYear(), now.getMonth() - 11 + monthIndex + 1, 0);
                         return data.flatMap(t => t.disjoncteurs).filter(d => {
+                            if (!d.id) return false;
                             const latestCheck = checklistsData
                                 .filter(c => c.tableau_id === t.id && c.disjoncteur_id === d.id && new Date(c.timestamp) >= startDate && new Date(c.timestamp) <= endDate)
                                 .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
                             let status = latestCheck ? latestCheck.status : 'Non contrôlé';
                             if (latestCheck && status === 'Non applicable') {
-                                let points;
+                                let points = [];
                                 try {
                                     const comment = latestCheck.comment.startsWith('Checklist vide: ') 
                                         ? latestCheck.comment.replace('Checklist vide: ', '') 
                                         : latestCheck.comment;
-                                    points = JSON.parse(comment).points || [];
+                                    const parsed = JSON.parse(comment);
+                                    points = parsed.points || [];
                                 } catch (e) {
-                                    points = [];
+                                    console.warn('[Client] Erreur parsing comment pour disjoncteur:', d.id, e);
                                 }
                                 status = points.every(p => !p.status) ? 'En attente' : status;
                             }
@@ -706,8 +721,7 @@
                     fill: true
                 }));
 
-                ```chartjs
-                {
+                const chart = new Chart(canvas, {
                     type: 'line',
                     data: {
                         labels: months,
@@ -723,10 +737,11 @@
                         responsive: true,
                         maintainAspectRatio: false
                     }
-                }
-                ```
+                });
 
                 gsap.from(`#line-temporal`, { opacity: 0, y: 20, duration: 1, delay: 0.8 });
+            } catch (e) {
+                console.error('[Client] Erreur graphique temporel:', e);
             }
         }
 
