@@ -959,15 +959,21 @@
             const tableauxSelect = document.getElementById('tableaux-select');
 
             checklistSelect.innerHTML = '<option value="">Choisir une checklist</option>';
-            const uniqueChecklists = [...new Set(checklistsData.map(c => c.comment))].map(comment => {
+            // Regrouper les checklists par nom pour éviter les doublons
+            const checklistMap = new Map();
+            checklistsData.forEach(c => {
                 try {
-                    const parsed = JSON.parse(comment.startsWith('Checklist vide: ') ? comment.replace('Checklist vide: ', '') : comment);
-                    return { comment, points: parsed.points || [], name: parsed.name || `Checklist ${checklistsData.filter(c => c.comment === comment).length}` };
+                    const parsed = JSON.parse(c.comment.startsWith('Checklist vide: ') ? c.comment.replace('Checklist vide: ', '') : c.comment);
+                    const key = parsed.name || `Checklist ${checklistsData.filter(ch => ch.comment === c.comment).length}`;
+                    if (!checklistMap.has(key)) {
+                        checklistMap.set(key, { comment: c.comment, points: parsed.points || [], name: key });
+                    }
                 } catch (e) {
-                    console.warn('[Client] Erreur parsing comment:', comment);
-                    return null;
+                    console.warn('[Client] Erreur parsing comment:', c.comment);
                 }
-            }).filter(c => c);
+            });
+
+            const uniqueChecklists = Array.from(checklistMap.values());
             uniqueChecklists.forEach(c => {
                 const option = document.createElement('option');
                 option.value = c.comment;
@@ -1003,6 +1009,17 @@
 
                         for (const breaker of tableau.disjoncteurs) {
                             if (!breaker.id) continue;
+                            // Vérifier si le disjoncteur a déjà cette checklist
+                            const existingCheck = checklistsData.find(c => 
+                                c.tableau_id === tableauId && 
+                                c.disjoncteur_id === breaker.id && 
+                                c.comment === selectedChecklist
+                            );
+                            if (existingCheck) {
+                                console.log('[Client] Checklist déjà appliquée pour', breaker.id, 'dans', tableauId);
+                                continue;
+                            }
+
                             console.log('[Client] Envoi POST /api/breaker-checklists:', {
                                 tableau_id: tableauId,
                                 disjoncteur_id: breaker.id,
@@ -1046,16 +1063,21 @@
             const modal = document.getElementById('modal-view-checklists');
             const content = document.getElementById('checklists-content');
 
-            const uniqueChecklists = [...new Set(checklistsData.map(c => c.comment))].map(comment => {
+            // Regrouper les checklists par nom pour éviter les doublons
+            const checklistMap = new Map();
+            checklistsData.forEach(c => {
                 try {
-                    const parsed = JSON.parse(comment.startsWith('Checklist vide: ') ? comment.replace('Checklist vide: ', '') : comment);
-                    return { comment, points: parsed.points || [], name: parsed.name || `Checklist ${checklistsData.filter(c => c.comment === comment).length}` };
+                    const parsed = JSON.parse(c.comment.startsWith('Checklist vide: ') ? c.comment.replace('Checklist vide: ', '') : c.comment);
+                    const key = parsed.name || `Checklist ${checklistsData.filter(ch => ch.comment === c.comment).length}`;
+                    if (!checklistMap.has(key)) {
+                        checklistMap.set(key, { comment: c.comment, points: parsed.points || [], name: key });
+                    }
                 } catch (e) {
-                    console.warn('[Client] Erreur parsing comment:', comment);
-                    return null;
+                    console.warn('[Client] Erreur parsing comment:', c.comment);
                 }
-            }).filter(c => c);
+            });
 
+            const uniqueChecklists = Array.from(checklistMap.values());
             content.innerHTML = uniqueChecklists.length > 0 ? uniqueChecklists.map((c, index) => `
                 <div class="bg-gray-700 p-4 rounded-lg mb-4">
                     <p><strong>Nom :</strong> ${c.name}</p>
