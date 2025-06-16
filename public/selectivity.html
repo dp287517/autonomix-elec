@@ -9,17 +9,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
-    <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+    <script src="https://unpkg.com/konva@9.3.6/konva.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <style>
         #modal-graph { background-color: #ffffff !important; overflow-y: auto !important; }
         #modal-graph > div { overflow: visible !important; max-height: none !important; }
-        .vis-tooltip {
-            background-color: #2D3748 !important; color: #ffffff !important; padding: 16px !important;
-            border: 2px solid #10B981 !important; border-radius: 8px !important;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5) !important; font-size: 14px !important;
-            z-index: 1000 !important; pointer-events: none !important;
-        }
         #mini-modal, #non-principal-modal, #missing-data-modal { z-index: 2000 !important; }
         #global-graph canvas { width: 100% !important; height: 100% !important; min-height: 800px; }
         #building-filter, #tableau-filter {
@@ -207,7 +201,6 @@
     <script>
         let tableauxData = [];
         let modalChartInstance = null;
-        let graphInstance = null;
         let missingDataSortDirection = 'asc';
 
         function normalizeCurrent(value) {
@@ -688,22 +681,18 @@
         }
 
         function buildArborescence(tableaux, focusedTableauId = null) {
-            const graph = { nodes: [], edges: [] };
+            const elements = { nodes: [], edges: [] };
             const tableauIds = new Set(tableaux.map(t => t.id));
             let levelCounter = 0;
 
             const addTableauNode = (tableau, parentLevel, isExpanded = false) => {
                 const selectivityStatus = checkSelectivityStatus(tableau, tableau.id, tableaux);
                 const nodeId = `tableau-${tableau.id}`;
-                graph.nodes.push({
+                elements.nodes.push({
                     id: nodeId,
                     label: `${tableau.id}${tableau.isSiteMain ? '\n(Principal)' : ''}`,
-                    title: `<div class="vis-tooltip"><p><strong>Tableau :</strong> ${tableau.id}</p><p><strong>Statut :</strong> ${selectivityStatus.status}</p><p><strong>Détails :</strong> ${selectivityStatus.message}</p></div>`,
-                    color: { background: selectivityStatus.status === 'Parfait' ? '#22c55e' : selectivityStatus.status === 'N/A' ? '#eab308' : '#dc2626', border: '#ffffff' },
-                    font: { color: '#ffffff', size: 16 },
-                    shape: 'box',
-                    widthConstraint: { minimum: 120, maximum: 150 },
-                    status: selectivityStatus.status,
+                    title: `Tableau: ${tableau.id}<br>Statut: ${selectivityStatus.status}<br>Détails: ${selectivityStatus.message}`,
+                    color: selectivityStatus.status === 'Parfait' ? '#22c55e' : selectivityStatus.status === 'N/A' ? '#eab308' : '#dc2626',
                     group: 'tableau',
                     level: parentLevel,
                     tableauId: tableau.id,
@@ -717,25 +706,20 @@
 
                     if (principal) {
                         principalNodeId = `principal-${tableau.id}-${principal.id}`;
-                        graph.nodes.push({
+                        elements.nodes.push({
                             id: principalNodeId,
                             label: `${principal.id}\n(Principal, Ir=${principal.irValue || principal.inValue}A)`,
-                            title: `<div class="vis-tooltip"><p><strong>Disjoncteur :</strong> ${principal.id}</p><p><strong>Tableau :</strong> ${tableau.id}</p><p><strong>Ir :</strong> ${principal.irValue || 'N/A'}A</p><p><strong>In :</strong> ${principal.inValue || 'N/A'}A</p><p><strong>Courbe :</strong> ${principal.courbe || 'N/A'}</p></div>`,
-                            color: { background: '#3b82f6', border: '#ffffff' },
-                            font: { color: '#ffffff', size: 14 },
-                            shape: 'box',
-                            widthConstraint: { minimum: 100, maximum: 120 },
+                            title: `Disjoncteur: ${principal.id}<br>Tableau: ${tableau.id}<br>Ir: ${principal.irValue || 'N/A'}A<br>In: ${principal.inValue || 'N/A'}A<br>Courbe: ${principal.courbe || 'N/A'}`,
+                            color: '#3b82f6',
                             group: 'principal',
                             level: principalLevel,
                             disjoncteurId: principal.id
                         });
-                        graph.edges.push({
+                        elements.edges.push({
                             id: `edge-${nodeId}-to-${principalNodeId}`,
                             from: nodeId,
                             to: principalNodeId,
-                            color: { color: '#6B7280', highlight: '#10B981' },
-                            width: 2,
-                            smooth: { type: 'cubicBezier', roundness: 0 }
+                            color: '#6B7280'
                         });
                     }
 
@@ -744,27 +728,22 @@
                         const disjoncteurNodeId = `disjoncteur-${tableau.id}-${d.id}`;
                         let isSelective = false;
                         let upstreamDisjoncteur = principal;
-                        let upstreamTableauId = null;
 
                         if (!principal && !tableau.isSiteMain) {
                             const upstreamResult = findUpstreamDisjoncteur(tableau.id, tableaux);
                             if (upstreamResult) {
                                 upstreamDisjoncteur = upstreamResult.disjoncteur;
-                                upstreamTableauId = upstreamResult.tableauId;
                                 isSelective = (d.irValue || d.inValue) < (upstreamDisjoncteur.irValue || upstreamDisjoncteur.inValue) * 0.9;
                             }
                         } else if (principal) {
                             isSelective = (d.irValue || d.inValue) < (principal.irValue || principal.inValue) * 0.9;
                         }
 
-                        graph.nodes.push({
+                        elements.nodes.push({
                             id: disjoncteurNodeId,
                             label: `${d.id}\n(Ir=${d.irValue || d.inValue}A)`,
-                            title: `<div class="vis-tooltip"><p><strong>Disjoncteur :</strong> ${d.id}</p><p><strong>Tableau :</strong> ${tableau.id}</p><p><strong>Ir :</strong> ${d.irValue || 'N/A'}A</p><p><strong>In :</strong> ${d.inValue || 'N/A'}A</p><p><strong>Courbe :</strong> ${d.courbe || 'N/A'}</p><p><strong>Sélectivité :</strong> ${upstreamDisjoncteur ? (isSelective ? 'Correcte' : 'Problème') : tableau.isSiteMain ? 'N/A' : 'Aucun amont'}</p></div>`,
-                            color: { background: isSelective ? '#22c55e' : '#dc2626', border: '#ffffff' },
-                            font: { color: '#ffffff', size: 14 },
-                            shape: 'box',
-                            widthConstraint: { minimum: 80, maximum: 100 },
+                            title: `Disjoncteur: ${d.id}<br>Tableau: ${tableau.id}<br>Ir: ${d.irValue || 'N/A'}A<br>In: ${d.inValue || 'N/A'}A<br>Courbe: ${d.courbe || 'N/A'}<br>Sélectivité: ${upstreamDisjoncteur ? (isSelective ? 'Correcte' : 'Problème') : tableau.isSiteMain ? 'N/A' : 'Aucun amont'}`,
+                            color: isSelective ? '#22c55e' : '#dc2626',
                             group: 'non-principal',
                             level: nonPrincipalLevel,
                             disjoncteurId: d.id,
@@ -773,13 +752,11 @@
                         });
 
                         const sourceNodeId = principal ? principalNodeId : nodeId;
-                        graph.edges.push({
+                        elements.edges.push({
                             id: `edge-${sourceNodeId}-to-${disjoncteurNodeId}`,
                             from: sourceNodeId,
                             to: disjoncteurNodeId,
-                            color: { color: isSelective ? '#22c55e' : '#dc2626', highlight: '#10B981' },
-                            width: 2,
-                            smooth: { type: 'cubicBezier', roundness: 0 }
+                            color: isSelective ? '#22c55e' : '#dc2626'
                         });
 
                         if (d.linkedTableauId && tableauIds.has(d.linkedTableauId)) {
@@ -787,17 +764,12 @@
                             const upstreamResult = findUpstreamDisjoncteur(d.linkedTableauId, tableaux);
                             const upstreamDisjoncteur = upstreamResult ? upstreamResult.disjoncteur : null;
                             const isInterSelective = upstreamDisjoncteur ? (d.irValue || d.inValue) < (upstreamDisjoncteur.irValue || upstreamDisjoncteur.inValue) * 0.9 : false;
-                            graph.edges.push({
+                            elements.edges.push({
                                 id: `edge-${disjoncteurNodeId}-to-${linkedTableauNodeId}`,
                                 from: disjoncteurNodeId,
                                 to: linkedTableauNodeId,
                                 label: `Liaison (Ir=${d.irValue || d.inValue}A)`,
-                                title: `<div class="vis-tooltip"><p><strong>Liaison :</strong> ${tableau.id} → ${d.linkedTableauId}</p><p><strong>Disjoncteur :</strong> ${d.id}</p><p><strong>Ir :</strong> ${d.irValue || 'N/A'}A</p><p><strong>Courbe :</strong> ${d.courbe || 'N/A'}</p><p><strong>Sélectivité :</strong> ${upstreamDisjoncteur ? (isInterSelective ? 'Correcte' : 'Problème') : 'Aucun disjoncteur amont'}</p></div>`,
-                                color: { color: isInterSelective ? '#22c55e' : '#dc2626', highlight: '#10B981' },
-                                width: 2,
-                                dashes: true,
-                                arrows: { to: { enabled: true } },
-                                smooth: { type: 'cubicBezier', roundness: 0 },
+                                color: isInterSelective ? '#22c55e' : '#dc2626',
                                 disjoncteur: d
                             });
                         }
@@ -825,7 +797,7 @@
                 tableaux.forEach(t => addTableauNode(t, levelCounter, t.isSiteMain));
             }
 
-            return graph;
+            return elements;
         }
 
         function checkGlobalSelectivity(tableaux) {
@@ -885,19 +857,10 @@
             return { globalStatus, errors, results, graph, missingDataIssues };
         }
 
-        function adjustGraphHeight(graph) {
+        function adjustGraphHeight() {
             const graphContainer = document.getElementById('global-graph');
-            const nodeCount = graph.nodes.length;
-            const edgeCount = graph.edges.length;
-            const estimatedHeight = Math.min(1200, 200 + nodeCount * 100 + edgeCount * 50);
-            const maxHeight = Math.max(estimatedHeight, window.innerHeight * 0.8);
-            graphContainer.style.height = `${maxHeight}px`;
+            graphContainer.style.height = '800px';
             graphContainer.style.minHeight = '800px';
-            if (graphInstance) {
-                graphInstance.setSize('100%', `${maxHeight}px`);
-                graphInstance.fit();
-                graphInstance.redraw();
-            }
         }
 
         function genererGraphique(canvasId, disjoncteurs, tableau, tableauId, isModal) {
@@ -1064,21 +1027,52 @@
         }
 
         function renderSelectivity(data = tableauxData, focusedTableauId = null) {
-            console.log('[Client] Rendu du schéma avec:', data.length, 'tableaux');
+            console.log('[Client] Rendu du schéma avec Konva.js:', data.length, 'tableaux');
             const graphContainer = document.getElementById('global-graph');
             const textDiv = document.getElementById('global-text');
             const tableBody = document.getElementById('global-tableau-body');
             const missingDataAlert = document.getElementById('missing-data-alert');
             const missingDataLink = document.getElementById('missing-link');
 
-            if (graphInstance) {
-                graphInstance.destroy();
-                graphInstance = null;
-            }
+            // Nettoyer le conteneur
+            graphContainer.innerHTML = '';
 
+            // Initialiser le canevas Konva.js
+            const stage = new Konva.Stage({
+                container: 'global-graph',
+                width: graphContainer.offsetWidth,
+                height: 800,
+                draggable: true
+            });
+
+            const layer = new Konva.Layer();
+            stage.add(layer);
+
+            // Activer le zoom avec la molette
+            stage.on('wheel', (e) => {
+                e.evt.preventDefault();
+                const scaleBy = 1.1;
+                const oldScale = stage.scaleX();
+                const pointer = stage.getPointerPosition();
+                const mousePointTo = {
+                    x: (pointer.x - stage.x()) / oldScale,
+                    y: (pointer.y - stage.y()) / oldScale
+                };
+                const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+                stage.scale({ x: newScale, y: newScale });
+                const newPos = {
+                    x: pointer.x - mousePointTo.x * newScale,
+                    y: pointer.y - mousePointTo.y * newScale
+                };
+                stage.position(newPos);
+                layer.batchDraw();
+            });
+
+            // Vérifier la sélectivité globale
             const selectivity = checkGlobalSelectivity(data);
             const { globalStatus, errors, results, graph, missingDataIssues } = selectivity;
 
+            // Afficher le texte récapitulatif
             let textContent = `<p class="text-2xl font-bold ${globalStatus === 'Parfait' ? 'text-green-600' : 'text-red-600'}"><i class="fas ${globalStatus === 'Parfait' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-2"></i>Sélectivité globale : ${globalStatus}</p>`;
             textContent += `<p class="mt-4">${globalStatus === 'Parfait' ? 'Installation bien configurée. Tous les disjoncteurs sont sélectifs.' : 'Problèmes détectés. Consultez le schéma et le tableau pour les détails.'}</p>`;
             if (errors.length > 0) {
@@ -1094,53 +1088,69 @@
             }
             textDiv.innerHTML = textContent;
 
+            // Si pas de nœuds, afficher un message
             if (graph.nodes.length === 0) {
                 graphContainer.innerHTML = '<p class="text-center text-gray-300">Aucune donnée à afficher.</p>';
                 tableBody.innerHTML = '';
-                adjustGraphHeight(graph);
+                adjustGraphHeight();
                 return;
             }
-            console.log('[Client] Nœuds du graphe:', graph.nodes.length);
-            const nodes = new vis.DataSet(graph.nodes);
-            const edges = new vis.DataSet(graph.edges);
-            graphInstance = new vis.Network(graphContainer, { nodes, edges }, {
-                layout: { 
-                    hierarchical: { 
-                        direction: 'UD', 
-                        sortMethod: 'directed', 
-                        nodeSpacing: 300, 
-                        levelSeparation: 200,
-                        treeSpacing: 200,
-                        blockShifting: true,
-                        edgeMinimization: true
-                    } 
-                },
-                interaction: { hover: true, zoomView: true, dragView: true, multiselect: false },
-                nodes: { font: { size: 14 }, borderWidth: 2, shadow: { enabled: true, size: 5 } },
-                edges: { width: 2, arrows: { to: { enabled: true, scaleFactor: 0.5 } }, smooth: { type: 'cubicBezier', roundness: 0 }, font: { size: 12 }, shadow: { enabled: true, size: 3 } },
-                physics: { enabled: false }
+
+            // Positionner les nœuds automatiquement
+            const nodePositions = {};
+            graph.nodes.forEach((node, index) => {
+                const x = (node.group === 'tableau' ? 100 : node.group === 'principal' ? 350 : 600) + (index % 3) * 300;
+                const y = 100 + Math.floor(index / 3) * 200;
+                nodePositions[node.id] = { x, y };
             });
 
-            graphInstance.on('click', params => {
-                if (params.nodes.length > 0) {
-                    const node = nodes.get(params.nodes[0]);
+            // Dessiner les nœuds
+            graph.nodes.forEach(node => {
+                const pos = nodePositions[node.id];
+                const group = new Konva.Group({
+                    x: pos.x,
+                    y: pos.y,
+                    draggable: true
+                });
+
+                // Boîte du nœud
+                const box = new Konva.Rect({
+                    width: node.group === 'tableau' ? 150 : 120,
+                    height: 60,
+                    fill: node.color,
+                    stroke: '#ffffff',
+                    strokeWidth: 2,
+                    cornerRadius: 8,
+                    shadowBlur: 5
+                });
+
+                // Texte du nœud
+                const text = new Konva.Text({
+                    text: node.label,
+                    fontSize: 14,
+                    fontFamily: 'Arial',
+                    fill: '#ffffff',
+                    width: box.width(),
+                    padding: 10,
+                    align: 'center'
+                });
+
+                group.add(box, text);
+
+                // Interaction au clic
+                group.on('click', () => {
                     if (node.group === 'tableau') {
                         renderSelectivity(data, node.tableauId);
-                    } else if (node.group === 'non-principal' && node.hasLink) {
-                        const disjoncteur = node.disjoncteur;
-                        if (disjoncteur?.linkedTableauId) {
-                            renderSelectivity(data, disjoncteur.linkedTableauId);
-                        }
                     } else {
                         document.getElementById('mini-modal-title').textContent = node.group === 'principal' 
                             ? `Disjoncteur Principal ${node.label.split('\n')[0]}` 
-                            : `Disjoncteur ${node.disjoncteur?.id || node.label.split('\n')[0]}`;
+                            : `Disjoncteur ${node.disjoncteurId || node.label.split('\n')[0]}`;
                         document.getElementById('mini-modal-content').innerHTML = `
-                            <p><strong>Disjoncteur :</strong> ${node.disjoncteur?.id || node.label.split('\n')[0]}</p>
+                            <p><strong>Disjoncteur :</strong> ${node.disjoncteurId || node.label.split('\n')[0]}</p>
                             <p><strong>Tableau :</strong> ${node.id.split('-')[1]}</p>
-                            <p><strong>Ir :</strong> ${node.disjoncteur?.irValue || node.label.match(/Ir=([\d.]+)A/)?.[1] || 'N/A'}A</p>
-                            <p><strong>In :</strong> ${node.disjoncteur?.inValue || 'N/A'}A</p>
-                            <p><strong>Courbe :</strong> ${node.disjoncteur?.courbe || 'N/A'}</p>
+                            <p><strong>Ir :</strong> ${node.title.match(/Ir: ([\d.]+|N\/A)/)?.[1] || 'N/A'}A</p>
+                            <p><strong>In :</strong> ${node.title.match(/In: ([\d.]+|N\/A)/)?.[1] || 'N/A'}A</p>
+                            <p><strong>Courbe :</strong> ${node.title.match(/Courbe: ([\w\/]+|N\/A)/)?.[1] || 'N/A'}</p>
                             <p><strong>Rôle :</strong> ${node.group === 'principal' ? 'Principal' : 'Non principal'}</p>
                             <p><strong>Liaison :</strong> ${node.disjoncteur?.linkedTableauId || 'Aucune'}</p>
                         `;
@@ -1150,115 +1160,159 @@
                             gsap.from('#mini-modal', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
                         }
                     }
-                } else if (params.edges.length > 0) {
-                    const edge = edges.get(params.edges[0]);
-                    if (edge.disjoncteur) {
-                        document.getElementById('mini-modal-title').textContent = `Liaison ${edge.from} → ${edge.to}`;
-                        document.getElementById('mini-modal-content').innerHTML = `
-                            <p><strong>Liaison :</strong> ${edge.from} → ${edge.to}</p>
-                            <p><strong>Disjoncteur :</strong> ${edge.disjoncteur.id}</p>
-                            <p><strong>Ir :</strong> ${edge.disjoncteur.irValue || 'N/A'}A</p>
-                            <p><strong>In :</strong> ${edge.disjoncteur.inValue || 'N/A'}A</p>
-                            <p><strong>Courbe :</strong> ${edge.disjoncteur.courbe || 'N/A'}</p>
-                        `;
-                        const miniModal = document.getElementById('mini-modal');
-                        if (miniModal) {
-                            miniModal.classList.remove('hidden');
-                            gsap.from('#mini-modal', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
-                        }
+                });
+
+                // Afficher un tooltip au survol
+                group.on('mouseover', () => {
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'absolute bg-gray-800 text-white p-4 rounded shadow-lg z-50';
+                    tooltip.innerHTML = node.title.replace(/<br>/g, '\n');
+                    tooltip.style.left = `${pos.x + stage.x() + 10}px`;
+                    tooltip.style.top = `${pos.y + stage.y() + 10}px`;
+                    document.body.appendChild(tooltip);
+                    group.tooltip = tooltip;
+                });
+
+                group.on('mouseout', () => {
+                    if (group.tooltip) {
+                        group.tooltip.remove();
+                        group.tooltip = null;
                     }
+                });
+
+                layer.add(group);
+                node.groupKonva = group;
+            });
+
+            // Dessiner les arêtes
+            graph.edges.forEach(edge => {
+                const fromNode = graph.nodes.find(n => n.id === edge.from);
+                const toNode = graph.nodes.find(n => n.id === edge.to);
+                if (fromNode && toNode) {
+                    const fromGroup = fromNode.groupKonva;
+                    const toGroup = toNode.groupKonva;
+
+                    const line = new Konva.Line({
+                        points: [
+                            fromGroup.x() + (fromNode.group === 'tableau' ? 150 : 120) / 2,
+                            fromGroup.y() + 60,
+                            toGroup.x() + (toNode.group === 'tableau' ? 150 : 120) / 2,
+                            toGroup.y()
+                        ],
+                        stroke: edge.color,
+                        strokeWidth: 2,
+                        dash: edge.label ? [10, 5] : null
+                    });
+
+                    // Mettre à jour la ligne si les nœuds bougent
+                    fromGroup.on('dragmove', () => {
+                        line.points([
+                            fromGroup.x() + (fromNode.group === 'tableau' ? 150 : 120) / 2,
+                            fromGroup.y() + 60,
+                            toGroup.x() + (toNode.group === 'tableau' ? 150 : 120) / 2,
+                            toGroup.y()
+                        ]);
+                        layer.batchDraw();
+                    });
+
+                    toGroup.on('dragmove', () => {
+                        line.points([
+                            fromGroup.x() + (fromNode.group === 'tableau' ? 150 : 120) / 2,
+                            fromGroup.y() + 60,
+                            toGroup.x() + (toNode.group === 'tableau' ? 150 : 120) / 2,
+                            toGroup.y()
+                        ]);
+                        layer.batchDraw();
+                    });
+
+                    // Label pour les liaisons
+                    if (edge.label) {
+                        const label = new Konva.Text({
+                            x: (fromGroup.x() + toGroup.x()) / 2,
+                            y: (fromGroup.y() + toGroup.y()) / 2,
+                            text: edge.label,
+                            fontSize: 12,
+                            fill: '#ffffff',
+                            background: '#2D3748',
+                            padding: 5
+                        });
+                        layer.add(label);
+                    }
+
+                    layer.add(line);
                 }
             });
 
-            graphInstance.on('hoverNode', params => {
-                const nodeId = params.node;
-                const connectedEdges = edges.get().filter(e => e.from === nodeId || e.to === nodeId);
-                const connectedNodeIds = new Set(connectedEdges.flatMap(e => [e.from, e.to]));
-                nodes.update(nodes.get().map(n => ({
-                    ...n,
-                    color: connectedNodeIds.has(n.id) ? { ...n.color, border: '#10B981' } : n.color
-                })));
-                edges.update(connectedEdges.map(e => ({
-                    ...e,
-                    color: { ...e.color, color: e.color.highlight || '#10B981' }
-                })));
+            layer.draw();
+
+            // Afficher le tableau récapitulatif
+            tableBody.innerHTML = '';
+            results.forEach(result => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-3">${result.tableauId}</td>
+                    <td class="p-3 ${result.intraStatus === 'Parfait' ? 'text-green-600' : result.intraStatus === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${result.intraStatus}</td>
+                    <td class="p-3">${result.liaisons.map(l => `${l.disjoncteurId} → ${l.target}`).join(', ') || 'Aucune'}</td>
+                    <td class="p-3 ${result.interStatus === 'Parfait' ? 'text-green-600' : result.interStatus === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${result.interStatus}</td>
+                    <td class="p-3">${result.intraMessage}<br>${result.interMessage}</td>
+                `;
+                tableBody.appendChild(row);
             });
 
-            graphInstance.on('blurNode', params => {
-                nodes.update(nodes.get().map(n => ({
-                    ...n,
-                    color: { ...n.color, border: '#ffffff' }
-                })));
-                edges.update(edges.get().map(e => ({
-                    ...e,
-                    color: { color: e.color.color || '#6B7280' }
-                })));
-            });
-
-            setTimeout(() => adjustGraphHeight(graph), 100);
-
+            // Animation GSAP pour le canevas
             if (typeof gsap !== 'undefined') {
                 gsap.from('#global-graph', { opacity: 0, y: 50, duration: 1, ease: 'power2.out' });
             }
 
-            tableBody.innerHTML = '';
-                results.forEach(result => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td class="p-3">${result.tableauId}</td>
-                        <td class="p-3 ${result.intraStatus === 'Parfait' ? 'text-green-600' : result.intraStatus === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${result.intraStatus}</td>
-                        <td class="p-3">${result.liaisons.map(l => `${l.disjoncteurId} → ${l.target}`).join(', ') || 'Aucune'}</td>
-                        <td class="p-3 ${result.interStatus === 'Parfait' ? 'text-green-600' : result.interStatus === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${result.interStatus}</td>
-                        <td class="p-3">${result.intraMessage}<br>${result.interMessage}</td>
-                    `;
-                    tableBody.appendChild(row);
-                });
-            }
+            // Ajuster la hauteur du graphe
+            adjustGraphHeight();
+        }
 
-            function closeMiniModal() {
-                console.log('[Client] Fermeture du mini-modal');
+        function closeMiniModal() {
+            console.log('[Client] Fermeture du mini-modal');
+            const miniModal = document.getElementById('mini-modal');
+            if (miniModal) {
+                miniModal.classList.add('hidden');
+            }
+        }
+
+        window.onload = function() {
+            console.log('[Client] Page selectivity.html chargée');
+            if (window.location.protocol === 'file:') {
+                alert('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/selectivity.html) pour accéder à l\'API.');
+                return;
+            }
+            try {
                 const miniModal = document.getElementById('mini-modal');
-                if (miniModal) {
-                    miniModal.classList.add('hidden');
+                const nonPrincipalModal = document.getElementById('non-principal-modal');
+                const missingDataModal = document.getElementById('missing-data-modal');
+                if (miniModal) miniModal.classList.add('hidden');
+                if (nonPrincipalModal) nonPrincipalModal.classList.add('hidden');
+                if (missingDataModal) missingDataModal.classList.add('hidden');
+
+                const buildingFilter = document.getElementById('building-filter');
+                const tableauFilter = document.getElementById('tableau-filter');
+                if (buildingFilter && tableauFilter) {
+                    buildingFilter.addEventListener('change', () => {
+                        console.log('[Client] Filtre bâtiment changé:', buildingFilter.value);
+                        filterData();
+                    });
+                    tableauFilter.addEventListener('change', () => {
+                        console.log('[Client] Filtre tableau changé:', tableauFilter.value);
+                        filterData();
+                    });
+                    console.log('[Client] Gestionnaires d\'événements attachés');
+                    console.log('[Client] Building filter styles:', window.getComputedStyle(buildingFilter).cursor);
+                    console.log('[Client] Tableau filter styles:', window.getComputedStyle(tableauFilter).cursor);
+                } else {
+                    console.error('[Client] Éléments de filtre non trouvés lors de l\'initialisation');
                 }
+                chargerTableaux();
+            } catch (error) {
+                console.error('[Client] Erreur lors de l’initialisation:', error.message, error.stack);
+                alert('Erreur lors de l’initialisation de la page.');
             }
-
-            window.onload = function() {
-                console.log('[Client] Page selectivity.html chargée');
-                if (window.location.protocol === 'file:') {
-                    alert('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/selectivity.html) pour accéder à l\'API.');
-                    return;
-                }
-                try {
-                    const miniModal = document.getElementById('mini-modal');
-                    const nonPrincipalModal = document.getElementById('non-principal-modal');
-                    const missingDataModal = document.getElementById('missing-data-modal');
-                    if (miniModal) miniModal.classList.add('hidden');
-                    if (nonPrincipalModal) nonPrincipalModal.classList.add('hidden');
-                    if (missingDataModal) missingDataModal.classList.add('hidden');
-
-                    const buildingFilter = document.getElementById('building-filter');
-                    const tableauFilter = document.getElementById('tableau-filter');
-                    if (buildingFilter && tableauFilter) {
-                        buildingFilter.addEventListener('change', () => {
-                            console.log('[Client] Filtre bâtiment changé:', buildingFilter.value);
-                            filterData();
-                        });
-                        tableauFilter.addEventListener('change', () => {
-                            console.log('[Client] Filtre tableau changé:', tableauFilter.value);
-                            filterData();
-                        });
-                        console.log('[Client] Gestionnaires d\'événements attachés');
-                        console.log('[Client] Building filter styles:', window.getComputedStyle(buildingFilter).cursor);
-                        console.log('[Client] Tableau filter styles:', window.getComputedStyle(tableauFilter).cursor);
-                    } else {
-                        console.error('[Client] Éléments de filtre non trouvés lors de l\'initialisation');
-                    }
-                    chargerTableaux();
-                } catch (error) {
-                    console.error('[Client] Erreur lors de l’initialisation:', error.message, error.stack);
-                }
-            };
-        </script>
-    </body>
-    </html>
+        };
+    </script>
+</body>
+</html>
