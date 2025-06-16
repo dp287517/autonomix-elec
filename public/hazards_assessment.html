@@ -27,7 +27,12 @@
     </nav>
 
     <div class="container mx-auto p-6">
-        <h1 class="text-3xl font-bold mb-6 flex items-center"><i class="fas fa-exclamation-triangle mr-3"></i>Évaluation des Risques Électriques</h1>
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold flex items-center"><i class="fas fa-exclamation-triangle mr-3"></i>Évaluation des Risques Électriques</h1>
+            <button onclick="exportToCSV()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center">
+                <i class="fas fa-file-csv mr-2"></i>Exporter en CSV
+            </button>
+        </div>
         <div id="api-error" class="hidden bg-red-900 text-red-200 p-3 rounded mb-6">
             <p><i class="fas fa-exclamation-triangle mr-2"></i>Erreur lors du chargement des données. Veuillez réessayer plus tard.</p>
         </div>
@@ -55,11 +60,13 @@
                 <li>Filtrez par bâtiment ou tableau pour analyser les risques électriques spécifiques.</li>
                 <li>Le tableau liste les disjoncteurs avec les risques potentiels : arc électrique, choc électrique, surchauffe.</li>
                 <li>La colonne "Obsolète" indique si le disjoncteur a dépassé sa durée de vie.</li>
+                <li>La colonne "Statut Contrôle" montre le dernier statut de contrôle (Conforme, Non conforme, etc.).</li>
                 <li>Cliquez sur l’icône <i class="fas fa-eye"></i> pour voir les détails et les recommandations.</li>
                 <li>Le graphique à barres montre la répartition des risques par type.</li>
                 <li>Les alertes signalent les données manquantes (ex. IP, température, tension, section) nécessaires pour l’évaluation.</li>
                 <li>Complétez les données via le panneau latéral pour réduire les risques.</li>
                 <li>Vérifiez les conditions environnementales (humidité, température ambiante) pour éviter les risques accrus.</li>
+                <li>Cliquez sur "Exporter en CSV" pour télécharger les données des disjoncteurs au format CSV.</li>
             </ul>
         </div>
 
@@ -81,6 +88,7 @@
                         <th class="border border-gray-600 p-2">Risque Choc</th>
                         <th class="border border-gray-600 p-2">Risque Surchauffe</th>
                         <th class="border border-gray-600 p-2">Obsolète</th>
+                        <th class="border border-gray-600 p-2">Statut Contrôle</th>
                         <th class="border border-gray-600 p-2">Actions</th>
                     </tr>
                 </thead>
@@ -109,6 +117,7 @@
 
     <script>
         let tableauxData = [];
+        let checklistsData = [];
         let missingData = [];
         let chartInstance = null;
         const currentYear = 2025;
@@ -128,16 +137,26 @@
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 2000);
-                const response = await fetch('/api/fault-level', {
-                    method: 'GET',
-                    signal: controller.signal
-                });
+                const [faultLevelResponse, checklistsResponse] = await Promise.all([
+                    fetch('/api/fault-level', { method: 'GET', signal: controller.signal }),
+                    fetch('/api/breaker-checklists', { method: 'GET', signal: controller.signal })
+                ]);
                 clearTimeout(timeoutId);
-                const responseData = await response.json();
-                if (!response.ok) throw new Error(responseData.error || 'Erreur lors du chargement');
+
+                if (!faultLevelResponse.ok) {
+                    const errorData = await faultLevelResponse.json();
+                    throw new Error(errorData.error || 'Erreur lors du chargement des données fault-level');
+                }
+                if (!checklistsResponse.ok) {
+                    const errorData = await checklistsResponse.json();
+                    throw new Error(errorData.error || 'Erreur lors du chargement des checklists');
+                }
+
+                const faultLevelData = await faultLevelResponse.json();
+                checklistsData = await checklistsResponse.json();
 
                 // Appliquer des valeurs par défaut aux champs manquants
-                tableauxData = responseData.data.map(tableau => ({
+                tableauxData = faultLevelData.data.map(tableau => ({
                     ...tableau,
                     disjoncteurs: tableau.disjoncteurs.map(d => ({
                         ...d,
@@ -151,7 +170,7 @@
                 }));
 
                 missingData = tableauxData.flatMap(t => t.disjoncteurs.filter(d => !d.ip || !d.temp || !d.ue || !d.section).map(d => ({ tableauId: t.id, disjoncteurId: d.id })));
-                console.log('[Client] Données chargées:', tableauxData, 'Données manquantes:', missingData);
+                console.log('[Client] Données chargées:', tableauxData, 'Checklists:', checklistsData.length, 'Données manquantes:', missingData);
                 document.getElementById('api-error').classList.add('hidden');
                 populateFilters();
                 renderHazardsTable();
@@ -161,6 +180,7 @@
                 console.error('[Client] Erreur chargement:', error);
                 document.getElementById('api-error').classList.remove('hidden');
                 tableauxData = [];
+                checklistsData = [];
                 missingData = [];
                 renderHazardsTable();
                 renderHazardsChart();
@@ -168,7 +188,7 @@
             }
         }
 
-        // Fonction pour obtenir la section recommandée (simplifiée côté client)
+        // Fonction pour obtenir la section recommandée
         function getRecommendedSection(inValue) {
             const inNum = parseFloat(inValue?.match(/[\d.]+/)?.[0]) || 0;
             const sections = [
@@ -193,19 +213,35 @@
             const buildingFilter = document.getElementById('building-filter');
             const tableauFilter = document.getElementById('tableau-filter');
             const buildings = [...new Set(tableauxData.map(t => t.building))].sort();
+
+            buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
             buildings.forEach(b => {
                 const option = document.createElement('option');
                 option.value = b;
                 option.textContent = b;
                 buildingFilter.appendChild(option);
             });
-            tableauxData.forEach(t => {
-                const option = document.createElement('option');
-                option.value = t.id;
-                option.textContent = t.id;
-                tableauFilter.appendChild(option);
-            });
-            buildingFilter.onchange = filterData;
+
+            function updateTableauFilter(selectedBuilding) {
+                tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
+                const filteredTableaux = selectedBuilding
+                    ? tableauxData.filter(t => t.building === selectedBuilding)
+                    : tableauxData;
+                filteredTableaux.forEach(t => {
+                    const option = document.createElement('option');
+                    option.value = t.id;
+                    option.textContent = t.id;
+                    tableauFilter.appendChild(option);
+                });
+            }
+
+            updateTableauFilter('');
+
+            buildingFilter.onchange = () => {
+                const selectedBuilding = buildingFilter.value;
+                updateTableauFilter(selectedBuilding);
+                filterData();
+            };
             tableauFilter.onchange = filterData;
         }
 
@@ -213,9 +249,63 @@
         function filterData() {
             const building = document.getElementById('building-filter').value;
             const tableau = document.getElementById('tableau-filter').value;
-            const filteredData = tableauxData.filter(t => (!building || t.building === building) && (!tableau || t.id === tableau));
+            const filteredData = tableauxData.filter(t => 
+                (!building || t.building === building) && 
+                (!tableau || t.id === tableau)
+            );
             renderHazardsTable(filteredData);
             renderHazardsChart(filteredData);
+        }
+
+        // Exporter en CSV
+        function exportToCSV() {
+            console.log('[Client] Exportation des données en CSV');
+            if (!tableauxData || tableauxData.length === 0) {
+                alert('Aucune donnée à exporter.');
+                return;
+            }
+
+            const headers = [
+                'Tableau_ID', 'Bâtiment', 'Disjoncteur_ID', 'Marque', 'Risque_Arc', 'Risque_Choc', 
+                'Risque_Surchauffe', 'Obsolète', 'Statut_Contrôle', 'Date_Dernier_Contrôle'
+            ];
+            const rows = [];
+
+            tableauxData.forEach(tableau => {
+                tableau.disjoncteurs.forEach(disjoncteur => {
+                    const risks = evaluateRisks(disjoncteur);
+                    const isObsoleteStatus = isObsolete(disjoncteur);
+                    const latestCheck = getLatestCheckStatus(tableau.id, disjoncteur.id);
+                    rows.push([
+                        tableau.id,
+                        tableau.building,
+                        disjoncteur.id || 'N/A',
+                        disjoncteur.marque || 'N/A',
+                        risks.arc,
+                        risks.choc,
+                        risks.surchauffe,
+                        isObsoleteStatus ? 'Oui' : 'Non',
+                        latestCheck.status || 'Non contrôlé',
+                        latestCheck.timestamp ? new Date(latestCheck.timestamp).toLocaleDateString('fr-FR') : 'N/A'
+                    ]);
+                });
+            });
+
+            const csvContent = [
+                headers.map(h => `"${h}"`).join(','),
+                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+            ].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `risques_electriques_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            console.log('[Client] Fichier CSV téléchargé');
         }
 
         // Vérifier si le disjoncteur est obsolète
@@ -229,18 +319,15 @@
         // Évaluer les risques
         function evaluateRisks(disjoncteur) {
             const risks = { arc: 'Faible', choc: 'Faible', surchauffe: 'Faible' };
-            // Risque arc électrique
             if (disjoncteur.ik && disjoncteur.icn && disjoncteur.ik > disjoncteur.icn) {
                 risks.arc = 'Élevé';
             }
-            // Risque choc électrique
             if (!disjoncteur.ip || disjoncteur.ip === 'IP20') {
                 risks.choc = 'Moyen';
             }
             if (disjoncteur.humidite && parseFloat(disjoncteur.humidite) > 80) {
                 risks.choc = 'Élevé';
             }
-            // Risque surchauffe
             if (disjoncteur.temp && parseFloat(disjoncteur.temp) > 70) {
                 risks.surchauffe = 'Élevé';
             }
@@ -248,6 +335,28 @@
                 risks.surchauffe = 'Moyen';
             }
             return risks;
+        }
+
+        // Obtenir le dernier statut de contrôle
+        function getLatestCheckStatus(tableauId, disjoncteurId) {
+            const latestCheck = checklistsData
+                .filter(c => c.tableau_id === tableauId && c.disjoncteur_id === disjoncteurId)
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+            if (!latestCheck) return { status: null, timestamp: null };
+            let points = [];
+            try {
+                const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                    ? latestCheck.comment.replace('Checklist vide: ', '') 
+                    : latestCheck.comment;
+                points = JSON.parse(comment).points || [];
+            } catch (e) {
+                points = [];
+            }
+            const isPending = latestCheck.status === 'Non applicable' && points.every(p => !p.status);
+            return {
+                status: isPending ? 'En attente' : latestCheck.status,
+                timestamp: latestCheck.timestamp
+            };
         }
 
         // Rendre le tableau des risques
@@ -258,6 +367,12 @@
                 tableau.disjoncteurs.forEach(disjoncteur => {
                     const risks = evaluateRisks(disjoncteur);
                     const isObsoleteStatus = isObsolete(disjoncteur);
+                    const latestCheck = getLatestCheckStatus(tableau.id, disjoncteur.id);
+                    const statusClass = latestCheck.status === 'Conforme' ? 'text-green-600' :
+                                       latestCheck.status === 'Non conforme' ? 'text-red-600' :
+                                       latestCheck.status === 'Non applicable' ? 'text-yellow-600' :
+                                       latestCheck.status === 'En attente' ? 'text-purple-600' :
+                                       'text-gray-600';
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td class="border border-gray-600 p-2">${tableau.id}</td>
@@ -267,6 +382,7 @@
                         <td class="border border-gray-600 p-2 ${risks.choc === 'Élevé' ? 'text-red-600' : risks.choc === 'Moyen' ? 'text-yellow-400' : 'text-green-600'}">${risks.choc}</td>
                         <td class="border border-gray-600 p-2 ${risks.surchauffe === 'Élevé' ? 'text-red-600' : risks.surchauffe === 'Moyen' ? 'text-yellow-400' : 'text-green-600'}">${risks.surchauffe}</td>
                         <td class="border border-gray-600 p-2 ${isObsoleteStatus ? 'text-red-600' : 'text-green-600'}">${isObsoleteStatus ? 'Oui' : 'Non'}</td>
+                        <td class="border border-gray-600 p-2 ${statusClass}">${latestCheck.status || 'Non contrôlé'}</td>
                         <td class="border border-gray-600 p-2">
                             <button class="action-btn text-blue-400 hover:text-blue-600" data-tableau-id="${tableau.id}" data-disjoncteur-id="${disjoncteur.id}"><i class="fas fa-eye"></i></button>
                         </td>
@@ -274,7 +390,6 @@
                     tbody.appendChild(tr);
                 });
             });
-            // Associer les événements aux boutons d'action
             document.querySelectorAll('.action-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const tableauId = btn.dataset.tableauId;
@@ -290,7 +405,6 @@
         function renderHazardsChart(data = tableauxData) {
             const ctx = document.getElementById('hazards-chart').getContext('2d');
             
-            // Détruire l'instance précédente du graphique si elle existe
             if (chartInstance) {
                 chartInstance.destroy();
             }
@@ -360,7 +474,6 @@
             }
             const risks = evaluateRisks(disjoncteur);
             const isObsoleteStatus = isObsolete(disjoncteur);
-            // Utiliser les valeurs directement sans réappliquer cleanNumericValue
             const content = `
                 <p><strong>Tableau :</strong> ${tableauId}</p>
                 <p><strong>Disjoncteur :</strong> ${disjoncteur.id}</p>
@@ -416,7 +529,6 @@
                     const humidite = document.getElementById('humidite-input').value;
                     const temp_ambiante = document.getElementById('temp_ambiante-input').value;
 
-                    // Validation des données
                     if (ip && !validIpValues.includes(ip)) {
                         console.log('[Client] Validation échouée: IP invalide', ip);
                         alert('Indice de protection invalide. Valeurs acceptées : IP20, IP40, IP54, IP65.');
@@ -477,7 +589,7 @@
         window.onload = () => {
             console.log('[Client] Initialisation hazards_assessment.html');
             const modal = document.getElementById('modal-details');
-            if (modal) modal.classList.add('hidden'); // S'assurer que le modal est masqué
+            if (modal) modal.classList.add('hidden');
             loadTableaux();
         };
     </script>
