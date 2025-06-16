@@ -204,7 +204,10 @@
         async function loadData() {
             try {
                 const tableauxResponse = await fetch('/api/tableaux');
-                if (!tableauxResponse.ok) throw new Error(`Erreur lors du chargement des tableaux: ${tableauxResponse.statusText}`);
+                if (!tableauxResponse.ok) throw new Error(`Erreur lors du chargement des tableaux: ${tableauxResponse.statusText}
+    renderControlledBreakersBarChart();
+    renderConformityRateChart();
+    renderWeeklyChecklistChart();`);
                 tableauxData = await tableauxResponse.json();
                 console.log('[Client] Tableaux chargés:', tableauxData.length);
 
