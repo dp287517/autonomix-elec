@@ -81,7 +81,7 @@
         </div>
 
         <!-- Boutons pour les Checklists -->
-        <div id="add-checklist-container" class="flex flex-col sm:flex-row justify-end mb-4 space-y-2 sm:space-y-0 sm:space-x-2 hidden">
+        <div id="add-checklist-container" class="flex flex-col sm:flex-row justify-end mb-4 space-y-2 sm:space-y-0 sm:space-x-2">
             <button id="add-checklist" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm sm:text-base touch-friendly">
                 <i class="fas fa-plus-circle mr-2"></i>Créer une Checklist
             </button>
@@ -224,6 +224,7 @@
         let checklistsData = [];
         let currentTableauId = '';
         let currentCheckId = null;
+        let chartInstances = {}; // Stocker les instances des graphiques
 
         // Fonction pour encoder les ID en slug sécurisé
         function sanitizeId(id) {
@@ -237,6 +238,14 @@
             if (statuses.includes('Non conforme')) return 'Non conforme';
             if (statuses.some(s => s === 'Conforme')) return 'Conforme';
             return 'Non applicable';
+        }
+
+        // Détruire les graphiques existants
+        function destroyCharts() {
+            Object.values(chartInstances).forEach(chart => {
+                if (chart) chart.destroy();
+            });
+            chartInstances = {};
         }
 
         // Charger les données
@@ -256,6 +265,7 @@
                 renderGanttChart();
                 renderDoughnuts();
                 renderAdvancedCharts();
+                toggleAddChecklistButton(); // Vérifier l'affichage des boutons après chargement
             } catch (error) {
                 console.error('[Client] Erreur chargement:', error);
                 alert('Erreur lors du chargement des données: ' + error.message);
@@ -492,6 +502,9 @@
             const categories = ['Conforme', 'Non conforme', 'Non applicable', 'En attente', 'Non contrôlé'];
             const colors = ['#22c55e', '#dc2626', '#f4b400', '#9333ea', '#6B7280'];
 
+            // Détruire les graphiques existants
+            destroyCharts();
+
             // Graphique à barres
             const barCanvas = document.getElementById('bar-chart');
             const buildings = [...new Set(data.map(t => t.id.split('-')[0] || 'Inconnu'))];
@@ -521,7 +534,7 @@
                 };
             });
 
-            new Chart(barCanvas, {
+            chartInstances['bar-chart'] = new Chart(barCanvas, {
                 type: 'bar',
                 data: {
                     labels: categories,
@@ -571,7 +584,7 @@
                 tension: 0.4
             }));
 
-            new Chart(lineCanvas, {
+            chartInstances['line-chart'] = new Chart(lineCanvas, {
                 type: 'line',
                 data: {
                     labels: dates,
@@ -614,7 +627,7 @@
                 pointRadius: 5
             }));
 
-            new Chart(scatterCanvas, {
+            chartInstances['scatter-chart'] = new Chart(scatterCanvas, {
                 type: 'scatter',
                 data: { datasets: scatterData },
                 options: {
@@ -727,7 +740,9 @@
             const form = document.getElementById('create-checklist-form');
             const pointsContainer = document.getElementById('checklist-points');
             const addPointBtn = document.getElementById('add-point');
+            const checklistNameInput = document.getElementById('checklist-name');
 
+            checklistNameInput.value = '';
             let points = [{ description: '' }];
             let pointCount = 1;
 
@@ -771,7 +786,7 @@
 
             form.onsubmit = async (e) => {
                 e.preventDefault();
-                const checklistName = document.getElementById('checklist-name').value;
+                const checklistName = checklistNameInput.value;
                 points = Array.from(pointsContainer.children).map(div => ({
                     description: div.querySelector('.point-description').value,
                     status: null
