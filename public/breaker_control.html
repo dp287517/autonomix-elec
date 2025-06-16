@@ -54,10 +54,10 @@
             <ul class="list-disc pl-6 text-gray-300 text-sm sm:text-base">
                 <li>Utilisez les filtres pour sélectionner un bâtiment ou un tableau spécifique.</li>
                 <li>Après sélection d’un tableau, un diagramme de Gantt affiche les disjoncteurs avec leur dernier statut de contrôle (Conforme, Non conforme, Non applicable, En attente, Non contrôlé).</li>
-                <li>Utilisez "Créer une checklist" pour définir jusqu’à 10 points de contrôle avec un nom, appliqués à tous les disjoncteurs du tableau.</li>
+                <li>Utilisez "Créer une checklist" pour définir jusqu’à 10 points de contrôle avec un nom, des mesures (Ohm, A), appliqués à tous les disjoncteurs du tableau.</li>
                 <li>Utilisez "Appliquer une checklist" pour appliquer une checklist existante à d’autres tableaux.</li>
                 <li>Utilisez "Voir les Checklists" pour gérer (modifier ou supprimer) les checklists existantes.</li>
-                <li>Cliquez sur un disjoncteur dans le Gantt pour voir ses checklists et compléter une checklist en attente.</li>
+                <li>Cliquez sur un disjoncteur dans le Gantt pour voir ses checklists et compléter une checklist en attente, avec statut et mesures.</li>
                 <li>Les graphiques en anneau montrent la répartition des statuts par bâtiment et tableau.</li>
                 <li>Les graphiques avancés montrent le nombre de disjoncteurs par statut, l’évolution des contrôles dans le temps, et la répartition selon le courant nominal.</li>
             </ul>
@@ -224,7 +224,7 @@
         let checklistsData = [];
         let currentTableauId = '';
         let currentCheckId = null;
-        let chartInstances = {}; // Stocker les instances des graphiques
+        let chartInstances = {};
 
         // Fonction pour encoder les ID en slug sécurisé
         function sanitizeId(id) {
@@ -234,7 +234,7 @@
         // Déterminer le statut global d’une checklist
         function determineGlobalStatus(points) {
             const statuses = points.map(p => p.status).filter(s => s);
-            if (statuses.length === 0) return 'Non applicable'; // En attente
+            if (statuses.length === 0) return 'Non applicable';
             if (statuses.includes('Non conforme')) return 'Non conforme';
             if (statuses.some(s => s === 'Conforme')) return 'Conforme';
             return 'Non applicable';
@@ -268,10 +268,10 @@
         }
 
         // Compresser une image avant conversion en Base64
-        function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0.7) {
+        function compressImage(file, maxWidth = 400, maxHeight = 400, quality = 0.3) {
             return new Promise((resolve, reject) => {
-                if (file.size > 2 * 1024 * 1024) { // Limite à 2 Mo
-                    reject(new Error('L’image est trop volumineuse (max 2 Mo).'));
+                if (file.size > 1 * 1024 * 1024) { // Limite à 1 Mo
+                    reject(new Error('L’image est trop volumineuse (max 1 Mo).'));
                     return;
                 }
 
@@ -282,7 +282,6 @@
                     let width = img.width;
                     let height = img.height;
 
-                    // Redimensionner en respectant les proportions
                     if (width > maxWidth) {
                         height = Math.round((height * maxWidth) / width);
                         width = maxWidth;
@@ -320,7 +319,14 @@
                     .then(compressedBlob => {
                         const reader = new FileReader();
                         reader.readAsDataURL(compressedBlob);
-                        reader.onload = () => resolve(reader.result);
+                        reader.onload = () => {
+                            const base64 = reader.result;
+                            if (base64.length > 500 * 1024) { // Limite à ~500 KB
+                                reject(new Error('L’image compressée est encore trop volumineuse (max ~500 KB après compression).'));
+                            } else {
+                                resolve(base64);
+                            }
+                        };
                         reader.onerror = error => reject(error);
                     })
                     .catch(error => reject(error));
@@ -330,9 +336,7 @@
         // Charger les données
         async function loadData() {
             try {
-                // Sauvegarder les filtres actuels avant de recharger
                 saveFilters();
-
                 const tableauxResponse = await fetch('/api/tableaux');
                 if (!tableauxResponse.ok) throw new Error(`Erreur lors du chargement des tableaux: ${tableauxResponse.statusText}`);
                 tableauxData = await tableauxResponse.json();
@@ -344,10 +348,8 @@
                 console.log('[Client] Checklists chargées:', checklistsData.length);
 
                 populateFilters();
-                // Restaurer les filtres après avoir rempli les options
                 const { building, tableau } = restoreFilters();
                 currentTableauId = tableau;
-                // Appliquer les filtres restaurés
                 const filteredData = tableauxData.filter(t => 
                     (!building || t.id.split('-')[0] === building) && 
                     (!tableau || t.id === tableau)
@@ -390,7 +392,6 @@
                 });
             }
 
-            // Mettre à jour le filtre tableau en fonction du bâtiment restauré
             const savedBuilding = localStorage.getItem('buildingFilter') || '';
             updateTableauFilter(savedBuilding);
 
@@ -444,7 +445,7 @@
 
             filteredData.forEach(tableau => {
                 tableau.disjoncteurs.forEach(breaker => {
-                    if (!breaker.id) return; // Ignorer les disjoncteurs sans ID
+                    if (!breaker.id) return;
                     const tr = document.createElement('tr');
                     const tdBreaker = document.createElement('td');
                     const sanitizedId = sanitizeId(breaker.id);
@@ -472,7 +473,7 @@
                         if (statusText === 'Conforme') statusClass += ' task-bar-green';
                         else if (statusText === 'Non conforme') statusClass += ' task-bar-red';
                         else if (statusText === 'Non applicable') statusClass += ' task-bar-orange';
-                        else statusClass += ' task-bar-purple'; // En attente
+                        else statusClass += ' task-bar-purple';
                     } else {
                         statusClass += ' task-bar-gray';
                     }
@@ -600,10 +601,8 @@
             const categories = ['Conforme', 'Non conforme', 'Non applicable', 'En attente', 'Non contrôlé'];
             const colors = ['#22c55e', '#dc2626', '#f4b400', '#9333ea', '#6B7280'];
 
-            // Détruire les graphiques existants
             destroyCharts();
 
-            // Graphique à barres
             const barCanvas = document.getElementById('bar-chart');
             const buildings = [...new Set(data.map(t => t.id.split('-')[0] || 'Inconnu'))];
             const barData = buildings.map(building => {
@@ -655,7 +654,6 @@
                 }
             });
 
-            // Graphique linéaire
             const lineCanvas = document.getElementById('line-chart');
             const dates = [...new Set(checklistsData.map(c => new Date(c.timestamp).toLocaleDateString('fr-FR')))].sort();
             const lineData = categories.map((cat, i) => ({
@@ -699,7 +697,6 @@
                 }
             });
 
-            // Graphique en nuage de points
             const scatterCanvas = document.getElementById('scatter-chart');
             const scatterData = categories.map((cat, i) => ({
                 label: cat,
@@ -785,7 +782,7 @@
                             checklistName = parsed.name || 'Sans nom';
                         } catch (e) {
                             console.warn('[Client] Erreur parsing comment:', check.comment);
-                            points = [{ description: 'Erreur de formatage', status: null }];
+                            points = [{ description: 'Erreur de formatage', status: null, measure1: null, measure2: null }];
                         }
                         const isPending = check.status === 'Non applicable' && points.every(p => !p.status);
                         return `
@@ -799,7 +796,11 @@
                                 <h4 class="text-sm sm:text-md font-semibold mt-2">Points de contrôle :</h4>
                                 <ul class="list-disc pl-6">
                                     ${points.length > 0 ? points.map(p => `
-                                        <li>${p.description} : <span class="${p.status === 'Conforme' ? 'text-green-500' : p.status === 'Non conforme' ? 'text-red-500' : p.status === 'Non applicable' ? 'text-yellow-400' : 'text-gray-400'}">${p.status || 'Non défini'}</span></li>
+                                        <li>
+                                            ${p.description} : <span class="${p.status === 'Conforme' ? 'text-green-500' : p.status === 'Non conforme' ? 'text-red-500' : p.status === 'Non applicable' ? 'text-yellow-400' : 'text-gray-400'}">${p.status || 'Non défini'}</span>
+                                            ${p.measure1 !== null && p.measure1 !== undefined ? `<br>Mesure 1 : ${p.measure1} Ohm` : ''}
+                                            ${p.measure2 !== null && p.measure2 !== undefined ? `<br>Mesure 2 : ${p.measure2} A` : ''}
+                                        </li>
                                     `).join('') : '<li>Aucun point défini</li>'}
                                 </ul>
                                 <p><strong>Commentaire global :</strong> ${commentGlobal || 'Aucun'}</p>
@@ -843,22 +844,30 @@
             const checklistNameInput = document.getElementById('checklist-name');
 
             checklistNameInput.value = '';
-            let points = [{ description: '' }];
+            let points = [{ description: '', measure1: null, measure2: null }];
             let pointCount = 1;
 
             function renderPoints() {
                 pointsContainer.innerHTML = '';
                 points.forEach((point, index) => {
                     const div = document.createElement('div');
-                    div.className = 'flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-start sm:items-center';
+                    div.className = 'flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-3 sm:gap-2 items-start';
                     div.innerHTML = `
                         <div class="flex-1">
                             <label class="block text-sm font-medium">Point ${index + 1}</label>
                             <input type="text" class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.description}" placeholder="Ex: Vérification câblage" required>
                         </div>
-                        <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition ${pointCount === 1 ? 'invisible' : ''} touch-friendly">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        <div class="w-full sm:w-24">
+                            <label class="block text-sm font-medium">Mesure 1 (Ohm)</label>
+                            <input type="number" step="0.01" class="point-measure1 mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.measure1 || ''}" placeholder="Ex: 0.02">
+                        </div>
+                        <div class="w-full sm:w-24">
+                            <label class="block text-sm font-medium">Mesure 2 (A)</label>
+                            <input type="number" step="0.1" class="point-measure2 mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.measure2 || ''}" placeholder="Ex: 23.7">
+                            <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition mt-2 sm:mt-6 ${pointCount === 1 ? 'invisible' : ''} touch-friendly">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
                     `;
                     pointsContainer.appendChild(div);
                 });
@@ -876,7 +885,7 @@
 
             addPointBtn.onclick = () => {
                 if (pointCount < 10) {
-                    points.push({ description: '' });
+                    points.push({ description: '', measure1: null, measure2: null });
                     pointCount++;
                     renderPoints();
                 } else {
@@ -889,7 +898,9 @@
                 const checklistName = checklistNameInput.value;
                 points = Array.from(pointsContainer.children).map(div => ({
                     description: div.querySelector('.point-description').value,
-                    status: null
+                    status: null,
+                    measure1: div.querySelector('.point-measure1').value ? parseFloat(div.querySelector('.point-measure1').value) : null,
+                    measure2: div.querySelector('.point-measure2').value ? parseFloat(div.querySelector('.point-measure2').value) : null
                 }));
 
                 if (!checklistName) {
@@ -1056,7 +1067,13 @@
                     <p><strong>Nom :</strong> ${c.name}</p>
                     <h4 class="text-sm sm:text-md font-semibold mt-2">Points de contrôle :</h4>
                     <ul class="list-disc pl-6">
-                        ${c.points.length > 0 ? c.points.map(p => `<li>${p.description}</li>`).join('') : '<li>Aucun point défini</li>'}
+                        ${c.points.length > 0 ? c.points.map(p => `
+                            <li>
+                                ${p.description}
+                                ${p.measure1 !== null && p.measure1 !== undefined ? ` (Mesure 1: ${p.measure1} Ohm)` : ''}
+                                ${p.measure2 !== null && p.measure2 !== undefined ? ` (Mesure 2: ${p.measure2} A)` : ''}
+                            </li>
+                        `).join('') : '<li>Aucun point défini</li>'}
                     </ul>
                     <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mt-2">
                         <button class="edit-checklist bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition text-sm sm:text-base touch-friendly" data-comment="${encodeURIComponent(c.comment)}">
@@ -1099,22 +1116,30 @@
             }
 
             checklistNameInput.value = parsed.name || '';
-            let points = parsed.points || [{ description: '' }];
+            let points = parsed.points || [{ description: '', measure1: null, measure2: null }];
             let pointCount = points.length;
 
             function renderPoints() {
                 pointsContainer.innerHTML = '';
                 points.forEach((point, index) => {
                     const div = document.createElement('div');
-                    div.className = 'flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-start sm:items-center';
+                    div.className = 'flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-3 sm:gap-2 items-start';
                     div.innerHTML = `
                         <div class="flex-1">
                             <label class="block text-sm font-medium">Point ${index + 1}</label>
                             <input type="text" class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.description}" placeholder="Ex: Vérification câblage" required>
                         </div>
-                        <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition ${pointCount === 1 ? 'invisible' : ''} touch-friendly">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        <div class="w-full sm:w-24">
+                            <label class="block text-sm font-medium">Mesure 1 (Ohm)</label>
+                            <input type="number" step="0.01" class="point-measure1 mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.measure1 || ''}" placeholder="Ex: 0.02">
+                        </div>
+                        <div class="w-full sm:w-24">
+                            <label class="block text-sm font-medium">Mesure 2 (A)</label>
+                            <input type="number" step="0.1" class="point-measure2 mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.measure2 || ''}" placeholder="Ex: 23.7">
+                            <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition mt-2 sm:mt-6 ${pointCount === 1 ? 'invisible' : ''} touch-friendly">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
                     `;
                     pointsContainer.appendChild(div);
                 });
@@ -1132,7 +1157,7 @@
 
             addPointBtn.onclick = () => {
                 if (pointCount < 10) {
-                    points.push({ description: '' });
+                    points.push({ description: '', measure1: null, measure2: null });
                     pointCount++;
                     renderPoints();
                 } else {
@@ -1145,7 +1170,9 @@
                 const checklistName = checklistNameInput.value;
                 points = Array.from(pointsContainer.children).map(div => ({
                     description: div.querySelector('.point-description').value,
-                    status: null
+                    status: null,
+                    measure1: div.querySelector('.point-measure1').value ? parseFloat(div.querySelector('.point-measure1').value) : null,
+                    measure2: div.querySelector('.point-measure2').value ? parseFloat(div.querySelector('.point-measure2').value) : null
                 }));
 
                 if (!checklistName) {
@@ -1231,7 +1258,7 @@
                 checklistName = parsed.name || 'Sans nom';
             } catch (e) {
                 console.warn('[Client] Erreur parsing comment:', check.comment);
-                points = [{ description: 'Erreur de formatage', status: null }];
+                points = [{ description: 'Erreur de formatage', status: null, measure1: null, measure2: null }];
             }
             commentInput.value = commentGlobal;
             photoInput.value = '';
@@ -1239,12 +1266,20 @@
             pointsContainer.innerHTML = `
                 <p class="mb-2"><strong>Checklist :</strong> ${checklistName}</p>
                 ${points.map((point, index) => `
-                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-start sm:items-center">
+                    <div class="flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-3 sm:gap-2 items-start">
                         <div class="flex-1">
                             <label class="block text-sm font-medium">Point ${index + 1}</label>
                             <p class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">${point.description}</p>
                         </div>
-                        <div class="w-full sm:w-32">
+                        <div class="w-full sm:w-24">
+                            <label class="block text-sm font-medium">Mesure 1 (Ohm)</label>
+                            <input type="number" step="0.01" class="point-measure1 mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.measure1 || ''}" placeholder="Ex: 0.02">
+                        </div>
+                        <div class="w-full sm:w-24">
+                            <label class="block text-sm font-medium">Mesure 2 (A)</label>
+                            <input type="number" step="0.1" class="point-measure2 mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.measure2 || ''}" placeholder="Ex: 23.7">
+                        </div>
+                        <div class="col-span-3">
                             <label class="block text-sm font-medium">Statut</label>
                             <select class="point-status mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
                                 <option value="" ${!point.status ? 'selected' : ''}>Sélectionner</option>
@@ -1262,9 +1297,11 @@
                 const comment = commentInput.value;
                 const photo = photoInput.files[0];
 
-                const updatedPoints = Array.from(pointsContainer.querySelectorAll('.point-status')).map((select, index) => ({
-                    description: points[index].description,
-                    status: select.value
+                const updatedPoints = Array.from(pointsContainer.children).map(div => ({
+                    description: div.querySelector('p').textContent,
+                    status: div.querySelector('.point-status').value,
+                    measure1: div.querySelector('.point-measure1').value ? parseFloat(div.querySelector('.point-measure1').value) : null,
+                    measure2: div.querySelector('.point-measure2').value ? parseFloat(div.querySelector('.point-measure2').value) : null
                 }));
 
                 if (updatedPoints.some(p => !p.status)) {
@@ -1289,30 +1326,35 @@
                     const commentJson = JSON.stringify({ name: checklistName, comment, points: updatedPoints });
 
                     console.log('[Client] Envoi PUT /api/breaker-checklists:', {
-                        tableau_id: tableauId,
-                        disjoncteur_id: breakerId,
-                        encoded_disjoncteur_id: encodeURIComponent(breakerId),
-                        status: globalStatus,
-                        comment: commentJson,
-                        photo: photoBase64 ? `Présente (${(photoBase64.length / 1024).toFixed(2)} KB)` : 'Absente'
-                    });
+                            tableau_id: tableauId,
+                            disjoncteur_id: breakerId,
+                            encoded_disjoncteur_id: encodeURIComponent(breakerId),
+                            status: globalStatus,
+                            comment: commentJson,
+                            photo: photoBase64 ? `Présente (${(photoBase64.length / 1024).toFixed(2)} KB)` : 'Absente'
+                        });
 
-                    const body = {
-                        tableau_id: tableauId,
-                        disjoncteur_id: breakerId,
-                        status: globalStatus,
-                        comment: commentJson,
-                        photo: photoBase64
-                    };
+                        const body = {
+                            tableau_id: tableauId,
+                            disjoncteur_id: breakerId,
+                            status: globalStatus,
+                            comment: commentJson,
+                            photo: photoBase64
+                        };
 
-                    const response = await fetch(`/api/breaker-checklists/${currentCheckId}`, {
+                        const response = await fetch(`/api/breaker-checklists/${currentCheckId}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(body)
                         });
                         if (!response.ok) {
-                            const errorData = await response.text(); // Récupérer le texte brut pour débogage
-                            throw new Error(`Erreur lors de la mise à jour du contrôle: ${errorData || response.statusText}`);
+                            let errorData;
+                            try {
+                                errorData = await response.json();
+                            } catch {
+                                errorData = await response.text();
+                            }
+                            throw new Error(`Erreur lors de la mise à jour du contrôle: ${errorData.error || errorData || response.statusText}`);
                         }
                         const responseData = await response.json();
 
@@ -1321,10 +1363,10 @@
                         openBreakerModal(tableauId, breakerId, sanitizedId);
                     } catch (error) {
                         console.error('[Client] Erreur mise à jour checklist:', error);
-                        if (error.message.includes('L’image est trop volumineuse')) {
+                        if (error.message.includes('L’image')) {
                             alert(error.message);
-                        } else if (error.message.includes('Payload Too Large')) {
-                            alert('La photo est trop volumineuse après compression. Veuillez choisir une image plus petite.');
+                        } else if (error.message.includes('413') || error.message.includes('Payload Too Large')) {
+                            alert('La photo est trop volumineuse même après compression. Veuillez choisir une image plus petite (max 1 Mo).');
                         } else {
                             alert('Erreur lors de la mise à jour de la checklist: ' + error.message);
                         }
