@@ -54,11 +54,12 @@
             <ul class="list-disc pl-6 text-gray-300 text-sm sm:text-base">
                 <li>Utilisez les filtres pour sélectionner un bâtiment ou un tableau spécifique.</li>
                 <li>Après sélection d’un tableau, un diagramme de Gantt affiche les disjoncteurs avec leur dernier statut de contrôle (Conforme, Non conforme, Non applicable, En attente, Non contrôlé).</li>
-                <li>Utilisez "Créer une checklist" pour définir jusqu’à 10 points de contrôle, appliqués à tous les disjoncteurs du tableau.</li>
+                <li>Utilisez "Créer une checklist" pour définir jusqu’à 10 points de contrôle avec un nom, appliqués à tous les disjoncteurs du tableau.</li>
                 <li>Utilisez "Appliquer une checklist" pour appliquer une checklist existante à d’autres tableaux.</li>
+                <li>Utilisez "Voir les Checklists" pour gérer (modifier ou supprimer) les checklists existantes.</li>
                 <li>Cliquez sur un disjoncteur dans le Gantt pour voir ses checklists et compléter une checklist en attente.</li>
                 <li>Les graphiques en anneau montrent la répartition des statuts par bâtiment et tableau.</li>
-                <li>Les graphiques avancés montrent le nombre de disjoncteurs par statut, l'évolution des contrôles dans le temps, et la répartition selon le courant nominal.</li>
+                <li>Les graphiques avancés montrent le nombre de disjoncteurs par statut, l’évolution des contrôles dans le temps, et la répartition selon le courant nominal.</li>
             </ul>
         </div>
 
@@ -79,13 +80,16 @@
             <p id="no-data-message" class="text-red-500 mt-4 hidden">Aucun disjoncteur trouvé pour les critères sélectionnés.</p>
         </div>
 
-        <!-- Boutons Créer et Appliquer une Checklist -->
+        <!-- Boutons pour les Checklists -->
         <div id="add-checklist-container" class="flex flex-col sm:flex-row justify-end mb-4 space-y-2 sm:space-y-0 sm:space-x-2 hidden">
             <button id="add-checklist" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm sm:text-base touch-friendly">
                 <i class="fas fa-plus-circle mr-2"></i>Créer une Checklist
             </button>
             <button id="apply-checklist" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition text-sm sm:text-base touch-friendly">
                 <i class="fas fa-check-circle mr-2"></i>Appliquer une Checklist
+            </button>
+            <button id="view-checklists" class="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 transition text-sm sm:text-base touch-friendly">
+                <i class="fas fa-list mr-2"></i>Voir les Checklists
             </button>
         </div>
 
@@ -130,6 +134,10 @@
             <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-2xl my-4 max-h-[85vh] overflow-y-auto">
                 <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-plus-circle mr-2"></i>Créer une Checklist</h2>
                 <form id="create-checklist-form" class="grid gap-4">
+                    <div>
+                        <label for="checklist-name" class="block text-sm font-medium">Nom de la Checklist</label>
+                        <input type="text" id="checklist-name" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" placeholder="Ex: Vérification annuelle" required>
+                    </div>
                     <div id="checklist-points" class="grid gap-2"></div>
                     <button type="button" id="add-point" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm sm:text-base touch-friendly">
                         <i class="fas fa-plus mr-2"></i>Ajouter un point de contrôle
@@ -198,6 +206,17 @@
                 </form>
             </div>
         </div>
+
+        <!-- Modal pour voir et gérer les checklists -->
+        <div id="modal-view-checklists" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 overflow-y-auto pt-4 pb-4 hidden">
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-4xl my-4 max-h-[85vh] overflow-y-auto">
+                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-list mr-2"></i>Gérer les Checklists</h2>
+                <div id="checklists-content" class="mb-4 text-gray-300 text-sm sm:text-base"></div>
+                <button id="close-view-checklists-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition w-full sm:w-auto touch-friendly">
+                    <i class="fas fa-times mr-2"></i>Fermer
+                </button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -250,7 +269,6 @@
             const tableauFilter = document.getElementById('tableau-filter');
             const buildings = [...new Set(tableauxData.map(t => t.id.split('-')[0] || 'Inconnu'))].sort();
 
-            // Remplir le filtre bâtiment
             buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
             buildings.forEach(b => {
                 const option = document.createElement('option');
@@ -259,7 +277,6 @@
                 buildingFilter.appendChild(option);
             });
 
-            // Fonction pour mettre à jour le filtre tableau
             function updateTableauFilter(selectedBuilding) {
                 tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
                 const filteredTableaux = selectedBuilding 
@@ -273,10 +290,8 @@
                 });
             }
 
-            // Initialiser le filtre tableau
             updateTableauFilter('');
 
-            // Écouteurs pour les filtres
             buildingFilter.onchange = () => {
                 const selectedBuilding = buildingFilter.value;
                 updateTableauFilter(selectedBuilding);
@@ -299,13 +314,14 @@
             toggleAddChecklistButton();
         }
 
-        // Afficher/masquer les boutons Créer/Appliquer
+        // Afficher/masquer les boutons Créer/Appliquer/Voir
         function toggleAddChecklistButton() {
             const container = document.getElementById('add-checklist-container');
             if (currentTableauId) {
                 container.classList.remove('hidden');
                 document.getElementById('add-checklist').onclick = () => openCreateChecklistModal();
                 document.getElementById('apply-checklist').onclick = () => openApplyChecklistModal();
+                document.getElementById('view-checklists').onclick = () => openViewChecklistsModal();
             } else {
                 container.classList.add('hidden');
             }
@@ -584,8 +600,8 @@
                         let points;
                         try {
                             const comment = latestCheck.comment.startsWith('Checklist vide: ') 
-                                ? c.comment.replace('Checklist vide: ', '') 
-                                : c.comment;
+                                ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                : latestCheck.comment;
                             points = JSON.parse(comment).points || [];
                         } catch (e) {
                             points = [];
@@ -645,6 +661,7 @@
                     ${breakerChecks.length > 0 ? breakerChecks.map(check => {
                         let points = [];
                         let commentGlobal = '';
+                        let checklistName = 'Sans nom';
                         try {
                             const comment = check.comment.startsWith('Checklist vide: ') 
                                 ? check.comment.replace('Checklist vide: ', '') 
@@ -652,6 +669,7 @@
                             const parsed = JSON.parse(comment);
                             points = parsed.points || [];
                             commentGlobal = parsed.comment || '';
+                            checklistName = parsed.name || 'Sans nom';
                         } catch (e) {
                             console.warn('[Client] Erreur parsing comment:', check.comment);
                             points = [{ description: 'Erreur de formatage', status: null }];
@@ -659,6 +677,7 @@
                         const isPending = check.status === 'Non applicable' && points.every(p => !p.status);
                         return `
                             <div class="bg-gray-700 p-4 rounded-lg">
+                                <p><strong>Checklist :</strong> ${checklistName}</p>
                                 <p><strong>Statut global :</strong> <span class="${check.status === 'Conforme' ? 'text-green-500' : check.status === 'Non conforme' ? 'text-red-500' : check.status === 'Non applicable' && !isPending ? 'text-yellow-400' : isPending ? 'text-purple-400' : 'text-blue-400'}">
                                     <i class="fas ${check.status === 'Conforme' ? 'fa-check-circle' : check.status === 'Non conforme' ? 'fa-times-circle' : check.status === 'Non applicable' && !isPending ? 'fa-hourglass-half' : isPending ? 'fa-clock' : 'fa-balance-scale'} mr-1"></i>
                                     ${isPending ? 'En attente' : check.status}
@@ -752,11 +771,16 @@
 
             form.onsubmit = async (e) => {
                 e.preventDefault();
+                const checklistName = document.getElementById('checklist-name').value;
                 points = Array.from(pointsContainer.children).map(div => ({
                     description: div.querySelector('.point-description').value,
                     status: null
                 }));
 
+                if (!checklistName) {
+                    alert('Veuillez donner un nom à la checklist.');
+                    return;
+                }
                 if (points.some(p => !p.description)) {
                     alert('Tous les points de contrôle doivent avoir une description.');
                     return;
@@ -766,7 +790,7 @@
                     const tableau = tableauxData.find(t => t.id === currentTableauId);
                     if (!tableau) throw new Error('Tableau non trouvé');
 
-                    const comment = JSON.stringify({ points, comment: '' });
+                    const comment = JSON.stringify({ name: checklistName, points, comment: '' });
 
                     for (const breaker of tableau.disjoncteurs) {
                         console.log('[Client] Envoi POST /api/breaker-checklists:', {
@@ -813,24 +837,22 @@
             const checklistSelect = document.getElementById('checklist-select');
             const tableauxSelect = document.getElementById('tableaux-select');
 
-            // Remplir le sélecteur de checklists
             checklistSelect.innerHTML = '<option value="">Choisir une checklist</option>';
             const uniqueChecklists = [...new Set(checklistsData.map(c => c.comment))].map(comment => {
                 try {
                     const parsed = JSON.parse(comment.startsWith('Checklist vide: ') ? comment.replace('Checklist vide: ', '') : comment);
-                    return { comment, points: parsed.points || [] };
+                    return { comment, points: parsed.points || [], name: parsed.name || `Checklist ${checklistsData.filter(c => c.comment === comment).length}` };
                 } catch (e) {
                     return null;
                 }
             }).filter(c => c);
-            uniqueChecklists.forEach((c, index) => {
+            uniqueChecklists.forEach(c => {
                 const option = document.createElement('option');
                 option.value = c.comment;
-                option.textContent = `Checklist ${index + 1} (${c.points.length} points)`;
+                option.textContent = `${c.name} (${c.points.length} points)`;
                 checklistSelect.appendChild(option);
             });
 
-            // Remplir le sélecteur de tableaux
             tableauxSelect.innerHTML = '';
             tableauxData.forEach(tableau => {
                 const div = document.createElement('div');
@@ -896,6 +918,178 @@
             modal.classList.remove('hidden');
         }
 
+        // Ouvrir le modal pour voir et gérer les checklists
+        function openViewChecklistsModal() {
+            const modal = document.getElementById('modal-view-checklists');
+            const content = document.getElementById('checklists-content');
+
+            const uniqueChecklists = [...new Set(checklistsData.map(c => c.comment))].map(comment => {
+                try {
+                    const parsed = JSON.parse(comment.startsWith('Checklist vide: ') ? comment.replace('Checklist vide: ', '') : comment);
+                    return { comment, points: parsed.points || [], name: parsed.name || `Checklist ${checklistsData.filter(c => c.comment === comment).length}` };
+                } catch (e) {
+                    return null;
+                }
+            }).filter(c => c);
+
+            content.innerHTML = uniqueChecklists.length > 0 ? uniqueChecklists.map((c, index) => `
+                <div class="bg-gray-700 p-4 rounded-lg mb-4">
+                    <p><strong>Nom :</strong> ${c.name}</p>
+                    <h4 class="text-sm sm:text-md font-semibold mt-2">Points de contrôle :</h4>
+                    <ul class="list-disc pl-6">
+                        ${c.points.length > 0 ? c.points.map(p => `<li>${p.description}</li>`).join('') : '<li>Aucun point défini</li>'}
+                    </ul>
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mt-2">
+                        <button class="edit-checklist bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition text-sm sm:text-base touch-friendly" data-comment="${encodeURIComponent(c.comment)}">
+                            <i class="fas fa-edit"></i> Modifier
+                        </button>
+                        <button class="delete-checklist bg-red-600 text-white p-2 rounded hover:bg-red-700 transition text-sm sm:text-base touch-friendly" data-comment="${encodeURIComponent(c.comment)}">
+                            <i class="fas fa-trash"></i> Supprimer
+                        </button>
+                    </div>
+                </div>
+            `).join('') : '<p class="p-2 text-center">Aucune checklist trouvée</p>';
+
+            document.querySelectorAll('.edit-checklist').forEach(btn => {
+                btn.onclick = () => openEditChecklistModal(decodeURIComponent(btn.dataset.comment));
+            });
+            document.querySelectorAll('.delete-checklist').forEach(btn => {
+                btn.onclick = () => deleteChecklistTemplate(decodeURIComponent(btn.dataset.comment));
+            });
+
+            document.getElementById('close-view-checklists-modal').onclick = () => modal.classList.add('hidden');
+            modal.classList.remove('hidden');
+        }
+
+        // Ouvrir le modal pour modifier une checklist
+        function openEditChecklistModal(comment) {
+            const modal = document.getElementById('modal-create-checklist');
+            const form = document.getElementById('create-checklist-form');
+            const pointsContainer = document.getElementById('checklist-points');
+            const addPointBtn = document.getElementById('add-point');
+            const checklistNameInput = document.getElementById('checklist-name');
+
+            let parsed;
+            try {
+                const cleanComment = comment.startsWith('Checklist vide: ') ? comment.replace('Checklist vide: ', '') : comment;
+                parsed = JSON.parse(cleanComment);
+            } catch (e) {
+                console.warn('[Client] Erreur parsing comment:', comment);
+                alert('Erreur lors du chargement de la checklist.');
+                return;
+            }
+
+            checklistNameInput.value = parsed.name || '';
+            let points = parsed.points || [{ description: '' }];
+            let pointCount = points.length;
+
+            function renderPoints() {
+                pointsContainer.innerHTML = '';
+                points.forEach((point, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-start sm:items-center';
+                    div.innerHTML = `
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium">Point ${index + 1}</label>
+                            <input type="text" class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.description}" placeholder="Ex: Vérification câblage" required>
+                        </div>
+                        <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition ${pointCount === 1 ? 'invisible' : ''} touch-friendly">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    `;
+                    pointsContainer.appendChild(div);
+                });
+
+                pointsContainer.querySelectorAll('.remove-point').forEach((btn, index) => {
+                    btn.onclick = () => {
+                        points.splice(index, 1);
+                        pointCount--;
+                        renderPoints();
+                    };
+                });
+            }
+
+            renderPoints();
+
+            addPointBtn.onclick = () => {
+                if (pointCount < 10) {
+                    points.push({ description: '' });
+                    pointCount++;
+                    renderPoints();
+                } else {
+                    alert('Vous ne pouvez pas ajouter plus de 10 points de contrôle.');
+                }
+            };
+
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                const checklistName = checklistNameInput.value;
+                points = Array.from(pointsContainer.children).map(div => ({
+                    description: div.querySelector('.point-description').value,
+                    status: null
+                }));
+
+                if (!checklistName) {
+                    alert('Veuillez donner un nom à la checklist.');
+                    return;
+                }
+                if (points.some(p => !p.description)) {
+                    alert('Tous les points de contrôle doivent avoir une description.');
+                    return;
+                }
+
+                try {
+                    const newComment = JSON.stringify({ name: checklistName, points, comment: '' });
+                    const checksToUpdate = checklistsData.filter(c => c.comment === comment);
+
+                    for (const check of checksToUpdate) {
+                        const body = {
+                            tableau_id: check.tableau_id,
+                            disjoncteur_id: check.disjoncteur_id,
+                            status: check.status,
+                            comment: newComment,
+                            photo: check.photo
+                        };
+
+                        const response = await fetch(`/api/breaker-checklists/${check.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body)
+                        });
+                        const responseData = await response.json();
+                        if (!response.ok) throw new Error(`Erreur lors de la mise à jour du contrôle ${check.id}: ${responseData.error || response.statusText}`);
+                    }
+
+                    modal.classList.add('hidden');
+                    await loadData();
+                    openViewChecklistsModal();
+                } catch (error) {
+                    console.error('[Client] Erreur mise à jour checklist:', error);
+                    alert('Erreur lors de la mise à jour de la checklist: ' + error.message);
+                }
+            };
+
+            document.getElementById('close-create-checklist-modal').onclick = () => modal.classList.add('hidden');
+            modal.classList.remove('hidden');
+        }
+
+        // Supprimer un modèle de checklist
+        async function deleteChecklistTemplate(comment) {
+            if (!confirm('Voulez-vous supprimer cette checklist et tous ses contrôles associés ?')) return;
+            try {
+                const checksToDelete = checklistsData.filter(c => c.comment === comment);
+                for (const check of checksToDelete) {
+                    const response = await fetch(`/api/breaker-checklists/${check.id}`, { method: 'DELETE' });
+                    if (!response.ok) throw new Error(`Erreur lors de la suppression du contrôle ${check.id}: ${response.statusText}`);
+                }
+                await loadData();
+                openViewChecklistsModal();
+            } catch (error) {
+                console.error('[Client] Erreur suppression checklist:', error);
+                alert('Erreur lors de la suppression de la checklist: ' + error.message);
+            }
+        }
+
         // Ouvrir le modal pour compléter ou modifier une checklist
         function openCompleteChecklistModal(check, tableauId, breakerId, sanitizedId) {
             const modal = document.getElementById('modal-complete-checklist');
@@ -907,6 +1101,7 @@
             currentCheckId = check.id;
             let points = [];
             let commentGlobal = '';
+            let checklistName = 'Sans nom';
             try {
                 const comment = check.comment.startsWith('Checklist vide: ') 
                     ? check.comment.replace('Checklist vide: ', '') 
@@ -914,6 +1109,7 @@
                 const parsed = JSON.parse(comment);
                 points = parsed.points || [];
                 commentGlobal = parsed.comment || '';
+                checklistName = parsed.name || 'Sans nom';
             } catch (e) {
                 console.warn('[Client] Erreur parsing comment:', check.comment);
                 points = [{ description: 'Erreur de formatage', status: null }];
@@ -921,36 +1117,35 @@
             commentInput.value = commentGlobal;
             photoInput.value = '';
 
-            pointsContainer.innerHTML = '';
-            points.forEach((point, index) => {
-                const div = document.createElement('div');
-                div.className = 'flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-start sm:items-center';
-                div.innerHTML = `
-                    <div class="flex-1">
-                        <label class="block text-sm font-medium">Point ${index + 1}</label>
-                        <p class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">${point.description}</p>
+            pointsContainer.innerHTML = `
+                <p class="mb-2"><strong>Checklist :</strong> ${checklistName}</p>
+                ${points.map((point, index) => `
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-start sm:items-center">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium">Point ${index + 1}</label>
+                            <p class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">${point.description}</p>
+                        </div>
+                        <div class="w-full sm:w-32">
+                            <label class="block text-sm font-medium">Statut</label>
+                            <select class="point-status mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
+                                <option value="" ${!point.status ? 'selected' : ''}>Sélectionner</option>
+                                <option value="Conforme" ${point.status === 'Conforme' ? 'selected' : ''}>Conforme</option>
+                                <option value="Non conforme" ${point.status === 'Non conforme' ? 'selected' : ''}>Non conforme</option>
+                                <option value="Non applicable" ${point.status === 'Non applicable' ? 'selected' : ''}>Non applicable</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="w-full sm:w-32">
-                        <label class="block text-sm font-medium">Statut</label>
-                        <select class="point-status mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
-                            <option value="" ${!point.status ? 'selected' : ''}>Sélectionner</option>
-                            <option value="Conforme" ${point.status === 'Conforme' ? 'selected' : ''}>Conforme</option>
-                            <option value="Non conforme" ${point.status === 'Non conforme' ? 'selected' : ''}>Non conforme</option>
-                            <option value="Non applicable" ${point.status === 'Non applicable' ? 'selected' : ''}>Non applicable</option>
-                        </select>
-                    </div>
-                `;
-                pointsContainer.appendChild(div);
-            });
+                `).join('')}
+            `;
 
             form.onsubmit = async (e) => {
                 e.preventDefault();
                 const comment = commentInput.value;
                 const photo = photoInput.files[0];
 
-                const updatedPoints = Array.from(pointsContainer.children).map(div => ({
-                    description: div.querySelector('p').textContent,
-                    status: div.querySelector('.point-status').value
+                const updatedPoints = Array.from(pointsContainer.querySelectorAll('.point-status')).map((select, index) => ({
+                    description: points[index].description,
+                    status: select.value
                 }));
 
                 if (updatedPoints.some(p => !p.status)) {
@@ -965,7 +1160,7 @@
                     }
 
                     const globalStatus = determineGlobalStatus(updatedPoints);
-                    const commentJson = JSON.stringify({ comment, points: updatedPoints });
+                    const commentJson = JSON.stringify({ name: checklistName, comment, points: updatedPoints });
 
                     console.log('[Client] Envoi PUT /api/breaker-checklists:', {
                         tableau_id: tableauId,
@@ -1005,7 +1200,7 @@
             modal.classList.remove('hidden');
         }
 
-        // Supprimer une checklist
+        // Supprimer une checklist individuelle
         async function deleteChecklist(checkId, tableauId, breakerId, sanitizedId) {
             if (!confirm('Voulez-vous supprimer ce contrôle ?')) return;
             try {
@@ -1035,10 +1230,12 @@
             const createChecklistModal = document.getElementById('modal-create-checklist');
             const completeChecklistModal = document.getElementById('modal-complete-checklist');
             const applyChecklistModal = document.getElementById('modal-apply-checklist');
+            const viewChecklistsModal = document.getElementById('modal-view-checklists');
             if (breakerModal) breakerModal.classList.add('hidden');
             if (createChecklistModal) createChecklistModal.classList.add('hidden');
             if (completeChecklistModal) completeChecklistModal.classList.add('hidden');
             if (applyChecklistModal) applyChecklistModal.classList.add('hidden');
+            if (viewChecklistsModal) viewChecklistsModal.classList.add('hidden');
             loadData();
         };
     </script>
@@ -1072,17 +1269,17 @@
             min-height: 44px;
             padding: 0.5rem 1rem;
         }
-        #modal-breaker > div, #modal-create-checklist > div, #modal-complete-checklist > div, #modal-apply-checklist > div {
+        #modal-breaker > div, #modal-create-checklist > div, #modal-complete-checklist > div, #modal-apply-checklist > div, #modal-view-checklists > div {
             scrollbar-width: thin;
             scrollbar-color: #6B7280 #1F2937;
         }
-        #modal-breaker > div::-webkit-scrollbar, #modal-create-checklist > div::-webkit-scrollbar, #modal-complete-checklist > div::-webkit-scrollbar, #modal-apply-checklist > div::-webkit-scrollbar {
+        #modal-breaker > div::-webkit-scrollbar, #modal-create-checklist > div::-webkit-scrollbar, #modal-complete-checklist > div::-webkit-scrollbar, #modal-apply-checklist > div::-webkit-scrollbar, #modal-view-checklists > div::-webkit-scrollbar {
             width: 8px;
         }
-        #modal-breaker > div::-webkit-scrollbar-track, #modal-create-checklist > div::-webkit-scrollbar-track, #modal-complete-checklist > div::-webkit-scrollbar-track, #modal-apply-checklist > div::-webkit-scrollbar-track {
+        #modal-breaker > div::-webkit-scrollbar-track, #modal-create-checklist > div::-webkit-scrollbar-track, #modal-complete-checklist > div::-webkit-scrollbar-track, #modal-apply-checklist > div::-webkit-scrollbar-track, #modal-view-checklists > div::-webkit-scrollbar-track {
             background: #1F2937;
         }
-        #modal-breaker > div::-webkit-scrollbar-thumb, #modal-create-checklist > div::-webkit-scrollbar-thumb, #modal-complete-checklist > div::-webkit-scrollbar-thumb, #modal-apply-checklist > div::-webkit-scrollbar-thumb {
+        #modal-breaker > div::-webkit-scrollbar-thumb, #modal-create-checklist > div::-webkit-scrollbar-thumb, #modal-complete-checklist > div::-webkit-scrollbar-thumb, #modal-apply-checklist > div::-webkit-scrollbar-thumb, #modal-view-checklists > div::-webkit-scrollbar-thumb {
             background: #6B7280;
             border-radius: 4px;
         }
