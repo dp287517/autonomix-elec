@@ -54,10 +54,10 @@
             <ul class="list-disc pl-6 text-gray-300 text-sm sm:text-base">
                 <li>Utilisez les filtres pour sélectionner un bâtiment ou un tableau spécifique.</li>
                 <li>Après sélection d’un tableau, un diagramme de Gantt affiche les disjoncteurs avec leur dernier statut de contrôle (Conforme, Non conforme, Non applicable, En attente, Non contrôlé).</li>
-                <li>Utilisez "Créer une checklist" pour définir jusqu’à 10 points de contrôle avec un nom, des mesures (Ohm, A), appliqués à tous les disjoncteurs du tableau.</li>
+                <li>Utilisez "Créer une checklist" pour définir jusqu’à 10 points de contrôle avec un nom et une valeur facultative, appliqués à tous les disjoncteurs du tableau.</li>
                 <li>Utilisez "Appliquer une checklist" pour appliquer une checklist existante à d’autres tableaux.</li>
                 <li>Utilisez "Voir les Checklists" pour gérer (modifier ou supprimer) les checklists existantes.</li>
-                <li>Cliquez sur un disjoncteur dans le Gantt pour voir ses checklists et compléter une checklist en attente, avec statut et mesures.</li>
+                <li>Cliquez sur un disjoncteur dans le Gantt pour voir ses checklists et compléter une checklist en attente avec statut et valeur facultative.</li>
                 <li>Les graphiques en anneau montrent la répartition des statuts par bâtiment et tableau.</li>
                 <li>Les graphiques avancés montrent le nombre de disjoncteurs par statut, l’évolution des contrôles dans le temps, et la répartition selon le courant nominal.</li>
             </ul>
@@ -782,7 +782,7 @@
                             checklistName = parsed.name || 'Sans nom';
                         } catch (e) {
                             console.warn('[Client] Erreur parsing comment:', check.comment);
-                            points = [{ description: 'Erreur de formatage', status: null, measure1: null, measure2: null }];
+                            points = [{ description: 'Erreur de formatage', status: null, value: null }];
                         }
                         const isPending = check.status === 'Non applicable' && points.every(p => !p.status);
                         return `
@@ -798,8 +798,7 @@
                                     ${points.length > 0 ? points.map(p => `
                                         <li>
                                             ${p.description} : <span class="${p.status === 'Conforme' ? 'text-green-500' : p.status === 'Non conforme' ? 'text-red-500' : p.status === 'Non applicable' ? 'text-yellow-400' : 'text-gray-400'}">${p.status || 'Non défini'}</span>
-                                            ${p.measure1 !== null && p.measure1 !== undefined ? `<br>Mesure 1 : ${p.measure1} Ohm` : ''}
-                                            ${p.measure2 !== null && p.measure2 !== undefined ? `<br>Mesure 2 : ${p.measure2} A` : ''}
+                                            ${p.value ? `<br>Valeur : ${p.value}` : ''}
                                         </li>
                                     `).join('') : '<li>Aucun point défini</li>'}
                                 </ul>
@@ -844,26 +843,22 @@
             const checklistNameInput = document.getElementById('checklist-name');
 
             checklistNameInput.value = '';
-            let points = [{ description: '', measure1: null, measure2: null }];
+            let points = [{ description: '', value: null }];
             let pointCount = 1;
 
             function renderPoints() {
                 pointsContainer.innerHTML = '';
                 points.forEach((point, index) => {
                     const div = document.createElement('div');
-                    div.className = 'flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-3 sm:gap-2 items-start';
+                    div.className = 'flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start';
                     div.innerHTML = `
                         <div class="flex-1">
                             <label class="block text-sm font-medium">Point ${index + 1}</label>
                             <input type="text" class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.description}" placeholder="Ex: Vérification câblage" required>
                         </div>
-                        <div class="w-full sm:w-24">
-                            <label class="block text-sm font-medium">Mesure 1 (Ohm)</label>
-                            <input type="number" step="0.01" class="point-measure1 mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.measure1 || ''}" placeholder="Ex: 0.02">
-                        </div>
-                        <div class="w-full sm:w-24">
-                            <label class="block text-sm font-medium">Mesure 2 (A)</label>
-                            <input type="number" step="0.1" class="point-measure2 mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.measure2 || ''}" placeholder="Ex: 23.7">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium">Valeur (facultatif)</label>
+                            <input type="text" class="point-value mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.value || ''}" placeholder="Ex: 0.02 Ohm">
                             <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition mt-2 sm:mt-6 ${pointCount === 1 ? 'invisible' : ''} touch-friendly">
                                 <i class="fas fa-trash"></i>
                             </button>
@@ -885,7 +880,7 @@
 
             addPointBtn.onclick = () => {
                 if (pointCount < 10) {
-                    points.push({ description: '', measure1: null, measure2: null });
+                    points.push({ description: '', value: null });
                     pointCount++;
                     renderPoints();
                 } else {
@@ -899,8 +894,7 @@
                 points = Array.from(pointsContainer.children).map(div => ({
                     description: div.querySelector('.point-description').value,
                     status: null,
-                    measure1: div.querySelector('.point-measure1').value ? parseFloat(div.querySelector('.point-measure1').value) : null,
-                    measure2: div.querySelector('.point-measure2').value ? parseFloat(div.querySelector('.point-measure2').value) : null
+                    value: div.querySelector('.point-value').value || null
                 }));
 
                 if (!checklistName) {
@@ -1070,8 +1064,7 @@
                         ${c.points.length > 0 ? c.points.map(p => `
                             <li>
                                 ${p.description}
-                                ${p.measure1 !== null && p.measure1 !== undefined ? ` (Mesure 1: ${p.measure1} Ohm)` : ''}
-                                ${p.measure2 !== null && p.measure2 !== undefined ? ` (Mesure 2: ${p.measure2} A)` : ''}
+                                ${p.value ? ` (Valeur: ${p.value})` : ''}
                             </li>
                         `).join('') : '<li>Aucun point défini</li>'}
                     </ul>
@@ -1116,26 +1109,22 @@
             }
 
             checklistNameInput.value = parsed.name || '';
-            let points = parsed.points || [{ description: '', measure1: null, measure2: null }];
+            let points = parsed.points || [{ description: '', value: null }];
             let pointCount = points.length;
 
             function renderPoints() {
                 pointsContainer.innerHTML = '';
                 points.forEach((point, index) => {
                     const div = document.createElement('div');
-                    div.className = 'flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-3 sm:gap-2 items-start';
+                    div.className = 'flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start';
                     div.innerHTML = `
                         <div class="flex-1">
                             <label class="block text-sm font-medium">Point ${index + 1}</label>
                             <input type="text" class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.description}" placeholder="Ex: Vérification câblage" required>
                         </div>
-                        <div class="w-full sm:w-24">
-                            <label class="block text-sm font-medium">Mesure 1 (Ohm)</label>
-                            <input type="number" step="0.01" class="point-measure1 mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.measure1 || ''}" placeholder="Ex: 0.02">
-                        </div>
-                        <div class="w-full sm:w-24">
-                            <label class="block text-sm font-medium">Mesure 2 (A)</label>
-                            <input type="number" step="0.1" class="point-measure2 mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.measure2 || ''}" placeholder="Ex: 23.7">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium">Valeur (facultatif)</label>
+                            <input type="text" class="point-value mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.value || ''}" placeholder="Ex: 0.02 Ohm">
                             <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition mt-2 sm:mt-6 ${pointCount === 1 ? 'invisible' : ''} touch-friendly">
                                 <i class="fas fa-trash"></i>
                             </button>
@@ -1157,7 +1146,7 @@
 
             addPointBtn.onclick = () => {
                 if (pointCount < 10) {
-                    points.push({ description: '', measure1: null, measure2: null });
+                    points.push({ description: '', value: null });
                     pointCount++;
                     renderPoints();
                 } else {
@@ -1171,8 +1160,7 @@
                 points = Array.from(pointsContainer.children).map(div => ({
                     description: div.querySelector('.point-description').value,
                     status: null,
-                    measure1: div.querySelector('.point-measure1').value ? parseFloat(div.querySelector('.point-measure1').value) : null,
-                    measure2: div.querySelector('.point-measure2').value ? parseFloat(div.querySelector('.point-measure2').value) : null
+                    value: div.querySelector('.point-value').value || null
                 }));
 
                 if (!checklistName) {
@@ -1258,7 +1246,7 @@
                 checklistName = parsed.name || 'Sans nom';
             } catch (e) {
                 console.warn('[Client] Erreur parsing comment:', check.comment);
-                points = [{ description: 'Erreur de formatage', status: null, measure1: null, measure2: null }];
+                points = [{ description: 'Erreur de formatage', status: null, value: null }];
             }
             commentInput.value = commentGlobal;
             photoInput.value = '';
@@ -1266,20 +1254,16 @@
             pointsContainer.innerHTML = `
                 <p class="mb-2"><strong>Checklist :</strong> ${checklistName}</p>
                 ${points.map((point, index) => `
-                    <div class="flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-3 sm:gap-2 items-start">
+                    <div class="flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start">
                         <div class="flex-1">
                             <label class="block text-sm font-medium">Point ${index + 1}</label>
                             <p class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">${point.description}</p>
                         </div>
-                        <div class="w-full sm:w-24">
-                            <label class="block text-sm font-medium">Mesure 1 (Ohm)</label>
-                            <input type="number" step="0.01" class="point-measure1 mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.measure1 || ''}" placeholder="Ex: 0.02">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium">Valeur (facultatif)</label>
+                            <input type="text" class="point-value mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.value || ''}" placeholder="Ex: 0.02 Ohm">
                         </div>
-                        <div class="w-full sm:w-24">
-                            <label class="block text-sm font-medium">Mesure 2 (A)</label>
-                            <input type="number" step="0.1" class="point-measure2 mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.measure2 || ''}" placeholder="Ex: 23.7">
-                        </div>
-                        <div class="col-span-3">
+                        <div class="col-span-2">
                             <label class="block text-sm font-medium">Statut</label>
                             <select class="point-status mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
                                 <option value="" ${!point.status ? 'selected' : ''}>Sélectionner</option>
@@ -1300,8 +1284,7 @@
                 const updatedPoints = Array.from(pointsContainer.children).map(div => ({
                     description: div.querySelector('p').textContent,
                     status: div.querySelector('.point-status').value,
-                    measure1: div.querySelector('.point-measure1').value ? parseFloat(div.querySelector('.point-measure1').value) : null,
-                    measure2: div.querySelector('.point-measure2').value ? parseFloat(div.querySelector('.point-measure2').value) : null
+                    value: div.querySelector('.point-value').value || null
                 }));
 
                 if (updatedPoints.some(p => !p.status)) {
