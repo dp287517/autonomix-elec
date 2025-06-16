@@ -29,46 +29,47 @@
         </ul>
     </nav>
 
-    <div class="container mx-auto p-6">
-        <h1 class="text-3xl font-bold mb-6 flex items-center"><i class="fas fa-cogs mr-3"></i>Contrôle des Disjoncteurs</h1>
+    <div class="container mx-auto p-4 sm:p-6">
+        <h1 class="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6 flex items-center"><i class="fas fa-cogs mr-2 sm:mr-3"></i>Contrôle des Disjoncteurs</h1>
 
         <!-- Filtres -->
-        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg flex space-x-4">
-            <div>
+        <div class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0">
+            <div class="flex-1">
                 <label for="building-filter" class="block text-sm font-medium">Filtrer par bâtiment</label>
-                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600">
+                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">
                     <option value="">Tous les bâtiments</option>
                 </select>
             </div>
-            <div>
+            <div class="flex-1">
                 <label for="tableau-filter" class="block text-sm font-medium">Filtrer par tableau</label>
-                <select id="tableau-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600">
+                <select id="tableau-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">
                     <option value="">Tous les tableaux</option>
                 </select>
             </div>
         </div>
 
         <!-- Instructions -->
-        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-fade-in">
-            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
-            <ul class="list-disc pl-6 text-gray-300">
+        <div class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg animate-fade-in">
+            <h2 class="text-lg sm:text-xl font-semibold mb-2 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
+            <ul class="list-disc pl-6 text-gray-300 text-sm sm:text-base">
                 <li>Utilisez les filtres pour sélectionner un bâtiment ou un tableau spécifique.</li>
-                <li>Après sélection d’un tableau, un diagramme de Gantt affiche les disjoncteurs avec leur dernier statut de contrôle (Conforme, Non conforme, Non applicable, Mixte, En attente, Non contrôlé).</li>
-                <li>Utilisez le bouton "Créer une checklist" pour définir jusqu’à 10 points de contrôle (sans statuts, commentaire, ni photo), appliqués à tous les disjoncteurs.</li>
-                <li>Cliquez sur un disjoncteur dans le Gantt pour voir ses checklists et compléter une checklist en attente en assignant un statut par point, un commentaire, et une photo.</li>
+                <li>Après sélection d’un tableau, un diagramme de Gantt affiche les disjoncteurs avec leur dernier statut de contrôle (Conforme, Non conforme, Non applicable, En attente, Non contrôlé).</li>
+                <li>Utilisez "Créer une checklist" pour définir jusqu’à 10 points de contrôle, appliqués à tous les disjoncteurs du tableau.</li>
+                <li>Utilisez "Appliquer une checklist" pour appliquer une checklist existante à d’autres tableaux.</li>
+                <li>Cliquez sur un disjoncteur dans le Gantt pour voir ses checklists et compléter une checklist en attente.</li>
                 <li>Les graphiques en anneau montrent la répartition des statuts par bâtiment et tableau.</li>
             </ul>
         </div>
 
         <!-- Diagramme de Gantt des disjoncteurs -->
-        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
-            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-calendar-alt mr-2"></i>Statut des Disjoncteurs</h2>
+        <div class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-lg sm:text-xl font-semibold mb-2 flex items-center"><i class="fas fa-calendar-alt mr-2"></i>Statut des Disjoncteurs</h2>
             <div class="overflow-x-auto relative">
-                <table class="gantt" id="gantt-table">
+                <table class="gantt w-full text-sm sm:text-base" id="gantt-table">
                     <thead>
                         <tr>
-                            <th class="sticky left-0 bg-gray-700">Disjoncteur</th>
-                            <th class="text-gray-300">Statut</th>
+                            <th class="sticky left-0 bg-gray-700 p-2">Disjoncteur</th>
+                            <th class="text-gray-300 p-2">Statut</th>
                         </tr>
                     </thead>
                     <tbody id="gantt-body"></tbody>
@@ -77,66 +78,102 @@
             <p id="no-data-message" class="text-red-500 mt-4 hidden">Aucun disjoncteur trouvé pour les critères sélectionnés.</p>
         </div>
 
-        <!-- Bouton Créer une Checklist -->
-        <div id="add-checklist-container" class="flex justify-end mb-4 hidden">
-            <button id="add-checklist" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+        <!-- Boutons Créer et Appliquer une Checklist -->
+        <div id="add-checklist-container" class="flex flex-col sm:flex-row justify-end mb-4 space-y-2 sm:space-y-0 sm:space-x-2 hidden">
+            <button id="add-checklist" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm sm:text-base touch-friendly">
                 <i class="fas fa-plus-circle mr-2"></i>Créer une Checklist
+            </button>
+            <button id="apply-checklist" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition text-sm sm:text-base touch-friendly">
+                <i class="fas fa-check-circle mr-2"></i>Appliquer une Checklist
             </button>
         </div>
 
         <!-- Graphiques en anneau -->
-        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
-            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-chart-pie mr-2"></i>Répartition des Statuts</h2>
+        <div class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg animate-slide-up">
+            <h2 class="text-lg sm:text-xl font-semibold mb-2 flex items-center"><i class="fas fa-chart-pie mr-2"></i>Répartition des Statuts</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="doughnut-container"></div>
         </div>
 
         <!-- Modal pour voir l’historique des checklists -->
         <div id="modal-breaker" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 overflow-y-auto pt-4 pb-4 hidden">
-            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-4xl w-full my-4 max-h-[90vh] overflow-y-auto">
-                <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-cogs mr-2"></i>Historique des Contrôles</h2>
-                <div id="modal-content" class="mb-4 text-gray-300"></div>
-                <button id="close-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-4xl my-4 max-h-[85vh] overflow-y-auto">
+                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-cogs mr-2"></i>Historique des Contrôles</h2>
+                <div id="modal-content" class="mb-4 text-gray-300 text-sm sm:text-base"></div>
+                <button id="close-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition w-full sm:w-auto touch-friendly">
+                    <i class="fas fa-times mr-2"></i>Fermer
+                </button>
             </div>
         </div>
 
         <!-- Modal pour créer une checklist -->
-        <div id="modal-create-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
-            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-2xl w-full">
-                <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-plus-circle mr-2"></i>Créer une Checklist</h2>
+        <div id="modal-create-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 overflow-y-auto pt-4 pb-4 hidden">
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-2xl my-4 max-h-[85vh] overflow-y-auto">
+                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-plus-circle mr-2"></i>Créer une Checklist</h2>
                 <form id="create-checklist-form" class="grid gap-4">
-                    <div id="checklist-points" class="grid gap-2">
-                        <!-- Points de contrôle ajoutés dynamiquement -->
-                    </div>
-                    <button type="button" id="add-point" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+                    <div id="checklist-points" class="grid gap-2"></div>
+                    <button type="button" id="add-point" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm sm:text-base touch-friendly">
                         <i class="fas fa-plus mr-2"></i>Ajouter un point de contrôle
                     </button>
-                    <div class="flex space-x-4">
-                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"><i class="fas fa-save mr-2"></i>Enregistrer</button>
-                        <button type="button" id="close-create-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm sm:text-base touch-friendly">
+                            <i class="fas fa-save mr-2"></i>Enregistrer
+                        </button>
+                        <button type="button" id="close-create-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition text-sm sm:text-base touch-friendly">
+                            <i class="fas fa-times mr-2"></i>Fermer
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
 
         <!-- Modal pour compléter une checklist -->
-        <div id="modal-complete-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
-            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-2xl w-full">
-                <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-check-circle mr-2"></i>Compléter la Checklist</h2>
+        <div id="modal-complete-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 overflow-y-auto pt-4 pb-4 hidden">
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-2xl my-4 max-h-[85vh] overflow-y-auto">
+                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-check-circle mr-2"></i>Compléter la Checklist</h2>
                 <form id="complete-checklist-form" class="grid gap-4">
-                    <div id="complete-checklist-points" class="grid gap-2">
-                        <!-- Points de contrôle avec statuts -->
-                    </div>
+                    <div id="complete-checklist-points" class="grid gap-2"></div>
                     <div>
                         <label for="complete-checklist-comment" class="block text-sm font-medium">Commentaire global</label>
-                        <textarea id="complete-checklist-comment" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" rows="4"></textarea>
+                        <textarea id="complete-checklist-comment" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" rows="4"></textarea>
                     </div>
                     <div>
                         <label for="complete-checklist-photo" class="block text-sm font-medium">Photo globale</label>
-                        <input type="file" id="complete-checklist-photo" accept="image/*" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full">
+                        <input type="file" id="complete-checklist-photo" accept="image/*" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">
                     </div>
-                    <div class="flex space-x-4">
-                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"><i class="fas fa-save mr-2"></i>Enregistrer</button>
-                        <button type="button" id="close-complete-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm sm:text-base touch-friendly">
+                            <i class="fas fa-save mr-2"></i>Enregistrer
+                        </button>
+                        <button type="button" id="close-complete-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition text-sm sm:text-base touch-friendly">
+                            <i class="fas fa-times mr-2"></i>Fermer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal pour appliquer une checklist -->
+        <div id="modal-apply-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 overflow-y-auto pt-4 pb-4 hidden">
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-2xl my-4 max-h-[85vh] overflow-y-auto">
+                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-check-circle mr-2"></i>Appliquer une Checklist</h2>
+                <form id="apply-checklist-form" class="grid gap-4">
+                    <div>
+                        <label for="checklist-select" class="block text-sm font-medium">Sélectionner une checklist</label>
+                        <select id="checklist-select" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
+                            <option value="">Choisir une checklist</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Sélectionner les tableaux</label>
+                        <div id="tableaux-select" class="grid gap-2 max-h-40 overflow-y-auto bg-gray-700 p-2 rounded border-gray-600"></div>
+                    </div>
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm sm:text-base touch-friendly">
+                            <i class="fas fa-save mr-2"></i>Appliquer
+                        </button>
+                        <button type="button" id="close-apply-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition text-sm sm:text-base touch-friendly">
+                            <i class="fas fa-times mr-2"></i>Fermer
+                        </button>
                     </div>
                 </form>
             </div>
@@ -157,11 +194,10 @@
         // Déterminer le statut global d’une checklist
         function determineGlobalStatus(points) {
             const statuses = points.map(p => p.status).filter(s => s);
-            if (statuses.length === 0) return 'Non applicable'; // Utilisé pour "En attente"
-            if (statuses.every(s => s === 'Conforme')) return 'Conforme';
+            if (statuses.length === 0) return 'Non applicable'; // En attente
             if (statuses.includes('Non conforme')) return 'Non conforme';
-            if (statuses.every(s => s === 'Non applicable')) return 'Non applicable';
-            return 'Mixte';
+            if (statuses.some(s => s === 'Conforme')) return 'Conforme';
+            return 'Non applicable';
         }
 
         // Charger les données
@@ -192,19 +228,39 @@
             const buildingFilter = document.getElementById('building-filter');
             const tableauFilter = document.getElementById('tableau-filter');
             const buildings = [...new Set(tableauxData.map(t => t.id.split('-')[0] || 'Inconnu'))].sort();
+
+            // Remplir le filtre bâtiment
+            buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
             buildings.forEach(b => {
                 const option = document.createElement('option');
                 option.value = b;
                 option.textContent = b;
                 buildingFilter.appendChild(option);
             });
-            tableauxData.forEach(t => {
-                const option = document.createElement('option');
-                option.value = t.id;
-                option.textContent = t.id;
-                tableauFilter.appendChild(option);
-            });
-            buildingFilter.onchange = filterData;
+
+            // Fonction pour mettre à jour le filtre tableau
+            function updateTableauFilter(selectedBuilding) {
+                tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
+                const filteredTableaux = selectedBuilding 
+                    ? tableauxData.filter(t => t.id.split('-')[0] === selectedBuilding)
+                    : tableauxData;
+                filteredTableaux.forEach(t => {
+                    const option = document.createElement('option');
+                    option.value = t.id;
+                    option.textContent = t.id;
+                    tableauFilter.appendChild(option);
+                });
+            }
+
+            // Initialiser le filtre tableau
+            updateTableauFilter('');
+
+            // Écouteurs pour les filtres
+            buildingFilter.onchange = () => {
+                const selectedBuilding = buildingFilter.value;
+                updateTableauFilter(selectedBuilding);
+                filterData();
+            };
             tableauFilter.onchange = filterData;
         }
 
@@ -212,18 +268,22 @@
         function filterData() {
             currentTableauId = document.getElementById('tableau-filter').value;
             const building = document.getElementById('building-filter').value;
-            const filteredData = tableauxData.filter(t => (!building || t.id.split('-')[0] === building) && (!currentTableauId || t.id === currentTableauId));
+            const filteredData = tableauxData.filter(t => 
+                (!building || t.id.split('-')[0] === building) && 
+                (!currentTableauId || t.id === currentTableauId)
+            );
             renderGanttChart(filteredData);
             renderDoughnuts(filteredData);
             toggleAddChecklistButton();
         }
 
-        // Afficher/masquer le bouton Créer une Checklist
+        // Afficher/masquer les boutons Créer/Appliquer
         function toggleAddChecklistButton() {
             const container = document.getElementById('add-checklist-container');
             if (currentTableauId) {
                 container.classList.remove('hidden');
                 document.getElementById('add-checklist').onclick = () => openCreateChecklistModal();
+                document.getElementById('apply-checklist').onclick = () => openApplyChecklistModal();
             } else {
                 container.classList.add('hidden');
             }
@@ -231,7 +291,6 @@
 
         // Rendre le diagramme de Gantt
         function renderGanttChart(data = tableauxData) {
-            const table = document.getElementById('gantt-table');
             const tbody = document.getElementById('gantt-body');
             const noDataMessage = document.getElementById('no-data-message');
             tbody.innerHTML = '';
@@ -245,7 +304,7 @@
                     const tdBreaker = document.createElement('td');
                     const sanitizedId = sanitizeId(breaker.id);
                     tdBreaker.innerHTML = `${breaker.id}`;
-                    tdBreaker.className = 'sticky left-0 bg-gray-700 font-medium';
+                    tdBreaker.className = 'sticky left-0 bg-gray-700 font-medium p-2';
                     tr.appendChild(tdBreaker);
 
                     const tdStatus = document.createElement('td');
@@ -268,13 +327,12 @@
                         if (statusText === 'Conforme') statusClass += ' task-bar-green';
                         else if (statusText === 'Non conforme') statusClass += ' task-bar-red';
                         else if (statusText === 'Non applicable') statusClass += ' task-bar-orange';
-                        else if (statusText === 'Mixte') statusClass += ' task-bar-blue';
                         else statusClass += ' task-bar-purple'; // En attente
                     } else {
                         statusClass += ' task-bar-gray';
                     }
                     const bar = document.createElement('div');
-                    bar.className = statusClass;
+                    bar.className = `${statusClass} p-2`;
                     bar.dataset.tableauId = tableau.id;
                     bar.dataset.breakerId = breaker.id;
                     bar.dataset.sanitizedId = sanitizedId;
@@ -306,9 +364,9 @@
             const container = document.getElementById('doughnut-container');
             container.innerHTML = '';
 
-            const categories = ['Conforme', 'Non conforme', 'Non applicable', 'Mixte', 'En attente', 'Non contrôlé'];
-            const colors = ['#22c55e', '#dc2626', '#f4b400', '#3b82f6', '#9333ea', '#6B7280'];
-            const icons = ['fa-check-circle', 'fa-times-circle', 'fa-hourglass-half', 'fa-balance-scale', 'fa-clock', 'fa-question-circle'];
+            const categories = ['Conforme', 'Non conforme', 'Non applicable', 'En attente', 'Non contrôlé'];
+            const colors = ['#22c55e', '#dc2626', '#f4b400', '#9333ea', '#6B7280'];
+            const icons = ['fa-check-circle', 'fa-times-circle', 'fa-hourglass-half', 'fa-clock', 'fa-question-circle'];
 
             const groups = currentTableauId
                 ? data.filter(t => t.id === currentTableauId).map(t => ({
@@ -329,7 +387,7 @@
                 canvas.id = `doughnut-${index}`;
                 div.appendChild(canvas);
                 const title = document.createElement('h3');
-                title.className = 'text-lg font-semibold mb-2';
+                title.className = 'text-base sm:text-lg font-semibold mb-2';
                 title.innerHTML = `<i class="fas ${group.building === group.id ? 'fa-table' : 'fa-building'} mr-2"></i>${group.building === group.id ? `Tableau ${group.id}` : `Bâtiment ${group.building}`}`;
                 div.insertBefore(title, canvas);
                 container.appendChild(div);
@@ -355,9 +413,8 @@
                         return (i === 0 && status === 'Conforme') ||
                                (i === 1 && status === 'Non conforme') ||
                                (i === 2 && status === 'Non applicable') ||
-                               (i === 3 && status === 'Mixte') ||
-                               (i === 4 && status === 'En attente') ||
-                               (i === 5 && status === 'Non contrôlé');
+                               (i === 3 && status === 'En attente') ||
+                               (i === 4 && status === 'Non contrôlé');
                     }).length;
                     return acc;
                 }, {});
@@ -415,7 +472,7 @@
                 <p><strong>Marque :</strong> ${breaker.marque || 'Inconnu'}</p>
                 <p><strong>Référence :</strong> ${breaker.ref || 'Inconnu'}</p>
                 <p><strong>Courant nominal :</strong> ${breaker.in || 'Inconnu'}</p>
-                <h3 class="text-lg font-semibold mt-4">Historique des contrôles :</h3>
+                <h3 class="text-base sm:text-lg font-semibold mt-4">Historique des contrôles :</h3>
                 <div class="space-y-4">
                     ${breakerChecks.length > 0 ? breakerChecks.map(check => {
                         let points = [];
@@ -439,19 +496,19 @@
                                     ${isPending ? 'En attente' : check.status}
                                 </span></p>
                                 <p><strong>Date :</strong> ${new Date(check.timestamp).toLocaleString('fr-FR')}</p>
-                                <h4 class="text-md font-semibold mt-2">Points de contrôle :</h4>
+                                <h4 class="text-sm sm:text-md font-semibold mt-2">Points de contrôle :</h4>
                                 <ul class="list-disc pl-6">
                                     ${points.length > 0 ? points.map(p => `
                                         <li>${p.description} : <span class="${p.status === 'Conforme' ? 'text-green-500' : p.status === 'Non conforme' ? 'text-red-500' : p.status === 'Non applicable' ? 'text-yellow-400' : 'text-gray-400'}">${p.status || 'Non défini'}</span></li>
                                     `).join('') : '<li>Aucun point défini</li>'}
                                 </ul>
                                 <p><strong>Commentaire global :</strong> ${commentGlobal || 'Aucun'}</p>
-                                <p><strong>Photo :</strong> ${check.photo ? `<img src="${check.photo}" alt="Photo contrôle" class="w-32 h-32 object-cover rounded mt-2" />` : 'Aucune'}</p>
-                                <div class="flex space-x-2 mt-2">
-                                    <button class="${isPending ? 'complete-check' : 'edit-check'} bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition" data-check-id="${check.id}">
+                                <p><strong>Photo :</strong> ${check.photo ? `<img src="${check.photo}" alt="Photo contrôle" class="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded mt-2" />` : 'Aucune'}</p>
+                                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mt-2">
+                                    <button class="${isPending ? 'complete-check' : 'edit-check'} bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition text-sm sm:text-base touch-friendly" data-check-id="${check.id}">
                                         <i class="fas ${isPending ? 'fa-check' : 'fa-edit'}"></i> ${isPending ? 'Compléter' : 'Modifier'}
                                     </button>
-                                    <button class="delete-check bg-red-600 text-white p-2 rounded hover:bg-red-700 transition" data-check-id="${check.id}">
+                                    <button class="delete-check bg-red-600 text-white p-2 rounded hover:bg-red-700 transition text-sm sm:text-base touch-friendly" data-check-id="${check.id}">
                                         <i class="fas fa-trash"></i> Supprimer
                                     </button>
                                 </div>
@@ -491,13 +548,13 @@
                 pointsContainer.innerHTML = '';
                 points.forEach((point, index) => {
                     const div = document.createElement('div');
-                    div.className = 'flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-center';
+                    div.className = 'flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-start sm:items-center';
                     div.innerHTML = `
                         <div class="flex-1">
                             <label class="block text-sm font-medium">Point ${index + 1}</label>
-                            <input type="text" class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" value="${point.description}" placeholder="Ex: Est-ce que le tableau est en bon état" required>
+                            <input type="text" class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.description}" placeholder="Ex: Vérification câblage" required>
                         </div>
-                        <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition ${pointCount === 1 ? 'invisible' : ''}">
+                        <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition ${pointCount === 1 ? 'invisible' : ''} touch-friendly">
                             <i class="fas fa-trash"></i>
                         </button>
                     `;
@@ -541,9 +598,8 @@
                     const tableau = tableauxData.find(t => t.id === currentTableauId);
                     if (!tableau) throw new Error('Tableau non trouvé');
 
-                    const comment = JSON.stringify({ points, comment: '' }); // JSON pur sans préfixe
+                    const comment = JSON.stringify({ points, comment: '' });
 
-                    // Créer une checklist vide pour chaque disjoncteur
                     for (const breaker of tableau.disjoncteurs) {
                         console.log('[Client] Envoi POST /api/breaker-checklists:', {
                             tableau_id: currentTableauId,
@@ -582,6 +638,96 @@
             modal.classList.remove('hidden');
         }
 
+        // Ouvrir le modal pour appliquer une checklist
+        function openApplyChecklistModal() {
+            const modal = document.getElementById('modal-apply-checklist');
+            const form = document.getElementById('apply-checklist-form');
+            const checklistSelect = document.getElementById('checklist-select');
+            const tableauxSelect = document.getElementById('tableaux-select');
+
+            // Remplir le sélecteur de checklists
+            checklistSelect.innerHTML = '<option value="">Choisir une checklist</option>';
+            const uniqueChecklists = [...new Set(checklistsData.map(c => c.comment))].map(comment => {
+                try {
+                    const parsed = JSON.parse(comment.startsWith('Checklist vide: ') ? comment.replace('Checklist vide: ', '') : comment);
+                    return { comment, points: parsed.points || [] };
+                } catch (e) {
+                    return null;
+                }
+            }).filter(c => c);
+            uniqueChecklists.forEach((c, index) => {
+                const option = document.createElement('option');
+                option.value = c.comment;
+                option.textContent = `Checklist ${index + 1} (${c.points.length} points)`;
+                checklistSelect.appendChild(option);
+            });
+
+            // Remplir le sélecteur de tableaux
+            tableauxSelect.innerHTML = '';
+            tableauxData.forEach(tableau => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center';
+                div.innerHTML = `
+                    <input type="checkbox" class="tableau-checkbox mr-2" value="${tableau.id}">
+                    <label>${tableau.id}</label>
+                `;
+                tableauxSelect.appendChild(div);
+            });
+
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                const selectedChecklist = checklistSelect.value;
+                const selectedTableaux = Array.from(tableauxSelect.querySelectorAll('.tableau-checkbox:checked')).map(cb => cb.value);
+
+                if (!selectedChecklist || selectedTableaux.length === 0) {
+                    alert('Veuillez sélectionner une checklist et au moins un tableau.');
+                    return;
+                }
+
+                try {
+                    for (const tableauId of selectedTableaux) {
+                        const tableau = tableauxData.find(t => t.id === tableauId);
+                        if (!tableau) continue;
+
+                        for (const breaker of tableau.disjoncteurs) {
+                            console.log('[Client] Envoi POST /api/breaker-checklists:', {
+                                tableau_id: tableauId,
+                                disjoncteur_id: breaker.id,
+                                encoded_disjoncteur_id: encodeURIComponent(breaker.id),
+                                status: 'Non applicable',
+                                comment: selectedChecklist,
+                                photo: null
+                            });
+                            const body = {
+                                tableau_id: tableauId,
+                                disjoncteur_id: breaker.id,
+                                status: 'Non applicable',
+                                comment: selectedChecklist,
+                                photo: null
+                            };
+
+                            const response = await fetch('/api/breaker-checklists', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(body)
+                            });
+                            const responseData = await response.json();
+                            if (!response.ok) throw new Error(`Erreur lors de l’application pour ${breaker.id} dans ${tableauId}: ${responseData.error || response.statusText}`);
+                        }
+                    }
+
+                    modal.classList.add('hidden');
+                    await loadData();
+                } catch (error) {
+                    console.error('[Client] Erreur application checklist:', error);
+                    alert('Erreur lors de l’application de la checklist: ' + error.message);
+                }
+            };
+
+            document.getElementById('close-apply-checklist-modal').onclick = () => modal.classList.add('hidden');
+            modal.classList.remove('hidden');
+        }
+
         // Ouvrir le modal pour compléter ou modifier une checklist
         function openCompleteChecklistModal(check, tableauId, breakerId, sanitizedId) {
             const modal = document.getElementById('modal-complete-checklist');
@@ -610,15 +756,15 @@
             pointsContainer.innerHTML = '';
             points.forEach((point, index) => {
                 const div = document.createElement('div');
-                div.className = 'flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-center';
+                div.className = 'flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 items-start sm:items-center';
                 div.innerHTML = `
                     <div class="flex-1">
                         <label class="block text-sm font-medium">Point ${index + 1}</label>
-                        <p class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full">${point.description}</p>
+                        <p class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">${point.description}</p>
                     </div>
-                    <div class="w-32">
+                    <div class="w-full sm:w-32">
                         <label class="block text-sm font-medium">Statut</label>
-                        <select class="point-status mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" required>
+                        <select class="point-status mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
                             <option value="" ${!point.status ? 'selected' : ''}>Sélectionner</option>
                             <option value="Conforme" ${point.status === 'Conforme' ? 'selected' : ''}>Conforme</option>
                             <option value="Non conforme" ${point.status === 'Non conforme' ? 'selected' : ''}>Non conforme</option>
@@ -720,9 +866,11 @@
             const breakerModal = document.getElementById('modal-breaker');
             const createChecklistModal = document.getElementById('modal-create-checklist');
             const completeChecklistModal = document.getElementById('modal-complete-checklist');
+            const applyChecklistModal = document.getElementById('modal-apply-checklist');
             if (breakerModal) breakerModal.classList.add('hidden');
             if (createChecklistModal) createChecklistModal.classList.add('hidden');
             if (completeChecklistModal) completeChecklistModal.classList.add('hidden');
+            if (applyChecklistModal) applyChecklistModal.classList.add('hidden');
             loadData();
         };
     </script>
@@ -736,7 +884,12 @@
             text-align: center;
             line-height: 20px;
             color: #FFF;
-            font-size: 0.875rem;
+            font-size: 0.75rem;
+        }
+        @media (min-width: 640px) {
+            .task-bar {
+                font-size: 0.875rem;
+            }
         }
         .task-bar-green { background-color: #22c55e; }
         .task-bar-red { background-color: #dc2626; }
@@ -744,17 +897,21 @@
         .task-bar-blue { background-color: #3b82f6; }
         .task-bar-purple { background-color: #9333ea; }
         .task-bar-gray { background-color: #6B7280; }
-        #modal-breaker > div, #modal-create-checklist > div, #modal-complete-checklist > div {
+        .touch-friendly {
+            min-height: 44px; /* Taille minimale pour les interactions tactiles */
+            padding: 0.5rem 1rem;
+        }
+        #modal-breaker > div, #modal-create-checklist > div, #modal-complete-checklist > div, #modal-apply-checklist > div {
             scrollbar-width: thin;
             scrollbar-color: #6B7280 #1F2937;
         }
-        #modal-breaker > div::-webkit-scrollbar, #modal-create-checklist > div::-webkit-scrollbar, #modal-complete-checklist > div::-webkit-scrollbar {
+        #modal-breaker > div::-webkit-scrollbar, #modal-create-checklist > div::-webkit-scrollbar, #modal-complete-checklist > div::-webkit-scrollbar, #modal-apply-checklist > div::-webkit-scrollbar {
             width: 8px;
         }
-        #modal-breaker > div::-webkit-scrollbar-track, #modal-create-checklist > div::-webkit-scrollbar-track, #modal-complete-checklist > div::-webkit-scrollbar-track {
+        #modal-breaker > div::-webkit-scrollbar-track, #modal-create-checklist > div::-webkit-scrollbar-track, #modal-complete-checklist > div::-webkit-scrollbar-track, #modal-apply-checklist > div::-webkit-scrollbar-track {
             background: #1F2937;
         }
-        #modal-breaker > div::-webkit-scrollbar-thumb, #modal-create-checklist > div::-webkit-scrollbar-thumb, #modal-complete-checklist > div::-webkit-scrollbar-thumb {
+        #modal-breaker > div::-webkit-scrollbar-thumb, #modal-create-checklist > div::-webkit-scrollbar-thumb, #modal-complete-checklist > div::-webkit-scrollbar-thumb, #modal-apply-checklist > div::-webkit-scrollbar-thumb {
             background: #6B7280;
             border-radius: 4px;
         }
@@ -765,9 +922,11 @@
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes zoomIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
         @media (max-width: 640px) {
-            .container { padding: 1rem; }
+            .container { padding: 0.5rem; }
             table th, table td { font-size: 0.75rem; padding: 0.5rem; }
             canvas { height: 200px !important; }
+            input, select, textarea, button { font-size: 0.875rem; }
+            .modal-content { font-size: 0.875rem; }
         }
     </style>
 </body>
