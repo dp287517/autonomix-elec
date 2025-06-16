@@ -189,7 +189,8 @@
     <script>
         let tableauxData = [];
         let checklistsData = [];
-        let currentTableauId = null;
+        let currentTableauId = '';
+        let currentCheckId = null;
 
         // Fonction pour encoder les ID en slug sécurisé
         function sanitizeId(id) {
@@ -235,7 +236,6 @@
             const tableauFilter = document.getElementById('tableau-filter');
             const buildings = [...new Set(tableauxData.map(t => t.id.split('-')[0] || 'Inconnu'))].sort();
 
-            // Remplir le filtre bâtiment
             buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
             buildings.forEach(b => {
                 const option = document.createElement('option');
@@ -244,7 +244,6 @@
                 buildingFilter.appendChild(option);
             });
 
-            // Fonction pour mettre à jour le filtre tableau
             function updateTableauFilter(selectedBuilding) {
                 tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
                 const filteredTableaux = selectedBuilding 
@@ -258,10 +257,8 @@
                 });
             }
 
-            // Initialiser le filtre tableau
             updateTableauFilter('');
 
-            // Écouteurs pour les filtres
             buildingFilter.onchange = () => {
                 const selectedBuilding = buildingFilter.value;
                 updateTableauFilter(selectedBuilding);
@@ -307,6 +304,7 @@
 
             filteredData.forEach(tableau => {
                 tableau.disjoncteurs.forEach(breaker => {
+                    if (!breaker.id) return;
                     const tr = document.createElement('tr');
                     const tdBreaker = document.createElement('td');
                     const sanitizedId = sanitizeId(breaker.id);
@@ -321,14 +319,14 @@
                     let statusClass = 'task-bar';
                     let statusText = 'Non contrôlé';
                     if (latestCheck) {
-                        let points;
+                        let points = [];
                         try {
                             const comment = latestCheck.comment.startsWith('Checklist vide: ') 
                                 ? latestCheck.comment.replace('Checklist vide: ', '') 
                                 : latestCheck.comment;
                             points = JSON.parse(comment).points || [];
                         } catch (e) {
-                            points = [];
+                            console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
                         }
                         statusText = latestCheck.status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : latestCheck.status;
                         if (statusText === 'Conforme') statusClass += ' task-bar-green';
@@ -373,7 +371,6 @@
 
             const categories = ['Conforme', 'Non conforme', 'Non applicable', 'En attente', 'Non contrôlé'];
             const colors = ['#22c55e', '#dc2626', '#f4b400', '#9333ea', '#6B7280'];
-            const icons = ['fa-check-circle', 'fa-times-circle', 'fa-hourglass-half', 'fa-clock', 'fa-question-circle'];
 
             const groups = currentTableauId
                 ? data.filter(t => t.id === currentTableauId).map(t => ({
@@ -392,6 +389,7 @@
                 div.className = 'bg-gray-700 p-4 rounded-lg shadow';
                 const canvas = document.createElement('canvas');
                 canvas.id = `doughnut-${index}`;
+                canvas.className = 'w-full h-48 sm:h-96';
                 div.appendChild(canvas);
                 const title = document.createElement('h3');
                 title.className = 'text-base sm:text-lg font-semibold mb-2';
@@ -401,19 +399,20 @@
 
                 const counts = categories.reduce((acc, cat, i) => {
                     acc[cat] = group.disjoncteurs.filter(d => {
+                        if (!d.id) return false;
                         const latestCheck = checklistsData
                             .filter(c => c.tableau_id === (group.building === group.id ? group.id : data.find(t => t.disjoncteurs.includes(d)).id) && c.disjoncteur_id === d.id)
                             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
                         let status = latestCheck ? latestCheck.status : 'Non contrôlé';
                         if (latestCheck && status === 'Non applicable') {
-                            let points;
+                            let points = [];
                             try {
                                 const comment = latestCheck.comment.startsWith('Checklist vide: ') 
                                     ? latestCheck.comment.replace('Checklist vide: ', '') 
                                     : latestCheck.comment;
                                 points = JSON.parse(comment).points || [];
                             } catch (e) {
-                                points = [];
+                                console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
                             }
                             status = points.every(p => !p.status) ? 'En attente' : status;
                         }
@@ -435,21 +434,16 @@
                     options: {
                         plugins: {
                             legend: {
-                                labels: {
-                                    generateLabels: chart => chart.data.labels.map((label, i) => ({
-                                        text: label,
-                                        fillStyle: colors[i],
-                                        fontColor: '#FFF',
-                                        icon: `<i class="fas ${icons[i]}"></i>`
-                                    }))
-                                }
+                                labels: { color: '#FFF' }
                             }
                         },
+                        responsive: true,
+                        maintainAspectRatio: false,
                         animation: { duration: 1500, easing: 'easeOutBounce' }
                     }
                 });
 
-                gsap.from(`#doughnut-${index}`, { opacity: 0, y: 20, duration: 1, delay: index * 0.2 });
+                gsap.from(canvas, { opacity: 0, y: 20, duration: 1, delay: index * 0.2 });
             });
         }
 
@@ -462,11 +456,12 @@
             const colors = ['#22c55e', '#dc2626', '#f4b400', '#9333ea', '#6B7280'];
 
             // Graphique par tableau (barres)
-            try {
+            {
                 const div = document.createElement('div');
                 div.className = 'bg-gray-700 p-4 rounded-lg shadow';
                 const canvas = document.createElement('canvas');
                 canvas.id = `bar-tableau`;
+                canvas.className = 'w-full h-48 sm:h-96';
                 div.appendChild(canvas);
                 const title = document.createElement('h3');
                 title.className = 'text-base sm:text-lg font-semibold mb-2';
@@ -494,20 +489,21 @@
                                     const comment = latestCheck.comment.startsWith('Checklist vide: ') 
                                         ? latestCheck.comment.replace('Checklist vide: ', '') 
                                         : latestCheck.comment;
-                                    const parsed = JSON.parse(comment);
-                                    points = parsed.points || [];
+                                    points = JSON.parse(comment).points || [];
                                 } catch (e) {
-                                    console.warn('[Client] Erreur parsing comment pour disjoncteur:', d.id, e);
+                                    console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
                                 }
                                 status = points.every(p => !p.status) ? 'En attente' : status;
                             }
                             return status === cat;
                         }).length;
                     }),
-                    backgroundColor: colors[i]
+                    backgroundColor: colors[i],
+                    borderColor: colors[i],
+                    borderWidth: 1
                 }));
 
-                const chart = new Chart(canvas, {
+                new Chart(canvas, {
                     type: 'bar',
                     data: {
                         labels: filteredTableaux.map(t => t.id || 'Inconnu'),
@@ -515,28 +511,27 @@
                     },
                     options: {
                         scales: {
-                            x: { stacked: true },
-                            y: { stacked: true, beginAtZero: true }
+                            x: { stacked: true, ticks: { color: '#FFF' } },
+                            y: { stacked: true, beginAtZero: true, ticks: { color: '#FFF' } }
                         },
                         plugins: {
-                            legend: { display: true }
+                            legend: { labels: { color: '#FFF' } }
                         },
                         responsive: true,
                         maintainAspectRatio: false
                     }
                 });
 
-                gsap.from(`#bar-tableau`, { opacity: 0, y: 20, duration: 1, delay: 0.2 });
-            } catch (e) {
-                console.error('[Client] Erreur graphique par tableau:', e);
+                gsap.from(canvas, { opacity: 0, y: 20, duration: 1, delay: 0.2 });
             }
 
             // Graphique par type de disjoncteur (anneau)
-            try {
+            {
                 const div = document.createElement('div');
                 div.className = 'bg-gray-700 p-4 rounded-lg shadow';
                 const canvas = document.createElement('canvas');
                 canvas.id = `doughnut-type`;
+                canvas.className = 'w-full h-48 sm:h-96';
                 div.appendChild(canvas);
                 const title = document.createElement('h3');
                 title.className = 'text-base sm:text-lg font-semibold mb-2';
@@ -552,6 +547,7 @@
                 const counts = categories.reduce((acc, cat, i) => {
                     acc[cat] = types.map(type => {
                         return data.flatMap(t => t.disjoncteurs).filter(d => {
+                            if (!d.id) return false;
                             const dType = `${d.marque && d.marque.trim() ? d.marque : 'Inconnu'} ${d.ref && d.ref.trim() ? d.ref : 'Inconnu'}`;
                             if (dType !== type) return false;
                             const latestCheck = checklistsData
@@ -564,10 +560,9 @@
                                     const comment = latestCheck.comment.startsWith('Checklist vide: ') 
                                         ? latestCheck.comment.replace('Checklist vide: ', '') 
                                         : latestCheck.comment;
-                                    const parsed = JSON.parse(comment);
-                                    points = parsed.points || [];
+                                    points = JSON.parse(comment).points || [];
                                 } catch (e) {
-                                    console.warn('[Client] Erreur parsing comment pour disjoncteur:', d.id, e);
+                                    console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
                                 }
                                 status = points.every(p => !p.status) ? 'En attente' : status;
                             }
@@ -577,7 +572,7 @@
                     return acc;
                 }, {});
 
-                const chart = new Chart(canvas, {
+                new Chart(canvas, {
                     type: 'doughnut',
                     data: {
                         labels: categories,
@@ -588,24 +583,24 @@
                     },
                     options: {
                         plugins: {
-                            legend: { display: true }
+                            legend: { labels: { color: '#FFF' } }
                         },
                         responsive: true,
-                        maintainAspectRatio: false
+                        maintainAspectRatio: false,
+                        animation: { duration: 1500, easing: 'easeOutBounce' }
                     }
                 });
 
-                gsap.from(`#doughnut-type`, { opacity: 0, y: 20, duration: 1, delay: 0.4 });
-            } catch (e) {
-                console.error('[Client] Erreur graphique par type:', e);
+                gsap.from(canvas, { opacity: 0, y: 20, duration: 1, delay: 0.4 });
             }
 
             // Graphique par courant nominal (barres)
-            try {
+            {
                 const div = document.createElement('div');
                 div.className = 'bg-gray-700 p-4 rounded-lg shadow';
                 const canvas = document.createElement('canvas');
                 canvas.id = `bar-current`;
+                canvas.className = 'w-full h-48 sm:h-96';
                 div.appendChild(canvas);
                 const title = document.createElement('h3');
                 title.className = 'text-base sm:text-lg font-semibold mb-2';
@@ -618,6 +613,7 @@
                     label: cat,
                     data: currentRanges.map(range => {
                         return data.flatMap(t => t.disjoncteurs).filter(d => {
+                            if (!d.id) return false;
                             const inValue = parseFloat(d.in?.match(/[\d.]+/)?.[0]) || 0;
                             const inRange = range === '<100A' ? inValue < 100 :
                                             range === '100-500A' ? inValue >= 100 && inValue <= 500 :
@@ -633,20 +629,21 @@
                                     const comment = latestCheck.comment.startsWith('Checklist vide: ') 
                                         ? latestCheck.comment.replace('Checklist vide: ', '') 
                                         : latestCheck.comment;
-                                    const parsed = JSON.parse(comment);
-                                    points = parsed.points || [];
+                                    points = JSON.parse(comment).points || [];
                                 } catch (e) {
-                                    console.warn('[Client] Erreur parsing comment pour disjoncteur:', d.id, e);
+                                    console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
                                 }
                                 status = points.every(p => !p.status) ? 'En attente' : status;
                             }
                             return status === cat;
                         }).length;
                     }),
-                    backgroundColor: colors[i]
+                    backgroundColor: colors[i],
+                    borderColor: colors[i],
+                    borderWidth: 1
                 }));
 
-                const chart = new Chart(canvas, {
+                new Chart(canvas, {
                     type: 'bar',
                     data: {
                         labels: currentRanges,
@@ -654,28 +651,27 @@
                     },
                     options: {
                         scales: {
-                            x: { stacked: true },
-                            y: { stacked: true, beginAtZero: true }
+                            x: { stacked: true, ticks: { color: '#FFF' } },
+                            y: { stacked: true, beginAtZero: true, ticks: { color: '#FFF' } }
                         },
                         plugins: {
-                            legend: { display: true }
+                            legend: { labels: { color: '#FFF' } }
                         },
                         responsive: true,
                         maintainAspectRatio: false
                     }
                 });
 
-                gsap.from(`#bar-current`, { opacity: 0, y: 20, duration: 1, delay: 0.6 });
-            } catch (e) {
-                console.error('[Client] Erreur graphique par courant:', e);
+                gsap.from(canvas, { opacity: 0, y: 20, duration: 1, delay: 0.6 });
             }
 
             // Graphique temporel (ligne)
-            try {
+            {
                 const div = document.createElement('div');
                 div.className = 'bg-gray-700 p-4 rounded-lg shadow';
                 const canvas = document.createElement('canvas');
                 canvas.id = `line-temporal`;
+                canvas.className = 'w-full h-48 sm:h-96';
                 div.appendChild(canvas);
                 const title = document.createElement('h3');
                 title.className = 'text-base sm:text-lg font-semibold mb-2';
@@ -706,10 +702,9 @@
                                     const comment = latestCheck.comment.startsWith('Checklist vide: ') 
                                         ? latestCheck.comment.replace('Checklist vide: ', '') 
                                         : latestCheck.comment;
-                                    const parsed = JSON.parse(comment);
-                                    points = parsed.points || [];
+                                    points = JSON.parse(comment).points || [];
                                 } catch (e) {
-                                    console.warn('[Client] Erreur parsing comment pour disjoncteur:', d.id, e);
+                                    console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
                                 }
                                 status = points.every(p => !p.status) ? 'En attente' : status;
                             }
@@ -721,7 +716,7 @@
                     fill: true
                 }));
 
-                const chart = new Chart(canvas, {
+                new Chart(canvas, {
                     type: 'line',
                     data: {
                         labels: months,
@@ -729,19 +724,18 @@
                     },
                     options: {
                         scales: {
-                            y: { beginAtZero: true }
+                            y: { beginAtZero: true, ticks: { color: '#FFF' } },
+                            x: { ticks: { color: '#FFF' } }
                         },
                         plugins: {
-                            legend: { display: true }
+                            legend: { labels: { color: '#FFF' } }
                         },
                         responsive: true,
                         maintainAspectRatio: false
                     }
                 });
 
-                gsap.from(`#line-temporal`, { opacity: 0, y: 20, duration: 1, delay: 0.8 });
-            } catch (e) {
-                console.error('[Client] Erreur graphique temporel:', e);
+                gsap.from(canvas, { opacity: 0, y: 20, duration: 1, delay: 0.8 });
             }
         }
 
@@ -900,6 +894,7 @@
                     const comment = JSON.stringify({ points, comment: '' });
 
                     for (const breaker of tableau.disjoncteurs) {
+                        if (!breaker.id) continue;
                         console.log('[Client] Envoi POST /api/breaker-checklists:', {
                             tableau_id: currentTableauId,
                             disjoncteur_id: breaker.id,
@@ -944,13 +939,13 @@
             const checklistSelect = document.getElementById('checklist-select');
             const tableauxSelect = document.getElementById('tableaux-select');
 
-            // Remplir le sélecteur de checklists
             checklistSelect.innerHTML = '<option value="">Choisir une checklist</option>';
             const uniqueChecklists = [...new Set(checklistsData.map(c => c.comment))].map(comment => {
                 try {
                     const parsed = JSON.parse(comment.startsWith('Checklist vide: ') ? comment.replace('Checklist vide: ', '') : comment);
                     return { comment, points: parsed.points || [] };
                 } catch (e) {
+                    console.warn('[Client] Erreur parsing comment:', comment);
                     return null;
                 }
             }).filter(c => c);
@@ -961,7 +956,6 @@
                 checklistSelect.appendChild(option);
             });
 
-            // Remplir le sélecteur de tableaux
             tableauxSelect.innerHTML = '';
             tableauxData.forEach(tableau => {
                 const div = document.createElement('div');
@@ -989,6 +983,7 @@
                         if (!tableau) continue;
 
                         for (const breaker of tableau.disjoncteurs) {
+                            if (!breaker.id) continue;
                             console.log('[Client] Envoi POST /api/breaker-checklists:', {
                                 tableau_id: tableauId,
                                 disjoncteur_id: breaker.id,
