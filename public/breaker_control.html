@@ -58,7 +58,7 @@
                 <li>Utilisez "Appliquer une checklist" pour appliquer une checklist existante à d’autres tableaux.</li>
                 <li>Cliquez sur un disjoncteur dans le Gantt pour voir ses checklists et compléter une checklist en attente.</li>
                 <li>Les graphiques en anneau montrent la répartition des statuts par bâtiment et tableau.</li>
-                <li>Les nouveaux graphiques montrent le nombre de disjoncteurs par statut, l'évolution des contrôles dans le temps, et la répartition selon le courant nominal.</li>
+                <li>Les graphiques avancés montrent le nombre de disjoncteurs par statut, l'évolution des contrôles dans le temps, et la répartition selon le courant nominal.</li>
             </ul>
         </div>
 
@@ -354,7 +354,7 @@
                         statusClass += ' task-bar-gray';
                     }
                     const bar = document.createElement('div');
-                    bar.className = `${statusClass} p-2`;
+                    bar.className = `${statusClass} p-2 flex items-center justify-center`;
                     bar.dataset.tableauId = tableau.id;
                     bar.dataset.breakerId = breaker.id;
                     bar.dataset.sanitizedId = sanitizedId;
@@ -404,12 +404,13 @@
 
             groups.forEach((group, index) => {
                 const div = document.createElement('div');
-                div.className = 'bg-gray-700 p-4 rounded-lg shadow';
+                div.className = 'bg-gray-700 p-4 rounded-lg shadow flex flex-col items-center';
                 const canvas = document.createElement('canvas');
                 canvas.id = `doughnut-${index}`;
+                canvas.className = 'max-w-[300px] w-full';
                 div.appendChild(canvas);
                 const title = document.createElement('h3');
-                title.className = 'text-base sm:text-lg font-semibold mb-2';
+                title.className = 'text-base sm:text-lg font-semibold mb-2 text-center';
                 title.innerHTML = `<i class="fas ${group.building === group.id ? 'fa-table' : 'fa-building'} mr-2"></i>${group.building === group.id ? `Tableau ${group.id}` : `Bâtiment ${group.building}`}`;
                 div.insertBefore(title, canvas);
                 container.appendChild(div);
@@ -450,6 +451,7 @@
                     options: {
                         plugins: {
                             legend: {
+                                position: 'bottom',
                                 labels: {
                                     generateLabels: chart => chart.data.labels.map((label, i) => ({
                                         text: label,
@@ -460,7 +462,8 @@
                                 }
                             }
                         },
-                        animation: { duration: 1500, easing: 'easeOutBounce' }
+                        animation: { duration: 1500, easing: 'easeOutBounce' },
+                        maintainAspectRatio: true
                     }
                 });
 
@@ -581,8 +584,8 @@
                         let points;
                         try {
                             const comment = latestCheck.comment.startsWith('Checklist vide: ') 
-                                ? latestCheck.comment.replace('Checklist vide: ', '') 
-                                : latestCheck.comment;
+                                ? c.comment.replace('Checklist vide: ', '') 
+                                : c.comment;
                             points = JSON.parse(comment).points || [];
                         } catch (e) {
                             points = [];
@@ -1042,14 +1045,17 @@
 
     <style>
         .task-bar {
-            height: 20px;
+            height: 28px;
             border-radius: 4px;
-            margin: 2px 0;
+            margin: 4px 0;
             cursor: pointer;
             text-align: center;
-            line-height: 20px;
             color: #FFF;
             font-size: 0.75rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         @media (min-width: 640px) {
             .task-bar {
@@ -1063,7 +1069,7 @@
         .task-bar-purple { background-color: #9333ea; }
         .task-bar-gray { background-color: #6B7280; }
         .touch-friendly {
-            min-height: 44px; /* Taille minimale pour les interactions tactiles */
+            min-height: 44px;
             padding: 0.5rem 1rem;
         }
         #modal-breaker > div, #modal-create-checklist > div, #modal-complete-checklist > div, #modal-apply-checklist > div {
