@@ -94,6 +94,27 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="doughnut-container"></div>
         </div>
 
+        <!-- Nouveaux graphiques -->
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-8">
+
+        <div class="p-4 bg-gray-800 rounded-lg shadow">
+            <h3 class="text-white text-lg mb-2">Disjoncteurs contrôlés par bâtiment</h3>
+            <canvas id="bar-controlled-breakers" height="120"></canvas>
+        </div>
+
+        <div class="p-4 bg-gray-800 rounded-lg shadow">
+            <h3 class="text-white text-lg mb-2">Taux de conformité par bâtiment</h3>
+            <canvas id="bar-conformity-rate" height="120"></canvas>
+        </div>
+
+        <div class="p-4 bg-gray-800 rounded-lg shadow">
+            <h3 class="text-white text-lg mb-2">Checklists complétées par semaine</h3>
+            <canvas id="line-weekly-checklists" height="120"></canvas>
+        </div>
+
+        </div>
+
+
         <!-- Modal pour voir l’historique des checklists -->
         <div id="modal-breaker" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 overflow-y-auto pt-4 pb-4 hidden">
             <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-4xl my-4 max-h-[85vh] overflow-y-auto">
