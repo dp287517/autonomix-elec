@@ -565,9 +565,9 @@
                             .filter(c => c.tableau_id === (group.building === group.id ? group.id : data.find(t => t.disjoncteurs.includes(d)).id) && c.disjoncteur_id === d.id)
                             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
                         let status = latestCheck ? latestCheck.status : 'Non contrôlé';
-                        if (latestCheck && status === 'Non applicable') {
-                            let points = [];
-                            let isValidChecklist = false;
+                        let isValidChecklist = false;
+                        let points = [];
+                        if (latestCheck) {
                             if (isValidJson(latestCheck.comment)) {
                                 try {
                                     const comment = latestCheck.comment.startsWith('Checklist vide: ') 
@@ -579,7 +579,7 @@
                                     console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
                                 }
                             }
-                            status = isValidChecklist && points.every(p => !p.status) ? 'En attente' : (isValidChecklist ? status : 'Non contrôlé');
+                            status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
                         }
                         return (i === 0 && status === 'Conforme') ||
                                (i === 1 && status === 'Non conforme') ||
@@ -638,9 +638,9 @@
                             .filter(c => c.tableau_id === data.find(t => t.disjoncteurs.includes(d)).id && c.disjoncteur_id === d.id)
                             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
                         let status = latestCheck ? latestCheck.status : 'Non contrôlé';
-                        if (latestCheck && status === 'Non applicable') {
-                            let points = [];
-                            let isValidChecklist = false;
+                        let isValidChecklist = false;
+                        let points = [];
+                        if (latestCheck) {
                             if (isValidJson(latestCheck.comment)) {
                                 try {
                                     const comment = latestCheck.comment.startsWith('Checklist vide: ') 
@@ -652,7 +652,7 @@
                                     console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
                                 }
                             }
-                            status = isValidChecklist && points.every(p => !p.status) ? 'En attente' : (isValidChecklist ? status : 'Non contrôlé');
+                            status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
                         }
                         return status === cat;
                     }).length)
@@ -688,22 +688,20 @@
                 data: dates.map(date => checklistsData.filter(c => {
                     const checkDate = new Date(c.timestamp).toLocaleDateString('fr-FR');
                     let status = c.status;
-                    if (status === 'Non applicable') {
-                        let points = [];
-                        let isValidChecklist = false;
-                        if (isValidJson(c.comment)) {
-                            try {
-                                const comment = c.comment.startsWith('Checklist vide: ') 
-                                    ? c.comment.replace('Checklist vide: ', '') 
-                                    : c.comment;
-                                points = JSON.parse(comment).points || [];
-                                isValidChecklist = true;
-                            } catch (e) {
-                                console.warn('[Client] Erreur parsing comment:', c.comment);
-                            }
-                            status = isValidChecklist && points.every(p => !p.status) ? 'En attente' : (isValidChecklist ? status : 'Non contrôlé');
+                    let isValidChecklist = false;
+                    let points = [];
+                    if (isValidJson(c.comment)) {
+                        try {
+                            const comment = c.comment.startsWith('Checklist vide: ') 
+                                ? c.comment.replace('Checklist vide: ', '') 
+                                : c.comment;
+                            points = JSON.parse(comment).points || [];
+                            isValidChecklist = true;
+                        } catch (e) {
+                            console.warn('[Client] Erreur parsing comment:', c.comment);
                         }
                     }
+                    status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
                     return checkDate === date && status === cat;
                 }).length),
                 borderColor: colors[i],
@@ -737,9 +735,9 @@
                         .filter(c => c.tableau_id === t.id && c.disjoncteur_id === d.id)
                         .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
                     let status = latestCheck ? latestCheck.status : 'Non contrôlé';
-                    if (latestCheck && status === 'Non applicable') {
-                        let points = [];
-                        let isValidChecklist = false;
+                    let isValidChecklist = false;
+                    let points = [];
+                    if (latestCheck) {
                         if (isValidJson(latestCheck.comment)) {
                             try {
                                 const comment = latestCheck.comment.startsWith('Checklist vide: ') 
@@ -750,11 +748,11 @@
                             } catch (e) {
                                 console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
                             }
-                            status = isValidChecklist && points.every(p => !p.status) ? 'En attente' : (isValidChecklist ? status : 'Non contrôlé');
                         }
+                        status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
                     }
                     return status === cat ? { x: parseFloat(d.in) || 0, y: Math.random() * 100 } : null;
-                })).filter(d => d),
+                }).filter(d => d !== null)),
                 backgroundColor: colors[i],
                 pointRadius: 5
             }));
@@ -1289,233 +1287,233 @@
         }
 
         // Ouvrir le modal pour compléter ou modifier une checklist
-            function openCompleteChecklistModal(check, tableauId, breakerId, sanitizedId) {
-                const modal = document.getElementById('modal-complete-checklist');
-                const form = document.getElementById('complete-checklist-form');
-                const pointsContainer = document.getElementById('complete-checklist-points');
-                const commentInput = document.getElementById('complete-checklist-comment');
-                const photoInput = document.getElementById('complete-checklist-photo');
+        function openCompleteChecklistModal(check, tableauId, breakerId, sanitizedId) {
+            const modal = document.getElementById('modal-complete-checklist');
+            const form = document.getElementById('complete-checklist-form');
+            const pointsContainer = document.getElementById('complete-checklist-points');
+            const commentInput = document.getElementById('complete-checklist-comment');
+            const photoInput = document.getElementById('complete-checklist-photo');
 
-                currentCheckId = check.id;
-                let points = [];
-                let commentGlobal = '';
-                let checklistName = 'Sans nom';
-                let isValidChecklist = false;
-                if (isValidJson(check.comment)) {
-                    try {
-                        const comment = check.comment.startsWith('Checklist vide: ') 
-                            ? check.comment.replace('Checklist vide: ', '') 
-                            : check.comment;
-                        const parsed = JSON.parse(comment);
-                        points = parsed.points || [];
-                        commentGlobal = parsed.comment || '';
-                        checklistName = parsed.name || 'Sans nom';
-                        isValidChecklist = true;
-                    } catch (e) {
-                        console.warn('[Client] Erreur parsing comment:', check.comment);
-                    }
-                } else {
-                    points = [{ description: 'Contrôle par défaut', status: null, value: null }];
-                    commentGlobal = check.comment;
-                }
-                commentInput.value = commentGlobal;
-                photoInput.value = '';
-
-                pointsContainer.innerHTML = `
-                    <p class="mb-2"><strong>Checklist :</strong> ${checklistName}</p>
-                    ${points.map((point, index) => `
-                        <div class="point-item flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start">
-                            <div class="flex-1">
-                                <label class="block text-sm font-medium">Point ${index + 1}</label>
-                                <p class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">${point.description}</p>
-                            </div>
-                            <div class="flex-1">
-                                <label class="block text-sm font-medium">Valeur (facultatif)</label>
-                                <input type="text" class="point-value mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.value || ''}" placeholder="Ex: 0.02 Ohm">
-                            </div>
-                            <div class="col-span-2">
-                                <label class="block text-sm font-medium">Statut</label>
-                                <select class="point-status mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
-                                    <option value="" ${!point.status ? 'selected' : ''}>Sélectionner</option>
-                                    <option value="Conforme" ${point.status === 'Conforme' ? 'selected' : ''}>Conforme</option>
-                                    <option value="Non conforme" ${point.status === 'Non conforme' ? 'selected' : ''}>Non conforme</option>
-                                    <option value="Non applicable" ${point.status === 'Non applicable' ? 'selected' : ''}>Non applicable</option>
-                                </select>
-                            </div>
-                        </div>
-                    `).join('')}
-                `;
-
-                form.onsubmit = async (e) => {
-                    e.preventDefault();
-                    const comment = commentInput.value;
-                    const photo = photoInput.files[0];
-
-                    const updatedPoints = Array.from(pointsContainer.querySelectorAll('.point-item')).map(div => ({
-                        description: div.querySelector('.point-description').textContent,
-                        status: div.querySelector('.point-status').value,
-                        value: div.querySelector('.point-value').value || null
-                    }));
-
-                    if (updatedPoints.some(p => !p.status)) {
-                        alert('Tous les points de contrôle doivent avoir un statut.');
-                        return;
-                    }
-
-                    try {
-                        let photoBase64 = check.photo;
-                        if (photo) {
-                            try {
-                                photoBase64 = await toBase64(photo);
-                                console.log('[Client] Photo compressée et convertie en Base64, taille:', (photoBase64.length / 1024).toFixed(2), 'KB');
-                            } catch (error) {
-                                console.error('[Client] Erreur compression photo:', error);
-                                alert(error.message);
-                                return;
-                            }
-                        }
-
-                        const globalStatus = determineGlobalStatus(updatedPoints);
-                        const commentJson = JSON.stringify({ name: checklistName, comment, points: updatedPoints });
-
-                        console.log('[Client] Envoi PUT /api/breaker-checklists:', {
-                            tableau_id: tableauId,
-                            disjoncteur_id: breakerId,
-                            encoded_disjoncteur_id: encodeURIComponent(breakerId),
-                            status: globalStatus,
-                            comment: commentJson,
-                            photo: photoBase64 ? `Présente (${(photoBase64.length / 1024).toFixed(2)} KB)` : 'Absente'
-                        });
-
-                        const body = {
-                            tableau_id: tableauId,
-                            disjoncteur_id: breakerId,
-                            status: globalStatus,
-                            comment: commentJson,
-                            photo: photoBase64
-                        };
-
-                        const response = await fetch(`/api/breaker-checklists/${currentCheckId}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(body)
-                        });
-                        if (!response.ok) {
-                            let errorData;
-                            try {
-                                errorData = await response.json();
-                            } catch {
-                                errorData = await response.text();
-                            }
-                            throw new Error(`Erreur lors de la mise à jour du contrôle: ${errorData.error || errorData || response.statusText}`);
-                        }
-                        const responseData = await response.json();
-
-                        modal.classList.add('hidden');
-                        await loadData();
-                        openBreakerModal(tableauId, breakerId, sanitizedId);
-                    } catch (error) {
-                        console.error('[Client] Erreur mise à jour checklist:', error);
-                        if (error.message.includes('L’image')) {
-                            alert(error.message);
-                        } else if (error.message.includes('413') || error.message.includes('Payload Too Large')) {
-                            alert('La photo est trop volumineuse même après compression. Veuillez choisir une image plus petite (max 1 Mo).');
-                        } else {
-                            alert('Erreur lors de la mise à jour de la checklist: ' + error.message);
-                        }
-                    }
-                };
-
-                document.getElementById('close-complete-checklist-modal').onclick = () => modal.classList.add('hidden');
-                modal.classList.remove('hidden');
-            }
-
-            // Supprimer une checklist individuelle
-            async function deleteChecklist(checkId, tableauId, breakerId, sanitizedId) {
-                if (!confirm('Voulez-vous supprimer ce contrôle ?')) return;
+            currentCheckId = check.id;
+            let points = [];
+            let commentGlobal = '';
+            let checklistName = 'Sans nom';
+            let isValidChecklist = false;
+            if (isValidJson(check.comment)) {
                 try {
-                    const response = await fetch(`/api/breaker-checklists/${checkId}`, { method: 'DELETE' });
-                    if (!response.ok) throw new Error(`Erreur lors de la suppression du contrôle: ${response.statusText}`);
+                    const comment = check.comment.startsWith('Checklist vide: ') 
+                        ? check.comment.replace('Checklist vide: ', '') 
+                        : check.comment;
+                    const parsed = JSON.parse(comment);
+                    points = parsed.points || [];
+                    commentGlobal = parsed.comment || '';
+                    checklistName = parsed.name || 'Sans nom';
+                    isValidChecklist = true;
+                } catch (e) {
+                    console.warn('[Client] Erreur parsing comment:', check.comment);
+                }
+            } else {
+                points = [{ description: 'Contrôle par défaut', status: null, value: null }];
+                commentGlobal = check.comment;
+            }
+            commentInput.value = commentGlobal;
+            photoInput.value = '';
+
+            pointsContainer.innerHTML = `
+                <p class="mb-2"><strong>Checklist :</strong> ${checklistName}</p>
+                ${points.map((point, index) => `
+                    <div class="point-item flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start">
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium">Point ${index + 1}</label>
+                            <p class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">${point.description}</p>
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-sm font-medium">Valeur (facultatif)</label>
+                            <input type="text" class="point-value mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.value || ''}" placeholder="Ex: 0.02 Ohm">
+                        </div>
+                        <div class="col-span-2">
+                            <label class="block text-sm font-medium">Statut</label>
+                            <select class="point-status mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
+                                <option value="" ${!point.status ? 'selected' : ''}>Sélectionner</option>
+                                <option value="Conforme" ${point.status === 'Conforme' ? 'selected' : ''}>Conforme</option>
+                                <option value="Non conforme" ${point.status === 'Non conforme' ? 'selected' : ''}>Non conforme</option>
+                                <option value="Non applicable" ${point.status === 'Non applicable' ? 'selected' : ''}>Non applicable</option>
+                            </select>
+                        </div>
+                    </div>
+                `).join('')}
+            `;
+
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                const comment = commentInput.value;
+                const photo = photoInput.files[0];
+
+                const updatedPoints = Array.from(pointsContainer.querySelectorAll('.point-item')).map(div => ({
+                    description: div.querySelector('.point-description').textContent,
+                    status: div.querySelector('.point-status').value,
+                    value: div.querySelector('.point-value').value || null
+                }));
+
+                if (updatedPoints.some(p => !p.status)) {
+                    alert('Tous les points de contrôle doivent avoir un statut.');
+                    return;
+                }
+
+                try {
+                    let photoBase64 = check.photo;
+                    if (photo) {
+                        try {
+                            photoBase64 = await toBase64(photo);
+                            console.log('[Client] Photo compressée et convertie en Base64, taille:', (photoBase64.length / 1024).toFixed(2), 'KB');
+                        } catch (error) {
+                            console.error('[Client] Erreur compression photo:', error);
+                            alert(error.message);
+                            return;
+                        }
+                    }
+
+                    const globalStatus = determineGlobalStatus(updatedPoints);
+                    const commentJson = JSON.stringify({ name: checklistName, comment, points: updatedPoints });
+
+                    console.log('[Client] Envoi PUT /api/breaker-checklists:', {
+                        tableau_id: tableauId,
+                        disjoncteur_id: breakerId,
+                        encoded_disjoncteur_id: encodeURIComponent(breakerId),
+                        status: globalStatus,
+                        comment: commentJson,
+                        photo: photoBase64 ? `Présente (${(photoBase64.length / 1024).toFixed(2)} KB)` : 'Absente'
+                    });
+
+                    const body = {
+                        tableau_id: tableauId,
+                        disjoncteur_id: breakerId,
+                        status: globalStatus,
+                        comment: commentJson,
+                        photo: photoBase64
+                    };
+
+                    const response = await fetch(`/api/breaker-checklists/${currentCheckId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    if (!response.ok) {
+                        let errorData;
+                        try {
+                            errorData = await response.json();
+                        } catch {
+                            errorData = await response.text();
+                        }
+                        throw new Error(`Erreur lors de la mise à jour du contrôle: ${errorData.error || errorData || response.statusText}`);
+                    }
+                    const responseData = await response.json();
+
+                    modal.classList.add('hidden');
                     await loadData();
                     openBreakerModal(tableauId, breakerId, sanitizedId);
                 } catch (error) {
-                    console.error('[Client] Erreur suppression checklist:', error);
-                    alert('Erreur lors de la suppression de la checklist: ' + error.message);
+                    console.error('[Client] Erreur mise à jour checklist:', error);
+                    if (error.message.includes('L’image')) {
+                        alert(error.message);
+                    } else if (error.message.includes('413') || error.message.includes('Payload Too Large')) {
+                        alert('La photo est trop volumineuse même après compression. Veuillez choisir une image plus petite (max 1 Mo).');
+                    } else {
+                        alert('Erreur lors de la mise à jour de la checklist: ' + error.message);
+                    }
                 }
-            }
-
-            // Initialisation
-            window.onload = () => {
-                const breakerModal = document.getElementById('modal-breaker');
-                const createChecklistModal = document.getElementById('modal-create-checklist');
-                const completeChecklistModal = document.getElementById('modal-complete-checklist');
-                const applyChecklistModal = document.getElementById('modal-apply-checklist');
-                const viewChecklistsModal = document.getElementById('modal-view-checklists');
-                if (breakerModal) breakerModal.classList.add('hidden');
-                if (createChecklistModal) createChecklistModal.classList.add('hidden');
-                if (completeChecklistModal) completeChecklistModal.classList.add('hidden');
-                if (applyChecklistModal) applyChecklistModal.classList.add('hidden');
-                if (viewChecklistsModal) viewChecklistsModal.classList.add('hidden');
-                loadData();
             };
-        </script>
 
-        <style>
+            document.getElementById('close-complete-checklist-modal').onclick = () => modal.classList.add('hidden');
+            modal.classList.remove('hidden');
+        }
+
+        // Supprimer une checklist individuelle
+        async function deleteChecklist(checkId, tableauId, breakerId, sanitizedId) {
+            if (!confirm('Voulez-vous supprimer ce contrôle ?')) return;
+            try {
+                const response = await fetch(`/api/breaker-checklists/${checkId}`, { method: 'DELETE' });
+                if (!response.ok) throw new Error(`Erreur lors de la suppression du contrôle: ${response.statusText}`);
+                await loadData();
+                openBreakerModal(tableauId, breakerId, sanitizedId);
+            } catch (error) {
+                console.error('[Client] Erreur suppression checklist:', error);
+                alert('Erreur lors de la suppression de la checklist: ' + error.message);
+            }
+        }
+
+        // Initialisation
+        window.onload = () => {
+            const breakerModal = document.getElementById('modal-breaker');
+            const createChecklistModal = document.getElementById('modal-create-checklist');
+            const completeChecklistModal = document.getElementById('modal-complete-checklist');
+            const applyChecklistModal = document.getElementById('modal-apply-checklist');
+            const viewChecklistsModal = document.getElementById('modal-view-checklists');
+            if (breakerModal) breakerModal.classList.add('hidden');
+            if (createChecklistModal) createChecklistModal.classList.add('hidden');
+            if (completeChecklistModal) completeChecklistModal.classList.add('hidden');
+            if (applyChecklistModal) applyChecklistModal.classList.add('hidden');
+            if (viewChecklistsModal) viewChecklistsModal.classList.add('hidden');
+            loadData();
+        };
+    </script>
+
+    <style>
+        .task-bar {
+            height: 28px;
+            border-radius: 4px;
+            margin: 4px 0;
+            cursor: pointer;
+            text-align: center;
+            color: #FFF;
+            font-size: 0.75rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        @media (min-width: 640px) {
             .task-bar {
-                height: 28px;
-                border-radius: 4px;
-                margin: 4px 0;
-                cursor: pointer;
-                text-align: center;
-                color: #FFF;
-                font-size: 0.75rem;
-                font-weight: 500;
-                display: flex;
-                align-items: center;
-                justify-content: center;
+                font-size: 0.875rem;
             }
-            @media (min-width: 640px) {
-                .task-bar {
-                    font-size: 0.875rem;
-                }
-            }
-            .task-bar-green { background-color: #22c55e; }
-            .task-bar-red { background-color: #dc2626; }
-            .task-bar-orange { background-color: #f4b400; }
-            .task-bar-blue { background-color: #3b82f6; }
-            .task-bar-purple { background-color: #9333ea; }
-            .task-bar-gray { background-color: #6B7280; }
-            .touch-friendly {
-                min-height: 44px;
-                padding: 0.5rem 1rem;
-            }
-            #modal-breaker > div, #modal-create-checklist > div, #modal-complete-checklist > div, #modal-apply-checklist > div, #modal-view-checklists > div {
-                scrollbar-width: thin;
-                scrollbar-color: #6B7280 #1F2937;
-            }
-            #modal-breaker > div::-webkit-scrollbar, #modal-create-checklist > div::-webkit-scrollbar, #modal-complete-checklist > div::-webkit-scrollbar, #modal-apply-checklist > div::-webkit-scrollbar, #modal-view-checklists > div::-webkit-scrollbar {
-                width: 8px;
-            }
-            #modal-breaker > div::-webkit-scrollbar-track, #modal-create-checklist > div::-webkit-scrollbar-track, #modal-complete-checklist > div::-webkit-scrollbar-track, #modal-apply-checklist > div::-webkit-scrollbar-track, #modal-view-checklists > div::-webkit-scrollbar-track {
-                background: #1F2937;
-            }
-            #modal-breaker > div::-webkit-scrollbar-thumb, #modal-create-checklist > div::-webkit-scrollbar-thumb, #modal-complete-checklist > div::-webkit-scrollbar-thumb, #modal-apply-checklist > div::-webkit-scrollbar-thumb, #modal-view-checklists > div::-webkit-scrollbar-thumb {
-                background: #6B7280;
-                border-radius: 4px;
-            }
-            .animate-fade-in { animation: fadeIn 0.8s ease-out; }
-            .animate-slide-up { animation: slideUp 0.8s ease-out; }
-            .animate-zoom-in { animation: zoomIn 0.5s ease-out; }
-            @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-            @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-            @keyframes zoomIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
-            @media (max-width: 640px) {
-                .container { padding: 0.5rem; }
-                table th, table td { font-size: 0.75rem; padding: 0.5rem; }
-                canvas { height: 200px !important; }
-                input, select, textarea, button { font-size: 0.875rem; }
-                .modal-content { font-size: 0.875rem; }
-            }
-        </style>
-    </body>
+        }
+        .task-bar-green { background-color: #22c55e; }
+        .task-bar-red { background-color: #dc2626; }
+        .task-bar-orange { background-color: #f4b400; }
+        .task-bar-blue { background-color: #3b82f6; }
+        .task-bar-purple { background-color: #9333ea; }
+        .task-bar-gray { background-color: #6B7280; }
+        .touch-friendly {
+            min-height: 44px;
+            padding: 0.5rem 1rem;
+        }
+        #modal-breaker > div, #modal-create-checklist > div, #modal-complete-checklist > div, #modal-apply-checklist > div, #modal-view-checklists > div {
+            scrollbar-width: thin;
+            scrollbar-color: #6B7280 #1F2937;
+        }
+        #modal-breaker > div::-webkit-scrollbar, #modal-create-checklist > div::-webkit-scrollbar, #modal-complete-checklist > div::-webkit-scrollbar, #modal-apply-checklist > div::-webkit-scrollbar, #modal-view-checklists > div::-webkit-scrollbar {
+            width: 8px;
+        }
+        #modal-breaker > div::-webkit-scrollbar-track, #modal-create-checklist > div::-webkit-scrollbar-track, #modal-complete-checklist > div::-webkit-scrollbar-track, #modal-apply-checklist > div::-webkit-scrollbar-track, #modal-view-checklists > div::-webkit-scrollbar-track {
+            background: #1F2937;
+        }
+        #modal-breaker > div::-webkit-scrollbar-thumb, #modal-create-checklist > div::-webkit-scrollbar-thumb, #modal-complete-checklist > div::-webkit-scrollbar-thumb, #modal-apply-checklist > div::-webkit-scrollbar-thumb, #modal-view-checklists > div::-webkit-scrollbar-thumb {
+            background: #6B7280;
+            border-radius: 4px;
+        }
+        .animate-fade-in { animation: fadeIn 0.8s ease-out; }
+        .animate-slide-up { animation: slideUp 0.8s ease-out; }
+        .animate-zoom-in { animation: zoomIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes zoomIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+        @media (max-width: 640px) {
+            .container { padding: 0.5rem; }
+            table th, table td { font-size: 0.75rem; padding: 0.5rem; }
+            canvas { height: 200px !important; }
+            input, select, textarea, button { font-size: 0.875rem; }
+            .modal-content { font-size: 0.875rem; }
+        }
+    </style>
+</body>
 </html>
