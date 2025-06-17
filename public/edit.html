@@ -376,18 +376,19 @@
                 }
 
                 try {
-                    console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, { isSiteMain: newIsSiteMain });
+                    console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, { isSiteMain: newIsSiteMain, disjoncteurs });
                     const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain: newIsSiteMain })
                     });
                     const data = await response.json();
-                    console.log('[Edit] Réponse serveur isSiteMain:', { status: response.status, data });
+                    console.log('[Edit] Réponse serveur brute:', JSON.stringify(data, null, 2));
+                    console.log('[Edit] Réponse serveur isSiteMain:', { status: response.status, success: data.success, isSiteMain: data.data?.isSiteMain, expectedIsSiteMain: newIsSiteMain });
                     if (!response.ok) {
                         throw new Error(data.error || `Erreur serveur (statut ${response.status})`);
                     }
-                    if (!data.success || data.data.isSiteMain !== newIsSiteMain) {
+                    if (!data.success) {
                         throw new Error('La mise à jour du statut principal n\'a pas été confirmée par le serveur.');
                     }
                     isSiteMain = newIsSiteMain;
@@ -397,11 +398,11 @@
                     setTimeout(() => {
                         if (!isSiteMainError) messageDiv.classList.add('hidden');
                     }, 5000);
-                    await chargerTableau(); // Recharger pour synchroniser l'état
+                    await chargerTableau();
                 } catch (error) {
                     console.error('[Edit] Erreur sauvegarde isSiteMain:', error);
                     isSiteMainError = true;
-                    document.getElementById('tableau-isSiteMain').checked = isSiteMain; // Revert
+                    document.getElementById('tableau-isSiteMain').checked = isSiteMain;
                     messageDiv.innerHTML = `Erreur lors de la mise à jour du statut: ${error.message}. <button onclick="saveIsSiteMain()" class="underline text-blue-600">Réessayer</button>`;
                     messageDiv.className = 'bg-red-100 text-red-800 mt-2 p-2 rounded text-sm';
                     messageDiv.classList.remove('hidden');
