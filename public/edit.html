@@ -376,33 +376,18 @@
                 }
 
                 try {
-                    // Normaliser les disjoncteurs pour correspondre à la base
-                    const normalizedDisjoncteurs = disjoncteurs.map(d => ({
-                        id: d.id,
-                        ref: d.ref || 'C60N',
-                        marque: d.marque || 'Schneider Electric',
-                        isPrincipal: d.isPrincipal || false,
-                        in: d.in || '16 A',
-                        ip: d.ip || 'IP20',
-                        ue: d.ue || '400 V AC',
-                        section: d.section || '2.5 mm²',
-                        humidite: d.humidite || 50,
-                        temp_ambiante: d.temp_ambiante || 25,
-                        charge: d.charge || 80
-                    }));
-                    console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, { isSiteMain: newIsSiteMain, disjoncteurs: normalizedDisjoncteurs });
+                    console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, { isSiteMain: newIsSiteMain });
                     const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: tableauId, disjoncteurs: normalizedDisjoncteurs, isSiteMain: newIsSiteMain })
+                        body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain: newIsSiteMain })
                     });
                     const data = await response.json();
-                    console.log('[Edit] Réponse serveur brute:', JSON.stringify(data, null, 2));
-                    console.log('[Edit] Réponse serveur isSiteMain:', { status: response.status, success: data.success, isSiteMain: data.data?.isSiteMain, expectedIsSiteMain: newIsSiteMain });
+                    console.log('[Edit] Réponse serveur isSiteMain:', { status: response.status, data });
                     if (!response.ok) {
                         throw new Error(data.error || `Erreur serveur (statut ${response.status})`);
                     }
-                    if (!data.success) {
+                    if (!data.success || data.data.isSiteMain !== newIsSiteMain) {
                         throw new Error('La mise à jour du statut principal n\'a pas été confirmée par le serveur.');
                     }
                     isSiteMain = newIsSiteMain;
@@ -412,11 +397,11 @@
                     setTimeout(() => {
                         if (!isSiteMainError) messageDiv.classList.add('hidden');
                     }, 5000);
-                    await chargerTableau();
+                    await chargerTableau(); // Recharger pour synchroniser l'état
                 } catch (error) {
                     console.error('[Edit] Erreur sauvegarde isSiteMain:', error);
                     isSiteMainError = true;
-                    document.getElementById('tableau-isSiteMain').checked = isSiteMain;
+                    document.getElementById('tableau-isSiteMain').checked = isSiteMain; // Revert
                     messageDiv.innerHTML = `Erreur lors de la mise à jour du statut: ${error.message}. <button onclick="saveIsSiteMain()" class="underline text-blue-600">Réessayer</button>`;
                     messageDiv.className = 'bg-red-100 text-red-800 mt-2 p-2 rounded text-sm';
                     messageDiv.classList.remove('hidden');
