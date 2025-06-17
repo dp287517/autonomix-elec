@@ -93,22 +93,22 @@ function validateDisjoncteurData(data) {
     if (data.ip && !['IP20', 'IP40', 'IP54', 'IP65'].includes(data.ip)) {
         errors.push('Indice de protection invalide. Valeurs acceptées : IP20, IP40, IP54, IP65.');
     }
-    if (data.temp && (isNaN(parseFloat(data.temp)) || parseFloat(data.temp) < 0)) {
+    if (data.temp && (isNaN(parseFloat(data.temp)) || data.temp < 0)) {
         errors.push('La température doit être une valeur numérique positive (ex. 70).');
     }
-    if (data.ue && (isNaN(parseFloat(data.ue)) || parseFloat(data.ue) < 0)) {
+    if (data.ue && (isNaN(parseFloat(data.ue)) || data.ue < 0)) {
         errors.push('La tension nominale doit être une valeur numérique positive (ex. 400).');
     }
-    if (data.section && (isNaN(parseFloat(data.section)) || parseFloat(data.section) < 0)) {
+    if (data.section && (isNaN(parseFloat(data.section)) || data.section < 0)) {
         errors.push('La section du câble doit être une valeur numérique positive (ex. 2.5).');
     }
-    if (data.humidite && (isNaN(parseFloat(data.humidite)) || parseFloat(data.humidite) < 0 || parseFloat(data.humidite) > 100)) {
+    if (data.humidite && (isNaN(parseFloat(data.humidite)) || data.humidite < 0 || data.humidite > 100)) {
         errors.push('L’humidité doit être une valeur numérique entre 0 et 100 (ex. 60).');
     }
-    if (data.temp_ambiante && (isNaN(parseFloat(data.temp_ambiante)) || parseFloat(data.temp_ambiante) < -20 || parseFloat(data.temp_ambiante) > 60)) {
+    if (data.temp_ambiante && (isNaN(parseFloat(data.temp_ambiante)) || data.temp_ambiante < -20 || data.temp_ambiante > 60)) {
         errors.push('La température ambiante doit être une valeur numérique entre -20 et 60 (ex. 25).');
     }
-    if (data.charge && (isNaN(parseFloat(data.charge)) || parseFloat(data.charge) < 0 || parseFloat(data.charge) > 100)) {
+    if (data.charge && (isNaN(parseFloat(data.charge)) || data.charge < 0 || data.charge > 100)) {
         errors.push('La charge doit être une valeur numérique entre 0 et 100 (ex. 80).');
     }
     if (data.id && !/^[\p{L}0-9\s\-_:]+$/u.test(data.id)) {
@@ -463,13 +463,9 @@ app.post('/api/tableaux', async (req, res) => {
         if (!Array.isArray(disjoncteurs)) {
             throw new Error('Les disjoncteurs doivent être un tableau');
         }
-        // Vérification d'unicité insensible à la casse
-        const checkResult = await pool.query('SELECT id FROM tableaux WHERE LOWER(id) = LOWER($1)', [id]);
+        const checkResult = await pool.query('SELECT id FROM tableaux WHERE id = $1', [id]);
         if (checkResult.rows.length > 0) {
-            console.log('[Server] Erreur: ID tableau déjà utilisé:', {
-                requestedId: id,
-                existingIds: checkResult.rows.map(row => row.id)
-            });
+            console.log('[Server] Erreur: ID tableau déjà utilisé:', id);
             res.status(400).json({ error: 'Cet identifiant de tableau existe déjà' });
             return;
         }
@@ -496,11 +492,10 @@ app.post('/api/tableaux', async (req, res) => {
                 charge: d.charge || 80
             };
         });
-        await pool.query('INSERT INTO tableaux (id, disjoncteurs, isSiteMain) VALUES ($1, $2::jsonb, $3)', [
-            id,
-            JSON.stringify(normalizedDisjoncteurs),
-            isSiteMain || false
-        ]);
+        await pool.query(
+            'INSERT INTO tableaux (id, disjoncteurs, isSiteMain) VALUES ($1, $2::jsonb, $3)',
+            [id, JSON.stringify(normalizedDisjoncteurs), isSiteMain || false]
+        );
         // Ajouter une checklist par défaut pour chaque disjoncteur
         for (const d of normalizedDisjoncteurs) {
             try {
@@ -532,12 +527,13 @@ app.post('/api/tableaux', async (req, res) => {
 app.put('/api/tableaux/:id', async (req, res) => {
     const { id } = req.params;
     const { disjoncteurs, isSiteMain } = req.body;
-    console.log('[Server] PUT /api/tableaux/:id - Requête reçue:', { id, disjoncteursCount: disjoncteurs?.length, isSiteMain });
+    console.log('[Server] PUT /api/tableaux/', id, { disjoncteurs: disjoncteurs?.length, isSiteMain });
     try {
         await pool.query('SELECT 1');
         if (!id || !Array.isArray(disjoncteurs)) {
             throw new Error('ID et disjoncteurs (tableau) sont requis');
         }
+        // Validation des disjoncteurs
         const disjoncteurIds = disjoncteurs.map(d => d.id).filter(id => id);
         const uniqueIds = new Set(disjoncteurIds);
         if (uniqueIds.size !== disjoncteurIds.length) {
@@ -548,51 +544,46 @@ app.put('/api/tableaux/:id', async (req, res) => {
         const normalizedDisjoncteurs = disjoncteurs.map(d => {
             const validationErrors = validateDisjoncteurData(d);
             if (validationErrors.length > 0) {
-                console.log('[Server] Validation échouée pour disjoncteur:', d.id, validationErrors);
                 throw new Error(`Données invalides pour disjoncteur ${d.id}: ${validationErrors.join('; ')}`);
             }
             return {
                 ...d,
                 icn: normalizeIcn(d.icn),
                 cableLength: isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 5 : 20) : parseFloat(d.cableLength),
-                section: d.section || `${getRecommendedSection(d.in || '16 A')} mm²`,
+                section: d.section || `${getRecommendedSection(d.in)} mm²`,
                 humidite: d.humidite || 50,
                 temp_ambiante: d.temp_ambiante || 25,
-                charge: d.charge || 80,
-                ip: d.ip || 'IP20',
-                temp: d.temp || '70',
-                ue: d.ue || '400 V AC'
+                charge: d.charge || 80
             };
         });
         const result = await pool.query(
             'UPDATE tableaux SET disjoncteurs = $1::jsonb, isSiteMain = $2 WHERE id = $3 RETURNING id, disjoncteurs, isSiteMain',
-            [JSON.stringify(normalizedDisjoncteurs), isSiteMain ?? false, id]
+            [JSON.stringify(normalizedDisjoncteurs), isSiteMain || false, id]
         );
         if (result.rows.length === 0) {
             console.log('[Server] Tableau non trouvé:', id);
-            return res.status(404).json({ error: 'Tableau non trouvé' });
-        }
-        console.log('[Server] Tableau modifié:', {
-            id,
-            disjoncteursCount: normalizedDisjoncteurs.length,
-            isSiteMain: result.rows[0].isSiteMain,
-            returnedData: result.rows[0]
-        });
-        res.status(200).json({
-            success: true,
-            data: {
-                id: result.rows[0].id,
-                disjoncteurs: result.rows[0].disjoncteurs,
+            res.status(404).json({ error: 'Tableau non trouvé' });
+        } else {
+            console.log('[Server] Tableau modifié:', {
+                id,
+                disjoncteurs: normalizedDisjoncteurs.length,
                 isSiteMain: result.rows[0].isSiteMain
-            }
-        });
+            });
+            res.json({
+                success: true,
+                data: {
+                    id: result.rows[0].id,
+                    disjoncteurs: result.rows[0].disjoncteurs,
+                    isSiteMain: result.rows[0].isSiteMain
+                }
+            });
+        }
     } catch (error) {
         console.error('[Server] Erreur PUT /api/tableaux/:id:', {
             message: error.message,
             stack: error.stack,
             code: error.code,
-            detail: error.detail,
-            requestBody: req.body
+            detail: error.detail
         });
         res.status(500).json({ error: 'Erreur lors de la mise à jour: ' + error.message });
     }
@@ -1189,17 +1180,10 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
                 return;
             }
             // Mettre à jour l'ID dans les checklists
-            try {
-                await pool.query(
-                    'UPDATE breaker_checklists SET disjoncteur_id = $1 WHERE tableau_id = $2 AND disjoncteur_id = $3',
-                    [newId, tableauId, decodeURIComponent(disjoncteurId)]
-                );
-            } catch (checklistError) {
-                console.warn('[Server] Erreur mise à jour ID checklist pour disjoncteur:', disjoncteurId, {
-                    message: checklistError.message,
-                    code: checklistError.code
-                });
-            }
+            await pool.query(
+                'UPDATE breaker_checklists SET disjoncteur_id = $1 WHERE tableau_id = $2 AND disjoncteur_id = $3',
+                [newId, tableauId, decodeURIComponent(disjoncteurId)]
+            );
         }
         const updatedDisjoncteur = {
             ...disjoncteurs[disjoncteurIndex],
