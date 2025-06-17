@@ -376,11 +376,25 @@
                 }
 
                 try {
-                    console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, { isSiteMain: newIsSiteMain, disjoncteurs });
+                    // Normaliser les disjoncteurs pour correspondre à la base
+                    const normalizedDisjoncteurs = disjoncteurs.map(d => ({
+                        id: d.id,
+                        ref: d.ref || 'C60N',
+                        marque: d.marque || 'Schneider Electric',
+                        isPrincipal: d.isPrincipal || false,
+                        in: d.in || '16 A',
+                        ip: d.ip || 'IP20',
+                        ue: d.ue || '400 V AC',
+                        section: d.section || '2.5 mm²',
+                        humidite: d.humidite || 50,
+                        temp_ambiante: d.temp_ambiante || 25,
+                        charge: d.charge || 80
+                    }));
+                    console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, { isSiteMain: newIsSiteMain, disjoncteurs: normalizedDisjoncteurs });
                     const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain: newIsSiteMain })
+                        body: JSON.stringify({ id: tableauId, disjoncteurs: normalizedDisjoncteurs, isSiteMain: newIsSiteMain })
                     });
                     const data = await response.json();
                     console.log('[Edit] Réponse serveur brute:', JSON.stringify(data, null, 2));
