@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -5,26 +6,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Autonomix Elec - Modifier un tableau</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        .conflict { color: #dc2626; font-weight: bold; }
+        .disjoncteur-principal { background-color: #fefcbf; }
+        .touch-friendly { min-height: 44px; padding: 0.5rem 1rem; }
+        .animate-fade-in { animation: fadeIn 0.8s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @media (max-width: 640px) {
+            .container { padding: 0.5rem; }
+            input, select, button { font-size: 0.875rem; }
+        }
+        select[multiple] { height: 120px; }
+    </style>
 </head>
-<body class="bg-gray-100">
-    <nav class="bg-blue-600 p-4">
-        <ul class="flex space-x-4 text-white">
-            <li><a href="index.html">Accueil</a></li>
-            <li><a href="create.html">Créer un tableau</a></li>
-            <li><a href="view.html">Voir les tableaux</a></li>
-            <li><a href="selectivity.html" class="hover:underline">Sélectivité</a></li>
+<body class="bg-gray-900 text-white">
+    <nav class="bg-blue-700 p-4 sticky top-0 z-50 shadow-lg">
+        <ul class="flex flex-wrap space-x-6 text-white font-semibold text-sm sm:text-base">
+            <li><a href="index.html" class="hover:text-yellow-300 transition"><i class="fas fa-home mr-2"></i>Accueil</a></li>
+            <li><a href="create.html" class="hover:text-yellow-300 transition"><i class="fas fa-plus-circle mr-2"></i>Créer un tableau</a></li>
+            <li><a href="view.html" class="hover:text-yellow-300 transition"><i class="fas fa-table mr-2"></i>Voir les tableaux</a></li>
+            <li><a href="selectivity.html" class="hover:text-yellow-300 transition"><i class="fas fa-shield-alt mr-2"></i>Sélectivité</a></li>
+            <li><a href="obsolescence.html" class="hover:text-yellow-300 transition"><i class="fas fa-clock mr-2"></i>Obsolescence</a></li>
+            <li><a href="fault_level_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-bolt mr-2"></i>Évaluation du Niveau de Défaut</a></li>
+            <li><a href="hazards_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-exclamation-triangle mr-2"></i>Évaluation des Risques</a></li>
+            <li><a href="maintenance_org.html" class="hover:text-yellow-300 transition"><i class="fas fa-sitemap mr-2"></i>Organigramme Maintenance</a></li>
+            <li><a href="distribution_emergency.html" class="hover:text-yellow-300 transition"><i class="fas fa-plug mr-2"></i>Urgence Distribution</a></li>
+            <li><a href="reports.html" class="hover:text-yellow-300 transition"><i class="fas fa-file-alt mr-2"></i>Rapports</a></li>
+            <li><a href="electrical_safety_program.html" class="hover:text-yellow-300 transition"><i class="fas fa-hard-hat mr-2"></i>Programme de Sécurité Électrique</a></li>
+            <li><a href="breaker_control.html" class="hover:text-yellow-300 transition"><i class="fas fa-cogs mr-2"></i>Contrôle des Disjoncteurs</a></li>
         </ul>
     </nav>
 
     <div class="container mx-auto p-6">
-        <h1 class="text-3xl font-bold text-center mb-6">Modifier un tableau électrique</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-center mb-6 flex items-center"><i class="fas fa-edit mr-3"></i>Modifier un tableau électrique</h1>
 
-        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
-            <h2 class="text-2xl font-semibold mb-4">Étapes pour modifier un tableau</h2>
-            <ol class="list-decimal list-inside space-y-2">
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6 animate-fade-in">
+            <h2 class="text-xl font-semibold mb-4">Étapes pour modifier un tableau</h2>
+            <ol class="list-decimal list-inside space-y-2 text-gray-300 text-sm sm:text-base">
                 <li>Vérifiez l'identifiant du tableau (modifiable, doit être unique).</li>
                 <li>Indiquez si le tableau est le général principal du site (enregistré automatiquement).</li>
+                <li>Indiquez si le tableau est alimenté par une cellule HTA et configurez les paramètres HTA si nécessaire.</li>
                 <li>Modifiez les disjoncteurs existants via le bouton "Modifier" (enregistré immédiatement).</li>
                 <li>Ajoutez des disjoncteurs en :
                     <ul class="list-disc list-inside ml-6">
@@ -34,198 +57,233 @@
                     </ul>
                 </li>
                 <li>Transférer un disjoncteur vers un autre tableau via le bouton "Transférer".</li>
-                <li>Lier un disjoncteur non principal à un tableau aval via le champ "Tableau aval".</li>
+                <li>Lier un disjoncteur non principal à un ou plusieurs tableaux avals via le champ "Tableaux avals".</li>
                 <li>Vérifiez les conflits d'ID (en rouge).</li>
                 <li>Désignez un disjoncteur comme principal.</li>
                 <li>Enregistrez les modifications pour les nouveaux disjoncteurs ou l'ID du tableau.</li>
             </ol>
         </div>
 
-        <div class="bg-white p-6 rounded-lg shadow-md">
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg animate-fade-in">
             <h2 class="text-xl font-semibold mb-4">Informations du tableau</h2>
             <div class="mb-4">
-                <label class="block text-sm font-medium">Identifiant du tableau</label>
-                <input id="tableau-id" type="text" class="w-full p-2 border rounded">
+                <label for="tableau-id" class="block text-sm font-medium">Identifiant du tableau</label>
+                <input id="tableau-id" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. BâtimentA-TGBT1">
             </div>
             <div class="mb-4">
                 <label class="inline-flex items-center">
-                    <input id="tableau-isSiteMain" type="checkbox" class="form-checkbox" onchange="saveIsSiteMain()">
+                    <input id="tableau-isSiteMain" type="checkbox" class="form-checkbox h-5 w-5 text-blue-600" onchange="saveIsSiteMain()">
                     <span class="ml-2 text-sm font-medium">Tableau général principal du site</span>
                 </label>
                 <p class="text-xs text-gray-500">Cochez si ce tableau est le principal du site (pas de disjoncteur amont). Modification enregistrée automatiquement.</p>
                 <div id="isSiteMain-message" class="mt-2 p-2 rounded text-sm hidden"></div>
             </div>
+            <div class="mb-4">
+                <label class="inline-flex items-center">
+                    <input id="tableau-isHTA" type="checkbox" class="form-checkbox h-5 w-5 text-blue-600" onchange="toggleHTAFields()">
+                    <span class="ml-2 text-sm font-medium">Tableau alimenté par une cellule HTA</span>
+                </label>
+                <p class="text-xs text-gray-500">Cochez si ce tableau est alimenté par une cellule HTA.</p>
+            </div>
+            <div id="hta-fields" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="hta-transformerPower" class="block text-sm font-medium">Puissance du transformateur (kVA)</label>
+                    <input id="hta-transformerPower" type="number" step="0.01" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 1600">
+                </div>
+                <div>
+                    <label for="hta-voltage" class="block text-sm font-medium">Tension HTA (kV)</label>
+                    <input id="hta-voltage" type="number" step="0.01" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 20">
+                </div>
+                <div>
+                    <label for="hta-in" class="block text-sm font-medium">Courant nominal (In, A)</label>
+                    <input id="hta-in" type="number" step="0.01" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 50">
+                </div>
+                <div>
+                    <label for="hta-ir" class="block text-sm font-medium">Courant réglable (Ir, A)</label>
+                    <input id="hta-ir" type="number" step="0.01" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 40">
+                </div>
+                <div>
+                    <label for="hta-triptime" class="block text-sm font-medium">Temps de déclenchement (s)</label>
+                    <input id="hta-triptime" type="number" step="0.01" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 0.2">
+                </div>
+                <div>
+                    <label for="hta-icn" class="block text-sm font-medium">Pouvoir de coupure (Icn, kA)</label>
+                    <input id="hta-icn" type="number" step="0.01" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 16">
+                </div>
+            </div>
 
             <h2 class="text-xl font-semibold mb-4">Ajouter un disjoncteur</h2>
-            <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
-                    <label class="block text-sm font-medium">Marque</label>
-                    <input id="disjoncteur-marque" type="text" class="w-full p-2 border rounded" placeholder="Ex. Schneider Electric">
+                    <label for="disjoncteur-marque" class="block text-sm font-medium">Marque</label>
+                    <input id="disjoncteur-marque" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. Schneider Electric">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium">Référence</label>
-                    <input id="disjoncteur-ref" type="text" class="w-full p-2 border rounded" placeholder="Ex. C60N">
+                    <label for="disjoncteur-ref" class="block text-sm font-medium">Référence</label>
+                    <input id="disjoncteur-ref" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. C60N">
                 </div>
             </div>
-            <div class="flex space-x-4 mb-4">
-                <button onclick="rechercherDisjoncteur()" class="bg-blue-600 text-white p-2 rounded">Rechercher via OpenAI</button>
-                <button onclick="ajouterManuel()" class="bg-gray-600 text-white p-2 rounded">Ajouter manuellement</button>
+            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
+                <button onclick="rechercherDisjoncteur()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 touch-friendly"><i class="fas fa-search mr-2"></i>Rechercher via OpenAI</button>
+                <button onclick="ajouterManuel()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 touch-friendly"><i class="fas fa-plus mr-2"></i>Ajouter manuellement</button>
             </div>
             <div class="mb-4">
-                <label class="block text-sm font-medium">Sélectionner un disjoncteur existant</label>
-                <select id="disjoncteur-existant" class="w-full p-2 border rounded">
+                <label for="disjoncteur-existant" class="block text-sm font-medium">Sélectionner un disjoncteur existant</label>
+                <select id="disjoncteur-existant" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base">
                     <option value="">-- Choisir un disjoncteur --</option>
                 </select>
-                <button onclick="ajouterDisjoncteurExistant()" class="bg-green-600 text-white p-2 rounded mt-2">Ajouter</button>
+                <button onclick="ajouterDisjoncteurExistant()" class="bg-green-600 text-white px-4 py-2 rounded mt-2 hover:bg-green-700 touch-friendly"><i class="fas fa-plus-circle mr-2"></i>Ajouter</button>
             </div>
 
             <div id="disjoncteur-form" class="mt-4 hidden">
                 <h3 class="text-lg font-semibold mb-2">Caractéristiques du disjoncteur</h3>
-                <div class="grid grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-sm font-medium">ID <span class="text-red-600">*</span></label>
-                        <input id="disjoncteur-id" type="text" class="w-full p-1 border rounded" placeholder="Ex. 400Q1 Compresseur">
+                        <label for="disjoncteur-id" class="block text-sm font-medium">ID <span class="text-red-600">*</span></label>
+                        <input id="disjoncteur-id" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 400Q1 Compresseur">
                         <p class="text-xs text-gray-500">Obligatoire, unique dans ce tableau, ex. 400Q1 Compresseur</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Type</label>
-                        <input id="disjoncteur-type" type="text" class="w-full p-1 border rounded" placeholder="Ex. disjoncteur">
+                        <label for="disjoncteur-type" class="block text-sm font-medium">Type</label>
+                        <input id="disjoncteur-type" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. disjoncteur">
                         <p class="text-xs text-gray-500">Type d'appareil, ex. disjoncteur</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Pôles</label>
-                        <input id="disjoncteur-poles" type="text" class="w-full p-1 border rounded" placeholder="Ex. 2P">
+                        <label for="disjoncteur-poles" class="block text-sm font-medium">Pôles</label>
+                        <input id="disjoncteur-poles" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 2P">
                         <p class="text-xs text-gray-500">Ex. 1P, 2P, 3P ou 4P</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Montage</label>
-                        <input id="disjoncteur-montage" type="text" class="w-full p-1 border rounded" placeholder="Ex. rail DIN">
+                        <label for="disjoncteur-montage" class="block text-sm font-medium">Montage</label>
+                        <input id="disjoncteur-montage" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. rail DIN">
                         <p class="text-xs text-gray-500">Type de montage, ex. rail DIN</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Ue</label>
-                        <input id="disjoncteur-ue" type="text" class="w-full p-1 border rounded" placeholder="Ex. 230/400 V AC">
+                        <label for="disjoncteur-ue" class="block text-sm font-medium">Ue</label>
+                        <input id="disjoncteur-ue" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 230/400 V AC">
                         <p class="text-xs text-gray-500">Tension nominale, ex. 230/400 V AC</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Ui</label>
-                        <input id="disjoncteur-ui" type="text" class="w-full p-1 border rounded" placeholder="Ex. 500 V">
+                        <label for="disjoncteur-ui" class="block text-sm font-medium">Ui</label>
+                        <input id="disjoncteur-ui" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 500 V">
                         <p class="text-xs text-gray-500">Tension d'isolation, ex. 500 V</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Uimp</label>
-                        <input id="disjoncteur-uimp" type="text" class="w-full p-1 border rounded" placeholder="Ex. 6 kV">
+                        <label for="disjoncteur-uimp" class="block text-sm font-medium">Uimp</label>
+                        <input id="disjoncteur-uimp" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 6 kV">
                         <p class="text-xs text-gray-500">Tension de choc, ex. 6 kV</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Fréquence</label>
-                        <input id="disjoncteur-frequence" type="text" class="w-full p-1 border rounded" placeholder="Ex. 50/60 Hz">
+                        <label for="disjoncteur-frequence" class="block text-sm font-medium">Fréquence</label>
+                        <input id="disjoncteur-frequence" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 50/60 Hz">
                         <p class="text-xs text-gray-500">Ex. 50/60 Hz</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">In</label>
-                        <input id="disjoncteur-in" type="text" class="w-full p-1 border rounded" placeholder="Ex. 16 A">
+                        <label for="disjoncteur-in" class="block text-sm font-medium">In</label>
+                        <input id="disjoncteur-in" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 16 A">
                         <p class="text-xs text-gray-500">Courant nominal, ex. 16 A</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Ir</label>
-                        <input id="disjoncteur-ir" type="text" class="w-full p-1 border rounded" placeholder="Ex. 63 A">
+                        <label for="disjoncteur-ir" class="block text-sm font-medium">Ir</label>
+                        <input id="disjoncteur-ir" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 63 A">
                         <p class="text-xs text-gray-500">Courant réglable, ex. 63 A</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Courbe</label>
-                        <input id="disjoncteur-courbe" type="text" class="w-full p-1 border rounded" placeholder="Ex. C">
+                        <label for="disjoncteur-courbe" class="block text-sm font-medium">Courbe</label>
+                        <input id="disjoncteur-courbe" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. C">
                         <p class="text-xs text-gray-500">Une valeur : B, C ou D</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">TripTime</label>
-                        <input id="disjoncteur-triptime" type="text" class="w-full p-1 border rounded" placeholder="Ex. 0.1 s">
+                        <label for="disjoncteur-triptime" class="block text-sm font-medium">TripTime</label>
+                        <input id="disjoncteur-triptime" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 0.1 s">
                         <p class="text-xs text-gray-500">Temps de déclenchement, ex. 0.1 s</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Icn</label>
-                        <input id="disjoncteur-icn" type="text" class="w-full p-1 border rounded" placeholder="Ex. 6 kA">
+                        <label for="disjoncteur-icn" class="block text-sm font-medium">Icn</label>
+                        <input id="disjoncteur-icn" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 6 kA">
                         <p class="text-xs text-gray-500">Pouvoir de coupure, ex. 6 kA</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Ics</label>
-                        <input id="disjoncteur-ics" type="text" class="w-full p-1 border rounded" placeholder="Ex. 4.5 kA">
+                        <label for="disjoncteur-ics" class="block text-sm font-medium">Ics</label>
+                        <input id="disjoncteur-ics" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 4.5 kA">
                         <p class="text-xs text-gray-500">Pouvoir de coupure de service, ex. 4.5 kA</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">IP</label>
-                        <input id="disjoncteur-ip" type="text" class="w-full p-1 border rounded" placeholder="Ex. IP20">
+                        <label for="disjoncteur-ip" class="block text-sm font-medium">IP</label>
+                        <input id="disjoncteur-ip" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. IP20">
                         <p class="text-xs text-gray-500">Indice de protection, ex. IP20</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Température</label>
-                        <input id="disjoncteur-temp" type="text" class="w-full p-1 border rounded" placeholder="Ex. -25°C à +70°C">
+                        <label for="disjoncteur-temp" class="block text-sm font-medium">Température</label>
+                        <input id="disjoncteur-temp" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. -25°C à +70°C">
                         <p class="text-xs text-gray-500">Plage de température, ex. -25°C à +70°C</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Dimensions</label>
-                        <input id="disjoncteur-dimensions" type="text" class="w-full p-1 border rounded" placeholder="Ex. 18 x 85 x 70 mm">
+                        <label for="disjoncteur-dimensions" class="block text-sm font-medium">Dimensions</label>
+                        <input id="disjoncteur-dimensions" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 18 x 85 x 70 mm">
                         <p class="text-xs text-gray-500">L x H x P, ex. 18 x 85 x 70 mm</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Section</label>
-                        <input id="disjoncteur-section" type="text" class="w-full p-1 border rounded" placeholder="Ex. 2.5 mm²">
+                        <label for="disjoncteur-section" class="block text-sm font-medium">Section</label>
+                        <input id="disjoncteur-section" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 2.5 mm²">
                         <p class="text-xs text-gray-500">Section de câble, ex. 2.5 mm²</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Date de fabrication</label>
-                        <input id="disjoncteur-date" type="text" class="w-full p-1 border rounded" placeholder="Ex. 2023-01">
+                        <label for="disjoncteur-date" class="block text-sm font-medium">Date de fabrication</label>
+                        <input id="disjoncteur-date" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 2023-01">
                         <p class="text-xs text-gray-500">Année ou mois/année, ex. 2023-01</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Type de tension</label>
-                        <input id="disjoncteur-tension" type="text" class="w-full p-1 border rounded" placeholder="Ex. AC">
+                        <label for="disjoncteur-tension" class="block text-sm font-medium">Type de tension</label>
+                        <input id="disjoncteur-tension" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. AC">
                         <p class="text-xs text-gray-500">Ex. AC ou DC</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Sélectivité</label>
-                        <input id="disjoncteur-selectivite" type="text" class="w-full p-1 border rounded" placeholder="Ex. sélectif">
+                        <label for="disjoncteur-selectivite" class="block text-sm font-medium">Sélectivité</label>
+                        <input id="disjoncteur-selectivite" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. sélectif">
                         <p class="text-xs text-gray-500">Type de sélectivité, ex. sélectif</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium">Tableau aval</label>
-                        <select id="disjoncteur-linked-tableau" class="w-full p-1 border rounded" disabled>
+                        <label for="disjoncteur-linked-tableaux" class="block text-sm font-medium">Tableaux avals</label>
+                        <select id="disjoncteur-linked-tableaux" multiple class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base">
                             <option value="">-- Aucun tableau aval --</option>
                         </select>
-                        <p class="text-xs text-gray-500">Sélectionnez un tableau aval (non principal uniquement)</p>
+                        <p class="text-xs text-gray-500">Sélectionnez un ou plusieurs tableaux avals (non principal uniquement). Utilisez Ctrl/Cmd pour sélection multiple.</p>
                     </div>
                 </div>
                 <div class="flex space-x-4 mt-4">
-                    <button id="disjoncteur-action" onclick="ajouterDisjoncteur()" class="bg-green-600 text-white p-2 rounded">Ajouter au tableau</button>
+                    <button id="disjoncteur-action" onclick="ajouterDisjoncteur()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 touch-friendly">Ajouter au tableau</button>
                 </div>
             </div>
         </div>
 
-        <div class="bg-white p-6 rounded-lg shadow-md mt-6">
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg mt-6 animate-fade-in">
             <h2 class="text-xl font-semibold mb-4">Disjoncteurs du tableau</h2>
-            <table id="disjoncteurs-table" class="w-full">
-                <thead>
-                    <tr class="bg-gray-200">
-                        <th class="p-2">ID</th>
-                        <th class="p-2">Marque</th>
-                        <th class="p-2">Référence</th>
-                        <th class="p-2">Principal</th>
-                        <th class="p-2">Liaison</th>
-                        <th class="p-2">Actions</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-            <button onclick="enregistrerModifications()" class="bg-blue-600 text-white p-2 rounded mt-4">Enregistrer les modifications</button>
+            <div class="overflow-x-auto">
+                <table id="disjoncteurs-table" class="w-full text-sm sm:text-base">
+                    <thead>
+                        <tr class="bg-gray-700">
+                            <th class="p-2">ID</th>
+                            <th class="p-2">Marque</th>
+                            <th class="p-2">Référence</th>
+                            <th class="p-2">Principal</th>
+                            <th class="p-2">Liaisons</th>
+                            <th class="p-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <button onclick="enregistrerModifications()" class="bg-blue-600 text-white px-4 py-2 rounded mt-4 hover:bg-blue-700 touch-friendly"><i class="fas fa-save mr-2"></i>Enregistrer les modifications</button>
         </div>
 
-        <div id="popup" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <p id="popup-message" class="mb-4"></p>
+        <div id="popup" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full">
+                <p id="popup-message" class="mb-4 text-sm sm:text-base"></p>
                 <div id="popup-content" class="mb-4"></div>
                 <div class="flex space-x-4">
-                    <button id="popup-confirm" class="bg-green-600 text-white p-2 rounded">Confirmer</button>
-                    <button id="popup-cancel" class="bg-red-600 text-white p-2 rounded">Annuler</button>
+                    <button id="popup-confirm" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 touch-friendly">Confirmer</button>
+                    <button id="popup-cancel" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 touch-friendly">Annuler</button>
                 </div>
             </div>
         </div>
@@ -238,6 +296,7 @@
             let tableaux = [];
             let isSiteMain = false;
             let isSiteMainError = false;
+            let isHTA = false;
 
             // Validation de l'ID du disjoncteur
             function validateDisjoncteurId(id) {
@@ -254,7 +313,6 @@
                 disjoncteurs.forEach(d => {
                     idCounts[d.id] = (idCounts[d.id] || 0) + 1;
                 });
-                // Trier les disjoncteurs par ID
                 disjoncteurs.sort((a, b) => a.id.localeCompare(b.id));
                 disjoncteurs.forEach((d, index) => {
                     const isPrincipal = d.isPrincipal || false;
@@ -285,34 +343,34 @@
 
                     const liaisonCell = document.createElement('td');
                     liaisonCell.className = 'p-2';
-                    liaisonCell.textContent = isPrincipal ? 'Lié à tous les avals' : (d.linkedTableauId ? `Lié à ${d.linkedTableauId}` : 'Non lié');
+                    liaisonCell.textContent = isPrincipal ? 'Lié à tous les avals' : (d.linkedTableauIds?.length > 0 ? `Lié à ${d.linkedTableauIds.join(', ')}` : 'Non lié');
                     row.appendChild(liaisonCell);
 
                     const actionsCell = document.createElement('td');
-                    actionsCell.className = 'p-2';
+                    actionsCell.className = 'p-2 flex space-x-2';
 
                     const modifierBtn = document.createElement('button');
-                    modifierBtn.className = 'bg-blue-500 text-white p-1 rounded-sm mr-1';
-                    modifierBtn.textContent = 'Modifier';
+                    modifierBtn.className = 'bg-blue-500 text-white p-1 rounded-sm touch-friendly';
+                    modifierBtn.innerHTML = '<i class="fas fa-edit"></i>';
                     modifierBtn.onclick = () => modifierDisjoncteur(index);
                     actionsCell.appendChild(modifierBtn);
 
                     const supprimerBtn = document.createElement('button');
-                    supprimerBtn.className = 'bg-red-500 text-white p-1 rounded-sm mr-1';
-                    supprimerBtn.textContent = 'Supprimer';
+                    supprimerBtn.className = 'bg-red-500 text-white p-1 rounded-sm touch-friendly';
+                    supprimerBtn.innerHTML = '<i class="fas fa-trash"></i>';
                     supprimerBtn.onclick = () => supprimerDisjoncteur(index);
                     actionsCell.appendChild(supprimerBtn);
 
                     const transfererBtn = document.createElement('button');
-                    transfererBtn.className = 'bg-purple-500 text-white p-1 rounded-sm mr-1';
-                    transfererBtn.textContent = 'Transférer';
+                    transfererBtn.className = 'bg-purple-500 text-white p-1 rounded-sm touch-friendly';
+                    transfererBtn.innerHTML = '<i class="fas fa-exchange-alt"></i>';
                     transfererBtn.onclick = () => transfererDisjoncteur(index);
                     actionsCell.appendChild(transfererBtn);
 
                     if (!isPrincipal) {
                         const principalBtn = document.createElement('button');
-                        principalBtn.className = 'bg-yellow-500 text-white p-1 rounded-sm';
-                        principalBtn.textContent = 'Principal';
+                        principalBtn.className = 'bg-yellow-500 text-white p-1 rounded-sm touch-friendly';
+                        principalBtn.innerHTML = '<i class="fas fa-star"></i>';
                         principalBtn.onclick = () => designerPrincipal(index);
                         actionsCell.appendChild(principalBtn);
                     }
@@ -320,6 +378,34 @@
                     row.appendChild(actionsCell);
                     tbody.appendChild(row);
                 });
+            }
+
+            // Afficher/masquer les champs HTA
+            function toggleHTAFields() {
+                const isHTAChecked = document.getElementById('tableau-isHTA').checked;
+                const htaFields = document.getElementById('hta-fields');
+                htaFields.classList.toggle('hidden', !isHTAChecked);
+                if (!isHTAChecked) {
+                    document.getElementById('hta-transformerPower').value = '';
+                    document.getElementById('hta-voltage').value = '';
+                    document.getElementById('hta-in').value = '';
+                    document.getElementById('hta-ir').value = '';
+                    document.getElementById('hta-triptime').value = '';
+                    document.getElementById('hta-icn').value = '';
+                }
+            }
+
+            // Collecter les données HTA
+            function collectHTAData() {
+                if (!document.getElementById('tableau-isHTA').checked) return null;
+                return {
+                    transformerPower: document.getElementById('hta-transformerPower').value,
+                    voltage: document.getElementById('hta-voltage').value,
+                    in: document.getElementById('hta-in').value,
+                    ir: document.getElementById('hta-ir').value,
+                    triptime: document.getElementById('hta-triptime').value,
+                    icn: document.getElementById('hta-icn').value
+                };
             }
 
             // Chargement du tableau
@@ -331,7 +417,10 @@
                         disjoncteurs = [];
                         document.getElementById('tableau-id').value = '';
                         document.getElementById('tableau-isSiteMain').checked = false;
+                        document.getElementById('tableau-isHTA').checked = false;
+                        toggleHTAFields();
                         isSiteMain = false;
+                        isHTA = false;
                         afficherDisjoncteurs();
                         return;
                     }
@@ -345,19 +434,30 @@
                         return;
                     }
                     const tableau = await response.json();
-                    console.log('[Edit] Tableau reçu:', { id: tableau.id, isSiteMain: tableau.isSiteMain, disjoncteurs: tableau.disjoncteurs.length });
+                    console.log('[Edit] Tableau reçu:', { id: tableau.id, isSiteMain: tableau.isSiteMain, isHTA: tableau.isHTA, disjoncteurs: tableau.disjoncteurs.length });
                     document.getElementById('tableau-id').value = tableau.id;
                     document.getElementById('tableau-isSiteMain').checked = tableau.isSiteMain || false;
+                    document.getElementById('tableau-isHTA').checked = tableau.isHTA || false;
+                    toggleHTAFields();
                     isSiteMain = tableau.isSiteMain || false;
+                    isHTA = tableau.isHTA || false;
+                    if (isHTA && tableau.htaData) {
+                        document.getElementById('hta-transformerPower').value = tableau.htaData.transformerPower || '';
+                        document.getElementById('hta-voltage').value = tableau.htaData.voltage || '';
+                        document.getElementById('hta-in').value = tableau.htaData.in || '';
+                        document.getElementById('hta-ir').value = tableau.htaData.ir || '';
+                        document.getElementById('hta-triptime').value = tableau.htaData.triptime || '';
+                        document.getElementById('hta-icn').value = tableau.htaData.icn || '';
+                    }
                     disjoncteurs = tableau.disjoncteurs || [];
                     disjoncteurs.forEach(d => {
                         d.isPrincipal = d.isPrincipal || false;
-                        d.linkedTableauId = d.linkedTableauId || '';
+                        d.linkedTableauIds = d.linkedTableauIds || (d.linkedTableauId ? [d.linkedTableauId] : []);
                     });
                     disjoncteurPrincipalIndex = disjoncteurs.findIndex(d => d.isPrincipal);
                     console.log('[Edit] Disjoncteurs normalisés:', disjoncteurs);
                     afficherDisjoncteurs();
-                    console.log('[Edit] Tableau chargé:', tableau.id, 'Principal index:', disjoncteurPrincipalIndex, 'isSiteMain:', isSiteMain);
+                    console.log('[Edit] Tableau chargé:', tableau.id, 'Principal index:', disjoncteurPrincipalIndex, 'isSiteMain:', isSiteMain, 'isHTA:', isHTA);
                 } catch (error) {
                     console.error('[Edit] Erreur chargement tableau:', error);
                     showPopup('Erreur lors du chargement du tableau: ' + error.message, () => {});
@@ -377,10 +477,11 @@
 
                 try {
                     console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, { isSiteMain: newIsSiteMain });
+                    const htaData = collectHTAData();
                     const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain: newIsSiteMain })
+                        body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain: newIsSiteMain, isHTA, htaData })
                     });
                     const data = await response.json();
                     console.log('[Edit] Réponse serveur isSiteMain:', { status: response.status, data });
@@ -397,11 +498,11 @@
                     setTimeout(() => {
                         if (!isSiteMainError) messageDiv.classList.add('hidden');
                     }, 5000);
-                    await chargerTableau(); // Recharger pour synchroniser l'état
+                    await chargerTableau();
                 } catch (error) {
                     console.error('[Edit] Erreur sauvegarde isSiteMain:', error);
                     isSiteMainError = true;
-                    document.getElementById('tableau-isSiteMain').checked = isSiteMain; // Revert
+                    document.getElementById('tableau-isSiteMain').checked = isSiteMain;
                     messageDiv.innerHTML = `Erreur lors de la mise à jour du statut: ${error.message}. <button onclick="saveIsSiteMain()" class="underline text-blue-600">Réessayer</button>`;
                     messageDiv.className = 'bg-red-100 text-red-800 mt-2 p-2 rounded text-sm';
                     messageDiv.classList.remove('hidden');
@@ -437,7 +538,7 @@
                     const response = await fetch('/api/tableaux/ids');
                     tableaux = await response.json();
                     console.log('[Edit] Tableaux chargés:', tableaux);
-                    const select = document.getElementById('disjoncteur-linked-tableau');
+                    const select = document.getElementById('disjoncteur-linked-tableaux');
                     select.innerHTML = '<option value="">-- Aucun tableau aval --</option>';
                     tableaux
                         .filter(t => t !== tableauId)
@@ -499,8 +600,9 @@
                         document.getElementById('disjoncteur-marque').value = marque;
                         document.getElementById('disjoncteur-ref').value = ref;
                         document.getElementById('disjoncteur-action').textContent = 'Ajouter au tableau';
-                        document.getElementById('disjoncteur-linked-tableau').value = '';
-                        document.getElementById('disjoncteur-linked-tableau').disabled = false;
+                        const linkedSelect = document.getElementById('disjoncteur-linked-tableaux');
+                        Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
+                        linkedSelect.disabled = false;
                         editIndex = null;
                         console.log('[Edit] Formulaire rempli avec données OpenAI');
                     } else {
@@ -541,8 +643,9 @@
                 document.getElementById('disjoncteur-marque').value = '';
                 document.getElementById('disjoncteur-ref').value = '';
                 document.getElementById('disjoncteur-action').textContent = 'Ajouter au tableau';
-                document.getElementById('disjoncteur-linked-tableau').value = '';
-                document.getElementById('disjoncteur-linked-tableau').disabled = false;
+                const linkedSelect = document.getElementById('disjoncteur-linked-tableaux');
+                Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
+                linkedSelect.disabled = false;
                 editIndex = null;
                 console.log('[Edit] Formulaire manuel ouvert');
             }
@@ -560,7 +663,7 @@
                 try {
                     const disjoncteurBase = JSON.parse(selected);
                     console.log('[Edit] Disjoncteur sélectionné:', disjoncteurBase);
-                    const disjoncteur = { ...disjoncteurBase, id: '', isPrincipal: false, linkedTableauId: '' };
+                    const disjoncteur = { ...disjoncteurBase, id: '', isPrincipal: false, linkedTableauIds: [] };
                     document.getElementById('disjoncteur-form').classList.remove('hidden');
                     document.getElementById('disjoncteur-id').value = '';
                     document.getElementById('disjoncteur-marque').value = disjoncteur.marque || '';
@@ -586,8 +689,9 @@
                     document.getElementById('disjoncteur-tension').value = disjoncteur.tension || '';
                     document.getElementById('disjoncteur-selectivite').value = disjoncteur.selectivite || '';
                     document.getElementById('disjoncteur-action').textContent = 'Ajouter au tableau';
-                    document.getElementById('disjoncteur-linked-tableau').value = '';
-                    document.getElementById('disjoncteur-linked-tableau').disabled = false;
+                    const linkedSelect = document.getElementById('disjoncteur-linked-tableaux');
+                    Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
+                    linkedSelect.disabled = false;
                     editIndex = null;
                     console.log('[Edit] Formulaire ouvert pour disjoncteur existant');
                 } catch (error) {
@@ -631,10 +735,13 @@
                 document.getElementById('disjoncteur-tension').value = disjoncteur.tension || '';
                 document.getElementById('disjoncteur-selectivite').value = disjoncteur.selectivite || '';
                 document.getElementById('disjoncteur-action').textContent = 'Modifier le disjoncteur';
-                document.getElementById('disjoncteur-linked-tableau').value = disjoncteur.linkedTableauId || '';
-                document.getElementById('disjoncteur-linked-tableau').disabled = disjoncteur.isPrincipal;
+                const linkedSelect = document.getElementById('disjoncteur-linked-tableaux');
+                Array.from(linkedSelect.options).forEach(opt => {
+                    opt.selected = disjoncteur.linkedTableauIds?.includes(opt.value);
+                });
+                linkedSelect.disabled = disjoncteur.isPrincipal;
                 editIndex = index;
-                console.log('[Edit] Formulaire ouvert pour modification, disjoncteur ID:', disjoncteur.id, 'Tableau aval:', disjoncteur.linkedTableauId);
+                console.log('[Edit] Formulaire ouvert pour modification, disjoncteur ID:', disjoncteur.id, 'Tableaux avals:', disjoncteur.linkedTableauIds);
             }
 
             // Transfert d'un disjoncteur
@@ -655,7 +762,7 @@
                     return;
                 }
                 showPopup(`Transférer le disjoncteur ${disjoncteur.id} vers un autre tableau ?`,
-                    `<select id="transfer-tableau" class="w-full p-2 border rounded"><option value="">-- Choisir un tableau --</option>${options}</select>`,
+                    `<select id="transfer-tableau" class="w-full p-2 border rounded bg-gray-700 text-white text-sm sm:text-base"><option value="">-- Choisir un tableau --</option>${options}</select>`,
                     async () => {
                         const targetId = document.getElementById('transfer-tableau').value;
                         if (!targetId) {
@@ -673,10 +780,11 @@
                                 disjoncteurPrincipalIndex--;
                                 console.log('[Edit] Ajustement disjoncteurPrincipalIndex:', disjoncteurPrincipalIndex);
                             }
+                            const htaData = collectHTAData();
                             await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
+                                body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain, isHTA, htaData })
                             });
                             console.log('[Edit] Tableau', tableauId, 'mis à jour après suppression');
                             const response = await fetch(`/api/tableaux/${encodeURIComponent(targetId)}`);
@@ -686,7 +794,7 @@
                             await fetch(`/api/tableaux/${encodeURIComponent(targetId)}`, {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ id: targetId, disjoncteurs: targetDisjoncteurs, isSiteMain: targetTableau.isSiteMain })
+                                body: JSON.stringify({ id: targetId, disjoncteurs: targetDisjoncteurs, isSiteMain: targetTableau.isSiteMain, isHTA: targetTableau.isHTA, htaData: targetTableau.htaData })
                             });
                             console.log('[Edit] Disjoncteur', disjoncteur.id, 'transféré vers', targetId);
                             await chargerTableau();
@@ -727,7 +835,9 @@
                     tension: document.getElementById('disjoncteur-tension').value.trim(),
                     selectivite: document.getElementById('disjoncteur-selectivite').value.trim(),
                     isPrincipal: editIndex !== null ? disjoncteurs[editIndex]?.isPrincipal || false : false,
-                    linkedTableauId: editIndex !== null && !disjoncteurs[editIndex]?.isPrincipal ? document.getElementById('disjoncteur-linked-tableau').value.trim() : ''
+                    linkedTableauIds: editIndex !== null && !disjoncteurs[editIndex]?.isPrincipal 
+                        ? Array.from(document.getElementById('disjoncteur-linked-tableaux').selectedOptions).map(opt => opt.value).filter(Boolean) 
+                        : []
                 };
 
                 console.log('[Edit] Disjoncteur à ajouter/modifier:', disjoncteur);
@@ -757,6 +867,11 @@
                     showPopup('Ir doit être une valeur numérique, ex. 60 ou 60 A.', () => {});
                     return;
                 }
+                if (disjoncteur.linkedTableauIds.includes(tableauId)) {
+                    console.log('[Edit] Erreur: Tableau parent inclus dans linkedTableauIds', tableauId);
+                    showPopup('Un disjoncteur ne peut pas être lié à son propre tableau parent.', () => {});
+                    return;
+                }
 
                 if (editIndex === null || disjoncteurs[editIndex].id !== disjoncteur.id) {
                     if (disjoncteurs.some(d => d.id === disjoncteur.id)) {
@@ -767,8 +882,8 @@
                 }
 
                 try {
+                    const htaData = collectHTAData();
                     if (editIndex !== null) {
-                        // Mode modification
                         const oldId = disjoncteurs[editIndex].id;
                         console.log('[Edit] Envoi requête PUT /api/disjoncteur/', tableauId, '/', oldId, 'avec nouvel ID:', disjoncteur.id);
                         const response = await fetch(`/api/disjoncteur/${encodeURIComponent(tableauId)}/${encodeURIComponent(oldId)}`, {
@@ -785,13 +900,12 @@
                         await chargerTableau();
                         showPopup('Disjoncteur modifié avec succès.', () => {});
                     } else {
-                        // Mode ajout
                         console.log('[Edit] Tentative d\'ajout disjoncteur:', disjoncteur.id);
                         const tempDisjoncteurs = [...disjoncteurs, disjoncteur];
                         const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: tableauId, disjoncteurs: tempDisjoncteurs, isSiteMain })
+                            body: JSON.stringify({ id: tableauId, disjoncteurs: tempDisjoncteurs, isSiteMain, isHTA, htaData })
                         });
                         const responseData = await response.json();
                         console.log('[Edit] Réponse serveur ajout disjoncteur:', { status: response.status, data: responseData });
@@ -799,7 +913,6 @@
                             throw new Error(responseData.error || `Erreur serveur (statut ${response.status})`);
                         }
                         console.log('[Edit] Tableau mis à jour sur le serveur:', tableauId);
-                        // Ajouter à la liste déroulante
                         const select = document.getElementById('disjoncteur-existant');
                         const existingOptions = Array.from(select.options).map(opt => opt.value);
                         if (!existingOptions.includes(JSON.stringify(disjoncteur))) {
@@ -816,7 +929,8 @@
                     document.getElementById('disjoncteur-marque').value = '';
                     document.getElementById('disjoncteur-ref').value = '';
                     document.getElementById('disjoncteur-action').textContent = 'Ajouter au tableau';
-                    document.getElementById('disjoncteur-linked-tableau').value = '';
+                    const linkedSelect = document.getElementById('disjoncteur-linked-tableaux');
+                    Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
                     editIndex = null;
                     console.log('[Edit] Formulaire réinitialisé');
                 } catch (error) {
@@ -839,15 +953,17 @@
                     console.log('[Edit] Confirmation principal pour index:', index);
                     disjoncteurs.forEach(d => d.isPrincipal = false);
                     disjoncteurs[index].isPrincipal = true;
+                    disjoncteurs[index].linkedTableauIds = []; // Réinitialiser les liaisons pour le principal
                     disjoncteurPrincipalIndex = index;
                     disjoncteurs.forEach((d, i) => {
                         console.log('[Edit] Disjoncteur', d.id, 'isPrincipal:', d.isPrincipal);
                     });
                     try {
+                        const htaData = collectHTAData();
                         await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
+                            body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain, isHTA, htaData })
                         });
                         console.log('[Edit] Tableau mis à jour avec nouveau disjoncteur principal');
                         await chargerTableau();
@@ -880,10 +996,11 @@
                         console.log('[Edit] Ajustement disjoncteurPrincipalIndex:', disjoncteurPrincipalIndex);
                     }
                     try {
+                        const htaData = collectHTAData();
                         await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
+                            body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain, isHTA, htaData })
                         });
                         console.log('[Edit] Tableau mis à jour après suppression');
                         await chargerTableau();
@@ -917,17 +1034,19 @@
                 }
                 try {
                     isSiteMain = document.getElementById('tableau-isSiteMain').checked;
-                    console.log('[Edit] Envoi requête pour enregistrer modifications:', { tableauId, newTableauId, disjoncteurs: disjoncteurs.length, isSiteMain });
+                    isHTA = document.getElementById('tableau-isHTA').checked;
+                    const htaData = collectHTAData();
+                    console.log('[Edit] Envoi requête pour enregistrer modifications:', { tableauId, newTableauId, disjoncteurs: disjoncteurs.length, isSiteMain, isHTA });
                     if (newTableauId !== tableauId) {
                         disjoncteurs.forEach(d => {
-                            if (d.linkedTableauId === tableauId) {
-                                d.linkedTableauId = newTableauId;
+                            if (d.linkedTableauIds?.includes(tableauId)) {
+                                d.linkedTableauIds = d.linkedTableauIds.map(id => id === tableauId ? newTableauId : id);
                             }
                         });
                         const response = await fetch(`/api/tableaux`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: newTableauId, disjoncteurs, isSiteMain })
+                            body: JSON.stringify({ id: newTableauId, disjoncteurs, isSiteMain, isHTA, htaData })
                         });
                         const data = await response.json();
                         console.log('[Edit] Réponse serveur POST /api/tableaux:', { status: response.status, data });
@@ -943,7 +1062,7 @@
                         const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain })
+                            body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain, isHTA, htaData })
                         });
                         const data = await response.json();
                         console.log('[Edit] Réponse serveur PUT /api/tableaux:', { status: response.status, data });
