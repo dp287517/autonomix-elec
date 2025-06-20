@@ -39,20 +39,25 @@
             border: 2px solid #10B981; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
             font-size: 14px; z-index: 1000; max-width: 300px; white-space: normal; overflow-y: auto; max-height: 200px;
         }
-        .node {
-            cursor: move;
-        }
+        .node { cursor: move; }
+        #modal-modal { max-height: 500px; margin: 0 auto; }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
     <nav class="bg-blue-700 p-4 sticky top-0 z-50 shadow-lg">
-        <ul class="flex space-x-6 text-white font-semibold">
+        <ul class="flex flex-wrap space-x-6 text-white font-semibold text-sm sm:text-base">
             <li><a href="index.html" class="hover:text-yellow-300 transition"><i class="fas fa-home mr-2"></i>Accueil</a></li>
             <li><a href="create.html" class="hover:text-yellow-300 transition"><i class="fas fa-plus-circle mr-2"></i>Créer un tableau</a></li>
             <li><a href="view.html" class="hover:text-yellow-300 transition"><i class="fas fa-table mr-2"></i>Voir les tableaux</a></li>
             <li><a href="selectivity.html" class="text-yellow-300"><i class="fas fa-shield-alt mr-2"></i>Sélectivité</a></li>
             <li><a href="obsolescence.html" class="hover:text-yellow-300 transition"><i class="fas fa-clock mr-2"></i>Obsolescence</a></li>
+            <li><a href="fault_level_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-bolt mr-2"></i>Évaluation du Niveau de Défaut</a></li>
+            <li><a href="hazards_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-exclamation-triangle mr-2"></i>Évaluation des Risques</a></li>
+            <li><a href="maintenance_org.html" class="hover:text-yellow-300 transition"><i class="fas fa-sitemap mr-2"></i>Organigramme Maintenance</a></li>
+            <li><a href="distribution_emergency.html" class="hover:text-yellow-300 transition"><i class="fas fa-plug mr-2"></i>Urgence Distribution</a></li>
+            <li><a href="reports.html" class="hover:text-yellow-300 transition"><i class="fas fa-file-alt mr-2"></i>Rapports</a></li>
             <li><a href="electrical_safety_program.html" class="hover:text-yellow-300 transition"><i class="fas fa-hard-hat mr-2"></i>Programme de Sécurité Électrique</a></li>
+            <li><a href="breaker_control.html" class="hover:text-yellow-300 transition"><i class="fas fa-cogs mr-2"></i>Contrôle des Disjoncteurs</a></li>
         </ul>
     </nav>
 
@@ -88,12 +93,12 @@
             <h2 class="text-xl font-bold mb-2 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
             <ul class="list-disc pl-6 text-gray-300">
                 <li>Utilisez les filtres pour sélectionner un bâtiment ou un tableau spécifique.</li>
-                <li>Consultez le tableau ci-dessous pour voir les tableaux électriques et leurs disjoncteurs.</li>
+                <li>Consultez le tableau ci-dessous pour voir les tableaux électriques, leurs disjoncteurs, et la sélectivité HTA/BT si applicable.</li>
                 <li>Chaque tableau affiche son disjoncteur principal, le nombre de disjoncteurs non principaux (cliquez sur la loupe pour les détails), et les liaisons.</li>
                 <li>Pour les données manquantes, cliquez sur la loupe pour voir les disjoncteurs concernés et leurs champs à compléter.</li>
-                <li>Cliquez sur l’icône <i class="fas fa-chart-line"></i> ou "Agrandir" pour voir le graphique de sélectivité.</li>
-                <li>Le statut indique si la sélectivité est correcte, avec une explication dans le modal.</li>
-                <li>Le schéma interactif plus bas montre les relations entre tableaux et disjoncteurs. Déplacez les nœuds librement, cliquez sur "+" pour développer, ou double-cliquez pour éditer.</li>
+                <li>Cliquez sur l’icône <i class="fas fa-chart-line"></i> ou "Agrandir" pour voir le graphique de sélectivité, incluant HTA si configuré.</li>
+                <li>Le statut indique si la sélectivité est correcte (HTA/BT et BT interne), avec une explication dans le modal.</li>
+                <li>Le schéma interactif montre les relations entre tableaux et disjoncteurs. Déplacez les nœuds, cliquez sur "+" pour développer, ou double-cliquez pour éditer.</li>
                 <li>Les lignes rouges signalent un risque de sélectivité incorrecte.</li>
                 <li>Cliquez sur "Exporter en CSV" pour télécharger les données.</li>
             </ul>
@@ -109,7 +114,8 @@
                             <th class="p-2">Disjoncteur Principal</th>
                             <th class="p-2">Disjoncteurs Non Principaux</th>
                             <th class="p-2">Liaisons</th>
-                            <th class="p-2">Statut Sélectivité</th>
+                            <th class="p-2">Sélectivité BT</th>
+                            <th class="p-2">Sélectivité HTA/BT</th>
                             <th class="p-2">Graphique</th>
                             <th class="p-2">Données Manquantes</th>
                         </tr>
@@ -134,7 +140,8 @@
                 <thead>
                     <tr class="bg-gray-700 text-white">
                         <th class="p-3">Tableau</th>
-                        <th class="p-3">Statut Intra</th>
+                        <th class="p-3">Statut Intra (BT)</th>
+                        <th class="p-3">Statut HTA/BT</th>
                         <th class="p-3">Liaisons</th>
                         <th class="p-3">Statut Inter</th>
                         <th class="p-3">Détails</th>
@@ -247,6 +254,7 @@
         let expandedNodes = new Set();
         let nodeCounter = 0;
 
+        // Normaliser les valeurs de courant
         function normalizeCurrent(value) {
             if (value === null || value === undefined) return null;
             if (typeof value === 'number' && !isNaN(value)) return value;
@@ -257,6 +265,7 @@
             return null;
         }
 
+        // Calculer le temps de déclenchement de base
         function calculerTripTime(inValue, irValue, courbe) {
             console.log('[Client] Calcul de TripTime pour in:', inValue, 'ir:', irValue, 'courbe:', courbe);
             const k = 1.5;
@@ -264,22 +273,46 @@
             return k * Math.pow((irValue || inValue) / inValue, n);
         }
 
-        function calculerTempsDeclenchement(courant, inValue, irValue, courbe, triptime) {
-            const seuils = {
-                'B': [3, 5],
-                'C': [5, 10],
-                'D': [10, 20]
-            };
-            const seuil = seuils[courbe] || seuils['C'];
-            const seuilMin = seuil[0];
-            const seuilMax = seuil[1];
-            const seuilMagnetique = seuilMax * inValue;
+        // Calculer le temps de déclenchement pour un courant donné
+        function calculerTempsDeclenchement(courant, inValue, irValue, courbe, triptime, isHTA = false) {
+            if (isHTA) {
+                // Logique pour HTA (temps constant au-dessus de Ir)
+                if (courant >= irValue) return triptime;
+                return null; // Pas de déclenchement en-dessous de Ir
+            } else {
+                // Logique pour BT (courbes B, C, D)
+                const seuils = {
+                    'B': [3, 5],
+                    'C': [5, 10],
+                    'D': [10, 20]
+                };
+                const seuil = seuils[courbe] || seuils['C'];
+                const seuilMin = seuil[0];
+                const seuilMax = seuil[1];
+                const seuilMagnetique = seuilMax * inValue;
 
-            if (courant >= seuilMagnetique) return 0.01;
-            if (courant > (irValue || inValue)) return triptime;
-            return 100;
+                if (courant >= seuilMagnetique) return 0.01;
+                if (courant > (irValue || inValue)) return triptime;
+                return 100;
+            }
         }
 
+        // Calculer les points de la courbe de déclenchement
+        function calculateTripCurve(device, isHTA = false) {
+            const inValue = normalizeCurrent(device.in) || 100;
+            const irValue = normalizeCurrent(device.ir) || inValue;
+            const triptime = parseFloat(device.triptime) || (isHTA ? 0.2 : calculerTripTime(inValue, irValue, device.courbe));
+            const courbe = device.courbe || 'C';
+            const points = [];
+            const currentRange = Array.from({ length: 100 }, (_, i) => 0.1 * Math.pow(10, i / 20)); // 0.1 A à 100 kA
+            currentRange.forEach(i => {
+                const t = calculerTempsDeclenchement(i, inValue, irValue, courbe, triptime, isHTA);
+                if (t) points.push({ x: i, y: t });
+            });
+            return points.filter(p => p.y !== null);
+        }
+
+        // Charger les tableaux
         async function chargerTableaux() {
             console.log('[Client] Chargement des données de sélectivité');
             try {
@@ -297,7 +330,9 @@
                         inValue: normalizeCurrent(d.in),
                         irValue: normalizeCurrent(d.ir)
                     })),
-                    isSiteMain: tableau.isSiteMain || false
+                    isSiteMain: tableau.isSiteMain || false,
+                    isHTA: tableau.isHTA || false,
+                    htaData: tableau.htaData || null
                 }));
                 populateFilters();
                 afficherTableauxEtSchema(tableauxData);
@@ -307,6 +342,7 @@
             }
         }
 
+        // Remplir les filtres
         function populateFilters() {
             console.log('[Client] Remplissage des filtres, tableauxData:', tableauxData.length);
             const buildingFilter = document.getElementById('building-filter');
@@ -340,6 +376,7 @@
             console.log('[Client] Options tableau après ajout:', Array.from(tableauFilter.options).map(o => o.value));
         }
 
+        // Filtrer les données
         function filterData() {
             console.log('[Client] Début de filterData');
             const buildingFilter = document.getElementById('building-filter');
@@ -359,6 +396,7 @@
             afficherTableauxEtSchema(filteredData);
         }
 
+        // Exporter en CSV
         function exportToCSV() {
             console.log('[Client] Exportation des données en CSV');
             if (!tableauxData || tableauxData.length === 0) {
@@ -367,14 +405,16 @@
             }
 
             const headers = [
-                'Tableau_ID', 'Bâtiment', 'Est_Principal_Site', 'Statut_Sélectivité', 'Message_Sélectivité', 
-                'Liaisons', 'Disjoncteur_ID', 'Disjoncteur_Principal', 'Marque', 'Référence', 
-                'Ir (A)', 'In (A)', 'Courbe', 'Tableau_Lié'
+                'Tableau_ID', 'Bâtiment', 'Est_Principal_Site', 'Alimenté_par_HTA', 'Puissance_Transfo_kVA', 'Tension_HTA_kV',
+                'In_HTA_A', 'Ir_HTA_A', 'Triptime_HTA_s', 'Icn_HTA_kA', 'Statut_Sélectivité_BT', 'Message_Sélectivité_BT',
+                'Statut_Sélectivité_HTA_BT', 'Message_Sélectivité_HTA_BT', 'Liaisons', 'Disjoncteur_ID', 'Disjoncteur_Principal',
+                'Marque', 'Référence', 'Ir_A', 'In_A', 'Courbe', 'Tableau_Lié'
             ];
             const rows = [];
 
             tableauxData.forEach(tableau => {
-                const selectivityStatus = checkSelectivityStatus(tableau, tableau.id);
+                const selectivityBT = checkSelectivityStatus(tableau, tableau.id);
+                const selectivityHTA = checkHTASelectivity(tableau);
                 const liaisons = tableau.disjoncteurs
                     .filter(d => d.linkedTableauId)
                     .map(d => `${d.id} → ${d.linkedTableauId}`)
@@ -385,8 +425,17 @@
                         tableau.id,
                         tableau.building,
                         tableau.isSiteMain ? 'Oui' : 'Non',
-                        selectivityStatus.status,
-                        selectivityStatus.message.replace(/"/g, '""'),
+                        tableau.isHTA ? 'Oui' : 'Non',
+                        tableau.htaData?.transformerPower || 'N/A',
+                        tableau.htaData?.voltage || 'N/A',
+                        tableau.htaData?.in || 'N/A',
+                        tableau.htaData?.ir || 'N/A',
+                        tableau.htaData?.triptime || 'N/A',
+                        tableau.htaData?.icn || 'N/A',
+                        selectivityBT.status,
+                        selectivityBT.message.replace(/"/g, '""'),
+                        selectivityHTA.status,
+                        selectivityHTA.message.replace(/"/g, '""'),
                         liaisons,
                         '', '', '', '', '', '', '', ''
                     ]);
@@ -396,8 +445,17 @@
                             tableau.id,
                             tableau.building,
                             tableau.isSiteMain ? 'Oui' : 'Non',
-                            selectivityStatus.status,
-                            selectivityStatus.message.replace(/"/g, '""'),
+                            tableau.isHTA ? 'Oui' : 'Non',
+                            tableau.htaData?.transformerPower || 'N/A',
+                            tableau.htaData?.voltage || 'N/A',
+                            tableau.htaData?.in || 'N/A',
+                            tableau.htaData?.ir || 'N/A',
+                            tableau.htaData?.triptime || 'N/A',
+                            tableau.htaData?.icn || 'N/A',
+                            selectivityBT.status,
+                            selectivityBT.message.replace(/"/g, '""'),
+                            selectivityHTA.status,
+                            selectivityHTA.message.replace(/"/g, '""'),
                             liaisons,
                             disjoncteur.id || 'N/A',
                             disjoncteur.isPrincipal ? 'Oui' : 'Non',
@@ -429,12 +487,14 @@
             console.log('[Client] Fichier CSV téléchargé');
         }
 
+        // Afficher les tableaux et le schéma
         function afficherTableauxEtSchema(tableaux) {
             console.log('[Client] Affichage des tableaux et du schéma:', tableaux.length);
             afficherTableaux(tableaux);
             renderSelectivity(tableaux);
         }
 
+        // Afficher le tableau des installations
         function afficherTableaux(tableaux) {
             console.log('[Client] Affichage des tableaux');
             const tableBody = document.getElementById('tableaux-table');
@@ -449,17 +509,18 @@
                     .map(d => `${d.id} → ${d.linkedTableauId}`)
                     .join(', ') || 'Aucune';
                 const missingData = checkMissingData(tableau.disjoncteurs);
-                const selectivityStatus = checkSelectivityStatus(tableau, tableau.id);
+                const selectivityBT = checkSelectivityStatus(tableau, tableau.id);
+                const selectivityHTA = checkHTASelectivity(tableau);
 
-                const upstreamInfo = selectivityStatus.upstreamDisjoncteurId 
-                    ? `${selectivityStatus.upstreamDisjoncteurId} (${selectivityStatus.upstreamTableauId})`
+                const upstreamInfo = selectivityBT.upstreamDisjoncteurId 
+                    ? `${selectivityBT.upstreamDisjoncteurId} (${selectivityBT.upstreamTableauId})`
                     : tableau.isSiteMain
                         ? 'Principal du site'
                         : 'Aucun amont défini';
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td class="p-2">${tableau.id}${tableau.isSiteMain ? ' (Principal du site)' : ''}</td>
+                    <td class="p-2">${tableau.id}${tableau.isSiteMain ? ' (Principal du site)' : ''}${tableau.isHTA ? ' (HTA)' : ''}</td>
                     <td class="p-2${principal.id ? ' disjoncteur-principal' : ''}">${principal.id || 'Aucun (amont: ' + upstreamInfo + ')'} (${principal.marque || ''} ${principal.ref || ''})</td>
                     <td class="p-2">
                         ${nonPrincipaux.length > 0 
@@ -467,7 +528,8 @@
                             : 'Aucun'}
                     </td>
                     <td class="p-2">${liaisons}</td>
-                    <td class="p-2"><span class="${selectivityStatus.status === 'Parfait' ? 'text-green-600' : selectivityStatus.status === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${selectivityStatus.status}: ${selectivityStatus.message}</span></td>
+                    <td class="p-2"><span class="${selectivityBT.status === 'Parfait' ? 'text-green-600' : selectivityBT.status === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${selectivityBT.status}: ${selectivityBT.message}</span></td>
+                    <td class="p-2"><span class="${selectivityHTA.status === 'OK' ? 'text-green-600' : selectivityHTA.status === 'KO' ? 'text-red-600' : 'text-yellow-600'}">${selectivityHTA.status}: ${selectivityHTA.message}</span></td>
                     <td class="p-2 flex items-center space-x-2"><i class="fas fa-chart-line text-blue-600 text-xl cursor-pointer hover:text-blue-800 graph-icon" onclick="openModal(${index})" aria-label="Voir le graphique"></i><button onclick="openModal(${index})" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">Agrandir</button></td>
                     <td class="p-2">
                         ${missingData.length > 0 
@@ -479,6 +541,7 @@
             });
         }
 
+        // Modal pour disjoncteurs non principaux
         function openNonPrincipalModal(tableauId) {
             console.log('[Client] Ouverture du modal pour disjoncteurs non principaux:', tableauId);
             const tableau = tableauxData.find(t => t.id === tableauId);
@@ -516,6 +579,7 @@
             modal.classList.add('hidden');
         }
 
+        // Modal pour données manquantes
         function openMissingDataModal(tableauId) {
             console.log('[Client] Ouverture du modal pour données manquantes:', tableauId);
             const tableau = tableauxData.find(t => t.id === tableauId);
@@ -550,6 +614,7 @@
             modal.classList.add('hidden');
         }
 
+        // Tri du tableau des données manquantes
         function sortMissingDataTable(column) {
             console.log('[Client] Tri du tableau des données manquantes par:', column);
             const tableauId = document.getElementById('missing-data-modal-title').textContent.split(' - ')[1];
@@ -580,6 +645,7 @@
             });
         }
 
+        // Vérifier les données manquantes
         function checkMissingData(disjoncteurs) {
             console.log('[Client] Vérification des données manquantes');
             return disjoncteurs
@@ -588,17 +654,20 @@
                     if (d.inValue === null) missing.push('in');
                     if (d.irValue === null) missing.push('ir');
                     if (!d.courbe) missing.push('courbe');
-                    console.log('[Client] Vérification disjoncteur:', d.id, { in: d.in, inValue: d.inValue, ir: d.ir, irValue: d.irValue, courbe: d.courbe, missing });
+                    if (!d.triptime) missing.push('triptime');
+                    console.log('[Client] Vérification disjoncteur:', d.id, { in: d.in, inValue: d.inValue, ir: d.ir, irValue: d.irValue, courbe: d.courbe, triptime: d.triptime, missing });
                     return missing.length > 0 ? { id: d.id || 'Inconnu', missing } : null;
                 })
                 .filter(Boolean);
         }
 
+        // Rediriger vers la page d'édition
         function redirigerModifier(tableauId, disjoncteurId) {
             console.log('[Client] Redirection vers edit.html pour', tableauId, disjoncteurId);
             window.location.assign(`edit.html?id=${tableauId}#${disjoncteurId}`);
         }
 
+        // Modal pour ajouter un nœud
         function openAddNodeModal() {
             console.log('[Client] Ouverture du modal pour ajouter un nœud');
             const modal = document.getElementById('add-node-modal');
@@ -623,6 +692,7 @@
             modal.classList.add('hidden');
         }
 
+        // Sauvegarder un nouveau nœud
         async function saveNode() {
             console.log('[Client] Sauvegarde du nœud');
             const id = document.getElementById('node-id').value;
@@ -645,7 +715,9 @@
                     id,
                     building: building || 'Inconnu',
                     disjoncteurs: [],
-                    isSiteMain: false
+                    isSiteMain: false,
+                    isHTA: false,
+                    htaData: null
                 };
                 try {
                     const response = await fetch('/api/tableaux', {
@@ -669,10 +741,10 @@
                     ir: ir || null,
                     in: inValue || null,
                     courbe: courbe || null,
+                    triptime: null,
                     isPrincipal: false,
                     linkedTableauId: linkedTableau || null
                 };
-                // Ajouter le disjoncteur à un tableau existant (par défaut au premier)
                 const tableau = tableauxData[0] || { id: 'TEMP', disjoncteurs: [] };
                 try {
                     const response = await fetch(`/api/disjoncteur/${tableau.id}/${id}`, {
@@ -691,6 +763,7 @@
             }
         }
 
+        // Trouver le disjoncteur amont
         function findUpstreamDisjoncteur(tableauId, allTableaux) {
             if (!tableauId) return null;
             for (const tableau of allTableaux) {
@@ -710,11 +783,12 @@
             return null;
         }
 
+        // Vérifier la sélectivité BT (intra-tableau)
         function checkSelectivityStatus(tableau, tableauId, allTableaux = tableauxData) {
             if (tableau.isSiteMain) {
                 return {
                     status: 'N/A',
-                    message: 'Tableau principal du site, aucune analyse de sélectivité requise.',
+                    message: 'Tableau principal du site, aucune analyse de sélectivité BT requise.',
                     criticalCurrent: null,
                     details: 'Ce tableau est marqué comme principal du site. Les disjoncteurs internes sont considérés comme correctement configurés.',
                     upstreamDisjoncteurId: null,
@@ -811,6 +885,51 @@
             };
         }
 
+        // Vérifier la sélectivité HTA/BT
+        function checkHTASelectivity(tableau) {
+            if (!tableau.isHTA || !tableau.htaData) {
+                return {
+                    status: 'N/A',
+                    message: 'Aucune cellule HTA configurée.',
+                    details: 'Ce tableau n’est pas alimenté par une cellule HTA.',
+                    criticalCurrent: null
+                };
+            }
+
+            const principal = tableau.disjoncteurs.find(d => d.isPrincipal);
+            if (!principal) {
+                return {
+                    status: 'Problème',
+                    message: 'Aucun disjoncteur principal défini.',
+                    details: `Veuillez définir un disjoncteur principal dans ${tableau.id} pour analyser la sélectivité HTA/BT.`,
+                    criticalCurrent: null
+                };
+            }
+
+            const btIr = normalizeCurrent(principal.ir) || normalizeCurrent(principal.in) || 100;
+            const btTriptime = parseFloat(principal.triptime) || calculerTripTime(normalizeCurrent(principal.in), normalizeCurrent(principal.ir), principal.courbe);
+            const htaIr = normalizeCurrent(tableau.htaData.ir) || 100;
+            const htaTriptime = parseFloat(tableau.htaData.triptime) || 0.2;
+
+            if (htaTriptime > btTriptime && htaIr > btIr) {
+                return {
+                    status: 'OK',
+                    message: 'Sélectivité HTA/BT assurée.',
+                    details: `Le disjoncteur BT (Ir=${btIr}A, t=${btTriptime}s) déclenche avant la cellule HTA (Ir=${htaIr}A, t=${htaTriptime}s).`,
+                    criticalCurrent: null
+                };
+            } else {
+                const criticalCurrent = Math.max(btIr, htaIr);
+                return {
+                    status: 'KO',
+                    message: 'Sélectivité HTA/BT non assurée.',
+                    details: `À ${criticalCurrent}A, la cellule HTA (Ir=${htaIr}A, t=${htaTriptime}s) risque de déclencher avant le disjoncteur BT (Ir=${btIr}A, t=${btTriptime}s). Vérifiez les réglages.`,
+                    criticalCurrent
+                };
+            }
+        }
+
+        // Construire l’arborescence pour le schéma
         function buildArborescence(tableaux, focusedTableauId = null) {
             const elements = { nodes: [], edges: [] };
             const tableauIds = new Set(tableaux.map(t => t.id));
@@ -818,14 +937,21 @@
 
             const addTableauNode = (tableau, parentLevel, parentId = null, isExpanded = false) => {
                 const nodeId = `tableau-${tableau.id}`;
-                const selectivityStatus = checkSelectivityStatus(tableau, tableau.id, tableaux);
+                const selectivityBT = checkSelectivityStatus(tableau, tableau.id, tableaux);
+                const selectivityHTA = checkHTASelectivity(tableau);
                 const hasChildren = tableau.disjoncteurs.length > 0 || tableau.disjoncteurs.some(d => d.linkedTableauId && tableauIds.has(d.linkedTableauId));
+
+                // Tooltip avec informations HTA si applicable
+                let tooltipContent = `<strong>Tableau :</strong> ${tableau.id}<br><strong>Bâtiment :</strong> ${tableau.building}<br><strong>Principal :</strong> ${tableau.isSiteMain ? 'Oui' : 'Non'}<br><strong>Alimenté par HTA :</strong> ${tableau.isHTA ? 'Oui' : 'Non'}<br><strong>Statut BT :</strong> ${selectivityBT.status}<br><strong>Détails BT :</strong> ${selectivityBT.message}<br><strong>Statut HTA/BT :</strong> ${selectivityHTA.status}<br><strong>Détails HTA/BT :</strong> ${selectivityHTA.message}`;
+                if (tableau.isHTA && tableau.htaData) {
+                    tooltipContent += `<br><strong>HTA - Puissance :</strong> ${tableau.htaData.transformerPower} kVA<br><strong>HTA - Tension :</strong> ${tableau.htaData.voltage} kV<br><strong>HTA - Ir :</strong> ${tableau.htaData.ir} A<br><strong>HTA - Triptime :</strong> ${tableau.htaData.triptime} s`;
+                }
 
                 elements.nodes.push({
                     id: nodeId,
-                    label: `${tableau.id}${tableau.isSiteMain ? '\n(Principal)' : ''}`,
-                    title: `<strong>Tableau :</strong> ${tableau.id}<br><strong>Bâtiment :</strong> ${tableau.building}<br><strong>Principal :</strong> ${tableau.isSiteMain ? 'Oui' : 'Non'}<br><strong>Statut :</strong> ${selectivityStatus.status}<br><strong>Détails :</strong> ${selectivityStatus.message}`,
-                    color: selectivityStatus.status === 'Parfait' ? '#22c55e' : selectivityStatus.status === 'N/A' ? '#eab308' : '#dc2626',
+                    label: `${tableau.id}${tableau.isSiteMain ? '\n(Principal)' : ''}${tableau.isHTA ? '\n(HTA)' : ''}`,
+                    title: tooltipContent,
+                    color: selectivityBT.status === 'Parfait' && selectivityHTA.status !== 'KO' ? '#22c55e' : selectivityBT.status === 'N/A' && selectivityHTA.status === 'N/A' ? '#eab308' : '#dc2626',
                     group: 'tableau',
                     level: parentLevel,
                     tableauId: tableau.id,
@@ -945,6 +1071,7 @@
             return elements;
         }
 
+        // Vérifier la sélectivité globale
         function checkGlobalSelectivity(tableaux) {
             const graph = buildArborescence(tableaux);
             const results = [];
@@ -952,7 +1079,8 @@
             const errors = [];
             const missingDataIssues = [];
             tableaux.forEach(tableau => {
-                const selectivityStatus = checkSelectivityStatus(tableau, tableau.id, tableaux);
+                const selectivityBT = checkSelectivityStatus(tableau, tableau.id, tableaux);
+                const selectivityHTA = checkHTASelectivity(tableau);
                 const missingData = checkMissingData(tableau.disjoncteurs);
                 const liaisons = tableau.disjoncteurs
                     .filter(d => d.linkedTableauId)
@@ -979,15 +1107,21 @@
                     });
                 results.push({
                     tableauId: tableau.id,
-                    intraStatus: selectivityStatus.status,
-                    intraMessage: selectivityStatus.message,
+                    intraStatus: selectivityBT.status,
+                    intraMessage: selectivityBT.message,
+                    htaStatus: selectivityHTA.status,
+                    htaMessage: selectivityHTA.message,
                     liaisons,
                     interStatus: liaisons.length > 0 ? (liaisons.every(l => l.status === 'Parfait') ? 'Parfait' : 'Problème') : 'N/A',
                     interMessage: liaisons.length > 0 ? liaisons.map(l => l.message).join('<br>') : ''
                 });
-                if (selectivityStatus.status !== 'Parfait' && selectivityStatus.status !== 'N/A') {
+                if (selectivityBT.status !== 'Parfait' && selectivityBT.status !== 'N/A') {
                     globalStatus = 'Problème';
-                    errors.push(`Tableau ${tableau.id}: ${selectivityStatus.message}`);
+                    errors.push(`Tableau ${tableau.id}: ${selectivityBT.message}`);
+                }
+                if (selectivityHTA.status === 'KO') {
+                    globalStatus = 'Problème';
+                    errors.push(`Tableau ${tableau.id}: ${selectivityHTA.message}`);
                 }
                 if (missingData.length > 0) {
                     missingDataIssues.push(`Tableau ${tableau.id}: Données manquantes pour ${missingData.map(d => d.id).join(', ')}`);
@@ -1002,578 +1136,632 @@
             return { globalStatus, errors, results, graph, missingDataIssues };
         }
 
+        // Ajuster la hauteur du graphique
         function adjustGraphHeight() {
             const graphContainer = document.getElementById('global-graph');
             graphContainer.style.height = '800px';
             graphContainer.style.minHeight = '800px';
         }
 
-        function genererGraphique(canvasId, disjoncteurs, tableau, tableauId, isModal) {
-            console.log('[Client] Génération du graphique pour:', canvasId);
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            const selectivityStatus = checkSelectivityStatus(tableau, tableauId);
+        // Générer le graphique de sélectivité
+function genererGraphique(canvasId, disjoncteurs, tableau, tableauId, isModal) {
+    console.log('[Client] Génération du graphique pour:', canvasId);
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    const selectivityBT = checkSelectivityStatus(tableau, tableauId);
+    const selectivityHTA = checkHTASelectivity(tableau);
 
-            let graphDisjoncteurs = disjoncteurs.slice();
-            if (!tableau.isSiteMain && !disjoncteurs.find(d => d.isPrincipal) && selectivityStatus.upstreamDisjoncteurId) {
-                const upstreamTableau = tableauxData.find(t => t.id === selectivityStatus.upstreamTableauId);
-                if (upstreamTableau) {
-                    const upstreamDisjoncteur = upstreamTableau.disjoncteurs.find(d => d.id === selectivityStatus.upstreamDisjoncteurId);
-                    if (upstreamDisjoncteur) {
-                        graphDisjoncteurs.push({
-                            ...upstreamDisjoncteur,
-                            id: `${upstreamDisjoncteur.id} (amont)`,
-                            isPrincipal: true,
-                            marque: upstreamDisjoncteur.marque || '',
-                            ref: upstreamDisjoncteur.ref || '',
-                            inValue: normalizeCurrent(upstreamDisjoncteur.in),
-                            irValue: normalizeCurrent(upstreamDisjoncteur.ir)
-                        });
+    let graphDisjoncteurs = disjoncteurs.slice();
+    if (!tableau.isSiteMain && !disjoncteurs.find(d => d.isPrincipal) && selectivityBT.upstreamDisjoncteurId) {
+        const upstreamTableau = tableauxData.find(t => t.id === selectivityBT.upstreamTableauId);
+        if (upstreamTableau) {
+            const upstreamDisjoncteur = upstreamTableau.disjoncteurs.find(d => d.id === selectivityBT.upstreamDisjoncteurId);
+            if (upstreamDisjoncteur) {
+                graphDisjoncteurs.push({
+                    ...upstreamDisjoncteur,
+                    id: `${upstreamDisjoncteur.id} (amont)`,
+                    isPrincipal: true,
+                    marque: upstreamDisjoncteur.marque || '',
+                    ref: upstreamDisjoncteur.ref || '',
+                    inValue: normalizeCurrent(upstreamDisjoncteur.in),
+                    irValue: normalizeCurrent(upstreamDisjoncteur.ir)
+                });
+            }
+        }
+    }
+
+    const datasets = graphDisjoncteurs.map(d => {
+        const points = calculateTripCurve(d, false);
+        const isSelective = checkSelectivity(d, graphDisjoncteurs.find(p => p.isPrincipal));
+        return {
+            label: `${d.id} (${d.marque || ''} ${d.ref || ''}${d.isPrincipal ? ' - Principal' : ''})`,
+            data: points,
+            borderColor: isSelective ? (d.isPrincipal ? '#22c55e' : '#3b82f6') : '#dc2626',
+            fill: false,
+            tension: 0.1,
+            pointRadius: 0
+        };
+    });
+
+    // Ajouter la courbe HTA si applicable
+    if (tableau.isHTA && tableau.htaData) {
+        const htaPoints = calculateTripCurve(tableau.htaData, true);
+        datasets.push({
+            label: 'Cellule HTA (SM6 DM2)',
+            data: htaPoints,
+            borderColor: '#EF4444',
+            borderWidth: 2,
+            fill: false,
+            pointRadius: 0
+        });
+    }
+
+    const annotations = isModal && (selectivityBT.criticalCurrent || selectivityHTA.criticalCurrent) ? {
+        point1: {
+            type: 'point',
+            xValue: selectivityBT.criticalCurrent || selectivityHTA.criticalCurrent,
+            yValue: calculerTempsDeclenchement(
+                selectivityBT.criticalCurrent || selectivityHTA.criticalCurrent,
+                disjoncteurs[0]?.inValue || 1,
+                disjoncteurs[0]?.irValue || 1,
+                disjoncteurs[0]?.courbe || 'C',
+                disjoncteurs[0]?.triptime || calculerTripTime(disjoncteurs[0]?.inValue || 1, disjoncteurs[0]?.irValue || 1, disjoncteurs[0]?.courbe || 'C')
+            ),
+            backgroundColor: '#dc2626',
+            radius: 8,
+            borderColor: '#fff',
+            borderWidth: 2,
+            drawTime: 'afterDatasetsDraw',
+            className: 'pulse-animation'
+        }
+    } : {};
+
+    if (modalChartInstance) {
+        console.log('[Client] Destruction de l’ancien graphique du modal');
+        modalChartInstance.destroy();
+        modalChartInstance = null;
+    }
+
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                x: {
+                    type: 'logarithmic',
+                    title: { display: true, text: 'Courant (A)', font: { size: 14 }, color: '#ffffff' },
+                    min: 0.1,
+                    max: 100000,
+                    grid: { color: '#4B5563' },
+                    ticks: { callback: value => value.toExponential(0), color: '#ffffff' }
+                },
+                y: {
+                    type: 'logarithmic',
+                    title: { display: true, text: 'Temps de déclenchement (s)', font: { size: 14 }, color: '#ffffff' },
+                    min: 0.001,
+                    max: 100,
+                    grid: { color: '#4B5563' },
+                    ticks: { callback: value => value.toExponential(0), color: '#ffffff' }
+                }
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: `Sélectivité - Tableau ${tableauId}${tableau.isSiteMain ? ' (Principal du site)' : ''}${tableau.isHTA ? ' (HTA)' : ''}`,
+                    font: { size: 16, weight: 'bold' },
+                    color: '#ffffff'
+                },
+                annotation: { annotations },
+                legend: { labels: { font: { size: 12 }, color: '#ffffff' } },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `I: ${ctx.parsed.x.toFixed(2)} A, t: ${ctx.parsed.y.toFixed(3)} s`
+                    }
+                }
+            },
+            animation: { duration: 1000, easing: 'easeOutCubic' }
+        }
+    });
+
+    if (isModal) {
+        const explanationDiv = document.getElementById('selectivity-explanation');
+        let explanationHTML = `
+            <p class="mb-2"><strong><i class="fas fa-info-circle mr-1"></i>Sélectivité BT :</strong> ${selectivityBT.status} - ${selectivityBT.message}</p>
+            <p class="mb-2"><strong><i class="fas fa-info-circle mr-1"></i>Sélectivité HTA/BT :</strong> ${selectivityHTA.status} - ${selectivityHTA.message}</p>
+            ${selectivityBT.criticalCurrent ? `<p class="mb-2"><strong><i class="fas fa-exclamation-circle mr-1 text-red-600"></i>Point critique BT :</strong> Courant de ${selectivityBT.criticalCurrent}A.</p>` : ''}
+            ${selectivityHTA.criticalCurrent ? `<p class="mb-2"><strong><i class="fas fa-exclamation-circle mr-1 text-red-600"></i>Point critique HTA/BT :</strong> Courant de ${selectivityHTA.criticalCurrent}A.</p>` : ''}
+            <p class="mb-2"><strong><i class="fas fa-chart-line mr-1"></i>Interprétation BT :</strong> ${selectivityBT.details}</p>
+            <p class="mb-2"><strong><i class="fas fa-chart-line mr-1"></i>Interprétation HTA/BT :</strong> ${selectivityHTA.details}</p>
+            <p><strong><i class="fas fa-lightbulb mr-1"></i>Conclusion :</strong> ${selectivityBT.status === 'Parfait' && selectivityHTA.status !== 'KO' ? 'Sélectivité assurée.' : `Corrigez via <a href="edit.html?id=${tableauId}" class="underline text-blue-600">l’édition</a>.`}</p>
+        `;
+        if (tableau.isHTA && tableau.htaData) {
+            explanationHTML += `
+                <p class="mb-2"><strong><i class="fas fa-bolt mr-1"></i>Paramètres HTA :</strong></p>
+                <ul class="list-disc ml-6">
+                    <li>Puissance transformateur : ${tableau.htaData.transformerPower} kVA</li>
+                    <li>Tension HTA : ${tableau.htaData.voltage} kV</li>
+                    <li>Courant nominal (In) : ${tableau.htaData.in} A</li>
+                    <li>Courant réglable (Ir) : ${tableau.htaData.ir} A</li>
+                    <li>Temps de déclenchement : ${tableau.htaData.triptime} s</li>
+                    <li>Pouvoir de coupure (Icn) : ${tableau.htaData.icn} kA</li>
+                </ul>
+            `;
+        }
+        explanationDiv.innerHTML = explanationHTML;
+        document.getElementById('modal-title').textContent = `Sélectivité - Tableau ${tableauId}${tableau.isSiteMain ? ' (Principal du site)' : ''}${tableau.isHTA ? ' (HTA)' : ''}`;
+    }
+
+    return chart;
+}
+
+// Ouvrir le modal du graphique
+function openModal(index) {
+    console.log('[Client] Ouverture du modal pour le graphique:', index);
+    const tableau = tableauxData[index];
+    if (!tableau) {
+        console.error('[Client] Tableau non trouvé pour l’index:', index);
+        return;
+    }
+    const modal = document.getElementById('modal-graph');
+    modal.classList.remove('hidden');
+    const canvas = document.getElementById('modal-modal');
+    const ctx = canvas.getContext('2d');
+
+    modalChartInstance = genererGraphique('modal-modal', tableau.disjoncteurs, tableau, tableau.id, true);
+}
+
+// Fermer le modal du graphique
+function closeModal() {
+    console.log('[Client] Fermeture du modal');
+    const modal = document.getElementById('modal-graph');
+    modal.classList.add('hidden');
+    const canvas = document.getElementById('modal-modal');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (modalChartInstance) {
+        console.log('[Client] Destruction du graphique du modal');
+        modalChartInstance.destroy();
+        modalChartInstance = null;
+    }
+}
+
+// Vérifier la sélectivité entre disjoncteurs
+function checkSelectivity(disjoncteur, upstreamDisjoncteur) {
+    if (!upstreamDisjoncteur || disjoncteur.isPrincipal) return true;
+    const upstreamIr = upstreamDisjoncteur.irValue || upstreamDisjoncteur.inValue;
+    const disjoncteurIr = disjoncteur.irValue || disjoncteur.inValue;
+    const upstreamTripTime = upstreamDisjoncteur.triptime || calculerTripTime(upstreamDisjoncteur.inValue, upstreamDisjoncteur.irValue, upstreamDisjoncteur.courbe);
+    const disjoncteurTripTime = disjoncteur.triptime || calculerTripTime(disjoncteur.inValue, disjoncteur.irValue, disjoncteur.courbe);
+    const courbeOrder = ['B', 'C', 'D'];
+    const upstreamCourbe = upstreamDisjoncteur.courbe || 'C';
+    const disjoncteurCourbe = disjoncteur.courbe || 'C';
+    return disjoncteurIr < upstreamIr * 0.9 &&
+           disjoncteurTripTime < upstreamTripTime &&
+           courbeOrder.indexOf(disjoncteurCourbe) >= courbeOrder.indexOf(upstreamCourbe);
+}
+
+// Rendu du schéma avec Konva.js
+function renderSelectivity(data = tableauxData, focusedTableauId = null) {
+    console.log('[Client] Rendu du schéma avec Konva.js:', data.length, 'tableaux');
+    const graphContainer = document.getElementById('global-graph');
+    const textDiv = document.getElementById('global-text');
+    const tableBody = document.getElementById('global-tableau-body');
+    const missingDataAlert = document.getElementById('missing-data-alert');
+    const missingDataLink = document.getElementById('missing-link');
+
+    // Nettoyer le conteneur
+    graphContainer.innerHTML = '';
+
+    // Initialiser le canevas Konva.js
+    const stage = new Konva.Stage({
+        container: 'global-graph',
+        width: graphContainer.offsetWidth,
+        height: 800,
+        draggable: true
+    });
+
+    const layer = new Konva.Layer();
+    stage.add(layer);
+
+    // Conteneur pour les tooltips
+    const tooltipContainer = document.createElement('div');
+    tooltipContainer.style.position = 'absolute';
+    tooltipContainer.style.top = '0';
+    tooltipContainer.style.left = '0';
+    graphContainer.appendChild(tooltipContainer);
+
+    // Activer le zoom avec la molette
+    stage.on('wheel', (e) => {
+        e.evt.preventDefault();
+        const scaleBy = 1.1;
+        const oldScale = stage.scaleX();
+        const pointer = stage.getPointerPosition();
+        const mousePointTo = {
+            x: (pointer.x - stage.x()) / oldScale,
+            y: (pointer.y - stage.y()) / oldScale
+        };
+        const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+        stage.scale({ x: newScale, y: newScale });
+        const newPos = {
+            x: pointer.x - mousePointTo.x * newScale,
+            y: pointer.y - mousePointTo.y * newScale
+        };
+        stage.position(newPos);
+        layer.batchDraw();
+    });
+
+    // Vérifier la sélectivité globale
+    const selectivity = checkGlobalSelectivity(data);
+    const { globalStatus, errors, results, graph, missingDataIssues } = selectivity;
+
+    // Afficher le texte récapitulatif
+    let textContent = `<p class="text-2xl font-bold ${globalStatus === 'Parfait' ? 'text-green-600' : 'text-red-600'}"><i class="fas ${globalStatus === 'Parfait' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-2"></i>Sélectivité globale : ${globalStatus}</p>`;
+    textContent += `<p class="mt-4">${globalStatus === 'Parfait' ? 'Installation bien configurée. Tous les disjoncteurs et cellules HTA sont sélectifs.' : 'Problèmes détectés. Consultez le schéma et le tableau pour les détails.'}</p>`;
+    if (errors.length > 0) {
+        textContent += `<ul class="list-disc ml-6 mt-4 text-red-600">${errors.map(e => `<li>${e}</li>`).join('')}</ul>`;
+    }
+    if (missingDataIssues.length > 0) {
+        textContent += `<p class="mt-4 text-yellow-600 font-semibold"><i class="fas fa-exclamation-triangle mr-2"></i>Données manquantes :</p>`;
+        textContent += `<ul class="list-disc ml-6 mt-2 text-yellow-600">${missingDataIssues.map(i => `<li>${i}</li>`).join('')}</ul>`;
+        missingDataAlert.classList.remove('hidden');
+        missingDataLink.onclick = () => window.location.assign(`edit.html?id=${results[0]?.tableauId || ''}`);
+    } else {
+        missingDataAlert.classList.add('hidden');
+    }
+    textDiv.innerHTML = textContent;
+
+    // Si pas de nœuds, afficher un message
+    if (graph.nodes.length === 0) {
+        graphContainer.innerHTML = '<p class="text-center text-gray-300">Aucune donnée à afficher.</p>';
+        tableBody.innerHTML = '';
+        adjustGraphHeight();
+        return;
+    }
+
+    // Positionner les nœuds automatiquement
+    const nodePositions = {};
+    graph.nodes.forEach((node, index) => {
+        let x, y;
+        if (node.parentId) {
+            const parentPos = nodePositions[node.parentId] || { x: 200, y: 200 };
+            x = parentPos.x + (node.group === 'tableau' ? 0 : node.group === 'principal' ? 200 : 400);
+            y = parentPos.y + 100;
+        } else {
+            x = 200 + (index % 4) * 300;
+            y = 100 + Math.floor(index / 4) * 200;
+        }
+        nodePositions[node.id] = { x, y };
+    });
+
+    // Dessiner les nœuds
+    graph.nodes.forEach(node => {
+        const pos = nodePositions[node.id];
+        const group = new Konva.Group({
+            x: pos.x,
+            y: pos.y,
+            draggable: true,
+            name: 'node'
+        });
+
+        // Boîte du nœud
+        const boxWidth = node.group === 'tableau' ? 150 : 120;
+        const box = new Konva.Rect({
+            width: boxWidth,
+            height: 60,
+            fill: node.color,
+            stroke: '#ffffff',
+            strokeWidth: 2,
+            cornerRadius: 8,
+            shadowBlur: 5
+        });
+
+        // Texte du nœud
+        const text = new Konva.Text({
+            text: node.label,
+            fontSize: 14,
+            fontFamily: 'Arial',
+            fill: '#ffffff',
+            width: boxWidth,
+            padding: 10,
+            align: 'center'
+        });
+
+        // Bouton d'expansion
+        let expandButton = null;
+        if (node.hasChildren || node.hasLink) {
+            expandButton = new Konva.Circle({
+                x: boxWidth - 10,
+                y: 10,
+                radius: 8,
+                fill: node.isExpanded ? '#dc2626' : '#10B981',
+                stroke: '#ffffff',
+                strokeWidth: 1,
+                name: 'expandButton'
+            });
+            const expandText = new Konva.Text({
+                x: boxWidth - 14,
+                y: 6,
+                text: node.isExpanded ? '-' : '+',
+                fontSize: 12,
+                fill: '#ffffff'
+            });
+            group.add(expandButton, expandText);
+        }
+
+        group.add(box, text);
+
+        // Interaction au clic
+        group.on('click', (e) => {
+            if (expandButton && e.target.hasName('expandButton')) {
+                node.isExpanded = !node.isExpanded;
+                if (node.isExpanded) {
+                    expandedNodes.add(node.id);
+                } else {
+                    expandedNodes.delete(node.id);
+                    const childNodes = graph.nodes.filter(n => n.parentId === node.id);
+                    childNodes.forEach(child => expandedNodes.delete(child.id));
+                }
+                renderSelectivity(data, focusedTableauId);
+            } else {
+                if (node.group === 'tableau') {
+                    document.getElementById('mini-modal-title').textContent = `Tableau ${node.tableauId}`;
+                    const tableau = data.find(t => t.id === node.tableauId);
+                    let htaInfo = '';
+                    if (tableau.isHTA && tableau.htaData) {
+                        htaInfo = `
+                            <p><strong>Alimenté par HTA :</strong> Oui</p>
+                            <p><strong>Puissance transformateur :</strong> ${tableau.htaData.transformerPower} kVA</p>
+                            <p><strong>Tension HTA :</strong> ${tableau.htaData.voltage} kV</p>
+                            <p><strong>Ir HTA :</strong> ${tableau.htaData.ir} A</p>
+                            <p><strong>Triptime HTA :</strong> ${tableau.htaData.triptime} s</p>
+                        `;
+                    }
+                    document.getElementById('mini-modal-content').innerHTML = `
+                        <p><strong>Tableau :</strong> ${node.tableauId}</p>
+                        <p><strong>Bâtiment :</strong> ${tableau?.building || 'N/A'}</p>
+                        <p><strong>Principal :</strong> ${tableau?.isSiteMain ? 'Oui' : 'Non'}</p>
+                        ${htaInfo}
+                        <p><strong>Statut BT :</strong> ${node.title.match(/Statut BT: ([\w\/]+|N\/A)/)?.[1] || 'N/A'}</p>
+                        <p><strong>Détails BT :</strong> ${node.title.match(/Détails BT: (.+)/)?.[1] || 'N/A'}</p>
+                        <p><strong>Statut HTA/BT :</strong> ${node.title.match(/Statut HTA\/BT: ([\w\/]+|N\/A)/)?.[1] || 'N/A'}</p>
+                        <p><strong>Disjoncteurs :</strong> ${tableau?.disjoncteurs.length || 0} (${tableau?.disjoncteurs.filter(d => d.isPrincipal).length || 0} principal, ${tableau?.disjoncteurs.filter(d => !d.isPrincipal).length || 0} non principaux)</p>
+                    `;
+                    const miniModal = document.getElementById('mini-modal');
+                    if (miniModal) {
+                        miniModal.classList.remove('hidden');
+                        gsap.from('#mini-modal', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+                    }
+                } else if (node.group === 'principal' || node.group === 'non-principal') {
+                    document.getElementById('mini-modal-title').textContent = node.group === 'principal' 
+                        ? `Disjoncteur Principal ${node.disjoncteurId}` 
+                        : `Disjoncteur ${node.disjoncteurId}`;
+                    document.getElementById('mini-modal-content').innerHTML = `
+                        <p><strong>Disjoncteur :</strong> ${node.disjoncteurId}</p>
+                        <p><strong>Tableau :</strong> ${node.id.split('-')[1]}</p>
+                        <p><strong>Marque :</strong> ${node.disjoncteur?.marque || 'N/A'}</p>
+                        <p><strong>Référence :</strong> ${node.disjoncteur?.ref || 'N/A'}</p>
+                        <p><strong>Ir :</strong> ${node.disjoncteur?.irValue || 'N/A'} A</p>
+                        <p><strong>In :</strong> ${node.disjoncteur?.inValue || 'N/A'} A</p>
+                        <p><strong>Courbe :</strong> ${node.disjoncteur?.courbe || 'N/A'}</p>
+                        <p><strong>Triptime :</strong> ${node.disjoncteur?.triptime || 'N/A'} s</p>
+                        <p><strong>Rôle :</strong> ${node.group === 'principal' ? 'Principal' : 'Non principal'}</p>
+                        <p><strong>Sélectivité :</strong> ${node.title.match(/Sélectivité: ([\w\/]+|N\/A)/)?.[1] || 'N/A'}</p>
+                        <p><strong>Liaison :</strong> ${node.disjoncteur?.linkedTableauId || 'Aucune'}</p>
+                    `;
+                    const miniModal = document.getElementById('mini-modal');
+                    if (miniModal) {
+                        miniModal.classList.remove('hidden');
+                        gsap.from('#mini-modal', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+                    }
+                    if (node.hasLink && node.disjoncteur?.linkedTableauId) {
+                        renderSelectivity(data, node.disjoncteur.linkedTableauId);
                     }
                 }
             }
+        });
 
-            const datasets = graphDisjoncteurs.map(d => {
-                const inValue = d.inValue || 1;
-                const irValue = d.irValue || inValue;
-                const courbe = d.courbe || 'C';
-                const triptime = d.triptime ? d.triptime : calculerTripTime(inValue, irValue, courbe);
-
-                const dataPoints = [];
-                const courantMax = inValue * (courbe === 'B' ? 5 : courbe === 'C' ? 10 : 20);
-                for (let i = inValue; i <= courantMax; i += inValue / 10) {
-                    const temps = calculerTempsDeclenchement(i, inValue, irValue, courbe, triptime);
-                    dataPoints.push({ x: i, y: temps });
-                }
-
-                const isSelective = checkSelectivity(d, graphDisjoncteurs.find(p => p.isPrincipal));
-
-                return {
-                    label: `${d.id} (${d.marque} ${d.ref}${d.isPrincipal ? ' - Principal' : ''})`,
-                    data: dataPoints,
-                    borderColor: isSelective ? (d.isPrincipal ? '#22c55e' : '#3b82f6') : '#dc2626',
-                    fill: false,
-                    tension: 0.1
-                };
-            });
-
-            const annotations = isModal && selectivityStatus.criticalCurrent ? {
-                point1: {
-                    type: 'point',
-                    xValue: selectivityStatus.criticalCurrent,
-                    yValue: calculerTempsDeclenchement(selectivityStatus.criticalCurrent, disjoncteurs[0]?.inValue || 1, disjoncteurs[0]?.irValue || 1, disjoncteurs[0]?.courbe || 'C', disjoncteurs[0]?.triptime || calculerTripTime(disjoncteurs[0]?.inValue || 1, disjoncteurs[0]?.irValue || 1, disjoncteurs[0]?.courbe || 'C')),
-                    backgroundColor: '#dc2626',
-                    radius: 8,
-                    borderColor: '#fff',
-                    borderWidth: 2,
-                    drawTime: 'afterDatasetsDraw',
-                    className: 'pulse-animation'
-                }
-            } : {};
-
-            const chart = new Chart(ctx, {
-                type: 'line',
-                data: { datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    scales: {
-                        x: {
-                            type: 'logarithmic',
-                            title: { display: true, text: 'Courant (A)', font: { size: 14 } },
-                            min: 1,
-                            max: 10000,
-                            grid: { color: '#4B5563' }
-                        },
-                        y: {
-                            type: 'logarithmic',
-                            title: { display: true, text: 'Temps (s)', font: { size: 14 } },
-                            min: 0.001,
-                            max: 100,
-                            grid: { color: '#4B5563' }
-                        }
-                    },
-                    plugins: {
-                        title: {
-                            display: true,
-                            text: `Sélectivité - Tableau ${tableauId}${tableau.isSiteMain ? ' (Principal du site)' : ''}`,
-                            font: { size: 16, weight: 'bold' },
-                            color: '#ffffff'
-                        },
-                        annotation: { annotations },
-                        legend: { labels: { font: { size: 12 }, color: '#ffffff' } }
-                    },
-                    animation: { duration: 1000, easing: 'easeOutCubic' }
-                }
-            });
-
-            if (isModal) {
-                const explanationDiv = document.getElementById('selectivity-explanation');
-                const criticalTime = selectivityStatus.criticalCurrent ? calculerTempsDeclenchement(selectivityStatus.criticalCurrent, disjoncteurs[0]?.inValue || 1, disjoncteurs[0]?.irValue || 1, disjoncteurs[0]?.courbe || 'C', disjoncteurs[0]?.triptime || calculerTripTime(disjoncteurs[0]?.inValue || 1, disjoncteurs[0]?.irValue || 1, disjoncteurs[0]?.courbe || 'C')) : null;
-                explanationDiv.innerHTML = `
-                    <p class="mb-2"><strong><i class="fas fa-info-circle mr-1"></i>Statut :</strong> ${selectivityStatus.status} - ${selectivityStatus.message}</p>
-                    ${selectivityStatus.criticalCurrent ? `<p class="mb-2"><strong><i class="fas fa-exclamation-circle mr-1 text-red-600"></i>Point critique :</strong> Courant de ${selectivityStatus.criticalCurrent}A avec un temps de ${criticalTime.toFixed(3)}s.</p>` : ''}
-                    <p class="mb-2"><strong><i class="fas fa-chart-line mr-1"></i>Interprétation :</strong> ${selectivityStatus.details}</p>
-                    <p><strong><i class="fas fa-lightbulb mr-1"></i>Conclusion :</strong> ${selectivityStatus.status === 'Parfait' || selectivityStatus.status === 'N/A' ? 'Sélectivité assurée.' : `Corrigez via <a href="edit.html?id=${tableauId}" class="underline text-blue-600">l’édition</a>.`}</p>
-                `;
-                document.getElementById('modal-title').textContent = `Sélectivité - Tableau ${tableauId}${tableau.isSiteMain ? ' (Principal du site)' : ''}`;
-            }
-
-            return chart;
-        }
-
-        function openModal(index) {
-            console.log('[Client] Ouverture du modal pour le graphique:', index);
-            const tableau = tableauxData[index];
-            if (!tableau) {
-                console.error('[Client] Tableau non trouvé pour l’index:', index);
-                return;
-            }
-            const modal = document.getElementById('modal-graph');
+        // Double-clic pour éditer
+        group.on('dblclick', () => {
+            const modal = document.getElementById('add-node-modal');
+            const title = document.getElementById('add-node-modal-title');
+            title.textContent = `Éditer ${node.group === 'tableau' ? 'Tableau' : 'Disjoncteur'}`;
+            document.getElementById('node-id').value = node.tableauId || node.disjoncteurId;
+            document.getElementById('node-type').value = node.group === 'tableau' ? 'tableau' : 'disjoncteur';
+            document.getElementById('node-building').value = node.group === 'tableau' ? data.find(t => t.id === node.tableauId)?.building || '' : '';
+            document.getElementById('node-marque').value = node.disjoncteur?.marque || '';
+            document.getElementById('node-ref').value = node.disjoncteur?.ref || '';
+            document.getElementById('node-ir').value = node.disjoncteur?.irValue || '';
+            document.getElementById('node-in').value = node.disjoncteur?.inValue || '';
+            document.getElementById('node-courbe').value = node.disjoncteur?.courbe || '';
+            document.getElementById('node-linked-tableau').value = node.disjoncteur?.linkedTableauId || '';
             modal.classList.remove('hidden');
-            const canvas = document.getElementById('modal-modal');
-            const ctx = canvas.getContext('2d');
+            gsap.from(modal, { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+        });
 
-            if (modalChartInstance) {
-                console.log('[Client] Destruction de l’ancien graphique du modal');
-                modalChartInstance.destroy();
-                modalChartInstance = null;
+        // Afficher un tooltip au survol
+        group.on('mouseover', () => {
+            const tooltip = document.createElement('div');
+            tooltip.className = 'tooltip';
+            tooltip.innerHTML = node.title;
+            tooltipContainer.appendChild(tooltip);
+
+            const boxRect = box.getClientRect();
+            tooltip.style.left = `${boxRect.x + boxRect.width + 10}px`;
+            tooltip.style.top = `${boxRect.y}px`;
+            group.tooltip = tooltip;
+        });
+
+        group.on('mouseout', () => {
+            if (group.tooltip) {
+                group.tooltip.remove();
+                group.tooltip = null;
             }
+        });
 
-            modalChartInstance = genererGraphique('modal-modal', tableau.disjoncteurs, tableau, tableau.id, true);
-        }
-
-        function closeModal() {
-            console.log('[Client] Fermeture du modal');
-            const modal = document.getElementById('modal-graph');
-            modal.classList.add('hidden');
-            const canvas = document.getElementById('modal-modal');
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            if (modalChartInstance) {
-                console.log('[Client] Destruction du graphique du modal');
-                modalChartInstance.destroy();
-                modalChartInstance = null;
+        // Mettre à jour les positions lors du déplacement
+        group.on('dragmove', () => {
+            if (group.tooltip) {
+                const boxRect = box.getClientRect();
+                group.tooltip.style.left = `${boxRect.x + boxRect.width + 10}px`;
+                group.tooltip.style.top = `${boxRect.y}px`;
             }
-        }
+            nodePositions[node.id] = { x: group.x(), y: group.y() };
+            layer.batchDraw();
+        });
 
-        function checkSelectivity(disjoncteur, upstreamDisjoncteur) {
-            if (!upstreamDisjoncteur || disjoncteur.isPrincipal) return true;
-            const upstreamIr = upstreamDisjoncteur.irValue || upstreamDisjoncteur.inValue;
-            const disjoncteurIr = disjoncteur.irValue || disjoncteur.inValue;
-            const upstreamTripTime = upstreamDisjoncteur.triptime || calculerTripTime(upstreamDisjoncteur.inValue, upstreamDisjoncteur.irValue, upstreamDisjoncteur.courbe);
-            const disjoncteurTripTime = disjoncteur.triptime || calculerTripTime(disjoncteur.inValue, disjoncteur.irValue, disjoncteur.courbe);
-            const courbeOrder = ['B', 'C', 'D'];
-            const upstreamCourbe = upstreamDisjoncteur.courbe || 'C';
-            const disjoncteurCourbe = disjoncteur.courbe || 'C';
-            return disjoncteurIr < upstreamIr * 0.9 &&
-                   disjoncteurTripTime < upstreamTripTime &&
-                   courbeOrder.indexOf(disjoncteurCourbe) >= courbeOrder.indexOf(upstreamCourbe);
-        }
+        layer.add(group);
+        node.groupKonva = group;
+    });
 
-        function renderSelectivity(data = tableauxData, focusedTableauId = null) {
-            console.log('[Client] Rendu du schéma avec Konva.js:', data.length, 'tableaux');
-            const graphContainer = document.getElementById('global-graph');
-            const textDiv = document.getElementById('global-text');
-            const tableBody = document.getElementById('global-tableau-body');
-            const missingDataAlert = document.getElementById('missing-data-alert');
-            const missingDataLink = document.getElementById('missing-link');
+    // Dessiner les arêtes
+    graph.edges.forEach(edge => {
+        const fromNode = graph.nodes.find(n => n.id === edge.from);
+        const toNode = graph.nodes.find(n => n.id === edge.to);
+        if (fromNode && toNode) {
+            const fromGroup = fromNode.groupKonva;
+            const toGroup = toNode.groupKonva;
 
-            // Nettoyer le conteneur
-            graphContainer.innerHTML = '';
-
-            // Initialiser le canevas Konva.js
-            const stage = new Konva.Stage({
-                container: 'global-graph',
-                width: graphContainer.offsetWidth,
-                height: 800,
-                draggable: true
+            const line = new Konva.Line({
+                points: [
+                    fromGroup.x() + (fromNode.group === 'tableau' ? 150 : 120) / 2,
+                    fromGroup.y() + 60,
+                    toGroup.x() + (toNode.group === 'tableau' ? 150 : 120) / 2,
+                    toGroup.y()
+                ],
+                stroke: edge.color,
+                strokeWidth: 2,
+                dash: edge.label ? [10, 5] : null
             });
 
-            const layer = new Konva.Layer();
-            stage.add(layer);
-
-            // Conteneur pour les tooltips
-            const tooltipContainer = document.createElement('div');
-            tooltipContainer.style.position = 'absolute';
-            tooltipContainer.style.top = '0';
-            tooltipContainer.style.left = '0';
-            graphContainer.appendChild(tooltipContainer);
-
-            // Activer le zoom avec la molette
-            stage.on('wheel', (e) => {
-                e.evt.preventDefault();
-                const scaleBy = 1.1;
-                const oldScale = stage.scaleX();
-                const pointer = stage.getPointerPosition();
-                const mousePointTo = {
-                    x: (pointer.x - stage.x()) / oldScale,
-                    y: (pointer.y - stage.y()) / oldScale
-                };
-                const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
-                stage.scale({ x: newScale, y: newScale });
-                const newPos = {
-                    x: pointer.x - mousePointTo.x * newScale,
-                    y: pointer.y - mousePointTo.y * newScale
-                };
-                stage.position(newPos);
+            // Mettre à jour la ligne si les nœuds bougent
+            fromGroup.on('dragmove', () => {
+                line.points([
+                    fromGroup.x() + (fromNode.group === 'tableau' ? 150 : 120) / 2,
+                    fromGroup.y() + 60,
+                    toGroup.x() + (toNode.group === 'tableau' ? 150 : 120) / 2,
+                    toGroup.y()
+                ]);
                 layer.batchDraw();
             });
 
-            // Vérifier la sélectivité globale
-            const selectivity = checkGlobalSelectivity(data);
-            const { globalStatus, errors, results, graph, missingDataIssues } = selectivity;
-
-            // Afficher le texte récapitulatif
-            let textContent = `<p class="text-2xl font-bold ${globalStatus === 'Parfait' ? 'text-green-600' : 'text-red-600'}"><i class="fas ${globalStatus === 'Parfait' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-2"></i>Sélectivité globale : ${globalStatus}</p>`;
-            textContent += `<p class="mt-4">${globalStatus === 'Parfait' ? 'Installation bien configurée. Tous les disjoncteurs sont sélectifs.' : 'Problèmes détectés. Consultez le schéma et le tableau pour les détails.'}</p>`;
-            if (errors.length > 0) {
-                textContent += `<ul class="list-disc ml-6 mt-4 text-red-600">${errors.map(e => `<li>${e}</li>`).join('')}</ul>`;
-            }
-            if (missingDataIssues.length > 0) {
-                textContent += `<p class="mt-4 text-yellow-600 font-semibold"><i class="fas fa-exclamation-triangle mr-2"></i>Données manquantes :</p>`;
-                textContent += `<ul class="list-disc ml-6 mt-2 text-yellow-600">${missingDataIssues.map(i => `<li>${i}</li>`).join('')}</ul>`;
-                missingDataAlert.classList.remove('hidden');
-                missingDataLink.onclick = () => window.location.assign(`edit.html?id=${results[0]?.tableauId || ''}`);
-            } else {
-                missingDataAlert.classList.add('hidden');
-            }
-            textDiv.innerHTML = textContent;
-
-            // Si pas de nœuds, afficher un message
-            if (graph.nodes.length === 0) {
-                graphContainer.innerHTML = '<p class="text-center text-gray-300">Aucune donnée à afficher.</p>';
-                tableBody.innerHTML = '';
-                adjustGraphHeight();
-                return;
-            }
-
-            // Positionner les nœuds automatiquement
-            const nodePositions = {};
-            graph.nodes.forEach((node, index) => {
-                let x, y;
-                if (node.parentId) {
-                    const parentPos = nodePositions[node.parentId] || { x: 200, y: 200 };
-                    x = parentPos.x + (node.group === 'tableau' ? 0 : node.group === 'principal' ? 200 : 400);
-                    y = parentPos.y + 100;
-                } else {
-                    x = 200 + (index % 4) * 300;
-                    y = 100 + Math.floor(index / 4) * 200;
-                }
-                nodePositions[node.id] = { x, y };
+            toGroup.on('dragmove', () => {
+                line.points([
+                    fromGroup.x() + (fromNode.group === 'tableau' ? 150 : 120) / 2,
+                    fromGroup.y() + 60,
+                    toGroup.x() + (toNode.group === 'tableau' ? 150 : 120) / 2,
+                    toGroup.y()
+                ]);
+                layer.batchDraw();
             });
 
-            // Dessiner les nœuds
-            graph.nodes.forEach(node => {
-                const pos = nodePositions[node.id];
-                const group = new Konva.Group({
-                    x: pos.x,
-                    y: pos.y,
-                    draggable: true,
-                    name: 'node'
-                });
-
-                // Boîte du nœud
-                const boxWidth = node.group === 'tableau' ? 150 : 120;
-                const box = new Konva.Rect({
-                    width: boxWidth,
-                    height: 60,
-                    fill: node.color,
-                    stroke: '#ffffff',
-                    strokeWidth: 2,
-                    cornerRadius: 8,
-                    shadowBlur: 5
-                });
-
-                // Texte du nœud
-                const text = new Konva.Text({
-                    text: node.label,
-                    fontSize: 14,
-                    fontFamily: 'Arial',
+            // Label pour les liaisons
+            if (edge.label) {
+                const label = new Konva.Text({
+                    x: (fromGroup.x() + toGroup.x()) / 2,
+                    y: (fromGroup.y() + toGroup.y()) / 2,
+                    text: edge.label,
+                    fontSize: 12,
                     fill: '#ffffff',
-                    width: boxWidth,
-                    padding: 10,
-                    align: 'center'
+                    background: '#2D3748',
+                    padding: 5
                 });
-
-                // Bouton d'expansion
-                let expandButton = null;
-                if (node.hasChildren || node.hasLink) {
-                    expandButton = new Konva.Circle({
-                        x: boxWidth - 10,
-                        y: 10,
-                        radius: 8,
-                        fill: node.isExpanded ? '#dc2626' : '#10B981',
-                        stroke: '#ffffff',
-                        strokeWidth: 1,
-                        name: 'expandButton'
-                    });
-                    const expandText = new Konva.Text({
-                        x: boxWidth - 14,
-                        y: 6,
-                        text: node.isExpanded ? '-' : '+',
-                        fontSize: 12,
-                        fill: '#ffffff'
-                    });
-                    group.add(expandButton, expandText);
-                }
-
-                group.add(box, text);
-
-                // Interaction au clic
-                group.on('click', (e) => {
-                    if (expandButton && e.target.hasName('expandButton')) {
-                        node.isExpanded = !node.isExpanded;
-                        if (node.isExpanded) {
-                            expandedNodes.add(node.id);
-                        } else {
-                            expandedNodes.delete(node.id);
-                            const childNodes = graph.nodes.filter(n => n.parentId === node.id);
-                            childNodes.forEach(child => expandedNodes.delete(child.id));
-                        }
-                        renderSelectivity(data, focusedTableauId);
-                    } else {
-                        if (node.group === 'tableau') {
-                            document.getElementById('mini-modal-title').textContent = `Tableau ${node.tableauId}`;
-                            const tableau = data.find(t => t.id === node.tableauId);
-                            document.getElementById('mini-modal-content').innerHTML = `
-                                <p><strong>Tableau :</strong> ${node.tableauId}</p>
-                                <p><strong>Bâtiment :</strong> ${tableau?.building || 'N/A'}</p>
-                                <p><strong>Principal :</strong> ${tableau?.isSiteMain ? 'Oui' : 'Non'}</p>
-                                <p><strong>Statut :</strong> ${node.title.match(/Statut: ([\w\/]+|N\/A)/)?.[1] || 'N/A'}</p>
-                                <p><strong>Détails :</strong> ${node.title.match(/Détails: (.+)/)?.[1] || 'N/A'}</p>
-                                <p><strong>Disjoncteurs :</strong> ${tableau?.disjoncteurs.length || 0} (${tableau?.disjoncteurs.filter(d => d.isPrincipal).length || 0} principal, ${tableau?.disjoncteurs.filter(d => !d.isPrincipal).length || 0} non principaux)</p>
-                            `;
-                            const miniModal = document.getElementById('mini-modal');
-                            if (miniModal) {
-                                miniModal.classList.remove('hidden');
-                                gsap.from('#mini-modal', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
-                            }
-                        } else if (node.group === 'principal' || node.group === 'non-principal') {
-                            document.getElementById('mini-modal-title').textContent = node.group === 'principal' 
-                                ? `Disjoncteur Principal ${node.disjoncteurId}` 
-                                : `Disjoncteur ${node.disjoncteurId}`;
-                            document.getElementById('mini-modal-content').innerHTML = `
-                                <p><strong>Disjoncteur :</strong> ${node.disjoncteurId}</p>
-                                <p><strong>Tableau :</strong> ${node.id.split('-')[1]}</p>
-                                <p><strong>Marque :</strong> ${node.disjoncteur?.marque || 'N/A'}</p>
-                                <p><strong>Référence :</strong> ${node.disjoncteur?.ref || 'N/A'}</p>
-                                <p><strong>Ir :</strong> ${node.disjoncteur?.irValue || 'N/A'}A</p>
-                                <p><strong>In :</strong> ${node.disjoncteur?.inValue || 'N/A'}A</p>
-                                <p><strong>Courbe :</strong> ${node.disjoncteur?.courbe || 'N/A'}</p>
-                                <p><strong>Rôle :</strong> ${node.group === 'principal' ? 'Principal' : 'Non principal'}</p>
-                                <p><strong>Sélectivité :</strong> ${node.title.match(/Sélectivité: ([\w\/]+|N\/A)/)?.[1] || 'N/A'}</p>
-                                <p><strong>Liaison :</strong> ${node.disjoncteur?.linkedTableauId || 'Aucune'}</p>
-                            `;
-                            const miniModal = document.getElementById('mini-modal');
-                            if (miniModal) {
-                                miniModal.classList.remove('hidden');
-                                gsap.from('#mini-modal', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
-                            }
-                            if (node.hasLink && node.disjoncteur?.linkedTableauId) {
-                                renderSelectivity(data, node.disjoncteur.linkedTableauId);
-                            }
-                        }
-                    }
-                });
-
-                // Double-clic pour éditer
-                group.on('dblclick', () => {
-                    const modal = document.getElementById('add-node-modal');
-                    const title = document.getElementById('add-node-modal-title');
-                    title.textContent = `Éditer ${node.group === 'tableau' ? 'Tableau' : 'Disjoncteur'}`;
-                    document.getElementById('node-id').value = node.tableauId || node.disjoncteurId;
-                    document.getElementById('node-type').value = node.group === 'tableau' ? 'tableau' : 'disjoncteur';
-                    document.getElementById('node-building').value = node.group === 'tableau' ? data.find(t => t.id === node.tableauId)?.building || '' : '';
-                    document.getElementById('node-marque').value = node.disjoncteur?.marque || '';
-                    document.getElementById('node-ref').value = node.disjoncteur?.ref || '';
-                    document.getElementById('node-ir').value = node.disjoncteur?.irValue || '';
-                    document.getElementById('node-in').value = node.disjoncteur?.inValue || '';
-                    document.getElementById('node-courbe').value = node.disjoncteur?.courbe || '';
-                    document.getElementById('node-linked-tableau').value = node.disjoncteur?.linkedTableauId || '';
-                    modal.classList.remove('hidden');
-                    gsap.from(modal, { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
-                });
-
-                // Afficher un tooltip au survol
-                group.on('mouseover', () => {
-                    const tooltip = document.createElement('div');
-                    tooltip.className = 'tooltip';
-                    tooltip.innerHTML = node.title;
-                    tooltipContainer.appendChild(tooltip);
-
-                    const boxRect = box.getClientRect();
-                    tooltip.style.left = `${boxRect.x + boxRect.width + 10}px`;
-                    tooltip.style.top = `${boxRect.y}px`;
-                    group.tooltip = tooltip;
-                });
-
-                group.on('mouseout', () => {
-                    if (group.tooltip) {
-                        group.tooltip.remove();
-                        group.tooltip = null;
-                    }
-                });
-
-                // Mettre à jour les positions lors du déplacement
-                group.on('dragmove', () => {
-                    if (group.tooltip) {
-                        const boxRect = box.getClientRect();
-                        group.tooltip.style.left = `${boxRect.x + boxRect.width + 10}px`;
-                        group.tooltip.style.top = `${boxRect.y}px`;
-                    }
-                    nodePositions[node.id] = { x: group.x(), y: group.y() };
-                    layer.batchDraw();
-                });
-
-                layer.add(group);
-                node.groupKonva = group;
-            });
-
-            // Dessiner les arêtes
-            graph.edges.forEach(edge => {
-                const fromNode = graph.nodes.find(n => n.id === edge.from);
-                const toNode = graph.nodes.find(n => n.id === edge.to);
-                if (fromNode && toNode) {
-                    const fromGroup = fromNode.groupKonva;
-                    const toGroup = toNode.groupKonva;
-
-                    const line = new Konva.Line({
-                        points: [
-                            fromGroup.x() + (fromNode.group === 'tableau' ? 150 : 120) / 2,
-                            fromGroup.y() + 60,
-                            toGroup.x() + (toNode.group === 'tableau' ? 150 : 120) / 2,
-                            toGroup.y()
-                        ],
-                        stroke: edge.color,
-                        strokeWidth: 2,
-                        dash: edge.label ? [10, 5] : null
-                    });
-
-                    // Mettre à jour la ligne si les nœuds bougent
-                    fromGroup.on('dragmove', () => {
-                        line.points([
-                            fromGroup.x() + (fromNode.group === 'tableau' ? 150 : 120) / 2,
-                            fromGroup.y() + 60,
-                            toGroup.x() + (toNode.group === 'tableau' ? 150 : 120) / 2,
-                            toGroup.y()
-                        ]);
-                        layer.batchDraw();
-                    });
-
-                    toGroup.on('dragmove', () => {
-                        line.points([
-                            fromGroup.x() + (fromNode.group === 'tableau' ? 150 : 120) / 2,
-                            fromGroup.y() + 60,
-                            toGroup.x() + (toNode.group === 'tableau' ? 150 : 120) / 2,
-                            toGroup.y()
-                        ]);
-                        layer.batchDraw();
-                    });
-
-                    // Label pour les liaisons
-                    if (edge.label) {
-                        const label = new Konva.Text({
-                            x: (fromGroup.x() + toGroup.x()) / 2,
-                            y: (fromGroup.y() + toGroup.y()) / 2,
-                            text: edge.label,
-                            fontSize: 12,
-                            fill: '#ffffff',
-                            background: '#2D3748',
-                            padding: 5
-                        });
-                        layer.add(label);
-                    }
-
-                    layer.add(line);
-                }
-            });
-
-            layer.draw();
-
-            // Afficher le tableau récapitulatif
-            tableBody.innerHTML = '';
-            results.forEach(result => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="p-3">${result.tableauId}</td>
-                    <td class="p-3 ${result.intraStatus === 'Parfait' ? 'text-green-600' : result.intraStatus === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${result.intraStatus}</td>
-                    <td class="p-3">${result.liaisons.map(l => `${l.disjoncteurId} → ${l.target}`).join(', ') || 'Aucune'}</td>
-                    <td class="p-3 ${result.interStatus === 'Parfait' ? 'text-green-600' : result.interStatus === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${result.interStatus}</td>
-                    <td class="p-3">${result.intraMessage}<br>${result.interMessage}</td>
-                `;
-                tableBody.appendChild(row);
-            });
-
-            // Animation GSAP pour le canevas
-            if (typeof gsap !== 'undefined') {
-                gsap.from('#global-graph', { opacity: 0, y: 50, duration: 1, ease: 'power2.out' });
+                layer.add(label);
             }
 
-            // Ajuster la hauteur du graphe
-            adjustGraphHeight();
-
-            // Recentrer sur le nœud focalisé
-            if (focusedTableauId) {
-                const focusedNode = graph.nodes.find(n => n.tableauId === focusedTableauId);
-                if (focusedNode) {
-                    const pos = nodePositions[focusedNode.id];
-                    stage.position({
-                        x: -pos.x + stage.width() / 2,
-                        y: -pos.y + stage.height() / 2
-                    });
-                    stage.batchDraw();
-                }
-            }
+            layer.add(line);
         }
+    });
 
-        function closeMiniModal() {
-            console.log('[Client] Fermeture du mini-modal');
-            const miniModal = document.getElementById('mini-modal');
-            if (miniModal) {
-                miniModal.classList.add('hidden');
-            }
+    layer.draw();
+
+    // Afficher le tableau récapitulatif
+    tableBody.innerHTML = '';
+    results.forEach(result => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="p-3">${result.tableauId}</td>
+            <td class="p-3 ${result.intraStatus === 'Parfait' ? 'text-green-600' : result.intraStatus === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${result.intraStatus}</td>
+            <td class="p-3 ${result.htaStatus === 'OK' ? 'text-green-600' : result.htaStatus === 'KO' ? 'text-red-600' : 'text-yellow-600'}">${result.htaStatus}</td>
+            <td class="p-3">${result.liaisons.map(l => `${l.disjoncteurId} → ${l.target}`).join(', ') || 'Aucune'}</td>
+            <td class="p-3 ${result.interStatus === 'Parfait' ? 'text-green-600' : result.interStatus === 'N/A' ? 'text-yellow-600' : 'text-red-600'}">${result.interStatus}</td>
+            <td class="p-3">${result.intraMessage}<br>${result.htaMessage}<br>${result.interMessage}</td>
+        `;
+        tableBody.appendChild(row);
+    });
+
+    // Animation GSAP pour le canevas
+    if (typeof gsap !== 'undefined') {
+        gsap.from('#global-graph', { opacity: 0, y: 50, duration: 1, ease: 'power2.out' });
+    }
+
+    // Ajuster la hauteur du graphe
+    adjustGraphHeight();
+
+    // Recentrer sur le nœud focalisé
+    if (focusedTableauId) {
+        const focusedNode = graph.nodes.find(n => n.tableauId === focusedTableauId);
+        if (focusedNode) {
+            const pos = nodePositions[focusedNode.id];
+            stage.position({
+                x: -pos.x + stage.width() / 2,
+                y: -pos.y + stage.height() / 2
+            });
+            stage.batchDraw();
         }
+    }
+}
 
-        window.onload = function() {
-            console.log('[Client] Page selectivity.html chargée');
-            if (window.location.protocol === 'file:') {
-                alert('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/selectivity.html) pour accéder à l\'API.');
-                return;
-            }
-            try {
-                const miniModal = document.getElementById('mini-modal');
-                const nonPrincipalModal = document.getElementById('non-principal-modal');
-                const missingDataModal = document.getElementById('missing-data-modal');
-                const addNodeModal = document.getElementById('add-node-modal');
-                if (miniModal) miniModal.classList.add('hidden');
-                if (nonPrincipalModal) nonPrincipalModal.classList.add('hidden');
-                if (missingDataModal) missingDataModal.classList.add('hidden');
-                if (addNodeModal) addNodeModal.classList.add('hidden');
+// Fermer le mini-modal
+function closeMiniModal() {
+    console.log('[Client] Fermeture du mini-modal');
+    const miniModal = document.getElementById('mini-modal');
+    if (miniModal) {
+        miniModal.classList.add('hidden');
+    }
+}
 
-                const buildingFilter = document.getElementById('building-filter');
-                const tableauFilter = document.getElementById('tableau-filter');
-                if (buildingFilter && tableauFilter) {
-                    buildingFilter.addEventListener('change', () => {
-                        console.log('[Client] Filtre bâtiment changé:', buildingFilter.value);
-                        filterData();
-                    });
-                    tableauFilter.addEventListener('change', () => {
-                        console.log('[Client] Filtre tableau changé:', tableauFilter.value);
-                        filterData();
-                    });
-                    console.log('[Client] Gestionnaires d\'événements attachés');
-                    console.log('[Client] Building filter styles:', window.getComputedStyle(buildingFilter).cursor);
-                    console.log('[Client] Tableau filter styles:', window.getComputedStyle(tableauFilter).cursor);
-                } else {
-                    console.error('[Client] Éléments de filtre non trouvés lors de l\'initialisation');
-                }
-                chargerTableaux();
-            } catch (error) {
-                console.error('[Client] Erreur lors de l’initialisation:', error.message, error.stack);
-                alert('Erreur lors de l’initialisation de la page.');
-            }
-        };
-    </script>
+// Initialisation de la page
+window.onload = function() {
+    console.log('[Client] Page selectivity.html chargée');
+    if (window.location.protocol === 'file:') {
+        alert('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/selectivity.html) pour accéder à l\'API.');
+        return;
+    }
+    try {
+        const miniModal = document.getElementById('mini-modal');
+        const nonPrincipalModal = document.getElementById('non-principal-modal');
+        const missingDataModal = document.getElementById('missing-data-modal');
+        const addNodeModal = document.getElementById('add-node-modal');
+        if (miniModal) miniModal.classList.add('hidden');
+        if (nonPrincipalModal) nonPrincipalModal.classList.add('hidden');
+        if (missingDataModal) missingDataModal.classList.add('hidden');
+        if (addNodeModal) addNodeModal.classList.add('hidden');
+
+        const buildingFilter = document.getElementById('building-filter');
+        const tableauFilter = document.getElementById('tableau-filter');
+        if (buildingFilter && tableauFilter) {
+            buildingFilter.addEventListener('change', () => {
+                console.log('[Client] Filtre bâtiment changé:', buildingFilter.value);
+                filterData();
+            });
+            tableauFilter.addEventListener('change', () => {
+                console.log('[Client] Filtre tableau changé:', tableauFilter.value);
+                filterData();
+            });
+            console.log('[Client] Gestionnaires d\'événements attachés');
+            console.log('[Client] Building filter styles:', window.getComputedStyle(buildingFilter).cursor);
+            console.log('[Client] Tableau filter styles:', window.getComputedStyle(tableauFilter).cursor);
+        } else {
+            console.error('[Client] Éléments de filtre non trouvés lors de l\'initialisation');
+        }
+        chargerTableaux();
+    } catch (error) {
+        console.error('[Client] Erreur lors de l’initialisation:', error.message, error.stack);
+        alert('Erreur lors de l’initialisation de la page.');
+    }
+};
+</script>
 </body>
 </html>
