@@ -434,6 +434,21 @@
                 });
             }
 
+            // Mettre à jour le filtre des tableaux
+            function updateTableauFilter(selectedBuilding) {
+                const tableauFilter = document.getElementById('tableau-filter');
+                tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
+                const filteredTableaux = selectedBuilding 
+                    ? tableauxData.filter(t => t.id.split('-')[0] === selectedBuilding)
+                    : tableauxData;
+                filteredTableaux.forEach(t => {
+                    const option = document.createElement('option');
+                    option.value = t.id;
+                    option.textContent = t.id + (t.isHTA ? ' (HTA)' : '');
+                    tableauFilter.appendChild(option);
+                });
+            }
+
             // Charger les données
             async function loadData() {
                 try {
@@ -487,19 +502,6 @@
                     option.textContent = b;
                     buildingFilter.appendChild(option);
                 });
-
-                function updateTableauFilter(selectedBuilding) {
-                    tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
-                    const filteredTableaux = selectedBuilding 
-                        ? tableauxData.filter(t => t.id.split('-')[0] === selectedBuilding)
-                        : tableauxData;
-                    filteredTableaux.forEach(t => {
-                        const option = document.createElement('option');
-                        option.value = t.id;
-                        option.textContent = t.id + (t.isHTA ? ' (HTA)' : '');
-                        tableauFilter.appendChild(option);
-                    });
-                }
 
                 const savedBuilding = localStorage.getItem('breakerControlBuildingFilter') || '';
                 updateTableauFilter(savedBuilding);
@@ -703,7 +705,10 @@
                         type: 'doughnut',
                         data: {
                             labels: categories,
-                            datasets: [{ data: categories.map(c => counts[c]), backgroundColor: colors }]
+                            datasets: [{
+                                data: categories.map(c => counts[c]),
+                                backgroundColor: colors
+                            }]
                         },
                         options: {
                             plugins: {
@@ -737,140 +742,17 @@
 
                 destroyCharts();
 
-                // Graphique en barres
-                const barCanvas = document.getElementById('bar-chart');
-                const buildings = [...new Set(data.map(t => t.id.split('-')[0] || 'Inconnu'))];
-                const barData = buildings.map(building => {
+            // Graphique en barres
+            const barCanvas = document.getElementById('bar-chart');
+            const buildings = [...new Set(data.map(t => t.id.split('-')[0] || 'Inconnu'))];
+            const barData = buildings.map(building => ({
+                label: building,
+                data: categories.map(cat => {
                     const disjoncteurs = data.filter(t => t.id.split('-')[0] === building).flatMap(t => t.disjoncteurs);
-                    return {
-                        label: building,
-                        data: categories.map(cat => disjoncteurs.filter(d => {
-                            if (!d.id) return false;
-                            const latestCheck = checklistsData
-                                .filter(c => c.tableau_id === data.find(t => t.disjoncteurs.includes(d)).id && c.disjoncteur_id === d.id)
-                                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-                            let status = latestCheck ? latestCheck.status : 'Non contrôlé';
-                            let isValidChecklist = false;
-                            let points = [];
-                            if (latestCheck) {
-                                if (isValidJson(latestCheck.comment)) {
-                                    try {
-                                        const comment = latestCheck.comment.startsWith('Checklist vide: ') 
-                                            ? latestCheck.comment.replace('Checklist vide: ', '') 
-                                            : latestCheck.comment;
-                                        points = JSON.parse(comment).points || [];
-                                        isValidChecklist = true;
-                                    } catch (e) {
-                                        console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
-                                    }
-                                }
-                                status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
-                            }
-                            return status === cat;
-                        }).length)
-                    };
-                });
-
-                chartInstances['bar-chart'] = new Chart(barCanvas, {
-                    type: 'bar',
-                    data: {
-                        labels: categories,
-                        datasets: barData.map((d, i) => ({
-                            label: d.label,
-                            data: d.data,
-                            backgroundColor: colors[i % colors.length],
-                            borderColor: colors[i % colors.length],
-                            borderWidth: 1
-                        }))
-                    },
-                    options: {
-                        scales: {
-                            y: { 
-                                beginAtZero: true, 
-                                title: { display: true, text: 'Nombre de disjoncteurs', color: '#ffffff' },
-                                ticks: { color: '#ffffff' },
-                                grid: { color: '#4B5563' }
-                            },
-                            x: { 
-                                title: { display: true, text: 'Statut', color: '#ffffff' },
-                                ticks: { color: '#ffffff' },
-                                grid: { display: false }
-                            }
-                        },
-                        plugins: { 
-                            legend: { position: 'top', labels: { color: '#ffffff' } },
-                            tooltip: { backgroundColor: '#1F2937', titleColor: '#ffffff', bodyColor: '#ffffff' }
-                        },
-                        animation: { duration: 1500, easing: 'easeOutBounce' }
-                    }
-                });
-
-                // Graphique en ligne
-                const lineCanvas = document.getElementById('line-chart');
-                const dates = [...new Set(checklistsData.map(c => new Date(c.timestamp).toLocaleDateString('fr-FR')))].sort((a, b) => new Date(a) - new Date(b));
-                const lineData = categories.map((cat, i) => ({
-                    label: cat,
-                    data: dates.map(date => checklistsData.filter(c => {
-                        const checkDate = new Date(c.timestamp).toLocaleDateString('fr-FR');
-                        let status = c.status;
-                        let isValidChecklist = false;
-                        let points = [];
-                        if (isValidJson(c.comment)) {
-                            try {
-                                const comment = c.comment.startsWith('Checklist vide: ') 
-                                    ? c.comment.replace('Checklist vide: ', '') 
-                                    : c.comment;
-                                points = JSON.parse(comment).points || [];
-                                isValidChecklist = true;
-                            } catch (e) {
-                                console.warn('[Client] Erreur parsing comment:', c.comment);
-                            }
-                        }
-                        status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
-                        return checkDate === date && status === cat;
-                    }).length),
-                    borderColor: colors[i],
-                    backgroundColor: colors[i],
-                    fill: false,
-                    tension: 0.4
-                }));
-
-                chartInstances['line-chart'] = new Chart(lineCanvas, {
-                    type: 'line',
-                    data: {
-                        labels: dates,
-                        datasets: lineData
-                    },
-                    options: {
-                        scales: {
-                            y: { 
-                                beginAtZero: true, 
-                                title: { display: true, text: 'Nombre de contrôles', color: '#ffffff' },
-                                ticks: { color: '#ffffff' },
-                                grid: { color: '#4B5563' }
-                            },
-                            x: { 
-                                title: { display: true, text: 'Date', color: '#ffffff' },
-                                ticks: { color: '#ffffff' },
-                                grid: { display: false }
-                            }
-                        },
-                        plugins: { 
-                            legend: { position: 'top', labels: { color: '#ffffff' } },
-                            tooltip: { backgroundColor: '#1F2937', titleColor: '#ffffff', bodyColor: '#ffffff' }
-                        },
-                        animation: { duration: 1500, easing: 'easeOutBounce' }
-                    }
-                });
-
-                // Graphique en nuage de points
-                const scatterCanvas = document.getElementById('scatter-chart');
-                const scatterData = categories.map((cat, i) => ({
-                    label: cat,
-                    data: data.flatMap(t => t.disjoncteurs.map(d => {
-                        if (!d.id) return null;
+                    return disjoncteurs.filter(d => {
+                        if (!d.id) return false;
                         const latestCheck = checklistsData
-                            .filter(c => c.tableau_id === t.id && c.disjoncteur_id === d.id)
+                            .filter(c => c.tableau_id === data.find(t => t.disjoncteurs.includes(d)).id && c.disjoncteur_id === d.id)
                             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
                         let status = latestCheck ? latestCheck.status : 'Non contrôlé';
                         let isValidChecklist = false;
@@ -889,40 +771,163 @@
                             }
                             status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
                         }
-                        return status === cat ? { x: normalizeCurrent(d.in) || 0, y: Math.random() * 100 } : null;
-                    }).filter(d => d !== null)),
-                    backgroundColor: colors[i],
-                    pointRadius: 5
-                }));
+                        return status === cat;
+                    }).length;
+                })
+            }));
 
-                chartInstances['scatter-chart'] = new Chart(scatterCanvas, {
-                    type: 'scatter',
-                    data: { datasets: scatterData },
-                    options: {
-                        scales: {
-                            x: { 
-                                title: { display: true, text: 'Courant nominal (A)', color: '#ffffff' },
-                                beginAtZero: true,
-                                ticks: { color: '#ffffff' },
-                                grid: { color: '#4B5563' }
-                            },
-                            y: { 
-                                title: { display: true, text: 'Valeur aléatoire', color: '#ffffff' },
-                                beginAtZero: true,
-                                max: 100,
-                                ticks: { color: '#ffffff' },
-                                grid: { color: '#4B5563' }
-                            }
+            chartInstances['bar-chart'] = new Chart(barCanvas, {
+                type: 'bar',
+                data: {
+                    labels: categories,
+                    datasets: barData.map((d, i) => ({
+                        label: d.label,
+                        data: d.data,
+                        backgroundColor: colors[i % colors.length],
+                        borderColor: colors[i % colors.length],
+                        borderWidth: 1
+                    }))
+                },
+                options: {
+                    scales: {
+                        y: { 
+                            beginAtZero: true, 
+                            title: { display: true, text: 'Nombre de disjoncteurs', color: '#ffffff' },
+                            ticks: { color: '#ffffff' },
+                            grid: { color: '#4B5563' }
                         },
-                        plugins: { 
-                            legend: { position: 'top', labels: { color: '#ffffff' } },
-                            tooltip: { backgroundColor: '#1F2937', titleColor: '#ffffff', bodyColor: '#ffffff' }
-                        },
-                        animation: { duration: 1500, easing: 'easeOutBounce' }
+                        x: { 
+                            title: { display: true, text: 'Statut', color: '#ffffff' },
+                            ticks: { color: '#ffffff' },
+                            grid: { display: false }
+                        }
+                    },
+                    plugins: { 
+                        legend: { position: 'top', labels: { color: '#ffffff' } },
+                        tooltip: { backgroundColor: '#1F2937', titleColor: '#ffffff', bodyColor: '#ffffff' }
+                    },
+                    animation: { duration: 1500, easing: 'easeOutBounce' }
+                }
+            });
+
+            // Graphique en ligne
+            const lineCanvas = document.getElementById('line-chart');
+            const dates = [...new Set(checklistsData.map(c => new Date(c.timestamp).toLocaleDateString('fr-FR')))].sort((a, b) => new Date(a) - new Date(b));
+            const lineData = categories.map((cat, i) => ({
+                label: cat,
+                data: dates.map(date => checklistsData.filter(c => {
+                    const checkDate = new Date(c.timestamp).toLocaleDateString('fr-FR');
+                    let status = c.status;
+                    let isValidChecklist = false;
+                    let points = [];
+                    if (isValidJson(c.comment)) {
+                        try {
+                            const comment = c.comment.startsWith('Checklist vide: ') 
+                                ? c.comment.replace('Checklist vide: ', '') 
+                                : c.comment;
+                            points = JSON.parse(comment).points || [];
+                            isValidChecklist = true;
+                        } catch (e) {
+                            console.warn('[Client] Erreur parsing comment:', c.comment);
+                        }
                     }
-                });
+                    status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
+                    return checkDate === date && status === cat;
+                }).length),
+                borderColor: colors[i],
+                backgroundColor: colors[i],
+                fill: false,
+                tension: 0.4
+            }));
 
-                gsap.from('#advanced-charts-container > div', { opacity: 0, y: 20, duration: 1, stagger: 0.2, ease: 'power2.out' });
+            chartInstances['line-chart'] = new Chart(lineCanvas, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: lineData
+                },
+                options: {
+                    scales: {
+                        y: { 
+                            beginAtZero: true, 
+                            title: { display: true, text: 'Nombre de contrôles', color: '#ffffff' },
+                            ticks: { color: '#ffffff' },
+                            grid: { color: '#4B5563' }
+                        },
+                        x: { 
+                            title: { display: true, text: 'Date', color: '#ffffff' },
+                            ticks: { color: '#ffffff' },
+                            grid: { display: false }
+                        }
+                    },
+                    plugins: { 
+                        legend: { position: 'top', labels: { color: '#ffffff' } },
+                        tooltip: { backgroundColor: '#1F2937', titleColor: '#ffffff', bodyColor: '#ffffff' }
+                    },
+                    animation: { duration: 1500, easing: 'easeOutBounce' }
+                }
+            });
+
+            // Graphique en nuage de points
+            const scatterCanvas = document.getElementById('scatter-chart');
+            const scatterData = categories.map((cat, i) => ({
+                label: cat,
+                data: data.flatMap(t => t.disjoncteurs.map(d => {
+                    if (!d.id) return null;
+                    const latestCheck = checklistsData
+                        .filter(c => c.tableau_id === t.id && c.disjoncteur_id === d.id)
+                        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                    let status = latestCheck ? latestCheck.status : 'Non contrôlé';
+                    let isValidChecklist = false;
+                    let points = [];
+                    if (latestCheck) {
+                        if (isValidJson(latestCheck.comment)) {
+                            try {
+                                const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                    ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                    : latestCheck.comment;
+                                points = JSON.parse(comment).points || [];
+                                isValidChecklist = true;
+                            } catch (e) {
+                                console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
+                            }
+                        }
+                        status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
+                    }
+                    return status === cat ? { x: normalizeCurrent(d.in) || 0, y: Math.random() * 100 } : null;
+                }).filter(d => d !== null)),
+                backgroundColor: colors[i],
+                pointRadius: 5
+            }));
+
+            chartInstances['scatter-chart'] = new Chart(scatterCanvas, {
+                type: 'scatter',
+                data: { datasets: scatterData },
+                options: {
+                    scales: {
+                        x: { 
+                            title: { display: true, text: 'Courant nominal (A)', color: '#ffffff' },
+                            beginAtZero: true,
+                            ticks: { color: '#ffffff' },
+                            grid: { color: '#4B5563' }
+                        },
+                        y: { 
+                            title: { display: true, text: 'Valeur aléatoire', color: '#ffffff' },
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: { color: '#ffffff' },
+                            grid: { color: '#4B5563' }
+                        }
+                    },
+                    plugins: { 
+                        legend: { position: 'top', labels: { color: '#ffffff' } },
+                        tooltip: { backgroundColor: '#1F2937', titleColor: '#ffffff', bodyColor: '#ffffff' }
+                    },
+                    animation: { duration: 1500, easing: 'easeOutBounce' }
+                }
+            });
+
+            gsap.from('#advanced-charts-container > div', { opacity: 0, y: 20, duration: 1, stagger: 0.2, ease: 'power2.out' });
             }
 
             // Ouvrir le modal pour voir l’historique des checklists
@@ -979,7 +984,7 @@
                             return `
                                 <div class="bg-gray-700 p-4 rounded-lg">
                                     <p><strong>Checklist :</strong> ${checklistName}</p>
-                                    <p><strong>Statut global :</strong> <span class="${check.status === 'Conforme' ? 'text-green-500' : check.status === 'Non conforme' ? 'text-red-500' : check.status === 'Non applicable' && !isPending ? 'text-yellow-400' : isPending ? 'text-purple-400' : 'text-blue-400'}">
+                                    <p><strong>Statut global :</strong> <span class="${check.status === 'Conforme' ? 'text-green-500' : check.status === 'Non conforme' ? 'text-red-500' : check.status === 'Non applicable' && !isPending ? 'text-yellow-400' : isPending ? 'text-purple-500' : 'text-blue-400'}">
                                         <i class="fas ${check.status === 'Conforme' ? 'fa-check-circle' : check.status === 'Non conforme' ? 'fa-times-circle' : check.status === 'Non applicable' && !isPending ? 'fa-hourglass-half' : isPending ? 'fa-clock' : 'fa-balance-scale'} mr-1"></i>
                                         ${isPending ? 'En attente' : check.status}
                                     </span></p>
@@ -1042,16 +1047,17 @@
                     pointsContainer.innerHTML = '';
                     points.forEach((point, index) => {
                         const div = document.createElement('div');
-                        div.className = 'flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start';
+                        div.className = 'flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm: sm:gap-2 items-start';
                         div.innerHTML = `
                             <div class="flex-1">
-                                <label class="block text-sm font-medium">Point ${index + 1}</label>
-                                <input type="text" class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.description}" placeholder="Ex: Vérification câblage" required>
+                                <div class="flex-1">
+                                <label class="point-description" class="block text-sm font-medium">Point ${index + 1}</label>
+                                <input type="text" class="point-description mt-1 p-2 sm:p-sm rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.description}" placeholder="Ex: Vérification câblage" required>
                             </div>
                             <div class="flex-1">
                                 <label class="block text-sm font-medium">Valeur (facultatif)</label>
-                                <input type="text" class="point-value mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.value || ''}" placeholder="Ex: 0.02 Ohm">
-                                <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition mt-2 sm:mt-6 ${pointCount === 1 ? 'invisible' : ''} touch-friendly">
+                                <input type="text" class="point-value mt-1 p-2 sm:p-sm rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.value || ''}" placeholder="Ex: 0.02 Ohm">
+                                <button type="button" class="remove-point bg-red-600 text-white p-2 sm:p-sm rounded hover:bg-red-700 transition mt-2 sm:mt-6 ${pointCount === 1 ? 'invisible' : ''} touch-friendly">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
@@ -1138,7 +1144,6 @@
                 };
 
                 document.getElementById('close-create-checklist-modal').onclick = () => modal.classList.add('hidden');
-                modal.classList.remove('hidden');
                 gsap.from('#modal-create-checklist > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
             }
 
@@ -1262,7 +1267,7 @@
                     parsed = JSON.parse(cleanComment);
                 } catch (e) {
                     console.warn('[Client] Erreur parsing comment:', comment);
-                    alert('Erreur lors du chargement de la checklist.');
+                    alert('Erreur lors de l’chargement de la checklist.');
                     return;
                 }
 
