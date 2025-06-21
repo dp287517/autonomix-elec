@@ -233,8 +233,8 @@ async function initDb() {
         await client.query(`
             CREATE TABLE IF NOT EXISTS breaker_checklists (
                 id SERIAL PRIMARY KEY,
-                tableau_id VARCHAR(50) REFERENCES tableaux(id) ON DELETE CASCADE,
-                disjoncteur_id VARCHAR(50),
+                tableau_id VARCHAR(50) NOT NULL REFERENCES tableaux(id) ON DELETE CASCADE,
+                disjoncteur_id VARCHAR(50) NOT NULL,
                 status VARCHAR(20) NOT NULL,
                 comment TEXT NOT NULL,
                 photo TEXT,
@@ -634,6 +634,10 @@ app.post('/api/tableaux', async (req, res) => {
         );
         // Ajouter une checklist par défaut pour chaque disjoncteur
         for (const d of normalizedDisjoncteurs) {
+            if (!d.id) {
+                console.warn('[Server] Disjoncteur sans ID ignoré pour checklist:', d);
+                continue;
+            }
             try {
                 await client.query(
                     'INSERT INTO breaker_checklists (tableau_id, disjoncteur_id, status, comment, photo) VALUES ($1, $2, $3, $4, $5)',
@@ -1352,6 +1356,7 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
             console.log('[Server] Disjoncteur non trouvé:', disjoncteurId);
             return res.status(404).json({ error: 'Disjoncteur non trouvé' });
         }
+
         // Vérifier si le nouvel ID est unique
         if (newId && newId !== decodeURIComponent(disjoncteurId)) {
             const idExists = disjoncteurs.some((d, i) => i !== disjoncteurIndex && d.id === newId);
@@ -1705,7 +1710,7 @@ app.get('/api/breaker-checklists', async (req, res) => {
             timestamp: row.timestamp
         }));
         console.log('[Server] Checklists récupérées:', checklists.length);
-        res.json({ data: checklists });
+        res.json(checklists); // Renvoyer le tableau directement
     } catch (error) {
         console.error('[Server] Erreur GET /api/breaker-checklists:', {
             message: error.message,
