@@ -201,12 +201,12 @@
                     </div>
                     <div>
                         <label for="disjoncteur-icn" class="block text-sm font-medium">Icn</label>
-                        <input id="disjoncteur-icn" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 6 kA">
+                        <input id="disjoncteur-icn" type="number" step="0.01" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 6">
                         <p class="text-xs text-gray-500">Pouvoir de coupure, ex. 6 kA</p>
                     </div>
                     <div>
                         <label for="disjoncteur-ics" class="block text-sm font-medium">Ics</label>
-                        <input id="disjoncteur-ics" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 4.5 kA">
+                        <input id="disjoncteur-ics" type="number" step="0.01" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 4.5">
                         <p class="text-xs text-gray-500">Pouvoir de coupure de service, ex. 4.5 kA</p>
                     </div>
                     <div>
@@ -299,6 +299,16 @@
             let isSiteMainError = false;
             let isHTA = false;
 
+            function normalizeNumericValue(value) {
+                if (!value) return '';
+                if (typeof value === 'number' && !isNaN(value)) return `${value} kA`;
+                if (typeof value === 'string') {
+                    const match = value.match(/[\d.]+/);
+                    return match ? `${parseFloat(match[0])} kA` : '';
+                }
+                return '';
+            }
+
             function validateDisjoncteurId(id) {
                 const validIdRegex = /^[\p{L}0-9\s\-_:]+$/u;
                 return validIdRegex.test(id);
@@ -353,12 +363,12 @@
                     return null;
                 }
                 return {
-                    transformerPower,
-                    voltage,
-                    in: inCurrent,
-                    ir: irCurrent,
-                    triptime,
-                    icn
+                    transformerPower: `${transformerPower} kVA`,
+                    voltage: `${voltage} kV`,
+                    in: `${inCurrent} A`,
+                    ir: `${irCurrent} A`,
+                    triptime: `${triptime} s`,
+                    icn: `${icn} kA`
                 };
             }
 
@@ -398,18 +408,24 @@
                     issitemain = tableau.issitemain || false;
                     isHTA = tableau.isHTA || false;
                     if (isHTA && tableau.htaData) {
-                        document.getElementById('hta-transformerPower').value = tableau.htaData.transformerPower || '';
-                        document.getElementById('hta-voltage').value = tableau.htaData.voltage || '';
-                        document.getElementById('hta-in').value = tableau.htaData.in || '';
-                        document.getElementById('hta-ir').value = tableau.htaData.ir || '';
-                        document.getElementById('hta-triptime').value = tableau.htaData.triptime || '';
-                        document.getElementById('hta-icn').value = tableau.htaData.icn || '';
+                        document.getElementById('hta-transformerPower').value = parseFloat(tableau.htaData.transformerPower) || '';
+                        document.getElementById('hta-voltage').value = parseFloat(tableau.htaData.voltage) || '';
+                        document.getElementById('hta-in').value = parseFloat(tableau.htaData.in) || '';
+                        document.getElementById('hta-ir').value = parseFloat(tableau.htaData.ir) || '';
+                        document.getElementById('hta-triptime').value = parseFloat(tableau.htaData.triptime) || '';
+                        document.getElementById('hta-icn').value = parseFloat(tableau.htaData.icn) || '';
                     }
-                    disjoncteurs = tableau.disjoncteurs || [];
-                    disjoncteurs.forEach(d => {
-                        d.isPrincipal = d.isPrincipal || false;
-                        d.linkedTableauIds = d.linkedTableauIds || (d.linkedTableauId ? [d.linkedTableauId] : []);
-                    });
+                    disjoncteurs = (tableau.disjoncteurs || []).map(d => ({
+                        ...d,
+                        id: d.id || d.disjoncteur_id || `unknown_${Math.random().toString(36).substring(2, 9)}`,
+                        icn: normalizeNumericValue(d.icn),
+                        ics: normalizeNumericValue(d.ics),
+                        in: normalizeNumericValue(d.in),
+                        ir: normalizeNumericValue(d.ir),
+                        triptime: normalizeNumericValue(d.triptime),
+                        isPrincipal: d.isPrincipal || false,
+                        linkedTableauIds: d.linkedTableauIds || (d.linkedTableauId ? [d.linkedTableauId] : [])
+                    }));
                     disjoncteurPrincipalIndex = disjoncteurs.findIndex(d => d.isPrincipal);
                     console.log('[Edit] Disjoncteurs normalisés:', disjoncteurs);
                     afficherDisjoncteurs();
@@ -431,12 +447,20 @@
                 try {
                     console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, { issitemain: newIsSiteMain });
                     const htaData = collectHTAData();
+                    const normalizedDisjoncteurs = disjoncteurs.map(d => ({
+                        ...d,
+                        icn: normalizeNumericValue(d.icn),
+                        ics: normalizeNumericValue(d.ics),
+                        in: normalizeNumericValue(d.in),
+                        ir: normalizeNumericValue(d.ir),
+                        triptime: normalizeNumericValue(d.triptime)
+                    }));
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 5000);
                     const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: tableauId, disjoncteurs, issitemain: newIsSiteMain, isHTA, htaData }),
+                        body: JSON.stringify({ id: tableauId, disjoncteurs: normalizedDisjoncteurs, issitemain: newIsSiteMain, isHTA, htaData }),
                         signal: controller.signal
                     });
                     clearTimeout(timeoutId);
@@ -476,8 +500,16 @@
                     const select = document.getElementById('disjoncteur-existant');
                     select.innerHTML = '<option value="">-- Choisir un disjoncteur --</option>';
                     disjoncteursExistants.forEach(d => {
+                        const normalizedDisjoncteur = {
+                            ...d,
+                            icn: normalizeNumericValue(d.icn),
+                            ics: normalizeNumericValue(d.ics),
+                            in: normalizeNumericValue(d.in),
+                            ir: normalizeNumericValue(d.ir),
+                            triptime: normalizeNumericValue(d.triptime)
+                        };
                         const option = document.createElement('option');
-                        option.value = JSON.stringify(d);
+                        option.value = JSON.stringify(normalizedDisjoncteur);
                         option.textContent = `${d.marque} ${d.ref}`;
                         select.appendChild(option);
                     });
@@ -534,11 +566,11 @@
                     row.appendChild(idCell);
                     const marqueCell = document.createElement('td');
                     marqueCell.className = 'p-2';
-                    marqueCell.textContent = d.marque;
+                    marqueCell.textContent = d.marque || 'N/A';
                     row.appendChild(marqueCell);
                     const refCell = document.createElement('td');
                     refCell.className = 'p-2';
-                    refCell.textContent = d.ref;
+                    refCell.textContent = d.ref || 'N/A';
                     row.appendChild(refCell);
                     const principalCell = document.createElement('td');
                     principalCell.className = 'p-2 text-center';
@@ -575,6 +607,7 @@
                     row.appendChild(actionsCell);
                     tbody.appendChild(row);
                 });
+                gsap.from('#disjoncteurs-table tr', { opacity: 0, y: 20, duration: 0.5, stagger: 0.05 });
             }
 
             async function rechercherDisjoncteur() {
@@ -609,12 +642,12 @@
                         document.getElementById('disjoncteur-ui').value = data.ui || '';
                         document.getElementById('disjoncteur-uimp').value = data.uimp || '';
                         document.getElementById('disjoncteur-frequence').value = data.frequence || '';
-                        document.getElementById('disjoncteur-in').value = data.in || '';
-                        document.getElementById('disjoncteur-ir').value = data.ir || '';
+                        document.getElementById('disjoncteur-in').value = normalizeNumericValue(data.in);
+                        document.getElementById('disjoncteur-ir').value = normalizeNumericValue(data.ir);
                         document.getElementById('disjoncteur-courbe').value = data.courbe || '';
-                        document.getElementById('disjoncteur-triptime').value = data.triptime || '';
-                        document.getElementById('disjoncteur-icn').value = data.icn || '';
-                        document.getElementById('disjoncteur-ics').value = data.ics || '';
+                        document.getElementById('disjoncteur-triptime').value = normalizeNumericValue(data.triptime);
+                        document.getElementById('disjoncteur-icn').value = parseFloat(data.icn) || '';
+                        document.getElementById('disjoncteur-ics').value = parseFloat(data.ics) || '';
                         document.getElementById('disjoncteur-ip').value = data.ip || '';
                         document.getElementById('disjoncteur-temp').value = data.temp || '';
                         document.getElementById('disjoncteur-dimensions').value = data.dimensions || '';
@@ -695,12 +728,12 @@
                     document.getElementById('disjoncteur-ui').value = disjoncteurBase.ui || '';
                     document.getElementById('disjoncteur-uimp').value = disjoncteurBase.uimp || '';
                     document.getElementById('disjoncteur-frequence').value = disjoncteurBase.frequence || '';
-                    document.getElementById('disjoncteur-in').value = disjoncteurBase.in || '';
-                    document.getElementById('disjoncteur-ir').value = disjoncteurBase.ir || '';
+                    document.getElementById('disjoncteur-in').value = normalizeNumericValue(disjoncteurBase.in);
+                    document.getElementById('disjoncteur-ir').value = normalizeNumericValue(disjoncteurBase.ir);
                     document.getElementById('disjoncteur-courbe').value = disjoncteurBase.courbe || '';
-                    document.getElementById('disjoncteur-triptime').value = disjoncteurBase.triptime || '';
-                    document.getElementById('disjoncteur-icn').value = disjoncteurBase.icn || '';
-                    document.getElementById('disjoncteur-ics').value = disjoncteurBase.ics || '';
+                    document.getElementById('disjoncteur-triptime').value = normalizeNumericValue(disjoncteurBase.triptime);
+                    document.getElementById('disjoncteur-icn').value = parseFloat(disjoncteurBase.icn) || '';
+                    document.getElementById('disjoncteur-ics').value = parseFloat(disjoncteurBase.ics) || '';
                     document.getElementById('disjoncteur-ip').value = disjoncteurBase.ip || '';
                     document.getElementById('disjoncteur-temp').value = disjoncteurBase.temp || '';
                     document.getElementById('disjoncteur-dimensions').value = disjoncteurBase.dimensions || '';
@@ -739,12 +772,12 @@
                 document.getElementById('disjoncteur-ui').value = disjoncteur.ui || '';
                 document.getElementById('disjoncteur-uimp').value = disjoncteur.uimp || '';
                 document.getElementById('disjoncteur-frequence').value = disjoncteur.frequence || '';
-                document.getElementById('disjoncteur-in').value = disjoncteur.in || '';
-                document.getElementById('disjoncteur-ir').value = disjoncteur.ir || '';
+                document.getElementById('disjoncteur-in').value = normalizeNumericValue(disjoncteur.in);
+                document.getElementById('disjoncteur-ir').value = normalizeNumericValue(disjoncteur.ir);
                 document.getElementById('disjoncteur-courbe').value = disjoncteur.courbe || '';
-                document.getElementById('disjoncteur-triptime').value = disjoncteur.triptime || '';
-                document.getElementById('disjoncteur-icn').value = disjoncteur.icn || '';
-                document.getElementById('disjoncteur-ics').value = disjoncteur.ics || '';
+                document.getElementById('disjoncteur-triptime').value = normalizeNumericValue(disjoncteur.triptime);
+                document.getElementById('disjoncteur-icn').value = parseFloat(disjoncteur.icn) || '';
+                document.getElementById('disjoncteur-ics').value = parseFloat(disjoncteur.ics) || '';
                 document.getElementById('disjoncteur-ip').value = disjoncteur.ip || '';
                 document.getElementById('disjoncteur-temp').value = disjoncteur.temp || '';
                 document.getElementById('disjoncteur-dimensions').value = disjoncteur.dimensions || '';
@@ -788,6 +821,14 @@
                         }
                         console.log('[Edit] Transfert vers tableau:', targetId);
                         try {
+                            const normalizedDisjoncteur = {
+                                ...disjoncteur,
+                                icn: normalizeNumericValue(disjoncteur.icn),
+                                ics: normalizeNumericValue(disjoncteur.ics),
+                                in: normalizeNumericValue(disjoncteur.in),
+                                ir: normalizeNumericValue(disjoncteur.ir),
+                                triptime: normalizeNumericValue(disjoncteur.triptime)
+                            };
                             disjoncteurs.splice(index, 1);
                             if (index === disjoncteurPrincipalIndex) {
                                 disjoncteurPrincipalIndex = null;
@@ -797,12 +838,20 @@
                                 console.log('[Edit] Ajustement disjoncteurPrincipalIndex:', disjoncteurPrincipalIndex);
                             }
                             const htaData = collectHTAData();
+                            const normalizedDisjoncteurs = disjoncteurs.map(d => ({
+                                ...d,
+                                icn: normalizeNumericValue(d.icn),
+                                ics: normalizeNumericValue(d.ics),
+                                in: normalizeNumericValue(d.in),
+                                ir: normalizeNumericValue(d.ir),
+                                triptime: normalizeNumericValue(d.triptime)
+                            }));
                             const controller = new AbortController();
                             const timeoutId = setTimeout(() => controller.abort(), 5000);
                             await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ id: tableauId, disjoncteurs, issitemain, isHTA, htaData }),
+                                body: JSON.stringify({ id: tableauId, disjoncteurs: normalizedDisjoncteurs, issitemain, isHTA, htaData }),
                                 signal: controller.signal
                             });
                             clearTimeout(timeoutId);
@@ -810,7 +859,7 @@
                             const response = await fetch(`/api/tableaux/${encodeURIComponent(targetId)}`, { signal: controller.signal });
                             const targetTableau = await response.json();
                             const targetDisjoncteurs = targetTableau.disjoncteurs || [];
-                            targetDisjoncteurs.push(disjoncteur);
+                            targetDisjoncteurs.push(normalizedDisjoncteur);
                             await fetch(`/api/tableaux/${encodeURIComponent(targetId)}`, {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json' },
@@ -841,12 +890,12 @@
                     ui: document.getElementById('disjoncteur-ui').value.trim(),
                     uimp: document.getElementById('disjoncteur-uimp').value.trim(),
                     frequence: document.getElementById('disjoncteur-frequence').value.trim(),
-                    in: document.getElementById('disjoncteur-in').value.trim(),
-                    ir: document.getElementById('disjoncteur-ir').value.trim(),
+                    in: normalizeNumericValue(document.getElementById('disjoncteur-in').value),
+                    ir: normalizeNumericValue(document.getElementById('disjoncteur-ir').value),
                     courbe: document.getElementById('disjoncteur-courbe').value.trim(),
-                    triptime: document.getElementById('disjoncteur-triptime').value.trim(),
-                    icn: document.getElementById('disjoncteur-icn').value.trim(),
-                    ics: document.getElementById('disjoncteur-ics').value.trim(),
+                    triptime: normalizeNumericValue(document.getElementById('disjoncteur-triptime').value),
+                    icn: normalizeNumericValue(document.getElementById('disjoncteur-icn').value),
+                    ics: normalizeNumericValue(document.getElementById('disjoncteur-ics').value),
                     ip: document.getElementById('disjoncteur-ip').value.trim(),
                     temp: document.getElementById('disjoncteur-temp').value.trim(),
                     dimensions: document.getElementById('disjoncteur-dimensions').value.trim(),
@@ -882,9 +931,29 @@
                     showPopup('La courbe doit être B, C ou D.', '', () => {});
                     return;
                 }
-                if (disjoncteur.ir && !/^\d+(\s*A)?$/.test(disjoncteur.ir)) {
+                if (disjoncteur.ir && !disjoncteur.ir.match(/^\d+(\.?\d+)?(\s*A)?$/)) {
                     console.log('[Edit] Erreur: Ir invalide', disjoncteur.ir);
                     showPopup('Ir doit être une valeur numérique, ex. 60 ou 60 A.', '', () => {});
+                    return;
+                }
+                if (disjoncteur.icn && !disjoncteur.icn.match(/^\d+(\.?\d+)?(\s*kA)?$/)) {
+                    console.log('[Edit] Erreur: Icn invalide', disjoncteur.icn);
+                    showPopup('Icn doit être une valeur numérique, ex. 6 ou 6 kA.', '', () => {});
+                    return;
+                }
+                if (disjoncteur.ics && !disjoncteur.ics.match(/^\d+(\.?\d+)?(\s*kA)?$/)) {
+                    console.log('[Edit] Erreur: Ics invalide', disjoncteur.ics);
+                    showPopup('Ics doit être une valeur numérique, ex. 4.5 ou 4.5 kA.', '', () => {});
+                    return;
+                }
+                if (disjoncteur.in && !disjoncteur.in.match(/^\d+(\.?\d+)?(\s*A)?$/)) {
+                    console.log('[Edit] Erreur: In invalide', disjoncteur.in);
+                    showPopup('In doit être une valeur numérique, ex. 16 ou 16 A.', '', () => {});
+                    return;
+                }
+                if (disjoncteur.triptime && !disjoncteur.triptime.match(/^\d+(\.?\d+)?(\s*s)?$/)) {
+                    console.log('[Edit] Erreur: TripTime invalide', disjoncteur.triptime);
+                    showPopup('TripTime doit être une valeur numérique, ex. 0.1 ou 0.1 s.', '', () => {});
                     return;
                 }
                 if (disjoncteur.linkedTableauIds.includes(tableauId)) {
@@ -983,12 +1052,20 @@
                     });
                     try {
                         const htaData = collectHTAData();
+                        const normalizedDisjoncteurs = disjoncteurs.map(d => ({
+                            ...d,
+                            icn: normalizeNumericValue(d.icn),
+                            ics: normalizeNumericValue(d.ics),
+                            in: normalizeNumericValue(d.in),
+                            ir: normalizeNumericValue(d.ir),
+                            triptime: normalizeNumericValue(d.triptime)
+                        }));
                         const controller = new AbortController();
                         const timeoutId = setTimeout(() => controller.abort(), 5000);
                         await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: tableauId, disjoncteurs, issitemain, isHTA, htaData }),
+                            body: JSON.stringify({ id: tableauId, disjoncteurs: normalizedDisjoncteurs, issitemain, isHTA, htaData }),
                             signal: controller.signal
                         });
                         clearTimeout(timeoutId);
@@ -1023,12 +1100,20 @@
                     }
                     try {
                         const htaData = collectHTAData();
+                        const normalizedDisjoncteurs = disjoncteurs.map(d => ({
+                            ...d,
+                            icn: normalizeNumericValue(d.icn),
+                            ics: normalizeNumericValue(d.ics),
+                            in: normalizeNumericValue(d.in),
+                            ir: normalizeNumericValue(d.ir),
+                            triptime: normalizeNumericValue(d.triptime)
+                        }));
                         const controller = new AbortController();
                         const timeoutId = setTimeout(() => controller.abort(), 5000);
                         const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: tableauId, disjoncteurs, issitemain, isHTA, htaData }),
+                            body: JSON.stringify({ id: tableauId, disjoncteurs: normalizedDisjoncteurs, issitemain, isHTA, htaData }),
                             signal: controller.signal
                         });
                         clearTimeout(timeoutId);
@@ -1056,6 +1141,11 @@
                     showPopup('Veuillez entrer un identifiant pour le tableau.', '', () => {});
                     return;
                 }
+                if (!validateDisjoncteurId(newTableauId)) {
+                    console.log('[Edit] Erreur: ID tableau invalide', newTableauId);
+                    showPopup('L\'ID du tableau contient des caractères non autorisés. Utilisez lettres (y compris accentuées), chiffres, espaces, tirets, underscores ou deux-points.', '', () => {});
+                    return;
+                }
                 if (disjoncteurs.length === 0) {
                     console.log('[Edit] Erreur: Aucun disjoncteur');
                     showPopup('Veuillez ajouter au moins un disjoncteur.', '', () => {});
@@ -1067,13 +1157,21 @@
                         console.log('[Edit] Erreur: Données HTA invalides');
                         return;
                     }
+                    const normalizedDisjoncteurs = disjoncteurs.map(d => ({
+                        ...d,
+                        icn: normalizeNumericValue(d.icn),
+                        ics: normalizeNumericValue(d.ics),
+                        in: normalizeNumericValue(d.in),
+                        ir: normalizeNumericValue(d.ir),
+                        triptime: normalizeNumericValue(d.triptime)
+                    }));
                     console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, 'avec nouvel ID:', newTableauId);
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 5000);
                     const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: newTableauId, disjoncteurs, issitemain, isHTA, htaData }),
+                        body: JSON.stringify({ id: newTableauId, disjoncteurs: normalizedDisjoncteurs, issitemain, isHTA, htaData }),
                         signal: controller.signal
                     });
                     clearTimeout(timeoutId);
