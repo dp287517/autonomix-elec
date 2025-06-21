@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -6,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Autonomix Elec - Modifier un tableau</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link href="/styles.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <style>
         .conflict { color: #dc2626; font-weight: bold; }
         .disjoncteur-principal { background-color: #fefcbf; }
@@ -17,6 +17,7 @@
         @media (max-width: 640px) {
             .container { padding: 0.5rem; }
             input, select, button { font-size: 0.875rem; }
+            table th, table td { font-size: 0.875rem; padding: 0.5rem; }
         }
         select[multiple] { height: 120px; }
     </style>
@@ -39,12 +40,12 @@
         </ul>
     </nav>
 
-    <div class="container mx-auto p-6">
-        <h1 class="text-2xl sm:text-3xl font-bold text-center mb-6 flex items-center"><i class="fas fa-edit mr-3"></i>Modifier un tableau électrique</h1>
+    <div class="container mx-auto p-4 sm:p-6">
+        <h1 class="text-2xl sm:text-3xl font-bold text-center mb-4 sm:mb-6 flex items-center"><i class="fas fa-edit mr-2 sm:mr-3"></i>Modifier un tableau électrique</h1>
 
-        <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6 animate-fade-in">
-            <h2 class="text-xl font-semibold mb-4">Étapes pour modifier un tableau</h2>
-            <ol class="list-decimal list-inside space-y-2 text-gray-300 text-sm sm:text-base">
+        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-4 sm:mb-6 animate-fade-in">
+            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-info-circle mr-2"></i>Étapes pour modifier un tableau</h2>
+            <ol class="list-decimal list-inside space-y-2 text-sm sm:text-base text-gray-300">
                 <li>Vérifiez l'identifiant du tableau (modifiable, doit être unique).</li>
                 <li>Indiquez si le tableau est le général principal du site (enregistré automatiquement).</li>
                 <li>Indiquez si le tableau est alimenté par une cellule HTA et configurez les paramètres HTA si nécessaire.</li>
@@ -64,19 +65,19 @@
             </ol>
         </div>
 
-        <div class="bg-gray-800 p-6 rounded-lg shadow-lg animate-fade-in">
-            <h2 class="text-xl font-semibold mb-4">Informations du tableau</h2>
+        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg">
+            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-table mr-2"></i>Informations du tableau</h2>
             <div class="mb-4">
                 <label for="tableau-id" class="block text-sm font-medium">Identifiant du tableau</label>
-                <input id="tableau-id" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. BâtimentA-TGBT1">
+                <input id="tableau-id" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 40-8-G">
             </div>
             <div class="mb-4">
                 <label class="inline-flex items-center">
-                    <input id="tableau-isSiteMain" type="checkbox" class="form-checkbox h-5 w-5 text-blue-600" onchange="saveIsSiteMain()">
+                    <input id="tableau-issitemain" type="checkbox" class="form-checkbox h-5 w-5 text-blue-600" onchange="saveIsSiteMain()">
                     <span class="ml-2 text-sm font-medium">Tableau général principal du site</span>
                 </label>
                 <p class="text-xs text-gray-500">Cochez si ce tableau est le principal du site (pas de disjoncteur amont). Modification enregistrée automatiquement.</p>
-                <div id="isSiteMain-message" class="mt-2 p-2 rounded text-sm hidden"></div>
+                <div id="issitemain-message" class="mt-2 p-2 rounded text-sm hidden"></div>
             </div>
             <div class="mb-4">
                 <label class="inline-flex items-center">
@@ -112,7 +113,7 @@
                 </div>
             </div>
 
-            <h2 class="text-xl font-semibold mb-4">Ajouter un disjoncteur</h2>
+            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-cogs mr-2"></i>Ajouter un disjoncteur</h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
                     <label for="disjoncteur-marque" class="block text-sm font-medium">Marque</label>
@@ -136,12 +137,12 @@
             </div>
 
             <div id="disjoncteur-form" class="mt-4 hidden">
-                <h3 class="text-lg font-semibold mb-2">Caractéristiques du disjoncteur</h3>
+                <h3 class="text-lg font-semibold mb-2 flex items-center"><i class="fas fa-cog mr-2"></i>Caractéristiques du disjoncteur</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                         <label for="disjoncteur-id" class="block text-sm font-medium">ID <span class="text-red-600">*</span></label>
-                        <input id="disjoncteur-id" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 400Q1 Compresseur">
-                        <p class="text-xs text-gray-500">Obligatoire, unique dans ce tableau, ex. 400Q1 Compresseur</p>
+                        <input id="disjoncteur-id" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 11F1 Compresseur">
+                        <p class="text-xs text-gray-500">Obligatoire, unique dans ce tableau, ex. 11F1 Compresseur</p>
                     </div>
                     <div>
                         <label for="disjoncteur-type" class="block text-sm font-medium">Type</label>
@@ -252,13 +253,13 @@
                     </div>
                 </div>
                 <div class="flex space-x-4 mt-4">
-                    <button id="disjoncteur-action" onclick="ajouterDisjoncteur()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 touch-friendly">Ajouter au tableau</button>
+                    <button id="disjoncteur-action" onclick="ajouterDisjoncteur()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 touch-friendly"><i class="fas fa-save mr-2"></i>Ajouter au tableau</button>
                 </div>
             </div>
         </div>
 
-        <div class="bg-gray-800 p-6 rounded-lg shadow-lg mt-6 animate-fade-in">
-            <h2 class="text-xl font-semibold mb-4">Disjoncteurs du tableau</h2>
+        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mt-4 sm:mt-6">
+            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-list mr-2"></i>Disjoncteurs du tableau</h2>
             <div class="overflow-x-auto">
                 <table id="disjoncteurs-table" class="w-full text-sm sm:text-base">
                     <thead>
@@ -277,13 +278,13 @@
             <button onclick="enregistrerModifications()" class="bg-blue-600 text-white px-4 py-2 rounded mt-4 hover:bg-blue-700 touch-friendly"><i class="fas fa-save mr-2"></i>Enregistrer les modifications</button>
         </div>
 
-        <div id="popup" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div id="popup" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
             <div class="bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full">
                 <p id="popup-message" class="mb-4 text-sm sm:text-base"></p>
                 <div id="popup-content" class="mb-4"></div>
                 <div class="flex space-x-4">
-                    <button id="popup-confirm" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 touch-friendly">Confirmer</button>
-                    <button id="popup-cancel" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 touch-friendly">Annuler</button>
+                    <button id="popup-confirm" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 touch-friendly"><i class="fas fa-check mr-2"></i>Confirmer</button>
+                    <button id="popup-cancel" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 touch-friendly"><i class="fas fa-times mr-2"></i>Annuler</button>
                 </div>
             </div>
         </div>
@@ -294,93 +295,37 @@
             let tableauId = new URLSearchParams(window.location.search).get('id');
             let editIndex = null;
             let tableaux = [];
-            let isSiteMain = false;
+            let issitemain = false;
             let isSiteMainError = false;
             let isHTA = false;
 
-            // Validation de l'ID du disjoncteur
             function validateDisjoncteurId(id) {
                 const validIdRegex = /^[\p{L}0-9\s\-_:]+$/u;
                 return validIdRegex.test(id);
             }
 
-            // Affichage des disjoncteurs dans le tableau
-            function afficherDisjoncteurs() {
-                console.log('[Edit] Affichage disjoncteurs, total:', disjoncteurs.length, 'principal index:', disjoncteurPrincipalIndex);
-                const tbody = document.querySelector('#disjoncteurs-table tbody');
-                tbody.innerHTML = '';
-                const idCounts = {};
-                disjoncteurs.forEach(d => {
-                    idCounts[d.id] = (idCounts[d.id] || 0) + 1;
-                });
-                disjoncteurs.sort((a, b) => a.id.localeCompare(b.id));
-                disjoncteurs.forEach((d, index) => {
-                    const isPrincipal = d.isPrincipal || false;
-                    console.log('[Edit] Disjoncteur', d.id, 'index:', index, 'isPrincipal:', isPrincipal);
-                    const hasConflict = idCounts[d.id] > 1;
-                    const row = document.createElement('tr');
-                    if (isPrincipal) row.className = 'disjoncteur-principal bg-yellow-100';
-
-                    const idCell = document.createElement('td');
-                    idCell.className = `p-2 ${hasConflict ? 'text-red-600 font-bold' : ''}`;
-                    idCell.textContent = `${d.id}${hasConflict ? ' (Conflit)' : ''}`;
-                    row.appendChild(idCell);
-
-                    const marqueCell = document.createElement('td');
-                    marqueCell.className = 'p-2';
-                    marqueCell.textContent = d.marque;
-                    row.appendChild(marqueCell);
-
-                    const refCell = document.createElement('td');
-                    refCell.className = 'p-2';
-                    refCell.textContent = d.ref;
-                    row.appendChild(refCell);
-
-                    const principalCell = document.createElement('td');
-                    principalCell.className = 'p-2 text-center';
-                    principalCell.textContent = isPrincipal ? '⭐ Principal' : '';
-                    row.appendChild(principalCell);
-
-                    const liaisonCell = document.createElement('td');
-                    liaisonCell.className = 'p-2';
-                    liaisonCell.textContent = isPrincipal ? 'Lié à tous les avals' : (d.linkedTableauIds?.length > 0 ? `Lié à ${d.linkedTableauIds.join(', ')}` : 'Non lié');
-                    row.appendChild(liaisonCell);
-
-                    const actionsCell = document.createElement('td');
-                    actionsCell.className = 'p-2 flex space-x-2';
-
-                    const modifierBtn = document.createElement('button');
-                    modifierBtn.className = 'bg-blue-500 text-white p-1 rounded-sm touch-friendly';
-                    modifierBtn.innerHTML = '<i class="fas fa-edit"></i>';
-                    modifierBtn.onclick = () => modifierDisjoncteur(index);
-                    actionsCell.appendChild(modifierBtn);
-
-                    const supprimerBtn = document.createElement('button');
-                    supprimerBtn.className = 'bg-red-500 text-white p-1 rounded-sm touch-friendly';
-                    supprimerBtn.innerHTML = '<i class="fas fa-trash"></i>';
-                    supprimerBtn.onclick = () => supprimerDisjoncteur(index);
-                    actionsCell.appendChild(supprimerBtn);
-
-                    const transfererBtn = document.createElement('button');
-                    transfererBtn.className = 'bg-purple-500 text-white p-1 rounded-sm touch-friendly';
-                    transfererBtn.innerHTML = '<i class="fas fa-exchange-alt"></i>';
-                    transfererBtn.onclick = () => transfererDisjoncteur(index);
-                    actionsCell.appendChild(transfererBtn);
-
-                    if (!isPrincipal) {
-                        const principalBtn = document.createElement('button');
-                        principalBtn.className = 'bg-yellow-500 text-white p-1 rounded-sm touch-friendly';
-                        principalBtn.innerHTML = '<i class="fas fa-star"></i>';
-                        principalBtn.onclick = () => designerPrincipal(index);
-                        actionsCell.appendChild(principalBtn);
-                    }
-
-                    row.appendChild(actionsCell);
-                    tbody.appendChild(row);
-                });
+            function showPopup(message, content = '', confirmCallback = () => {}) {
+                console.log('[Edit] Affichage pop-up:', message);
+                document.getElementById('popup-message').textContent = message;
+                document.getElementById('popup-content').innerHTML = content;
+                document.getElementById('popup').classList.remove('hidden');
+                document.getElementById('popup-confirm').onclick = () => {
+                    console.log('[Edit] Pop-up confirmé:', message);
+                    confirmCallback();
+                    hidePopup();
+                };
+                document.getElementById('popup-cancel').onclick = () => {
+                    console.log('[Edit] Pop-up annulé:', message);
+                    hidePopup();
+                };
+                gsap.from('#popup > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
             }
 
-            // Afficher/masquer les champs HTA
+            function hidePopup() {
+                console.log('[Edit] Masquage pop-up');
+                document.getElementById('popup').classList.add('hidden');
+            }
+
             function toggleHTAFields() {
                 const isHTAChecked = document.getElementById('tableau-isHTA').checked;
                 const htaFields = document.getElementById('hta-fields');
@@ -395,20 +340,28 @@
                 }
             }
 
-            // Collecter les données HTA
             function collectHTAData() {
                 if (!document.getElementById('tableau-isHTA').checked) return null;
+                const transformerPower = parseFloat(document.getElementById('hta-transformerPower').value);
+                const voltage = parseFloat(document.getElementById('hta-voltage').value);
+                const inCurrent = parseFloat(document.getElementById('hta-in').value);
+                const irCurrent = parseFloat(document.getElementById('hta-ir').value);
+                const triptime = parseFloat(document.getElementById('hta-triptime').value);
+                const icn = parseFloat(document.getElementById('hta-icn').value);
+                if ([transformerPower, voltage, inCurrent, irCurrent, triptime, icn].some(v => isNaN(v) || v <= 0)) {
+                    showPopup('Tous les champs HTA doivent être des valeurs numériques positives.', '', () => {});
+                    return null;
+                }
                 return {
-                    transformerPower: document.getElementById('hta-transformerPower').value,
-                    voltage: document.getElementById('hta-voltage').value,
-                    in: document.getElementById('hta-in').value,
-                    ir: document.getElementById('hta-ir').value,
-                    triptime: document.getElementById('hta-triptime').value,
-                    icn: document.getElementById('hta-icn').value
+                    transformerPower,
+                    voltage,
+                    in: inCurrent,
+                    ir: irCurrent,
+                    triptime,
+                    icn
                 };
             }
 
-            // Chargement du tableau
             async function chargerTableau() {
                 console.log('[Edit] Chargement tableau:', tableauId);
                 try {
@@ -416,30 +369,33 @@
                         console.log('[Edit] Aucun ID de tableau fourni, initialisation vide');
                         disjoncteurs = [];
                         document.getElementById('tableau-id').value = '';
-                        document.getElementById('tableau-isSiteMain').checked = false;
+                        document.getElementById('tableau-issitemain').checked = false;
                         document.getElementById('tableau-isHTA').checked = false;
                         toggleHTAFields();
-                        isSiteMain = false;
+                        issitemain = false;
                         isHTA = false;
                         afficherDisjoncteurs();
                         return;
                     }
-                    const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`);
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, { signal: controller.signal });
+                    clearTimeout(timeoutId);
                     if (!response.ok) {
                         console.log('[Edit] Tableau non trouvé:', tableauId, 'Statut:', response.status);
-                        showPopup('Tableau non trouvé. Initialisation avec un tableau vide.', () => {
+                        showPopup('Tableau non trouvé. Initialisation avec un tableau vide.', '', () => {
                             disjoncteurs = [];
                             afficherDisjoncteurs();
                         });
                         return;
                     }
                     const tableau = await response.json();
-                    console.log('[Edit] Tableau reçu:', { id: tableau.id, isSiteMain: tableau.isSiteMain, isHTA: tableau.isHTA, disjoncteurs: tableau.disjoncteurs.length });
+                    console.log('[Edit] Tableau reçu:', { id: tableau.id, issitemain: tableau.issitemain, isHTA: tableau.isHTA, disjoncteurs: tableau.disjoncteurs.length });
                     document.getElementById('tableau-id').value = tableau.id;
-                    document.getElementById('tableau-isSiteMain').checked = tableau.isSiteMain || false;
+                    document.getElementById('tableau-issitemain').checked = tableau.issitemain || false;
                     document.getElementById('tableau-isHTA').checked = tableau.isHTA || false;
                     toggleHTAFields();
-                    isSiteMain = tableau.isSiteMain || false;
+                    issitemain = tableau.issitemain || false;
                     isHTA = tableau.isHTA || false;
                     if (isHTA && tableau.htaData) {
                         document.getElementById('hta-transformerPower').value = tableau.htaData.transformerPower || '';
@@ -457,41 +413,39 @@
                     disjoncteurPrincipalIndex = disjoncteurs.findIndex(d => d.isPrincipal);
                     console.log('[Edit] Disjoncteurs normalisés:', disjoncteurs);
                     afficherDisjoncteurs();
-                    console.log('[Edit] Tableau chargé:', tableau.id, 'Principal index:', disjoncteurPrincipalIndex, 'isSiteMain:', isSiteMain, 'isHTA:', isHTA);
+                    console.log('[Edit] Tableau chargé:', tableau.id, 'Principal index:', disjoncteurPrincipalIndex, 'issitemain:', issitemain, 'isHTA:', isHTA);
                 } catch (error) {
                     console.error('[Edit] Erreur chargement tableau:', error);
-                    showPopup('Erreur lors du chargement du tableau: ' + error.message, () => {});
+                    showPopup('Erreur lors du chargement du tableau: ' + error.message, '', () => {});
                 }
             }
 
-            // Sauvegarde de isSiteMain
             async function saveIsSiteMain() {
-                console.log('[Edit] Sauvegarde isSiteMain');
-                const newIsSiteMain = document.getElementById('tableau-isSiteMain').checked;
-                const messageDiv = document.getElementById('isSiteMain-message');
-
+                console.log('[Edit] Sauvegarde issitemain');
+                const newIsSiteMain = document.getElementById('tableau-issitemain').checked;
+                const messageDiv = document.getElementById('issitemain-message');
                 if (isSiteMainError) {
                     messageDiv.classList.add('hidden');
                     isSiteMainError = false;
                 }
-
                 try {
-                    console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, { isSiteMain: newIsSiteMain });
+                    console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, { issitemain: newIsSiteMain });
                     const htaData = collectHTAData();
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
                     const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain: newIsSiteMain, isHTA, htaData })
+                        body: JSON.stringify({ id: tableauId, disjoncteurs, issitemain: newIsSiteMain, isHTA, htaData }),
+                        signal: controller.signal
                     });
+                    clearTimeout(timeoutId);
                     const data = await response.json();
-                    console.log('[Edit] Réponse serveur isSiteMain:', { status: response.status, data });
+                    console.log('[Edit] Réponse serveur issitemain:', { status: response.status, data });
                     if (!response.ok) {
                         throw new Error(data.error || `Erreur serveur (statut ${response.status})`);
                     }
-                    if (!data.success || data.data.isSiteMain !== newIsSiteMain) {
-                        throw new Error('La mise à jour du statut principal n\'a pas été confirmée par le serveur.');
-                    }
-                    isSiteMain = newIsSiteMain;
+                    issitemain = newIsSiteMain;
                     messageDiv.textContent = 'Statut de tableau principal du site mis à jour.';
                     messageDiv.className = 'bg-green-100 text-green-800 mt-2 p-2 rounded text-sm';
                     messageDiv.classList.remove('hidden');
@@ -500,20 +454,23 @@
                     }, 5000);
                     await chargerTableau();
                 } catch (error) {
-                    console.error('[Edit] Erreur sauvegarde isSiteMain:', error);
+                    console.error('[Edit] Erreur sauvegarde issitemain:', error);
                     isSiteMainError = true;
-                    document.getElementById('tableau-isSiteMain').checked = isSiteMain;
+                    document.getElementById('tableau-issitemain').checked = issitemain;
                     messageDiv.innerHTML = `Erreur lors de la mise à jour du statut: ${error.message}. <button onclick="saveIsSiteMain()" class="underline text-blue-600">Réessayer</button>`;
                     messageDiv.className = 'bg-red-100 text-red-800 mt-2 p-2 rounded text-sm';
                     messageDiv.classList.remove('hidden');
                 }
             }
 
-            // Chargement des disjoncteurs existants
             async function chargerDisjoncteursExistants() {
                 console.log('[Edit] Chargement disjoncteurs existants');
                 try {
-                    const response = await fetch('/api/disjoncteurs');
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    const response = await fetch('/api/disjoncteurs', { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
                     const disjoncteursExistants = await response.json();
                     console.log('[Edit] Disjoncteurs existants reçus:', disjoncteursExistants.length);
                     const select = document.getElementById('disjoncteur-existant');
@@ -524,18 +481,20 @@
                         option.textContent = `${d.marque} ${d.ref}`;
                         select.appendChild(option);
                     });
-                    console.log('[Edit] Disjoncteurs existants chargés:', disjoncteursExistants.length);
                 } catch (error) {
                     console.error('[Edit] Erreur chargement disjoncteurs existants:', error);
-                    showPopup('Erreur lors du chargement des disjoncteurs existants: ' + error.message, () => {});
+                    showPopup('Erreur lors du chargement des disjoncteurs existants: ' + error.message, '', () => {});
                 }
             }
 
-            // Chargement des tableaux
             async function chargerTableaux() {
                 console.log('[Edit] Chargement liste tableaux');
                 try {
-                    const response = await fetch('/api/tableaux/ids');
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    const response = await fetch('/api/tableaux/ids', { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
                     tableaux = await response.json();
                     console.log('[Edit] Tableaux chargés:', tableaux);
                     const select = document.getElementById('disjoncteur-linked-tableaux');
@@ -550,28 +509,94 @@
                         });
                 } catch (error) {
                     console.error('[Edit] Erreur chargement tableaux:', error);
-                    showPopup('Erreur lors du chargement des tableaux: ' + error.message, () => {});
+                    showPopup('Erreur lors du chargement des tableaux: ' + error.message, '', () => {});
                 }
             }
 
-            // Recherche d'un disjoncteur via OpenAI
+            function afficherDisjoncteurs() {
+                console.log('[Edit] Affichage disjoncteurs, total:', disjoncteurs.length, 'principal index:', disjoncteurPrincipalIndex);
+                const tbody = document.querySelector('#disjoncteurs-table tbody');
+                tbody.innerHTML = '';
+                const idCounts = {};
+                disjoncteurs.forEach(d => {
+                    idCounts[d.id] = (idCounts[d.id] || 0) + 1;
+                });
+                disjoncteurs.sort((a, b) => a.id.localeCompare(b.id));
+                disjoncteurs.forEach((d, index) => {
+                    const isPrincipal = d.isPrincipal || false;
+                    console.log('[Edit] Disjoncteur', d.id, 'index:', index, 'isPrincipal:', isPrincipal);
+                    const hasConflict = idCounts[d.id] > 1;
+                    const row = document.createElement('tr');
+                    if (isPrincipal) row.className = 'disjoncteur-principal';
+                    const idCell = document.createElement('td');
+                    idCell.className = `p-2 ${hasConflict ? 'conflict' : ''}`;
+                    idCell.textContent = `${d.id}${hasConflict ? ' (Conflit)' : ''}`;
+                    row.appendChild(idCell);
+                    const marqueCell = document.createElement('td');
+                    marqueCell.className = 'p-2';
+                    marqueCell.textContent = d.marque;
+                    row.appendChild(marqueCell);
+                    const refCell = document.createElement('td');
+                    refCell.className = 'p-2';
+                    refCell.textContent = d.ref;
+                    row.appendChild(refCell);
+                    const principalCell = document.createElement('td');
+                    principalCell.className = 'p-2 text-center';
+                    principalCell.textContent = isPrincipal ? '⭐ Principal' : '';
+                    row.appendChild(principalCell);
+                    const liaisonCell = document.createElement('td');
+                    liaisonCell.className = 'p-2';
+                    liaisonCell.textContent = isPrincipal ? 'Lié à tous les avals' : (d.linkedTableauIds?.length > 0 ? `Lié à ${d.linkedTableauIds.join(', ')}` : 'Non lié');
+                    row.appendChild(liaisonCell);
+                    const actionsCell = document.createElement('td');
+                    actionsCell.className = 'p-2 flex space-x-2';
+                    const modifierBtn = document.createElement('button');
+                    modifierBtn.className = 'bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 touch-friendly';
+                    modifierBtn.innerHTML = '<i class="fas fa-edit"></i>';
+                    modifierBtn.onclick = () => modifierDisjoncteur(index);
+                    actionsCell.appendChild(modifierBtn);
+                    const supprimerBtn = document.createElement('button');
+                    supprimerBtn.className = 'bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 touch-friendly';
+                    supprimerBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                    supprimerBtn.onclick = () => supprimerDisjoncteur(index);
+                    actionsCell.appendChild(supprimerBtn);
+                    const transfererBtn = document.createElement('button');
+                    transfererBtn.className = 'bg-purple-600 text-white px-2 py-1 rounded hover:bg-purple-700 touch-friendly';
+                    transfererBtn.innerHTML = '<i class="fas fa-exchange-alt"></i>';
+                    transfererBtn.onclick = () => transfererDisjoncteur(index);
+                    actionsCell.appendChild(transfererBtn);
+                    if (!isPrincipal) {
+                        const principalBtn = document.createElement('button');
+                        principalBtn.className = 'bg-yellow-600 text-white px-2 py-1 rounded hover:bg-yellow-700 touch-friendly';
+                        principalBtn.innerHTML = '<i class="fas fa-star"></i>';
+                        principalBtn.onclick = () => designerPrincipal(index);
+                        actionsCell.appendChild(principalBtn);
+                    }
+                    row.appendChild(actionsCell);
+                    tbody.appendChild(row);
+                });
+            }
+
             async function rechercherDisjoncteur() {
                 console.log('[Edit] Bouton Rechercher via OpenAI cliqué');
                 const marque = document.getElementById('disjoncteur-marque').value.trim();
                 const ref = document.getElementById('disjoncteur-ref').value.trim();
                 if (!marque || !ref) {
                     console.log('[Edit] Erreur: Marque ou référence vide');
-                    showPopup('Veuillez entrer la marque et la référence.', () => {});
+                    showPopup('Veuillez entrer la marque et la référence.', '', () => {});
                     return;
                 }
-
                 try {
                     console.log('[Edit] Envoi requête OpenAI pour', { marque, ref });
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
                     const response = await fetch('/api/disjoncteur', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ marque, ref })
+                        body: JSON.stringify({ marque, ref }),
+                        signal: controller.signal
                     });
+                    clearTimeout(timeoutId);
                     const data = await response.json();
                     console.log('[Edit] Données OpenAI reçues:', data);
                     if (response.ok && data && Object.keys(data).length > 0) {
@@ -604,18 +629,16 @@
                         Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
                         linkedSelect.disabled = false;
                         editIndex = null;
-                        console.log('[Edit] Formulaire rempli avec données OpenAI');
                     } else {
                         console.log('[Edit] Aucune donnée OpenAI reçue');
-                        showPopup('Aucune donnée trouvée pour ce disjoncteur. Essayez manuellement ou vérifiez la marque/référence.', () => {});
+                        showPopup('Aucune donnée trouvée pour ce disjoncteur. Essayez manuellement ou vérifiez la marque/référence.', '', () => {});
                     }
                 } catch (error) {
                     console.error('[Edit] Erreur recherche OpenAI:', error);
-                    showPopup('Erreur lors de la recherche OpenAI: ' + error.message, () => {});
+                    showPopup('Erreur lors de la recherche OpenAI: ' + error.message, '', () => {});
                 }
             }
 
-            // Ajout manuel d'un disjoncteur
             function ajouterManuel() {
                 console.log('[Edit] Bouton Ajouter manuellement cliqué');
                 document.getElementById('disjoncteur-form').classList.remove('hidden');
@@ -647,66 +670,61 @@
                 Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
                 linkedSelect.disabled = false;
                 editIndex = null;
-                console.log('[Edit] Formulaire manuel ouvert');
             }
 
-            // Ajout d'un disjoncteur existant
             async function ajouterDisjoncteurExistant() {
                 console.log('[Edit] Bouton Ajouter (liste déroulante) cliqué');
                 const select = document.getElementById('disjoncteur-existant');
                 const selected = select.value;
                 if (!selected) {
                     console.log('[Edit] Erreur: Aucun disjoncteur sélectionné');
-                    showPopup('Veuillez sélectionner un disjoncteur.', () => {});
+                    showPopup('Veuillez sélectionner un disjoncteur.', '', () => {});
                     return;
                 }
                 try {
                     const disjoncteurBase = JSON.parse(selected);
                     console.log('[Edit] Disjoncteur sélectionné:', disjoncteurBase);
-                    const disjoncteur = { ...disjoncteurBase, id: '', isPrincipal: false, linkedTableauIds: [] };
                     document.getElementById('disjoncteur-form').classList.remove('hidden');
                     document.getElementById('disjoncteur-id').value = '';
-                    document.getElementById('disjoncteur-marque').value = disjoncteur.marque || '';
-                    document.getElementById('disjoncteur-ref').value = disjoncteur.ref || '';
-                    document.getElementById('disjoncteur-type').value = disjoncteur.type || '';
-                    document.getElementById('disjoncteur-poles').value = disjoncteur.poles || '';
-                    document.getElementById('disjoncteur-montage').value = disjoncteur.montage || '';
-                    document.getElementById('disjoncteur-ue').value = disjoncteur.ue || '';
-                    document.getElementById('disjoncteur-ui').value = disjoncteur.ui || '';
-                    document.getElementById('disjoncteur-uimp').value = disjoncteur.uimp || '';
-                    document.getElementById('disjoncteur-frequence').value = disjoncteur.frequence || '';
-                    document.getElementById('disjoncteur-in').value = disjoncteur.in || '';
-                    document.getElementById('disjoncteur-ir').value = disjoncteur.ir || '';
-                    document.getElementById('disjoncteur-courbe').value = disjoncteur.courbe || '';
-                    document.getElementById('disjoncteur-triptime').value = disjoncteur.triptime || '';
-                    document.getElementById('disjoncteur-icn').value = disjoncteur.icn || '';
-                    document.getElementById('disjoncteur-ics').value = disjoncteur.ics || '';
-                    document.getElementById('disjoncteur-ip').value = disjoncteur.ip || '';
-                    document.getElementById('disjoncteur-temp').value = disjoncteur.temp || '';
-                    document.getElementById('disjoncteur-dimensions').value = disjoncteur.dimensions || '';
-                    document.getElementById('disjoncteur-section').value = disjoncteur.section || '';
-                    document.getElementById('disjoncteur-date').value = disjoncteur.date || '';
-                    document.getElementById('disjoncteur-tension').value = disjoncteur.tension || '';
-                    document.getElementById('disjoncteur-selectivite').value = disjoncteur.selectivite || '';
+                    document.getElementById('disjoncteur-marque').value = disjoncteurBase.marque || '';
+                    document.getElementById('disjoncteur-ref').value = disjoncteurBase.ref || '';
+                    document.getElementById('disjoncteur-type').value = disjoncteurBase.type || '';
+                    document.getElementById('disjoncteur-poles').value = disjoncteurBase.poles || '';
+                    document.getElementById('disjoncteur-montage').value = disjoncteurBase.montage || '';
+                    document.getElementById('disjoncteur-ue').value = disjoncteurBase.ue || '';
+                    document.getElementById('disjoncteur-ui').value = disjoncteurBase.ui || '';
+                    document.getElementById('disjoncteur-uimp').value = disjoncteurBase.uimp || '';
+                    document.getElementById('disjoncteur-frequence').value = disjoncteurBase.frequence || '';
+                    document.getElementById('disjoncteur-in').value = disjoncteurBase.in || '';
+                    document.getElementById('disjoncteur-ir').value = disjoncteurBase.ir || '';
+                    document.getElementById('disjoncteur-courbe').value = disjoncteurBase.courbe || '';
+                    document.getElementById('disjoncteur-triptime').value = disjoncteurBase.triptime || '';
+                    document.getElementById('disjoncteur-icn').value = disjoncteurBase.icn || '';
+                    document.getElementById('disjoncteur-ics').value = disjoncteurBase.ics || '';
+                    document.getElementById('disjoncteur-ip').value = disjoncteurBase.ip || '';
+                    document.getElementById('disjoncteur-temp').value = disjoncteurBase.temp || '';
+                    document.getElementById('disjoncteur-dimensions').value = disjoncteurBase.dimensions || '';
+                    document.getElementById('disjoncteur-section').value = disjoncteurBase.section || '';
+                    document.getElementById('disjoncteur-date').value = disjoncteurBase.date || '';
+                    document.getElementById('disjoncteur-tension').value = disjoncteurBase.tension || '';
+                    document.getElementById('disjoncteur-selectivite').value = disjoncteurBase.selectivite || '';
                     document.getElementById('disjoncteur-action').textContent = 'Ajouter au tableau';
                     const linkedSelect = document.getElementById('disjoncteur-linked-tableaux');
                     Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
                     linkedSelect.disabled = false;
                     editIndex = null;
-                    console.log('[Edit] Formulaire ouvert pour disjoncteur existant');
                 } catch (error) {
                     console.error('[Edit] Erreur parsing disjoncteur:', error);
-                    showPopup('Erreur lors de la sélection du disjoncteur: ' + error.message, () => {});
+                    showPopup('Erreur lors de la sélection du disjoncteur: ' + error.message, '', () => {});
                 }
             }
 
-            // Modification d'un disjoncteur
             function modifierDisjoncteur(index) {
                 console.log('[Edit] Bouton Modifier cliqué, index:', index);
                 const disjoncteur = disjoncteurs[index];
                 if (!disjoncteur) {
                     console.error('[Edit] Disjoncteur non trouvé à l\'index:', index);
-                    showPopup('Erreur: Disjoncteur non trouvé.', () => {});
+                    showPopup('Erreur: Disjoncteur non trouvé.', '', () => {});
                     return;
                 }
                 console.log('[Edit] Disjoncteur à modifier:', disjoncteur);
@@ -741,16 +759,14 @@
                 });
                 linkedSelect.disabled = disjoncteur.isPrincipal;
                 editIndex = index;
-                console.log('[Edit] Formulaire ouvert pour modification, disjoncteur ID:', disjoncteur.id, 'Tableaux avals:', disjoncteur.linkedTableauIds);
             }
 
-            // Transfert d'un disjoncteur
             function transfererDisjoncteur(index) {
                 console.log('[Edit] Bouton Transférer cliqué, index:', index);
                 const disjoncteur = disjoncteurs[index];
                 if (!disjoncteur) {
                     console.error('[Edit] Disjoncteur non trouvé à l\'index:', index);
-                    showPopup('Erreur: Disjoncteur non trouvé.', () => {});
+                    showPopup('Erreur: Disjoncteur non trouvé.', '', () => {});
                     return;
                 }
                 const options = tableaux
@@ -758,7 +774,7 @@
                     .map(t => `<option value="${t}">${t}</option>`).join('');
                 if (!options.length) {
                     console.log('[Edit] Aucun autre tableau disponible pour le transfert');
-                    showPopup('Aucun autre tableau disponible pour le transfert.', () => {});
+                    showPopup('Aucun autre tableau disponible pour le transfert.', '', () => {});
                     return;
                 }
                 showPopup(`Transférer le disjoncteur ${disjoncteur.id} vers un autre tableau ?`,
@@ -767,7 +783,7 @@
                         const targetId = document.getElementById('transfer-tableau').value;
                         if (!targetId) {
                             console.log('[Edit] Erreur: Aucun tableau cible sélectionné');
-                            showPopup('Veuillez sélectionner un tableau.', () => {});
+                            showPopup('Veuillez sélectionner un tableau.', '', () => {});
                             return;
                         }
                         console.log('[Edit] Transfert vers tableau:', targetId);
@@ -781,33 +797,37 @@
                                 console.log('[Edit] Ajustement disjoncteurPrincipalIndex:', disjoncteurPrincipalIndex);
                             }
                             const htaData = collectHTAData();
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 5000);
                             await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain, isHTA, htaData })
+                                body: JSON.stringify({ id: tableauId, disjoncteurs, issitemain, isHTA, htaData }),
+                                signal: controller.signal
                             });
+                            clearTimeout(timeoutId);
                             console.log('[Edit] Tableau', tableauId, 'mis à jour après suppression');
-                            const response = await fetch(`/api/tableaux/${encodeURIComponent(targetId)}`);
+                            const response = await fetch(`/api/tableaux/${encodeURIComponent(targetId)}`, { signal: controller.signal });
                             const targetTableau = await response.json();
                             const targetDisjoncteurs = targetTableau.disjoncteurs || [];
                             targetDisjoncteurs.push(disjoncteur);
                             await fetch(`/api/tableaux/${encodeURIComponent(targetId)}`, {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ id: targetId, disjoncteurs: targetDisjoncteurs, isSiteMain: targetTableau.isSiteMain, isHTA: targetTableau.isHTA, htaData: targetTableau.htaData })
+                                body: JSON.stringify({ id: targetId, disjoncteurs: targetDisjoncteurs, issitemain: targetTableau.issitemain, isHTA: targetTableau.isHTA, htaData: targetTableau.htaData }),
+                                signal: controller.signal
                             });
                             console.log('[Edit] Disjoncteur', disjoncteur.id, 'transféré vers', targetId);
                             await chargerTableau();
                             hidePopup();
-                            showPopup('Disjoncteur transféré avec succès.', () => {});
+                            showPopup('Disjoncteur transféré avec succès.', '', () => {});
                         } catch (error) {
                             console.error('[Edit] Erreur transfert:', error);
-                            showPopup('Erreur lors du transfert: ' + error.message, () => {});
+                            showPopup('Erreur lors du transfert: ' + error.message, '', () => {});
                         }
                     });
             }
 
-            // Ajout ou modification d'un disjoncteur
             async function ajouterDisjoncteur() {
                 console.log('[Edit] Bouton Ajouter/Modifier cliqué, editIndex:', editIndex);
                 const disjoncteur = {
@@ -844,53 +864,56 @@
 
                 if (!disjoncteur.id) {
                     console.log('[Edit] Erreur: ID vide');
-                    showPopup('L\'ID du disjoncteur est obligatoire (ex. 400Q1 Compresseur).', () => {});
+                    showPopup('L\'ID du disjoncteur est obligatoire (ex. 11F1 Compresseur).', '', () => {});
                     return;
                 }
                 if (!validateDisjoncteurId(disjoncteur.id)) {
                     console.log('[Edit] Erreur: ID invalide', disjoncteur.id);
-                    showPopup('L\'ID du disjoncteur contient des caractères non autorisés. Utilisez lettres (y compris accentuées), chiffres, espaces, tirets, underscores ou deux-points.', () => {});
+                    showPopup('L\'ID du disjoncteur contient des caractères non autorisés. Utilisez lettres (y compris accentuées), chiffres, espaces, tirets, underscores ou deux-points.', '', () => {});
                     return;
                 }
                 if (!disjoncteur.marque || !disjoncteur.ref) {
                     console.log('[Edit] Erreur: Marque ou référence vide');
-                    showPopup('Veuillez entrer la marque et la référence.', () => {});
+                    showPopup('Veuillez entrer la marque et la référence.', '', () => {});
                     return;
                 }
                 if (disjoncteur.courbe && !['B', 'C', 'D'].includes(disjoncteur.courbe)) {
                     console.log('[Edit] Erreur: Courbe invalide', disjoncteur.courbe);
-                    showPopup('La courbe doit être B, C ou D.', () => {});
+                    showPopup('La courbe doit être B, C ou D.', '', () => {});
                     return;
                 }
                 if (disjoncteur.ir && !/^\d+(\s*A)?$/.test(disjoncteur.ir)) {
                     console.log('[Edit] Erreur: Ir invalide', disjoncteur.ir);
-                    showPopup('Ir doit être une valeur numérique, ex. 60 ou 60 A.', () => {});
+                    showPopup('Ir doit être une valeur numérique, ex. 60 ou 60 A.', '', () => {});
                     return;
                 }
                 if (disjoncteur.linkedTableauIds.includes(tableauId)) {
                     console.log('[Edit] Erreur: Tableau parent inclus dans linkedTableauIds', tableauId);
-                    showPopup('Un disjoncteur ne peut pas être lié à son propre tableau parent.', () => {});
+                    showPopup('Un disjoncteur ne peut pas être lié à son propre tableau parent.', '', () => {});
                     return;
                 }
-
                 if (editIndex === null || disjoncteurs[editIndex].id !== disjoncteur.id) {
                     if (disjoncteurs.some(d => d.id === disjoncteur.id)) {
                         console.log('[Edit] Erreur: ID déjà utilisé dans ce tableau', disjoncteur.id);
-                        showPopup('Cet ID est déjà utilisé dans ce tableau. Choisissez un ID unique.', () => {});
+                        showPopup('Cet ID est déjà utilisé dans ce tableau. Choisissez un ID unique.', '', () => {});
                         return;
                     }
                 }
 
                 try {
                     const htaData = collectHTAData();
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
                     if (editIndex !== null) {
                         const oldId = disjoncteurs[editIndex].id;
                         console.log('[Edit] Envoi requête PUT /api/disjoncteur/', tableauId, '/', oldId, 'avec nouvel ID:', disjoncteur.id);
                         const response = await fetch(`/api/disjoncteur/${encodeURIComponent(tableauId)}/${encodeURIComponent(oldId)}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ ...disjoncteur, newId: disjoncteur.id })
+                            body: JSON.stringify({ ...disjoncteur, newId: disjoncteur.id }),
+                            signal: controller.signal
                         });
+                        clearTimeout(timeoutId);
                         const responseData = await response.json();
                         console.log('[Edit] Réponse serveur modification disjoncteur:', { status: response.status, data: responseData });
                         if (!response.ok) {
@@ -898,15 +921,17 @@
                         }
                         console.log('[Edit] Disjoncteur modifié:', disjoncteur.id, responseData.data);
                         await chargerTableau();
-                        showPopup('Disjoncteur modifié avec succès.', () => {});
+                        showPopup('Disjoncteur modifié avec succès.', '', () => {});
                     } else {
                         console.log('[Edit] Tentative d\'ajout disjoncteur:', disjoncteur.id);
                         const tempDisjoncteurs = [...disjoncteurs, disjoncteur];
                         const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: tableauId, disjoncteurs: tempDisjoncteurs, isSiteMain, isHTA, htaData })
+                            body: JSON.stringify({ id: tableauId, disjoncteurs: tempDisjoncteurs, issitemain, isHTA, htaData }),
+                            signal: controller.signal
                         });
+                        clearTimeout(timeoutId);
                         const responseData = await response.json();
                         console.log('[Edit] Réponse serveur ajout disjoncteur:', { status: response.status, data: responseData });
                         if (!response.ok) {
@@ -923,7 +948,7 @@
                             console.log('[Edit] Disjoncteur ajouté à la liste déroulante:', `${disjoncteur.marque} ${disjoncteur.ref}`);
                         }
                         await chargerTableau();
-                        showPopup('Disjoncteur ajouté avec succès.', () => {});
+                        showPopup('Disjoncteur ajouté avec succès.', '', () => {});
                     }
                     document.getElementById('disjoncteur-form').classList.add('hidden');
                     document.getElementById('disjoncteur-marque').value = '';
@@ -935,54 +960,55 @@
                     console.log('[Edit] Formulaire réinitialisé');
                 } catch (error) {
                     console.error('[Edit] Erreur mise à jour:', error.message);
-                    showPopup('Erreur lors de l\'opération : ' + error.message, () => {});
-                    return;
+                    showPopup('Erreur lors de l\'opération : ' + error.message, '', () => {});
                 }
             }
 
-            // Désignation d'un disjoncteur comme principal
             function designerPrincipal(index) {
                 console.log('[Edit] Bouton Principal cliqué, index:', index);
                 const disjoncteur = disjoncteurs[index];
                 if (!disjoncteur) {
                     console.error('[Edit] Disjoncteur non trouvé à l\'index:', index);
-                    showPopup('Erreur: Disjoncteur non trouvé.', () => {});
+                    showPopup('Erreur: Disjoncteur non trouvé.', '', () => {});
                     return;
                 }
                 showPopup(`Voulez-vous désigner le disjoncteur ${disjoncteur.id} comme principal ?`, '', async () => {
                     console.log('[Edit] Confirmation principal pour index:', index);
                     disjoncteurs.forEach(d => d.isPrincipal = false);
                     disjoncteurs[index].isPrincipal = true;
-                    disjoncteurs[index].linkedTableauIds = []; // Réinitialiser les liaisons pour le principal
+                    disjoncteurs[index].linkedTableauIds = [];
                     disjoncteurPrincipalIndex = index;
                     disjoncteurs.forEach((d, i) => {
                         console.log('[Edit] Disjoncteur', d.id, 'isPrincipal:', d.isPrincipal);
                     });
                     try {
                         const htaData = collectHTAData();
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 5000);
                         await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain, isHTA, htaData })
+                            body: JSON.stringify({ id: tableauId, disjoncteurs, issitemain, isHTA, htaData }),
+                            signal: controller.signal
                         });
+                        clearTimeout(timeoutId);
                         console.log('[Edit] Tableau mis à jour avec nouveau disjoncteur principal');
                         await chargerTableau();
                         hidePopup();
-                        showPopup('Disjoncteur désigné comme principal avec succès.', () => {});
+                        showPopup('Disjoncteur désigné comme principal avec succès.', '', () => {});
                     } catch (error) {
                         console.error('[Edit] Erreur mise à jour principal:', error);
-                        showPopup('Erreur lors de la désignation du principal: ' + error.message, () => {});
+                        showPopup('Erreur lors de la désignation du principal: ' + error.message, '', () => {});
                     }
                 });
             }
 
-            // Suppression d'un disjoncteur
             function supprimerDisjoncteur(index) {
                 console.log('[Edit] Bouton Supprimer cliqué, index:', index);
                 const disjoncteur = disjoncteurs[index];
                 if (!disjoncteur) {
                     console.error('[Edit] Disjoncteur non trouvé à l\'index:', index);
-                    showPopup('Erreur: Disjoncteur non trouvé.', () => {});
+                    showPopup('Erreur: Disjoncteur non trouvé.', '', () => {});
                     return;
                 }
                 showPopup(`Voulez-vous supprimer le disjoncteur ${disjoncteur.id} ?`, '', async () => {
@@ -997,116 +1023,96 @@
                     }
                     try {
                         const htaData = collectHTAData();
-                        await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 5000);
+                        const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain, isHTA, htaData })
+                            body: JSON.stringify({ id: tableauId, disjoncteurs, issitemain, isHTA, htaData }),
+                            signal: controller.signal
                         });
-                        console.log('[Edit] Tableau mis à jour après suppression');
+                        clearTimeout(timeoutId);
+                        console.log('[Edit] Réponse serveur suppression disjoncteur:', { status: response.status });
+                        if (!response.ok) {
+                            const responseData = await response.json();
+                            throw new Error(responseData.error || `Erreur serveur (statut ${response.status})`);
+                        }
                         await chargerTableau();
                         hidePopup();
-                        showPopup('Disjoncteur supprimé avec succès.', () => {});
+                        showPopup('Disjoncteur supprimé avec succès.', '', () => {});
                     } catch (error) {
                         console.error('[Edit] Erreur suppression:', error);
-                        showPopup('Erreur lors de la suppression: ' + error.message, () => {});
+                        showPopup('Erreur lors de la suppression: ' + error.message, '', () => {});
                     }
                 });
             }
 
-            // Enregistrement des modifications
             async function enregistrerModifications() {
                 console.log('[Edit] Bouton Enregistrer les modifications cliqué');
-                if (disjoncteurs.length === 0) {
-                    console.log('[Edit] Erreur: Aucun disjoncteur');
-                    showPopup('Veuillez ajouter au moins un disjoncteur.', () => {});
-                    return;
-                }
                 const newTableauId = document.getElementById('tableau-id').value.trim();
+                console.log('[Edit] Nouveau tableau ID:', newTableauId, 'Disjoncteurs:', disjoncteurs.length, 'issitemain:', issitemain, 'isHTA:', isHTA);
                 if (!newTableauId) {
                     console.log('[Edit] Erreur: ID tableau vide');
-                    showPopup('L\'identifiant du tableau est obligatoire.', () => {});
+                    showPopup('Veuillez entrer un identifiant pour le tableau.', '', () => {});
                     return;
                 }
-                if (newTableauId !== tableauId && tableaux.includes(newTableauId)) {
-                    console.log('[Edit] Erreur: ID tableau déjà utilisé', newTableauId);
-                    showPopup('Cet identifiant de tableau est déjà utilisé. Choisissez un ID unique.', () => {});
+                if (disjoncteurs.length === 0) {
+                    console.log('[Edit] Erreur: Aucun disjoncteur');
+                    showPopup('Veuillez ajouter au moins un disjoncteur.', '', () => {});
                     return;
                 }
                 try {
-                    isSiteMain = document.getElementById('tableau-isSiteMain').checked;
-                    isHTA = document.getElementById('tableau-isHTA').checked;
                     const htaData = collectHTAData();
-                    console.log('[Edit] Envoi requête pour enregistrer modifications:', { tableauId, newTableauId, disjoncteurs: disjoncteurs.length, isSiteMain, isHTA });
-                    if (newTableauId !== tableauId) {
-                        disjoncteurs.forEach(d => {
-                            if (d.linkedTableauIds?.includes(tableauId)) {
-                                d.linkedTableauIds = d.linkedTableauIds.map(id => id === tableauId ? newTableauId : id);
-                            }
-                        });
-                        const response = await fetch(`/api/tableaux`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: newTableauId, disjoncteurs, isSiteMain, isHTA, htaData })
-                        });
-                        const data = await response.json();
-                        console.log('[Edit] Réponse serveur POST /api/tableaux:', { status: response.status, data });
-                        if (!response.ok) {
-                            throw new Error(data.error || `Erreur serveur (statut ${response.status})`);
-                        }
-                        await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
-                            method: 'DELETE'
-                        });
-                        console.log('[Edit] Ancien tableau supprimé:', tableauId);
-                        tableauId = newTableauId;
-                    } else {
-                        const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: tableauId, disjoncteurs, isSiteMain, isHTA, htaData })
-                        });
-                        const data = await response.json();
-                        console.log('[Edit] Réponse serveur PUT /api/tableaux:', { status: response.status, data });
-                        if (!response.ok) {
-                            throw new Error(data.error || `Erreur serveur (statut ${response.status})`);
-                        }
+                    if (isHTA && !htaData) {
+                        console.log('[Edit] Erreur: Données HTA invalides');
+                        return;
                     }
-                    await chargerTableau();
-                    showPopup('Modifications enregistrées avec succès !', () => {
-                        console.log('[Edit] Modifications enregistrées, redirection vers view.html');
-                        window.location.href = 'view.html';
+                    console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, 'avec nouvel ID:', newTableauId);
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: newTableauId, disjoncteurs, issitemain, isHTA, htaData }),
+                        signal: controller.signal
                     });
+                    clearTimeout(timeoutId);
+                    const data = await response.json();
+                    console.log('[Edit] Réponse serveur:', { status: response.status, data });
+                    if (response.ok) {
+                        showPopup('Modifications enregistrées avec succès !', '', () => {
+                            console.log('[Edit] Modifications enregistrées, redirection vers view.html');
+                            window.location.href = 'view.html';
+                        });
+                    } else {
+                        console.log('[Edit] Erreur serveur:', data.error);
+                        showPopup('Erreur lors de l\'enregistrement: ' + data.error, '', () => {});
+                    }
                 } catch (error) {
                     console.error('[Edit] Erreur enregistrement:', error);
-                    showPopup('Erreur lors de l\'enregistrement: ' + error.message, () => {});
+                    showPopup('Erreur lors de l\'enregistrement: ' + error.message, '', () => {});
                 }
             }
 
-            // Affichage d'une pop-up
-            function showPopup(message, content = '', confirmCallback = () => {}) {
-                console.log('[Edit] Affichage pop-up:', message);
-                document.getElementById('popup-message').textContent = message;
-                document.getElementById('popup-content').innerHTML = content;
-                document.getElementById('popup').classList.remove('hidden');
-                document.getElementById('popup-confirm').onclick = () => {
-                    console.log('[Edit] Pop-up confirmé:', message);
-                    confirmCallback();
-                    hidePopup();
-                };
-                document.getElementById('popup-cancel').onclick = () => {
-                    console.log('[Edit] Pop-up annulé:', message);
-                    hidePopup();
-                };
-            }
-
-            // Masquage de la pop-up
-            function hidePopup() {
-                console.log('[Edit] Masquage pop-up');
-                document.getElementById('popup').classList.add('hidden');
-            }
-
-            // Initialisation de la page
             window.onload = () => {
                 console.log('[Edit] Initialisation page edit');
+                if (window.location.protocol === 'file:') {
+                    showPopup('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/edit.html) pour accéder à l\'API.', '', () => {});
+                    return;
+                }
+                if (!tableauId) {
+                    console.log('[Edit] Aucun ID de tableau fourni dans l\'URL');
+                    showPopup('Aucun tableau spécifié. Veuillez sélectionner un tableau depuis la page de visualisation.', '', () => {
+                        window.location.href = 'view.html';
+                    });
+                    return;
+                }
+                document.getElementById('tableau-id').value = '';
+                document.getElementById('tableau-issitemain').checked = false;
+                document.getElementById('tableau-isHTA').checked = false;
+                toggleHTAFields();
+                issitemain = false;
+                isHTA = false;
                 chargerTableau();
                 chargerDisjoncteursExistants();
                 chargerTableaux();
