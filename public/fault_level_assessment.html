@@ -5,21 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Autonomix Elec - Évaluation du Niveau de Défaut</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link href="styles.css" rel="stylesheet">
+    <link href="/styles.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/js/all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/dist/vis-network.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/styles/vis-network.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
     <style>
         .alert-missing { background-color: #7f1d1d; color: #fecaca; padding: 0.75rem; border-radius: 0.375rem; }
-        .gantt th, .gantt td { border: 1px solid #4B5563; padding: 0.5rem; text-align: left; }
-        .gantt th { background-color: #374151; }
-        .error-message { color: #ef4444; }
+        .gantt th, .gantt td { border: 1px solid #4B5563; padding: 0.5rem; text-align: left; font-size: 0.875rem; }
+        .gantt th { background-color: #374151; font-size: 0.875rem; }
+        .error-message { color: #ef4444; font-size: 0.875rem; }
+        .touch-friendly { min-height: 44px; padding: 0.5rem 1rem; }
+        .animate-fade-in { animation: fadeIn 0.8s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @media (min-width: 640px) {
+            .gantt th, .gantt td { font-size: 1rem; }
+            .error-message { font-size: 1rem; }
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white font-sans">
-    <!-- Navigation harmonisée avec les autres fichiers -->
     <nav class="bg-blue-700 p-4 shadow-lg fixed w-full top-0 z-50">
         <ul class="flex flex-wrap space-x-6 justify-center text-sm sm:text-base">
             <li><a href="index.html" class="hover:text-yellow-300 transition"><i class="fas fa-home mr-2"></i>Accueil</a></li>
@@ -37,50 +44,49 @@
         </ul>
     </nav>
 
-    <div class="container mx-auto mt-28 p-6 flex">
-        <!-- Tableau principal -->
-        <div class="flex-1 pr-4">
-            <div class="flex justify-between items-center mb-6">
-                <h1 class="text-3xl font-bold">Évaluation du Niveau de Défaut</h1>
-                <button id="export-csv-btn" onclick="exportToCSV()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center hidden">
+    <div class="container mx-auto mt-28 p-4 sm:p-6 flex flex-col sm:flex-row">
+        <div class="flex-1 sm:pr-4">
+            <div class="flex justify-between items-center mb-4 sm:mb-6">
+                <h1 class="text-2xl sm:text-3xl font-bold flex items-center"><i class="fas fa-bolt mr-2 sm:mr-3"></i>Évaluation du Niveau de Défaut</h1>
+                <button id="export-csv-btn" onclick="exportToCSV()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center touch-friendly hidden">
                     <i class="fas fa-file-csv mr-2"></i>Exporter en CSV
                 </button>
             </div>
-            <div id="api-error" class="hidden bg-red-900 text-red-200 p-3 rounded mb-6">
+            <div id="api-error" class="hidden bg-red-900 text-red-200 p-3 rounded mb-4 sm:mb-6 animate-fade-in">
                 <p><i class="fas fa-exclamation-triangle mr-2"></i>Erreur lors du chargement des données. Veuillez réessayer plus tard.</p>
             </div>
-            <div class="mb-6 bg-gray-800 p-4 rounded-lg shadow-lg">
-                <h2 class="text-xl font-semibold mb-4">Qu’est-ce que l’évaluation du niveau de défaut ?</h2>
-                <p class="mb-2">Cette page évalue la capacité des disjoncteurs BT et des cellules HTA à supporter un court-circuit (Ik) par rapport à leur pouvoir de coupure (Icn).</p>
-                <p class="mb-2"><strong>Ik (courant de court-circuit)</strong> : Le courant maximal en cas de court-circuit, en kA. Pour les tableaux BT, il dépend de la tension (Ue), de la longueur et de la section du câble. Pour les tableaux HTA, il dépend de la puissance du transformateur et de la tension HTA.</p>
-                <p class="mb-2"><strong>Icn (pouvoir de coupure)</strong> : La capacité du disjoncteur ou de la cellule HTA à interrompre un court-circuit, en kA.</p>
-                <p class="mb-2"><strong>Risque</strong> : Si Ik > Icn, le disjoncteur ou la cellule risque de ne pas tenir (KO). Sinon, le statut est OK.</p>
-                <p><strong>Exemple</strong> : Un disjoncteur avec Icn = 4,5 kA et Ik = 6 kA est KO. Pour un tableau HTA avec un transformateur de 1600 kVA, Ik peut atteindre 20 kA, à comparer avec Icn de la cellule HTA.</p>
+            <div class="mb-4 sm:mb-6 bg-gray-800 p-4 rounded-lg shadow-lg animate-fade-in">
+                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-info-circle mr-2"></i>Qu’est-ce que l’évaluation du niveau de défaut ?</h2>
+                <p class="mb-2 text-sm sm:text-base">Cette page évalue la capacité des disjoncteurs BT et des cellules HTA à supporter un court-circuit (Ik) par rapport à leur pouvoir de coupure (Icn).</p>
+                <p class="mb-2 text-sm sm:text-base"><strong>Ik (courant de court-circuit)</strong> : Le courant maximal en cas de court-circuit, en kA. Pour les tableaux BT, il dépend de la tension (Ue), de la longueur et de la section du câble. Pour les tableaux HTA, il dépend de la puissance du transformateur et de la tension HTA.</p>
+                <p class="mb-2 text-sm sm:text-base"><strong>Icn (pouvoir de coupure)</strong> : La capacité du disjoncteur ou de la cellule HTA à interrompre un court-circuit, en kA.</p>
+                <p class="mb-2 text-sm sm:text-base"><strong>Risque</strong> : Si Ik > Icn, le disjoncteur ou la cellule risque de ne pas tenir (KO). Sinon, le statut est OK.</p>
+                <p class="text-sm sm:text-base"><strong>Exemple</strong> : Un disjoncteur avec Icn = 4,5 kA et Ik = 6 kA est KO. Pour un tableau HTA avec un transformateur de 1600 kVA, Ik peut atteindre 20 kA, à comparer avec Icn de la cellule HTA.</p>
             </div>
 
-            <div class="mb-6 flex space-x-4">
+            <div class="mb-4 sm:mb-6 flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
                 <div>
-                    <label for="building-filter" class="block text-sm mb-1">Filtrer par bâtiment</label>
-                    <select id="building-filter" class="bg-gray-700 text-white p-2 rounded">
+                    <label for="building-filter" class="block text-sm font-medium mb-1">Filtrer par bâtiment</label>
+                    <select id="building-filter" class="bg-gray-700 text-white p-2 rounded text-sm sm:text-base">
                         <option value="">Tous les bâtiments</option>
                     </select>
                 </div>
                 <div>
-                    <label for="tableau-filter" class="block text-sm mb-1">Filtrer par tableau</label>
-                    <select id="tableau-filter" class="bg-gray-700 text-white p-2 rounded">
+                    <label for="tableau-filter" class="block text-sm font-medium mb-1">Filtrer par tableau</label>
+                    <select id="tableau-filter" class="bg-gray-700 text-white p-2 rounded text-sm sm:text-base">
                         <option value="">Tous les tableaux</option>
                     </select>
                 </div>
             </div>
 
-            <div id="no-building-selected" class="bg-gray-800 p-4 rounded-lg shadow-lg mb-6">
-                <p class="text-gray-300">Veuillez sélectionner un bâtiment pour afficher les données.</p>
+            <div id="no-building-selected" class="bg-gray-800 p-4 rounded-lg shadow-lg mb-4 sm:mb-6 animate-fade-in">
+                <p class="text-gray-300 text-sm sm:text-base">Veuillez sélectionner un bâtiment pour afficher les données.</p>
             </div>
 
             <div id="data-section" class="hidden">
-                <div class="mb-6 bg-gray-800 p-4 rounded-lg shadow-lg">
-                    <h2 class="text-xl font-semibold mb-4"><i class="fas fa-info-circle"></i> Comment utiliser cette page</h2>
-                    <ul class="list-disc list-inside space-y-2">
+                <div class="mb-4 sm:mb-6 bg-gray-800 p-4 rounded-lg shadow-lg animate-fade-in">
+                    <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
+                    <ul class="list-disc list-inside space-y-2 text-sm sm:text-base">
                         <li>Filtrez par bâtiment ou tableau pour cibler les disjoncteurs et cellules HTA.</li>
                         <li>Le tableau indique Ik, Icn (BT et HTA si applicable), et le statut (OK/KO/Incomplet).</li>
                         <li>Cliquez sur <i class="fas fa-chart-line"></i> pour modifier Ue, section, longueur de câble, ou impédance dans le panneau latéral.</li>
@@ -89,72 +95,85 @@
                         <li>Le schéma montre les connexions entre tableaux (ex. 01-9-G sous 02-9-G). Les tableaux HTA sont en rouge.</li>
                         <li>Le graphique à bulles montre Ik vs Icn pour les disjoncteurs BT. Les bulles rouges indiquent un risque (Ik > Icn).</li>
                         <li>Si des données manquent, complétez-les via le panneau latéral ou <a href="edit.html" class="text-blue-400 underline">Modifier</a>.</li>
+                        SHARED
                         <li>Exportez les données en CSV, incluant les paramètres HTA et l’impédance.</li>
                     </ul>
                 </div>
 
-                <div id="missing-data-alert" class="alert-missing hidden mb-6">
-                    <p>Certaines données (Ue, section, longueur de câble, paramètres HTA) sont manquantes pour <span id="missing-count"></span> disjoncteurs ou tableaux. Cliquez sur <i class="fas fa-chart-line"></i> ou <a href="edit.html" class="text-blue-400 underline">Modifier</a> pour les compléter.</p>
+                <div id="missing-data-alert" class="alert-missing hidden mb-4 sm:mb-6 animate-fade-in">
+                    <p class="text-sm sm:text-base">Certaines données (Ue, section, longueur de câble, paramètres HTA) sont manquantes pour <span id="missing-count"></span> disjoncteurs ou tableaux. Cliquez sur <i class="fas fa-chart-line"></i> ou <a href="edit.html" class="text-blue-400 underline">Modifier</a> pour les compléter.</p>
                 </div>
 
-                <div id="no-linked-tableau-alert" class="alert-missing hidden mb-6">
-                    <p>Aucune liaison entre tableaux n’a été détectée. Utilisez <a href="edit.html" class="text-blue-400 underline">Modifier</a> pour ajouter des tableaux avals.</p>
+                <div id="no-linked-tableau-alert" class="alert-missing hidden mb-4 sm:mb-6 animate-fade-in">
+                    <p class="text-sm sm:text-base">Aucune liaison entre tableaux n’a été détectée. Utilisez <a href="edit.html" class="text-blue-400 underline">Modifier</a> pour ajouter des tableaux avals.</p>
                 </div>
 
-                <div id="high-ik-alert" class="alert-missing hidden mb-6">
-                    <p>Certains disjoncteurs ou cellules HTA ont un Ik > 50 kA, ce qui peut être irréaliste. Vérifiez les données (longueur de câble, section, impédance, paramètres HTA) dans le panneau latéral ou <a href="edit.html" class="text-blue-400 underline">Modifier</a>.</p>
+                <div id="high-ik-alert" class="alert-missing hidden mb-4 sm:mb-6 animate-fade-in">
+                    <p class="text-sm sm:text-base">Certains disjoncteurs ou cellules HTA ont un Ik > 50 kA, ce qui peut être irréaliste. Vérifiez les données (longueur de câble, section, impédance, paramètres HTA) dans le panneau latéral ou <a href="edit.html" class="text-blue-400 underline">Modifier</a>.</p>
                 </div>
 
-                <div class="mb-6">
-                    <h2 class="text-xl font-semibold mb-4"><i class="fas fa-table"></i> Tableau des disjoncteurs et cellules HTA</h2>
-                    <table class="w-full gantt">
-                        <thead>
-                            <tr>
-                                <th>Tableau</th>
-                                <th>Disjoncteur ID</th>
-                                <th>Marque</th>
-                                <th>Référence</th>
-                                <th title="Tension nominale (V)">Ue (V)</th>
-                                <th title="Pouvoir de coupure (kA)">Icn (kA)</th>
-                                <th title="Courant de court-circuit calculé (kA)">Ik (kA)</th>
-                                <th title="Pouvoir de coupure HTA (kA)">Icn HTA (kA)</th>
-                                <th>Statut</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="disjoncteurs-table"></tbody>
-                    </table>
+                <div class="mb-4 sm:mb-6">
+                    <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-table mr-2"></i>Tableau des disjoncteurs et cellules HTA</h2>
+                    <div class="overflow-x-auto">
+                        <table class="w-full gantt">
+                            <thead>
+                                <tr>
+                                    <th class="p-2">Tableau</th>
+                                    <th class="p-2">Disjoncteur ID</th>
+                                    <th class="p-2">Marque</th>
+                                    <th class="p-2">Référence</th>
+                                    <th class="p-2" title="Tension nominale (V)">Ue (V)</th>
+                                    <th class="p-2" title="Pouvoir de coupure (kA)">Icn (kA)</th>
+                                    <th class="p-2" title="Courant de court-circuit calculé (kA)">Ik (kA)</th>
+                                    <th class="p-2" title="Pouvoir de coupure HTA (kA)">Icn HTA (kA)</th>
+                                    <th class="p-2">Statut</th>
+                                    <th class="p-2">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="disjoncteurs-table"></tbody>
+                        </table>
+                    </div>
                 </div>
 
-                <div class="mb-6">
-                    <h2 class="text-xl font-semibold mb-4"><i class="fas fa-chart-scatter"></i> Graphique à bulles : Ik vs Icn (BT)</h2>
-                    <p class="mb-4">Ce graphique montre les disjoncteurs BT avec Ik (axe X) et Icn (axe Y). Les bulles rouges indiquent un risque (Ik > Icn), les vertes sont sécurisées (Ik ≤ Icn). La ligne diagonale représente Icn = Ik.</p>
+                <div class="mb-4 sm:mb-6">
+                    <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-chart-scatter mr-2"></i>Graphique à bulles : Ik vs Icn (BT)</h2>
+                    <p class="mb-4 text-sm sm:text-base">Ce graphique montre les disjoncteurs BT avec Ik (axe X) et Icn (axe Y). Les bulles rouges indiquent un risque (Ik > Icn), les vertes sont sécurisées (Ik ≤ Icn). La ligne diagonale représente Icn = Ik.</p>
                     <canvas id="bubble-chart" class="bg-gray-800 p-4 rounded-lg" style="height: 400px;"></canvas>
                 </div>
 
-                <div class="mb-6">
-                    <h2 class="text-xl font-semibold mb-4"><i class="fas fa-sitemap"></i> Schéma électrique</h2>
-                    <p class="mb-4">Ce schéma montre les connexions entre tableaux et disjoncteurs. Les tableaux HTA sont en rouge, les disjoncteurs principaux en vert, les disjoncteurs à risque (Ik > Icn) en rouge, et ceux sans données en gris.</p>
+                <div class="mb-4 sm:mb-6">
+                    <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-sitemap mr-2"></i>Schéma électrique</h2>
+                    <p class="mb-4 text-sm sm:text-base">Ce schéma montre les connexions entre tableaux et disjoncteurs. Les tableaux HTA sont en rouge, les disjoncteurs principaux en vert, les disjoncteurs à risque (Ik > Icn) en rouge, et ceux sans données en gris.</p>
                     <div id="network-schema" class="bg-white p-4 rounded-lg border border-gray-300" style="height: 400px;"></div>
                 </div>
             </div>
         </div>
 
-        <!-- Panneau latéral pour les détails -->
-        <div id="details-panel" class="w-1/3 bg-gray-800 p-4 rounded-lg shadow-lg hidden">
-            <h2 class="text-xl font-bold mb-4">Détails du disjoncteur</h2>
-            <button id="close-panel" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 mb-4">Fermer</button>
-            <div id="panel-content"></div>
-            <div id="panel-error" class="text-red-600 hidden mt-2"></div>
-            <div id="panel-success" class="text-green-600 hidden mt-2"></div>
-            <div id="panel-impedance-info" class="text-gray-400 hidden mt-2"></div>
+        <div id="details-panel" class="w-full sm:w-1/3 bg-gray-800 p-4 rounded-lg shadow-lg hidden animate-fade-in">
+            <h2 class="text-lg sm:text-xl font-bold mb-4 flex items-center"><i class="fas fa-cog mr-2"></i>Détails du disjoncteur</h2>
+            <button id="close-panel" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 mb-4 touch-friendly"><i class="fas fa-times mr-2"></i>Fermer</button>
+            <div id="panel-content" class="text-sm sm:text-base"></div>
+            <div id="panel-error" class="text-red-600 hidden mt-2 text-sm sm:text-base"></div>
+            <div id="panel-success" class="text-green-600 hidden mt-2 text-sm sm:text-base"></div>
+            <div id="panel-impedance-info" class="text-gray-400 hidden mt-2 text-sm sm:text-base"></div>
             <div class="mt-4">
                 <h3 class="text-lg font-semibold mb-2">Graphique Ik vs Icn</h3>
-                <p class="mb-2">Ce graphique compare Ik à Icn pour le disjoncteur BT (et la cellule HTA si applicable). Une barre rouge indique un risque (Ik > Icn).</p>
+                <p class="mb-2 text-sm sm:text-base">Ce graphique compare Ik à Icn pour le disjoncteur BT (et la cellule HTA si applicable). Une barre rouge indique un risque (Ik > Icn).</p>
                 <canvas id="disjoncteur-chart" style="max-height: 200px;"></canvas>
             </div>
             <div class="mt-4 flex justify-end space-x-2">
-                <button id="update-cable-data" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Mettre à jour</button>
+                <button id="update-cable-data" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 touch-friendly"><i class="fas fa-save mr-2"></i>Mettre à jour</button>
+            </div>
+        </div>
+
+        <div id="popup" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full animate-fade-in">
+                <p id="popup-message" class="mb-4 text-sm sm:text-base"></p>
+                <div id="popup-content" class="mb-4"></div>
+                <div class="flex space-x-4">
+                    <button id="popup-confirm" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 touch-friendly"><i class="fas fa-check mr-2"></i>Confirmer</button>
+                    <button id="popup-cancel" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 touch-friendly"><i class="fas fa-times mr-2"></i>Annuler</button>
+                </div>
             </div>
         </div>
     </div>
@@ -166,7 +185,28 @@
         let networkInstance = null;
         let lastClickTime = 0;
 
-        // Normaliser les valeurs
+        function showPopup(message, content = '', confirmCallback = () => {}) {
+            console.log('[FLA] Affichage pop-up:', message);
+            document.getElementById('popup-message').textContent = message;
+            document.getElementById('popup-content').innerHTML = content;
+            document.getElementById('popup').classList.remove('hidden');
+            document.getElementById('popup-confirm').onclick = () => {
+                console.log('[FLA] Pop-up confirmé:', message);
+                confirmCallback();
+                hidePopup();
+            };
+            document.getElementById('popup-cancel').onclick = () => {
+                console.log('[FLA] Pop-up annulé:', message);
+                hidePopup();
+            };
+            gsap.from('#popup > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+        }
+
+        function hidePopup() {
+            console.log('[FLA] Masquage pop-up');
+            document.getElementById('popup').classList.add('hidden');
+        }
+
         function normalizeIcn(icn) {
             if (!icn) return null;
             if (typeof icn === 'number' && !isNaN(icn)) return icn;
@@ -189,82 +229,63 @@
             return match ? parseFloat(match[0]) : null;
         }
 
-        // Initialisation
-        window.onload = () => {
-            console.log('[Client] Initialisation de la page');
-            if (typeof Chart === 'undefined') console.error('[Client] Chart.js non chargé');
-            if (typeof vis === 'undefined') console.error('[Client] Vis.js non chargé');
-            const panel = document.getElementById('details-panel');
-            if (panel) {
-                panel.classList.add('hidden');
-                console.log('[Client] Panneau caché au chargement');
-            }
-            document.removeEventListener('click', handleActionClick);
-            document.addEventListener('click', handleActionClick);
-            console.log('[Client] Gestionnaire d\'événements attaché au document');
-            loadTableaux();
-        };
-
-        // Charger les tableaux
         async function loadTableaux() {
+            console.log('[FLA] Chargement des données FLA');
             try {
-                console.log('[Client] Chargement des données FLA');
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 2000);
-                const response = await fetch('/api/fault-level', { 
-                    method: 'GET',
-                    signal: controller.signal
-                });
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                const response = await fetch('/api/fault-level', { signal: controller.signal });
                 clearTimeout(timeoutId);
                 if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
                 const data = await response.json();
-                console.log('[Client] Données reçues:', data);
+                console.log('[FLA] Données reçues:', data);
                 tableauxData = data.data || [];
                 document.getElementById('api-error').classList.add('hidden');
                 populateFilters();
                 showNoBuildingMessage();
+                renderData(tableauxData);
             } catch (error) {
-                console.error('[Client] Erreur chargement:', error);
-                document.getElementById('api-error').classList.remove('hidden');
+                console.error('[FLA] Erreur chargement:', error);
+                showPopup('Erreur lors du chargement des données: ' + error.message, '', () => {});
                 tableauxData = [];
                 showNoBuildingMessage();
             }
         }
 
-        // Charger un tableau spécifique
         async function loadTableauById(tableauId) {
+            console.log('[FLA] Chargement tableau:', tableauId);
             try {
-                console.log('[Client] Chargement tableau', tableauId);
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 2000);
-                const response = await fetch(`/api/tableaux/${tableauId}`, { 
-                    method: 'GET',
-                    signal: controller.signal
-                });
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, { signal: controller.signal });
                 clearTimeout(timeoutId);
                 if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
                 const data = await response.json();
-                console.log('[Client] Tableau reçu:', data.id);
+                console.log('[FLA] Tableau reçu:', data.id);
                 return {
                     id: data.id,
                     building: data.id.split('-')[0] || 'Inconnu',
-                    disjoncteurs: data.disjoncteurs.map(d => ({
+                    disjoncteurs: (data.disjoncteurs || []).map(d => ({
                         ...d,
+                        id: d.id || d.disjoncteur_id,
                         ik: d.ik || null,
                         icn: normalizeIcn(d.icn),
-                        tableauId: data.id
+                        tableauId: data.id,
+                        linkedTableauIds: d.linkedTableauIds || (d.linkedTableauId ? [d.linkedTableauId] : [])
                     })),
+                    issitemain: data.issitemain || false,
                     isHTA: data.isHTA || false,
                     htaData: data.htaData || null
                 };
             } catch (error) {
-                console.error('[Client] Erreur chargement tableau:', error);
+                console.error('[FLA] Erreur chargement tableau:', error);
+                showPopup('Erreur lors du chargement du tableau: ' + error.message, '', () => {});
                 return null;
             }
         }
 
-        // Remplir les filtres
         function populateFilters() {
+            console.log('[FLA] Remplissage des filtres');
             const buildings = [...new Set(tableauxData.map(t => t.building))].sort();
             const buildingFilter = document.getElementById('building-filter');
             buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
@@ -290,7 +311,6 @@
             }
 
             updateTableauFilter('');
-
             buildingFilter.addEventListener('change', () => {
                 const selectedBuilding = buildingFilter.value;
                 updateTableauFilter(selectedBuilding);
@@ -299,8 +319,15 @@
             document.getElementById('tableau-filter').addEventListener('change', filterData);
         }
 
-        // Filtrer les données
+        function showNoBuildingMessage() {
+            console.log('[FLA] Affichage message aucun bâtiment sélectionné');
+            document.getElementById('no-building-selected').classList.remove('hidden');
+            document.getElementById('data-section').classList.add('hidden');
+            document.getElementById('export-csv-btn').classList.add('hidden');
+        }
+
         function filterData() {
+            console.log('[FLA] Filtrage des données');
             const building = document.getElementById('building-filter').value;
             const tableau = document.getElementById('tableau-filter').value;
             let filteredData = tableauxData;
@@ -313,26 +340,26 @@
             filteredData = filteredData.filter(t => t.building === building);
             if (tableau) filteredData = filteredData.filter(t => t.id === tableau);
 
+            if (filteredData.length === 0) {
+                showPopup('Aucun tableau trouvé pour les critères sélectionnés.', '', () => {});
+                showNoBuildingMessage();
+                return;
+            }
+
+            document.getElementById('no-building-selected').classList.add('hidden');
+            document.getElementById('data-section').classList.remove('hidden');
+            document.getElementById('export-csv-btn').classList.remove('hidden');
             renderData(filteredData);
         }
 
-        // Afficher le message "aucun bâtiment sélectionné"
-        function showNoBuildingMessage() {
-            console.log('[Client] Affichage message aucun bâtiment sélectionné');
-            document.getElementById('no-building-selected').classList.remove('hidden');
-            document.getElementById('data-section').classList.add('hidden');
-            document.getElementById('export-csv-btn').classList.add('hidden');
-        }
-
-        // Exporter en CSV
         function exportToCSV() {
-            console.log('[Client] Exportation des données en CSV');
+            console.log('[FLA] Exportation en CSV');
             const building = document.getElementById('building-filter').value;
             const tableau = document.getElementById('tableau-filter').value;
             let filteredData = tableauxData;
 
             if (!building) {
-                alert('Veuillez sélectionner un bâtiment pour exporter les données.');
+                showPopup('Veuillez sélectionner un bâtiment pour exporter les données.', '', () => {});
                 return;
             }
 
@@ -340,7 +367,7 @@
             if (tableau) filteredData = filteredData.filter(t => t.id === tableau);
 
             if (!filteredData.length) {
-                alert('Aucune donnée à exporter pour les critères sélectionnés.');
+                showPopup('Aucune donnée à exporter pour les critères sélectionnés.', '', () => {});
                 return;
             }
 
@@ -402,7 +429,7 @@
 
             const csvContent = [
                 headers.map(h => `"${h}"`).join(','),
-                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+                ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
             ].join('\n');
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -414,38 +441,56 @@
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
-            console.log('[Client] Fichier CSV téléchargé');
+            console.log('[FLA] Fichier CSV téléchargé');
         }
 
-        // Calculer Ik pour HTA
         function calculateIkHTA(tableau) {
             if (!tableau.isHTA || !tableau.htaData) return null;
             const power = parseFloat(tableau.htaData.transformerPower) * 1000; // kVA to VA
             const voltage = parseFloat(tableau.htaData.voltage) * 1000; // kV to V
-            if (!power || !voltage) return null;
-            // Impédance du transformateur (approximation : 6% de la tension nominale)
+            if (!power || !voltage || isNaN(power) || isNaN(voltage)) return null;
             const zTransfo = 0.06 * (voltage * voltage) / power;
-            // Impédance réseau amont (approximation : 0.01 Ω)
             const zNetwork = 0.01;
             const zTotal = zTransfo + zNetwork;
             const ik = (voltage / (Math.sqrt(3) * zTotal)) / 1000; // kA
-            return ik > 50 ? null : ik; // Limite réaliste à 50 kA
+            return ik > 50 ? null : ik;
         }
 
-        // Vérifier Ik élevé
-        function checkHighIk() {
-            const highIk = tableauxData.flatMap(t => {
+        function checkHighIk(data) {
+            const highIk = data.flatMap(t => {
                 const disjoncteursHigh = t.disjoncteurs.filter(d => d.ik && d.ik > 50);
                 const htaHigh = t.isHTA && calculateIkHTA(t) > 50 ? [t] : [];
                 return [...disjoncteursHigh, ...htaHigh];
             });
             const alert = document.getElementById('high-ik-alert');
             alert.classList.toggle('hidden', highIk.length === 0);
+            console.log('[FLA] Vérification Ik élevé:', highIk.length, 'éléments détectés');
         }
 
-        // Rendre le tableau
-        function renderTable(data = tableauxData) {
-            console.log('[Client] Rendu du tableau avec', data.length, 'tableaux');
+        function updateMissingDataAlert(data) {
+            console.log('[FLA] Mise à jour alerte données manquantes');
+            const missing = data.flatMap(t => {
+                const disjoncteursMissing = t.disjoncteurs.filter(d => 
+                    !d.ue || !normalizeVoltage(d.ue) || 
+                    !d.section || !normalizeSection(d.section) || 
+                    (!d.cableLength && !d.impedance && !d.isPrincipal && d.linkedTableauIds?.length > 0));
+                const htaMissing = t.isHTA && (!t.htaData || !t.htaData.transformerPower || !t.htaData.voltage) ? [t] : [];
+                return [...disjoncteursMissing, ...htaMissing];
+            });
+            const alert = document.getElementById('missing-data-alert');
+            const countSpan = document.getElementById('missing-count');
+            if (missing.length > 0) {
+                alert.classList.remove('hidden');
+                countSpan.textContent = missing.length;
+                console.log('[FLA] Données manquantes détectées:', missing.length);
+            } else {
+                alert.classList.add('hidden');
+                console.log('[FLA] Aucune donnée manquante');
+            }
+        }
+
+        function renderTable(data) {
+            console.log('[FLA] Rendu du tableau avec', data.length, 'tableaux');
             const tbody = document.getElementById('disjoncteurs-table');
             tbody.innerHTML = '';
             data.forEach(tableau => {
@@ -453,105 +498,97 @@
                 const icnHTA = tableau.isHTA && tableau.htaData ? normalizeIcn(tableau.htaData.icn) : null;
                 const statusHTA = tableau.isHTA && ikHTA != null && icnHTA ? (ikHTA <= icnHTA ? 'OK' : 'KO') : 'N/A';
 
-                // Ligne pour la cellule HTA si applicable
                 if (tableau.isHTA) {
                     const row = document.createElement('tr');
-                    const cleanTableauId = tableau.id.replace(/"/g, '"').replace(/'/g, "'");
                     row.innerHTML = `
-                        <td>${tableau.id} (HTA)</td>
-                        <td>-</td>
-                        <td>-</td>
-                        <td>-</td>
-                        <td>${tableau.htaData?.voltage ? tableau.htaData.voltage + ' kV' : 'N/A'}</td>
-                        <td>${icnHTA ? icnHTA.toFixed(2) : 'N/A'}</td>
-                        <td>${ikHTA ? ikHTA.toFixed(2) : 'N/A'}${ikHTA > 50 ? ' <span class="text-yellow-400">(Aberrant)</span>' : ''}</td>
-                        <td>-</td>
-                        <td class="${statusHTA === 'OK' ? 'text-green-600' : statusHTA === 'KO' ? 'text-red-600' : ''}">${statusHTA}</td>
-                        <td>
-                            <a href="edit.html?id=${cleanTableauId}" class="bg-yellow-600 text-white px-2 py-1 rounded hover:bg-yellow-700"><i class="fas fa-edit"></i></a>
+                        <td class="p-2">${tableau.id} (HTA)</td>
+                        <td class="p-2">-</td>
+                        <td class="p-2">-</td>
+                        <td class="p-2">-</td>
+                        <td class="p-2">${tableau.htaData?.voltage ? tableau.htaData.voltage + ' kV' : 'N/A'}</td>
+                        <td class="p-2">${icnHTA ? icnHTA.toFixed(2) : 'N/A'}</td>
+                        <td class="p-2">${ikHTA ? ikHTA.toFixed(2) : 'N/A'}${ikHTA > 50 ? ' <span class="text-yellow-400">(Aberrant)</span>' : ''}</td>
+                        <td class="p-2">-</td>
+                        <td class="p-2 ${statusHTA === 'OK' ? 'text-green-600' : statusHTA === 'KO' ? 'text-red-600' : ''}">${statusHTA}</td>
+                        <td class="p-2">
+                            <a href="edit.html?id=${encodeURIComponent(tableau.id)}" class="bg-yellow-600 text-white px-2 py-1 rounded hover:bg-yellow-700 touch-friendly"><i class="fas fa-edit"></i></a>
                         </td>
                     `;
                     tbody.appendChild(row);
                 }
 
-                // Lignes pour les disjoncteurs
                 tableau.disjoncteurs.forEach(d => {
                     const row = document.createElement('tr');
                     const ik = d.ik ? (d.ik >= 1 ? d.ik.toFixed(2) : d.ik.toFixed(3)) : 'N/A';
                     const icn = d.icn ? parseFloat(d.icn).toFixed(2) : 'N/A';
                     const status = d.ik != null && d.icn ? (d.ik <= d.icn ? 'OK' : 'KO') : 'Incomplet';
-                    const cleanTableauId = tableau.id.replace(/"/g, '"').replace(/'/g, "'");
-                    const cleanDisjoncteurId = d.id.replace(/"/g, '"').replace(/'/g, "'");
                     row.innerHTML = `
-                        <td>${tableau.id}</td>
-                        <td>${d.id}</td>
-                        <td>${d.marque || 'N/A'}</td>
-                        <td>${d.ref || 'N/A'}</td>
-                        <td>${d.ue || 'N/A'}</td>
-                        <td>${icn}</td>
-                        <td>${ik}${ik !== 'N/A' && d.ik > 50 ? ' <span class="text-yellow-400">(Aberrant)</span>' : ''}</td>
-                        <td>-</td>
-                        <td class="${status === 'OK' ? 'text-green-600' : status === 'KO' ? 'text-red-600' : ''}">${status}</td>
-                        <td>
-                            <button class="action-btn bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700" data-tableau-id="${cleanTableauId}" data-disjoncteur-id="${cleanDisjoncteurId}"><i class="fas fa-chart-line"></i></button>
-                            <a href="edit.html?id=${cleanTableauId}" class="bg-yellow-600 text-white px-2 py-1 rounded hover:bg-yellow-700"><i class="fas fa-edit"></i></a>
+                        <td class="p-2">${tableau.id}</td>
+                        <td class="p-2">${d.id}</td>
+                        <td class="p-2">${d.marque || 'N/A'}</td>
+                        <td class="p-2">${d.ref || 'N/A'}</td>
+                        <td class="p-2">${d.ue || 'N/A'}</td>
+                        <td class="p-2">${icn}</td>
+                        <td class="p-2">${ik}${ik !== 'N/A' && d.ik > 50 ? ' <span class="text-yellow-400">(Aberrant)</span>' : ''}</td>
+                        <td class="p-2">-</td>
+                        <td class="p-2 ${status === 'OK' ? 'text-green-600' : status === 'KO' ? 'text-red-600' : ''}">${status}</td>
+                        <td class="p-2">
+                            <button class="action-btn bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 touch-friendly" data-tableau-id="${encodeURIComponent(tableau.id)}" data-disjoncteur-id="${encodeURIComponent(d.id)}"><i class="fas fa-chart-line"></i></button>
+                            <a href="edit.html?id=${encodeURIComponent(tableau.id)}" class="bg-yellow-600 text-white px-2 py-1 rounded hover:bg-yellow-700 touch-friendly"><i class="fas fa-edit"></i></a>
                         </td>
                     `;
                     tbody.appendChild(row);
-                    console.log('[Client] Bouton créé pour:', { tableauId: tableau.id, disjoncteurId: d.id });
                 });
             });
-            console.log('[Client] Tableau rendu avec', tbody.children.length, 'lignes');
+            console.log('[FLA] Tableau rendu avec', tbody.children.length, 'lignes');
         }
 
-        // Gérer les clics sur les boutons d’action
         function handleActionClick(event) {
             const btn = event.target.closest('.action-btn');
             if (!btn) {
-                console.log('[Client] Clic ignoré: pas un bouton .action-btn');
+                console.log('[FLA] Clic ignoré: pas un bouton .action-btn');
                 return;
             }
 
             event.preventDefault();
             event.stopPropagation();
-            console.log('[Client] Clic détecté sur bouton d\'action');
+            console.log('[FLA] Clic détecté sur bouton d\'action');
 
-            const tableauId = btn.getAttribute('data-tableau-id');
-            const disjoncteurId = btn.getAttribute('data-disjoncteur-id');
-            console.log('[Client] Données du bouton:', { tableauId, disjoncteurId });
+            const tableauId = decodeURIComponent(btn.getAttribute('data-tableau-id'));
+            const disjoncteurId = decodeURIComponent(btn.getAttribute('data-disjoncteur-id'));
+            console.log('[FLA] Données du bouton:', { tableauId, disjoncteurId });
 
             if (!tableauId || !disjoncteurId) {
-                console.error('[Client] Attributs data- manquants ou invalides:', { tableauId, disjoncteurId });
+                console.error('[FLA] Attributs data- manquants ou invalides:', { tableauId, disjoncteurId });
+                showPopup('Erreur: Identifiants de tableau ou disjoncteur manquants.', '', () => {});
                 return;
             }
 
             const now = Date.now();
             if (now - lastClickTime < 1000) {
-                console.log('[Client] Clic ignoré (trop rapide)', { timeSinceLast: now - lastClickTime });
+                console.log('[FLA] Clic ignoré (trop rapide)', { timeSinceLast: now - lastClickTime });
                 return;
             }
             lastClickTime = now;
 
             try {
-                const cleanTableauId = tableauId.trim();
-                const cleanDisjoncteurId = disjoncteurId.trim();
-                console.log('[Client] IDs nettoyés pour recherche:', { cleanTableauId, cleanDisjoncteurId });
-                const tableau = tableauxData.find(t => t.id.trim() === cleanTableauId);
-                const disjoncteur = tableau?.disjoncteurs.find(d => d.id.trim() === cleanDisjoncteurId);
+                const tableau = tableauxData.find(t => t.id === tableauId);
+                const disjoncteur = tableau?.disjoncteurs.find(d => d.id === disjoncteurId);
                 if (!tableau || !disjoncteur) {
-                    console.error('[Client] Erreur: Tableau ou disjoncteur non trouvé:', { cleanTableauId, cleanDisjoncteurId });
+                    console.error('[FLA] Tableau ou disjoncteur non trouvé:', { tableauId, disjoncteurId });
+                    showPopup('Erreur: Tableau ou disjoncteur non trouvé.', '', () => {});
                     return;
                 }
-                console.log('[Client] Appel de openPanel pour:', { cleanTableauId, cleanDisjoncteurId });
-                openPanel(cleanTableauId, cleanDisjoncteurId);
+                console.log('[FLA] Ouverture panneau pour:', { tableauId, disjoncteurId });
+                openPanel(tableauId, disjoncteurId);
             } catch (error) {
-                console.error('[Client] Erreur dans handleActionClick:', error.message);
+                console.error('[FLA] Erreur dans handleActionClick:', error.message);
+                showPopup('Erreur lors du traitement de l\'action: ' + error.message, '', () => {});
             }
         }
 
-        // Ouvrir le panneau latéral
         function openPanel(tableauId, disjoncteurId) {
-            console.log('[Client] Ouverture panneau pour', tableauId, disjoncteurId);
+            console.log('[FLA] Ouverture panneau pour:', tableauId, disjoncteurId);
             try {
                 const tableau = tableauxData.find(t => t.id === tableauId);
                 const disjoncteur = tableau.disjoncteurs.find(d => d.id === disjoncteurId);
@@ -562,17 +599,16 @@
                 const impedanceInfo = document.getElementById('panel-impedance-info');
 
                 if (!tableau || !disjoncteur) {
-                    console.error('[Client] Tableau ou disjoncteur non trouvé:', tableauId, disjoncteurId);
-                    errorDiv.classList.remove('hidden');
-                    errorDiv.textContent = 'Erreur : Disjoncteur ou tableau non trouvé.';
+                    console.error('[FLA] Tableau ou disjoncteur non trouvé:', tableauId, disjoncteurId);
+                    showPopup('Erreur: Tableau ou disjoncteur non trouvé.', '', () => {});
                     return;
                 }
 
                 const ik = disjoncteur.ik ? (disjoncteur.ik >= 1 ? disjoncteur.ik.toFixed(2) : disjoncteur.ik.toFixed(3)) : 'N/A';
                 const icn = disjoncteur.icn ? parseFloat(disjoncteur.icn).toFixed(2) : 'N/A';
                 const status = disjoncteur.ik != null && disjoncteur.icn ? (disjoncteur.ik <= disjoncteur.icn ? 'OK' : 'KO') : 'Incomplet';
-                const isPrincipal = disjoncteur.isPrincipal;
-                const hasSubTableau = !!disjoncteur.linkedTableauId;
+                const isPrincipal = disjoncteur.isPrincipal || false;
+                const hasSubTableau = disjoncteur.linkedTableauIds?.length > 0;
                 const ikHTA = calculateIkHTA(tableau);
                 const icnHTA = tableau.isHTA && tableau.htaData ? normalizeIcn(tableau.htaData.icn) : null;
                 const statusHTA = tableau.isHTA && ikHTA != null && icnHTA ? (ikHTA <= icnHTA ? 'OK' : 'KO') : 'N/A';
@@ -594,66 +630,66 @@
                     htaInfo = `
                         <div class="mt-4">
                             <h3 class="text-lg font-semibold mb-2">Cellule HTA</h3>
-                            <p><strong>Puissance transformateur :</strong> ${tableau.htaData.transformerPower} kVA</p>
-                            <p><strong>Tension HTA :</strong> ${tableau.htaData.voltage} kV</p>
-                            <p><strong>Ik HTA :</strong> ${ikHTA ? ikHTA.toFixed(2) : 'N/A'} kA${ikHTA > 50 ? ' (Aberrant)' : ''}</p>
-                            <p><strong>Icn HTA :</strong> ${icnHTA ? icnHTA.toFixed(2) : 'N/A'} kA</p>
-                            <p><strong>Statut HTA :</strong> <span class="${statusHTA === 'OK' ? 'text-green-600' : statusHTA === 'KO' ? 'text-red-600' : ''}">${statusHTA}</span></p>
-                            <p><strong>Explication HTA :</strong> ${statusHTA === 'OK' ? 'La cellule HTA peut supporter le courant de court-circuit.' : statusHTA === 'KO' ? 'Ik dépasse Icn de la cellule HTA. Vérifiez les réglages ou remplacez la cellule.' : 'Complétez les paramètres HTA dans Modifier.'}</p>
+                            <p class="text-sm sm:text-base"><strong>Puissance transformateur :</strong> ${tableau.htaData.transformerPower || 'N/A'} kVA</p>
+                            <p class="text-sm sm:text-base"><strong>Tension HTA :</strong> ${tableau.htaData.voltage || 'N/A'} kV</p>
+                            <p class="text-sm sm:text-base"><strong>Ik HTA :</strong> ${ikHTA ? ikHTA.toFixed(2) : 'N/A'} kA${ikHTA > 50 ? ' (Aberrant)' : ''}</p>
+                            <p class="text-sm sm:text-base"><strong>Icn HTA :</strong> ${icnHTA ? icnHTA.toFixed(2) : 'N/A'} kA</p>
+                            <p class="text-sm sm:text-base"><strong>Statut HTA :</strong> <span class="${statusHTA === 'OK' ? 'text-green-600' : statusHTA === 'KO' ? 'text-red-600' : ''}">${statusHTA}</span></p>
+                            <p class="text-sm sm:text-base"><strong>Explication HTA :</strong> ${statusHTA === 'OK' ? 'La cellule HTA peut supporter le courant de court-circuit.' : statusHTA === 'KO' ? 'Ik dépasse Icn de la cellule HTA. Vérifiez les réglages ou remplacez la cellule.' : 'Complétez les paramètres HTA dans Modifier.'}</p>
                         </div>
                     `;
                 }
 
                 content.innerHTML = `
-                    <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                         <div>
-                            <p><strong>ID :</strong> ${disjoncteur.id}</p>
-                            <p><strong>Tableau :</strong> ${tableau.id}${tableau.isHTA ? ' (HTA)' : ''}</p>
-                            <p><strong>Marque :</strong> ${disjoncteur.marque || 'N/A'}</p>
-                            <p><strong>Référence :</strong> ${disjoncteur.ref || 'N/A'}</p>
-                            <p><strong>Principal :</strong> ${isPrincipal ? 'Oui' : 'Non'}</p>
-                            <p><strong>Sous-tableau :</strong> ${disjoncteur.linkedTableauId || 'Aucun'}</p>
+                            <p class="text-sm sm:text-base"><strong>ID :</strong> ${disjoncteur.id}</p>
+                            <p class="text-sm sm:text-base"><strong>Tableau :</strong> ${tableau.id}${tableau.isHTA ? ' (HTA)' : ''}</p>
+                            <p class="text-sm sm:text-base"><strong>Marque :</strong> ${disjoncteur.marque || 'N/A'}</p>
+                            <p class="text-sm sm:text-base"><strong>Référence :</strong> ${disjoncteur.ref || 'N/A'}</p>
+                            <p class="text-sm sm:text-base"><strong>Principal :</strong> ${isPrincipal ? 'Oui' : 'Non'}</p>
+                            <p class="text-sm sm:text-base"><strong>Sous-tableaux :</strong> ${disjoncteur.linkedTableauIds?.length > 0 ? disjoncteur.linkedTableauIds.join(', ') : 'Aucun'}</p>
                         </div>
                         <div>
-                            <p><strong>Ik calculé :</strong> ${ik} kA${ik !== 'N/A' && disjoncteur.ik > 50 ? ' (Aberrant)' : ''}</p>
-                            <p><strong>Icn :</strong> ${icn} kA</p>
-                            <p><strong>Statut :</strong> <span class="${status === 'OK' ? 'text-green-600' : status === 'KO' ? 'text-red-600' : ''}">${status}</span></p>
-                            <p><strong>Explication :</strong> ${status === 'OK' ? 'Le disjoncteur peut supporter le courant de court-circuit.' : status === 'KO' ? 'Ik dépasse Icn. Remplacez le disjoncteur ou ajustez l’installation.' : 'Complétez Ue, section, et longueur pour calculer Ik.'}</p>
+                            <p class="text-sm sm:text-base"><strong>Ik calculé :</strong> ${ik} kA${ik !== 'N/A' && disjoncteur.ik > 50 ? ' (Aberrant)' : ''}</p>
+                            <p class="text-sm sm:text-base"><strong>Icn :</strong> ${icn} kA</p>
+                            <p class="text-sm sm:text-base"><strong>Statut :</strong> <span class="${status === 'OK' ? 'text-green-600' : status === 'KO' ? 'text-red-600' : ''}">${status}</span></p>
+                            <p class="text-sm sm:text-base"><strong>Explication :</strong> ${status === 'OK' ? 'Le disjoncteur peut supporter le courant de court-circuit.' : status === 'KO' ? 'Ik dépasse Icn. Remplacez le disjoncteur ou ajustez l’installation.' : 'Complétez Ue, section, et longueur pour calculer Ik.'}</p>
                         </div>
                     </div>
                     ${htaInfo}
                     <hr class="my-4">
                     <h3 class="text-lg font-semibold mb-2">Compléter les données BT</h3>
-                    <p class="mb-2">Saisissez les données ci-dessous pour calculer Ik. Les paramètres HTA doivent être modifiés via <a href="edit.html?id=${tableau.id}" class="text-blue-400 underline">Modifier</a>.</p>
+                    <p class="mb-2 text-sm sm:text-base">Saisissez les données ci-dessous pour calculer Ik. Les paramètres HTA doivent être modifiés via <a href="edit.html?id=${encodeURIComponent(tableau.id)}" class="text-blue-400 underline">Modifier</a>.</p>
                     <div class="space-y-4">
                         <div>
                             <label for="ue" class="block text-sm font-medium mb-1">Tension nominale Ue (V) <span class="text-red-600">*</span></label>
-                            <input id="ue" type="text" value="${disjoncteur.ue || '400 V'}" class="bg-gray-100 text-gray-900 p-2 rounded w-full border border-gray-300 focus:ring-2 focus:ring-blue-500" placeholder="Ex. 400 V" required>
+                            <input id="ue" type="text" value="${disjoncteur.ue || '400 V'}" class="bg-gray-100 text-gray-900 p-2 rounded w-full border border-gray-300 focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" placeholder="Ex. 400 V" required>
                         </div>
                         <div>
                             <label for="section" class="block text-sm font-medium mb-1">Section de câble (mm²) <span class="text-red-600">*</span></label>
-                            <input id="section" type="text" value="${disjoncteur.section || '2.5 mm²'}" class="bg-gray-100 text-gray-900 p-2 rounded w-full border border-gray-300 focus:ring-2 focus:ring-blue-500" placeholder="Ex. 2.5 mm²" required>
+                            <input id="section" type="text" value="${disjoncteur.section || '2.5 mm²'}" class="bg-gray-100 text-gray-900 p-2 rounded w-full border border-gray-300 focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" placeholder="Ex. 2.5 mm²" required>
                         </div>
                         <div>
                             <label for="cable-length" class="block text-sm font-medium mb-1">Longueur de câble (m) ${isPrincipal ? '(Min. 5 m)' : hasSubTableau ? '<span class="text-red-600">* (Min. 20 m)</span>' : ''}</label>
-                            <input id="cable-length" type="number" value="${disjoncteur.cableLength || (isPrincipal ? 5 : 20)}" class="bg-gray-100 text-gray-900 p-2 rounded w-full border border-gray-300 focus:ring-2 focus:ring-blue-500" placeholder="Ex. ${isPrincipal ? 5 : 20}" ${hasSubTableau && !isPrincipal ? 'required' : ''}>
+                            <input id="cable-length" type="number" value="${disjoncteur.cableLength || (isPrincipal ? 5 : 20)}" class="bg-gray-100 text-gray-900 p-2 rounded w-full border border-gray-300 focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" placeholder="Ex. ${isPrincipal ? 5 : 20}" ${hasSubTableau && !isPrincipal ? 'required' : ''}>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">Mode d'impédance</label>
-                            <div class="radio-group">
-                                <label><input type="radio" name="impedance-mode" value="auto" ${!disjoncteur.impedance ? 'checked' : ''}> Calcul automatique (Z = ρ × L / S)</label>
-                                <label><input type="radio" name="impedance-mode" value="manual" ${disjoncteur.impedance ? 'checked' : ''}> Entrée manuelle</label>
+                            <div class="radio-group space-y-2">
+                                <label><input type="radio" name="impedance-mode" value="auto" ${!disjoncteur.impedance ? 'checked' : ''} class="mr-1"> Calcul automatique (Z = ρ × L / S)</label>
+                                <label><input type="radio" name="impedance-mode" value="manual" ${disjoncteur.impedance ? 'checked' : ''} class="mr-1"> Entrée manuelle</label>
                             </div>
                         </div>
                         <div>
                             <label for="impedance" class="block text-sm font-medium mb-1">Impédance (Ω) ${disjoncteur.impedance ? '' : '(Désactivé en mode automatique)'}</label>
-                            <input id="impedance" type="number" step="0.01" value="${disjoncteur.impedance || ''}" class="bg-gray-100 text-gray-900 p-2 rounded w-full border border-gray-300 focus:ring-2 focus:ring-blue-500" placeholder="Ex. 0.35" ${!disjoncteur.impedance ? 'disabled' : ''}>
+                            <input id="impedance" type="number" step="0.01" value="${disjoncteur.impedance || ''}" class="bg-gray-100 text-gray-900 p-2 rounded w-full border border-gray-300 focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" placeholder="Ex. 0.35" ${!disjoncteur.impedance ? 'disabled' : ''}>
                         </div>
                     </div>
                     <p class="text-sm text-gray-400 mt-2">* Champs obligatoires pour calculer Ik. ρ = 0.0175 Ω·mm²/m (cuivre).</p>
                     <div class="mt-4">
                         <h3 class="text-lg font-semibold mb-2">Données actuelles</h3>
-                        <table class="w-full border-collapse">
+                        <table class="w-full border-collapse text-sm sm:text-base">
                             <tr><th class="border p-2">Champ</th><th class="border p-2">Valeur</th></tr>
                             <tr><td class="border p-2">Tension (Ue)</td><td class="border p-2">${disjoncteur.ue || 'N/A'}</td></tr>
                             <tr><td class="border p-2">Section</td><td class="border p-2">${disjoncteur.section || 'N/A'}</td></tr>
@@ -663,19 +699,20 @@
                     </div>
                 `;
 
-                console.log('[Client] Panneau rendu pour:', tableauId, disjoncteurId);
+                console.log('[FLA] Panneau rendu pour:', tableauId, disjoncteurId);
                 errorDiv.classList.add('hidden');
                 successDiv.classList.add('hidden');
                 impedanceInfo.classList.remove('hidden');
                 impedanceInfo.textContent = `Impédance actuelle : ${impedanceDisplay}`;
                 panel.classList.remove('hidden');
+                gsap.from('#details-panel', { opacity: 0, x: 100, duration: 0.5, ease: 'power2.out' });
 
                 renderDisjoncteurChart(disjoncteur, tableauId, tableau);
 
                 const impedanceInput = document.getElementById('impedance');
                 const radioButtons = document.querySelectorAll('input[name="impedance-mode"]');
                 radioButtons.forEach(radio => {
-                    radio.addEventListener('click', () => {
+                    radio.addEventListener('change', () => {
                         impedanceInput.disabled = radio.value === 'auto';
                         impedanceInput.value = radio.value === 'auto' ? '' : impedanceInput.value || '0.35';
                     });
@@ -683,55 +720,66 @@
 
                 const closePanelBtn = document.getElementById('close-panel');
                 closePanelBtn.onclick = () => {
-                    panel.classList.add('hidden');
-                    console.log('[Client] Panneau fermé');
+                    console.log('[FLA] Fermeture panneau');
+                    gsap.to('#details-panel', {
+                        opacity: 0,
+                        x: 100,
+                        duration: 0.5,
+                        ease: 'power2.in',
+                        onComplete: () => panel.classList.add('hidden')
+                    });
                 };
 
                 document.getElementById('update-cable-data').onclick = async () => {
+                    console.log('[FLA] Bouton Mettre à jour cliqué');
                     const ue = document.getElementById('ue').value.trim();
                     const section = document.getElementById('section').value.trim();
                     const cableLength = document.getElementById('cable-length').value;
                     const impedanceMode = document.querySelector('input[name="impedance-mode"]:checked').value;
                     const impedance = impedanceMode === 'manual' ? document.getElementById('impedance').value : null;
 
-                    console.log('[Client] Données saisies:', { ue, section, cableLength, impedanceMode, impedance });
+                    console.log('[FLA] Données saisies:', { ue, section, cableLength, impedanceMode, impedance });
 
-                    // Validation renforcée
                     if (!ue || !normalizeVoltage(ue)) {
                         errorDiv.classList.remove('hidden');
                         errorDiv.textContent = 'La tension Ue doit être une valeur numérique positive (ex. 400 V).';
                         successDiv.classList.add('hidden');
+                        console.log('[FLA] Erreur: Ue invalide');
                         return;
                     }
                     if (!section || !normalizeSection(section)) {
                         errorDiv.classList.remove('hidden');
                         errorDiv.textContent = 'La section de câble doit être une valeur numérique positive (ex. 2.5 mm²).';
                         successDiv.classList.add('hidden');
+                        console.log('[FLA] Erreur: Section invalide');
                         return;
                     }
                     if (hasSubTableau && !cableLength && !isPrincipal) {
                         errorDiv.classList.remove('hidden');
                         errorDiv.textContent = 'La longueur de câble est obligatoire pour les sous-tableaux.';
                         successDiv.classList.add('hidden');
+                        console.log('[FLA] Erreur: Longueur de câble manquante pour sous-tableau');
                         return;
                     }
                     if (cableLength && parseFloat(cableLength) < (isPrincipal ? 5 : 20)) {
                         errorDiv.classList.remove('hidden');
                         errorDiv.textContent = `La longueur de câble doit être d’au moins ${isPrincipal ? 5 : 20} m.`;
                         successDiv.classList.add('hidden');
+                        console.log('[FLA] Erreur: Longueur de câble trop courte');
                         return;
                     }
                     if (impedanceMode === 'manual' && impedance && parseFloat(impedance) <= 0) {
                         errorDiv.classList.remove('hidden');
                         errorDiv.textContent = 'L’impédance manuelle doit être positive.';
                         successDiv.classList.add('hidden');
+                        console.log('[FLA] Erreur: Impédance manuelle invalide');
                         return;
                     }
 
                     try {
-                        console.log('[Client] Envoi mise à jour:', { tableauId, disjoncteurId, ue, section, cableLength, impedanceMode, impedance });
+                        console.log('[FLA] Envoi mise à jour:', { tableauId, disjoncteurId, ue, section, cableLength, impedanceMode, impedance });
                         const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 2000);
+                        const timeoutId = setTimeout(() => controller.abort(), 5000);
                         const response = await fetch('/api/fault-level/update', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -747,53 +795,58 @@
                         });
                         clearTimeout(timeoutId);
                         const result = await response.json();
-                        console.log('[Client] Réponse serveur:', result);
-                        if (result.success) {
-                            console.log('[Client] Mise à jour réussie');
+                        console.log('[FLA] Réponse serveur:', result);
+                        if (response.ok && result.success) {
                             successDiv.classList.remove('hidden');
                             successDiv.textContent = 'Données mises à jour avec succès !';
                             errorDiv.classList.add('hidden');
                             await loadTableaux();
-                            setTimeout(() => panel.classList.add('hidden'), 1000);
+                            gsap.to('#details-panel', {
+                                opacity: 0,
+                                x: 100,
+                                duration: 0.5,
+                                ease: 'power2.in',
+                                onComplete: () => panel.classList.add('hidden')
+                            });
+                            console.log('[FLA] Mise à jour réussie, panneau fermé');
                         } else {
                             errorDiv.classList.remove('hidden');
                             errorDiv.textContent = result.error || 'Erreur lors de la mise à jour des données.';
                             successDiv.classList.add('hidden');
-                            console.error('[Client] Erreur mise à jour:', result.error);
+                            console.error('[FLA] Erreur mise à jour:', result.error);
                         }
                     } catch (error) {
+                        console.error('[FLA] Erreur réseau:', error);
                         errorDiv.classList.remove('hidden');
                         errorDiv.textContent = 'Erreur réseau lors de la mise à jour. Vérifiez votre connexion.';
                         successDiv.classList.add('hidden');
-                        console.error('[Client] Erreur mise à jour:', error);
                     }
                 };
             } catch (error) {
-                console.error('[Client] Erreur dans openPanel:', error);
-                const errorDiv = document.getElementById('panel-error');
-                errorDiv.classList.remove('hidden');
-                errorDiv.textContent = 'Erreur lors de l’ouverture du panneau.';
+                console.error('[FLA] Erreur dans openPanel:', error);
+                showPopup('Erreur lors de l’ouverture du panneau: ' + error.message, '', () => {});
             }
         }
 
-        // Rendre le graphique du panneau latéral
         function renderDisjoncteurChart(disjoncteur, tableauId, tableau) {
-            console.log('[Client] Rendu du graphique pour disjoncteur:', disjoncteur.id);
+            console.log('[FLA] Rendu du graphique pour disjoncteur:', disjoncteur.id);
             const canvas = document.getElementById('disjoncteur-chart');
             if (!canvas) {
-                console.error('[Client] Canvas disjoncteur-chart non trouvé');
+                console.error('[FLA] Canvas disjoncteur-chart non trouvé');
+                showPopup('Erreur: Élément de graphique non trouvé.', '', () => {});
                 return;
             }
 
             const ctx = canvas.getContext('2d');
             if (!ctx) {
-                console.error('[Client] Contexte 2D non disponible');
+                console.error('[FLA] Contexte 2D non disponible');
+                showPopup('Erreur: Contexte de rendu graphique non disponible.', '', () => {});
                 return;
             }
 
             if (panelChartInstance) {
                 panelChartInstance.destroy();
-                console.log('[Client] Ancien graphique disjoncteur détruit');
+                console.log('[FLA] Ancien graphique disjoncteur détruit');
             }
 
             const ik = disjoncteur.ik ? Math.min(disjoncteur.ik, 50) : 0;
@@ -828,17 +881,17 @@
                             y: {
                                 beginAtZero: true,
                                 max: Math.max(...data, 50),
-                                title: { display: true, text: 'kA', color: '#ffffff' },
+                                title: { display: true, text: 'kA', color: '#ffffff', font: { size: 12 } },
                                 grid: { color: '#4B5563' },
-                                ticks: { color: '#ffffff' }
+                                ticks: { color: '#ffffff', font: { size: 12 } }
                             },
-                            x: { 
+                            x: {
                                 grid: { display: false },
-                                ticks: { color: '#ffffff' }
+                                ticks: { color: '#ffffff', font: { size: 12 } }
                             }
                         },
                         plugins: {
-                            legend: { display: true, position: 'top', labels: { color: '#ffffff' } },
+                            legend: { display: true, position: 'top', labels: { color: '#ffffff', font: { size: 12 } } },
                             tooltip: {
                                 callbacks: {
                                     label: (context) => {
@@ -853,50 +906,33 @@
                         }
                     }
                 });
-                console.log('[Client] Graphique disjoncteur rendu avec succès');
+                console.log('[FLA] Graphique disjoncteur rendu avec succès');
+                gsap.from('#disjoncteur-chart', { opacity: 0, y: 20, duration: 0.5, ease: 'power2.out' });
             } catch (error) {
-                console.error('[Client] Erreur rendu graphique disjoncteur:', error);
+                console.error('[FLA] Erreur rendu graphique disjoncteur:', error);
+                showPopup('Erreur lors du rendu du graphique: ' + error.message, '', () => {});
             }
         }
 
-        // Mettre à jour l’alerte de données manquantes
-        function updateMissingDataAlert() {
-            console.log('[Client] Mise à jour alerte données manquantes');
-            const missing = tableauxData.flatMap(t => {
-                const disjoncteursMissing = t.disjoncteurs.filter(d => !d.ue || !normalizeVoltage(d.ue) || !d.section || !normalizeSection(d.section) || (!d.cableLength && !d.impedance && !d.isPrincipal && d.linkedTableauId));
-                const htaMissing = t.isHTA && (!t.htaData || !t.htaData.transformerPower || !t.htaData.voltage) ? [t] : [];
-                return [...disjoncteursMissing, ...htaMissing];
-            });
-            const alert = document.getElementById('missing-data-alert');
-            const countSpan = document.getElementById('missing-count');
-            if (missing.length > 0) {
-                alert.classList.remove('hidden');
-                countSpan.textContent = missing.length;
-                console.log('[Client] Données manquantes détectées:', missing.length);
-            } else {
-                alert.classList.add('hidden');
-                console.log('[Client] Aucune donnée manquante');
-            }
-        }
-
-        // Rendre le graphique à bulles
-        function renderBubbleChart(data = tableauxData) {
-            console.log('[Client] Rendu du graphique à bulles');
+        function renderBubbleChart(data) {
+            console.log('[FLA] Rendu du graphique à bulles');
             const canvas = document.getElementById('bubble-chart');
             if (!canvas) {
-                console.error('[Client] Canvas bubble-chart non trouvé');
+                console.error('[FLA] Canvas bubble-chart non trouvé');
+                showPopup('Erreur: Élément de graphique à bulles non trouvé.', '', () => {});
                 return;
             }
 
             const ctx = canvas.getContext('2d');
             if (!ctx) {
-                console.error('[Client] Contexte 2D non disponible pour bubble-chart');
+                console.error('[FLA] Contexte 2D non disponible pour bubble-chart');
+                showPopup('Erreur: Contexte de rendu graphique non disponible.', '', () => {});
                 return;
             }
 
             if (bubbleChartInstance) {
                 bubbleChartInstance.destroy();
-                console.log('[Client] Ancien graphique à bulles détruit');
+                console.log('[FLA] Ancien graphique à bulles détruit');
             }
 
             const datasets = [];
@@ -922,7 +958,7 @@
             });
 
             if (datasets.length === 0) {
-                console.log('[Client] Aucune donnée valide pour le graphique à bulles');
+                console.log('[FLA] Aucune donnée valide pour le graphique à bulles');
                 const parent = canvas.parentElement;
                 const existingError = parent.querySelector('.error-message');
                 if (!existingError) {
@@ -935,9 +971,7 @@
             }
 
             const existingError = canvas.parentElement.querySelector('.error-message');
-            if (existingError) {
-                existingError.remove();
-            }
+            if (existingError) existingError.remove();
 
             const diagonalData = {
                 label: 'Icn = Ik',
@@ -966,74 +1000,73 @@
                         },
                         scales: {
                             x: {
-                                title: { display: true, text: 'Ik (kA)', color: '#ffffff' },
+                                title: { display: true, text: 'Ik (kA)', color: '#ffffff', font: { size: 12 } },
                                 grid: { color: '#4B5563' },
-                                ticks: { color: '#ffffff' },
+                                ticks: { color: '#ffffff', font: { size: 12 } },
                                 min: 0,
-                                max: maxIk * 1.1
+                                max: maxIk * 1.1 || 50
                             },
                             y: {
-                                title: { display: true, text: 'Icn (kA)', color: '#ffffff' },
+                                title: { display: true, text: 'Icn (kA)', color: '#ffffff', font: { size: 12 } },
                                 grid: { color: '#4B5563' },
-                                ticks: { color: '#ffffff' },
+                                ticks: { color: '#ffffff', font: { size: 12 } },
                                 min: 0,
-                                max: maxIcn * 1.1
+                                max: maxIcn * 1.1 || 50
                             }
                         }
                     }
                 });
-                console.log('[Client] Graphique à bulles rendu avec succès');
+                console.log('[FLA] Graphique à bulles rendu avec succès');
+                gsap.from('#bubble-chart', { opacity: 0, y: 20, duration: 0.5, ease: 'power2.out' });
             } catch (error) {
-                console.error('[Client] Erreur rendu graphique à bulles:', error);
+                console.error('[FLA] Erreur rendu graphique à bulles:', error);
+                showPopup('Erreur lors du rendu du graphique à bulles: ' + error.message, '', () => {});
             }
         }
 
-        // Rendre le schéma électrique
-        function renderNetwork(data = tableauxData) {
-            console.log('[Client] Rendu du schéma électrique');
+        function renderNetwork(data) {
+            console.log('[FLA] Rendu du schéma électrique');
             const container = document.getElementById('network-schema');
             if (!container) {
-                console.error('[Client] Conteneur network-schema non trouvé');
+                console.error('[FLA] Conteneur network-schema non trouvé');
+                showPopup('Erreur: Conteneur de schéma non trouvé.', '', () => {});
                 return;
             }
 
             if (networkInstance) {
                 networkInstance.destroy();
-                console.log('[Client] Ancien réseau détruit');
+                console.log('[FLA] Ancien réseau détruit');
             }
 
             const nodes = [];
             const edges = [];
             const nodeIds = new Set();
             const tableauLevels = new Map();
+            const visited = new Set();
 
-            // Assigner des niveaux aux tableaux pour la hiérarchie
-            function assignTableauLevels(tableauId, level = 0, visited = new Set()) {
+            function assignTableauLevels(tableauId, level = 0) {
                 if (visited.has(tableauId)) {
-                    console.warn(`[Client] Boucle détectée pour le tableau ${tableauId}`);
+                    console.warn(`[FLA] Boucle détectée pour le tableau ${tableauId}`);
                     return;
                 }
                 visited.add(tableauId);
 
-                if (!tableauLevels.has(tableauId)) {
+                if (!tableauLevels.has(tableauId) || tableauLevels.get(tableauId) < level) {
                     tableauLevels.set(tableauId, level);
-                } else {
-                    tableauLevels.set(tableauId, Math.max(tableauLevels.get(tableauId), level));
                 }
 
                 const tableau = data.find(t => t.id === tableauId);
                 if (!tableau) return;
 
                 tableau.disjoncteurs.forEach(disjoncteur => {
-                    if (disjoncteur.linkedTableauId) {
-                        assignTableauLevels(disjoncteur.linkedTableauId, level + 3, new Set(visited));
-                    }
+                    disjoncteur.linkedTableauIds?.forEach(linkedId => {
+                        assignTableauLevels(linkedId, level + 3);
+                    });
                 });
             }
 
             data.forEach(tableau => assignTableauLevels(tableau.id));
 
-            // Créer les nœuds pour les tableaux et disjoncteurs
             data.forEach(tableau => {
                 const tableauId = `tableau-${tableau.id}`;
                 if (!nodeIds.has(tableauId)) {
@@ -1041,16 +1074,16 @@
                     const ikHTA = calculateIkHTA(tableau);
                     const icnHTA = tableau.isHTA && tableau.htaData ? normalizeIcn(tableau.htaData.icn) : null;
                     const statusHTA = tableau.isHTA && ikHTA != null && icnHTA ? (ikHTA <= icnHTA ? 'OK' : 'KO') : 'N/A';
-                    let tooltip = `Tableau: ${tableau.id}\nBâtiment: ${tableau.building}\nHTA: ${tableau.isHTA ? 'Oui' : 'Non'}`;
+                    let tooltip = `Tableau: ${tableau.id}\nBâtiment: ${tableau.building}\nHTA: ${tableau.isHTA ? 'Oui' : 'Non'}\nPrincipal: ${tableau.issitemain ? 'Oui' : 'Non'}`;
                     if (tableau.isHTA && tableau.htaData) {
-                        tooltip += `\nPuissance transfo: ${tableau.htaData.transformerPower} kVA\nTension HTA: ${tableau.htaData.voltage} kV\nIk HTA: ${ikHTA ? ikHTA.toFixed(2) : 'N/A'} kA\nIcn HTA: ${icnHTA ? icnHTA.toFixed(2) : 'N/A'} kA\nStatut HTA: ${statusHTA}`;
+                        tooltip += `\nPuissance transfo: ${tableau.htaData.transformerPower || 'N/A'} kVA\nTension HTA: ${tableau.htaData.voltage || 'N/A'} kV\nIk HTA: ${ikHTA ? ikHTA.toFixed(2) : 'N/A'} kA\nIcn HTA: ${icnHTA ? icnHTA.toFixed(2) : 'N/A'} kA\nStatut HTA: ${statusHTA}`;
                     }
                     nodes.push({
                         id: tableauId,
                         label: `${tableau.id}${tableau.isHTA ? ' (HTA)' : ''}`,
                         shape: 'box',
                         color: tableau.isHTA ? { background: '#fee2e2', border: '#dc2626' } : { background: '#ffffff', border: '#000000' },
-                        level: level,
+                        level,
                         title: tooltip
                     });
                     nodeIds.add(tableauId);
@@ -1112,29 +1145,27 @@
                 });
             });
 
-            // Ajouter les arêtes pour les liaisons entre tableaux
             data.forEach(tableau => {
                 tableau.disjoncteurs.forEach(disjoncteur => {
-                    if (disjoncteur.linkedTableauId) {
+                    disjoncteur.linkedTableauIds?.forEach(linkedId => {
                         const disjoncteurId = `disjoncteur-${tableau.id}-${disjoncteur.id}`;
-                        const toId = `tableau-${disjoncteur.linkedTableauId}`;
+                        const toId = `tableau-${linkedId}`;
                         if (nodeIds.has(toId)) {
                             edges.push({ from: disjoncteurId, to: toId, dashes: true });
                         } else {
-                            console.warn(`[Client] Sous-tableau ${disjoncteur.linkedTableauId} non trouvé pour ${disjoncteurId}`);
+                            console.warn(`[FLA] Sous-tableau ${linkedId} non trouvé pour ${disjoncteurId}`);
                         }
-                    }
+                    });
                 });
             });
 
-            // Afficher une alerte si aucune liaison n’est détectée
             const noLinkedTableauAlert = document.getElementById('no-linked-tableau-alert');
             const hasLinks = edges.some(e => e.dashes);
             noLinkedTableauAlert.classList.toggle('hidden', hasLinks);
+            console.log('[FLA] Liaisons détectées:', hasLinks ? edges.filter(e => e.dashes).length : 0);
 
-            // Vérifier si des données sont disponibles
             if (nodes.length === 0) {
-                console.log('[Client] Aucune donnée valide pour le schéma électrique');
+                console.log('[FLA] Aucune donnée valide pour le schéma électrique');
                 const existingError = container.querySelector('.error-message');
                 if (!existingError) {
                     const errorDiv = document.createElement('div');
@@ -1146,9 +1177,7 @@
             }
 
             const existingError = container.querySelector('.error-message');
-            if (existingError) {
-                existingError.remove();
-            }
+            if (existingError) existingError.remove();
 
             try {
                 const visData = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
@@ -1195,11 +1224,41 @@
                     manipulation: { enabled: false }
                 };
                 networkInstance = new vis.Network(container, visData, options);
-                console.log('[Client] Schéma électrique rendu avec succès', { nodes: nodes.length, edges: edges.length, levels: [...tableauLevels.entries()] });
+                console.log('[FLA] Schéma électrique rendu avec succès', { nodes: nodes.length, edges: edges.length, levels: [...tableauLevels.entries()] });
+                gsap.from('#network-schema', { opacity: 0, y: 20, duration: 0.5, ease: 'power2.out' });
             } catch (error) {
-                console.error('[Client] Erreur rendu schéma électrique:', error);
+                console.error('[FLA] Erreur rendu schéma électrique:', error);
+                showPopup('Erreur lors du rendu du schéma électrique: ' + error.message, '', () => {});
             }
         }
+
+        function renderData(data) {
+            console.log('[FLA] Rendu des données pour', data.length, 'tableaux');
+            updateMissingDataAlert(data);
+            checkHighIk(data);
+            renderTable(data);
+            renderBubbleChart(data);
+            renderNetwork(data);
+        }
+
+        window.onload = () => {
+            console.log('[FLA] Initialisation page fault_level_assessment');
+            if (window.location.protocol === 'file:') {
+                showPopup('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/fault_level_assessment.html) pour accéder à l\'API.', '', () => {});
+                return;
+            }
+            if (typeof Chart === 'undefined') console.error('[FLA] Chart.js non chargé');
+            if (typeof vis === 'undefined') console.error('[FLA] Vis.js non chargé');
+            const panel = document.getElementById('details-panel');
+            if (panel) {
+                panel.classList.add('hidden');
+                console.log('[FLA] Panneau caché au chargement');
+            }
+            document.removeEventListener('click', handleActionClick);
+            document.addEventListener('click', handleActionClick);
+            console.log('[FLA] Gestionnaire d\'événements attaché au document');
+            loadTableaux();
+        };
     </script>
 </body>
 </html>
