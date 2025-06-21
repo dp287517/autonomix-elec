@@ -19,6 +19,8 @@
         table th { background-color: #374151; }
         .error-message { color: #ef4444; font-size: 0.875rem; }
         #building-filter, #tableau-filter { font-size: 0.875rem; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @media (min-width: 640px) {
             table th, table td { font-size: 1rem; }
             .error-message { font-size: 1rem; }
@@ -36,7 +38,7 @@
             <li><a href="obsolescence.html" class="hover:text-yellow-300 transition"><i class="fas fa-clock mr-2"></i>Obsolescence</a></li>
             <li><a href="fault_level_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-bolt mr-2"></i>Évaluation du Niveau de Défaut</a></li>
             <li><a href="hazards_assessment.html" class="text-yellow-300"><i class="fas fa-exclamation-triangle mr-2"></i>Évaluation des Risques</a></li>
-            <li><a href="maintenance_org.html" class="hover:text-yellow-300 transition"><i class="fas fa-sitemap mr-2"></i>Organigramme Maintenance</a></li>
+            <li><a href=" maintenance_org.html" class="hover:text-yellow-300 transition"><i class="fas fa-sitemap mr-2"></i>Organigramme Maintenance</a></li>
             <li><a href="distribution_emergency.html" class="hover:text-yellow-300 transition"><i class="fas fa-plug mr-2"></i>Urgence Distribution</a></li>
             <li><a href="reports.html" class="hover:text-yellow-300 transition"><i class="fas fa-file-alt mr-2"></i>Rapports</a></li>
             <li><a href="electrical_safety_program.html" class="hover:text-yellow-300 transition"><i class="fas fa-hard-hat mr-2"></i>Programme de Sécurité Électrique</a></li>
@@ -47,24 +49,36 @@
     <div class="container mx-auto p-4 sm:p-6">
         <div class="flex flex-col sm:flex-row justify-between items-center mb-4 sm:mb-6">
             <h1 class="text-2xl sm:text-3xl font-bold flex items-center"><i class="fas fa-exclamation-triangle mr-2 sm:mr-3"></i>Évaluation des Risques Électriques</h1>
-            <button onclick="exportToCSV()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center touch-friendly mt-4 sm:mt-0">
-                <i class="fas fa-file-csv mr-2"></i>Exporter en CSV
-            </button>
+            <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mt-4 sm:mt-0">
+                <button onclick="exportToCSV()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center touch-friendly">
+                    <i class="fas fa-file-csv mr-2"></i>Exporter en CSV
+                </button>
+                <button onclick="resetFilters()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 flex items-center touch-friendly">
+                    <i class="fas fa-undo mr-2"></i>Réinitialiser le filtre
+                </button>
+            </div>
         </div>
         <div id="api-error" class="hidden bg-red-900 text-red-200 p-3 rounded mb-4 sm:mb-6 animate-slide-up">
             <p class="text-sm sm:text-base"><i class="fas fa-exclamation-triangle mr-2"></i>Erreur lors du chargement des données. Veuillez réessayer plus tard.</p>
         </div>
+        <div id="loading-spinner" class="hidden flex justify-center items-center mb-4 sm:mb-6">
+            <div class="spinner"></div>
+            <p class="ml-2 text-sm sm:text-base">Chargement des données...</p>
+        </div>
+        <div id="no-building-selected" class="bg-gray-800 p-4 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up">
+            <p class="text-gray-300 text-sm sm:text-base">Veuillez sélectionner un bâtiment pour afficher les données.</p>
+        </div>
 
         <div class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0 animate-slide-up">
             <div>
-                <label for="building-filter" class="block text-sm font-medium mb-1">Filtrer par Bâtiment</label>
-                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" aria-label="Filtrer par bâtiment">
-                    <option value="">Tous les bâtiments</option>
+                <label for="building-filter" class="block text-sm font-medium mb-1">Filtrer par Bâtiment <span class="text-red-600">*</span></label>
+                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" aria-label="Filtrer par bâtiment" required>
+                    <option value="">Sélectionnez un bâtiment</option>
                 </select>
             </div>
             <div>
                 <label for="tableau-filter" class="block text-sm font-medium mb-1">Filtrer par Tableau</label>
-                <select id="tableau-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" aria-label="Filtrer par tableau">
+                <select id="tableau-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" aria-label="Filtrer par tableau" disabled>
                     <option value="">Tous les tableaux</option>
                 </select>
             </div>
@@ -73,7 +87,8 @@
         <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up">
             <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
             <ul class="list-disc pl-6 text-gray-300 text-sm sm:text-base">
-                <li>Filtrez par bâtiment ou tableau pour analyser les risques électriques spécifiques.</li>
+                <li>Sélectionnez un bâtiment pour charger les données spécifiques (requis).</li>
+                <li>Filtrez par tableau pour analyser les risques électriques d’un tableau spécifique.</li>
                 <li>Le tableau liste les disjoncteurs avec les risques potentiels : arc électrique, choc électrique, surchauffe.</li>
                 <li>La colonne "Obsolète" indique si le disjoncteur a dépassé sa durée de vie.</li>
                 <li>La colonne "Statut Contrôle" montre le dernier statut de contrôle (Conforme, Non conforme, etc.).</li>
@@ -83,6 +98,7 @@
                 <li>Complétez les données via le panneau latéral pour réduire les risques.</li>
                 <li>Vérifiez les conditions environnementales (humidité, température ambiante) pour éviter les risques accrus.</li>
                 <li>Cliquez sur "Exporter en CSV" pour télécharger les données des disjoncteurs au format CSV.</li>
+                <li>Utilisez "Réinitialiser le filtre" pour revenir à la sélection initiale.</li>
             </ul>
         </div>
 
@@ -90,31 +106,33 @@
             <p class="text-sm sm:text-base"><i class="fas fa-exclamation-triangle mr-2"></i>Données manquantes pour certains disjoncteurs (ex. IP, température, tension, section). <a href="#" id="missing-data-link" class="underline">Modifier</a></p>
         </div>
 
-        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up">
-            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-table mr-2"></i>Tableau des Risques</h2>
-            <div class="overflow-x-auto">
-                <table class="w-full border-collapse">
-                    <thead>
-                        <tr class="bg-gray-700">
-                            <th class="p-2">Tableau</th>
-                            <th class="p-2">Disjoncteur ID</th>
-                            <th class="p-2">Marque</th>
-                            <th class="p-2">Risque Arc</th>
-                            <th class="p-2">Risque Choc</th>
-                            <th class="p-2">Risque Surchauffe</th>
-                            <th class="p-2">Obsolète</th>
-                            <th class="p-2">Statut Contrôle</th>
-                            <th class="p-2">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="hazards-table-body"></tbody>
-                </table>
+        <div id="data-section" class="hidden">
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up">
+                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-table mr-2"></i>Tableau des Risques</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse">
+                        <thead>
+                            <tr class="bg-gray-700">
+                                <th class="p-2">Tableau</th>
+                                <th class="p-2">Disjoncteur ID</th>
+                                <th class="p-2">Marque</th>
+                                <th class="p-2">Risque Arc</th>
+                                <th class="p-2">Risque Choc</th>
+                                <th class="p-2">Risque Surchauffe</th>
+                                <th class="p-2">Obsolète</th>
+                                <th class="p-2">Statut Contrôle</th>
+                                <th class="p-2">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hazards-table-body"></tbody>
+                    </table>
+                </div>
             </div>
-        </div>
 
-        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up">
-            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-chart-bar mr-2"></i>Répartition des Risques</h2>
-            <canvas id="hazards-chart" class="w-full h-96"></canvas>
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up">
+                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-chart-bar mr-2"></i>Répartition des Risques</h2>
+                <canvas id="hazards-chart" class="w-full h-96"></canvas>
+            </div>
         </div>
 
         <div id="modal-details" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden" role="dialog" aria-labelledby="modal-title">
@@ -149,6 +167,7 @@
         let chartInstance = null;
         const currentYear = 2025;
         const validIpValues = ['IP20', 'IP40', 'IP54', 'IP65'];
+        let filterDebounceTimeout = null;
 
         function showPopup(message, content = '', confirmCallback = () => {}) {
             console.log('[Hazards] Affichage pop-up:', message);
@@ -180,28 +199,76 @@
             return match ? parseFloat(match[0]) : null;
         }
 
-        async function loadTableaux() {
-            console.log('[Hazards] Chargement des données');
+        async function loadBuildings() {
+            console.log('[Hazards] Chargement de la liste des bâtiments');
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000);
+                const response = await fetch('/api/buildings', { method: 'GET', signal: controller.signal });
+                clearTimeout(timeoutId);
+                if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
+                const buildings = await response.json();
+                console.log('[Hazards] Bâtiments reçus:', buildings.length);
+                return buildings;
+            } catch (error) {
+                console.error('[Hazards] Erreur chargement bâtiments:', error);
+                showPopup('Erreur lors du chargement des bâtiments: ' + error.message, '', () => {});
+                return [];
+            }
+        }
+
+        async function loadTableaux(building) {
+            if (!building) {
+                console.warn('[Hazards] Aucun bâtiment spécifié pour le chargement');
+                return [];
+            }
+            console.log('[Hazards] Chargement des données pour bâtiment:', building);
+            document.getElementById('loading-spinner').classList.remove('hidden');
+            try {
+                const cacheKey = `hazards_data_${building}`;
+                const cachedData = localStorage.getItem(cacheKey);
+                if (cachedData) {
+                    const parsed = JSON.parse(cachedData);
+                    if (parsed.timestamp && Date.now() - parsed.timestamp < 15 * 60 * 1000) { // Cache valide 15 min
+                        console.log('[Hazards] Utilisation des données en cache pour:', building);
+                        document.getElementById('loading-spinner').classList.add('hidden');
+                        return parsed.data;
+                    }
+                }
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
                 const [faultLevelResponse, checklistsResponse] = await Promise.all([
-                    fetch('/api/fault-level', { method: 'GET', signal: controller.signal }),
-                    fetch('/api/breaker-checklists', { method: 'GET', signal: controller.signal })
+                    fetch(`/api/fault-level?building=${encodeURIComponent(building)}`, {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' },
+                        signal: controller.signal
+                    }),
+                    fetch(`/api/breaker-checklists?building=${encodeURIComponent(building)}`, {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' },
+                        signal: controller.signal
+                    })
                 ]);
                 clearTimeout(timeoutId);
 
-                if (!faultLevelResponse.ok) throw new Error(`Erreur HTTP: ${faultLevelResponse.status}`);
-                if (!checklistsResponse.ok) throw new Error(`Erreur HTTP: ${checklistsResponse.status}`);
+                if (!faultLevelResponse.ok) {
+                    const errorData = await faultLevelResponse.json().catch(() => ({}));
+                    throw new Error(errorData.error || `Erreur HTTP: ${faultLevelResponse.status}`);
+                }
+                if (!checklistsResponse.ok) {
+                    const errorData = await checklistsResponse.json().catch(() => ({}));
+                    throw new Error(errorData.error || `Erreur HTTP: ${checklistsResponse.status}`);
+                }
 
                 const faultLevelData = await faultLevelResponse.json();
                 checklistsData = await checklistsResponse.json();
 
-                tableauxData = faultLevelData.data.map(tableau => ({
+                const data = faultLevelData.data.map(tableau => ({
                     ...tableau,
                     disjoncteurs: (tableau.disjoncteurs || []).map(d => ({
                         ...d,
-                        id: d.id || d.disjoncteur_id,
+                        id: d.id || d.disjoncteur_id || `unknown_${Math.random().toString(36).substring(2, 9)}`,
                         ip: d.ip || 'IP20',
                         temp: cleanNumericValue(d.temp) || 70,
                         ue: cleanNumericValue(d.ue) || 400,
@@ -213,26 +280,17 @@
                     }))
                 }));
 
-                missingData = tableauxData.flatMap(t => 
-                    t.disjoncteurs.filter(d => !d.ip || d.temp === null || d.ue === null || d.section === null)
-                        .map(d => ({ tableauId: t.id, disjoncteurId: d.id }))
-                );
-                console.log('[Hazards] Données chargées:', { tableaux: tableauxData.length, checklists: checklistsData.length, missingData: missingData.length });
+                localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
+                console.log('[Hazards] Données chargées:', { tableaux: data.length, checklists: checklistsData.length });
+                document.getElementById('loading-spinner').classList.add('hidden');
                 document.getElementById('api-error').classList.add('hidden');
-                populateFilters();
-                renderHazardsTable();
-                renderHazardsChart();
-                updateMissingDataAlert();
+                return data;
             } catch (error) {
                 console.error('[Hazards] Erreur chargement:', error);
                 showPopup('Erreur lors du chargement des données: ' + error.message, '', () => {});
+                document.getElementById('loading-spinner').classList.add('hidden');
                 document.getElementById('api-error').classList.remove('hidden');
-                tableauxData = [];
-                checklistsData = [];
-                missingData = [];
-                renderHazardsTable();
-                renderHazardsChart();
-                updateMissingDataAlert();
+                return [];
             }
         }
 
@@ -255,8 +313,8 @@
             return 1600;
         }
 
-        function populateFilters() {
-            console.log('[Hazards] Remplissage des filtres');
+        function populateFilters(buildings) {
+            console.log('[Hazards] Remplissage des filtres, bâtiments:', buildings.length);
             const buildingFilter = document.getElementById('building-filter');
             const tableauFilter = document.getElementById('tableau-filter');
             if (!buildingFilter || !tableauFilter) {
@@ -264,9 +322,8 @@
                 showPopup('Erreur: Éléments de filtre introuvables.', '', () => {});
                 return;
             }
-            const buildings = [...new Set(tableauxData.map(t => t.building))].sort();
 
-            buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
+            buildingFilter.innerHTML = '<option value="">Sélectionnez un bâtiment</option>';
             buildings.forEach(b => {
                 const option = document.createElement('option');
                 option.value = b;
@@ -285,33 +342,96 @@
                     option.textContent = t.id;
                     tableauFilter.appendChild(option);
                 });
+                tableauFilter.disabled = !selectedBuilding;
             }
 
-            updateTableauFilter('');
+            const savedBuilding = localStorage.getItem('selectedBuilding');
+            if (savedBuilding && buildings.includes(savedBuilding)) {
+                buildingFilter.value = savedBuilding;
+                updateTableauFilter(savedBuilding);
+                filterData(savedBuilding);
+            } else {
+                updateTableauFilter('');
+                showNoBuildingMessage();
+            }
+
             buildingFilter.onchange = () => {
                 const selectedBuilding = buildingFilter.value;
+                console.log('[Hazards] Bâtiment sélectionné:', selectedBuilding);
+                localStorage.setItem('selectedBuilding', selectedBuilding);
                 updateTableauFilter(selectedBuilding);
-                filterData();
+                if (selectedBuilding) {
+                    filterData(selectedBuilding);
+                } else {
+                    showNoBuildingMessage();
+                }
             };
-            tableauFilter.onchange = filterData;
+
+            tableauFilter.onchange = () => {
+                clearTimeout(filterDebounceTimeout);
+                filterDebounceTimeout = setTimeout(() => {
+                    console.log('[Hazards] Tableau sélectionné:', tableauFilter.value);
+                    filterData(buildingFilter.value);
+                }, 300);
+            };
         }
 
-        function filterData() {
-            console.log('[Hazards] Filtrage des données');
-            const building = document.getElementById('building-filter').value;
-            const tableau = document.getElementById('tableau-filter').value;
-            const filteredData = tableauxData.filter(t => 
-                (!building || t.building === building) && 
-                (!tableau || t.id === tableau)
+        function showNoBuildingMessage() {
+            console.log('[Hazards] Affichage message aucun bâtiment sélectionné');
+            document.getElementById('no-building-selected').classList.remove('hidden');
+            document.getElementById('data-section').classList.add('hidden');
+            document.getElementById('missing-data-alert').classList.add('hidden');
+        }
+
+        async function filterData(building) {
+            console.log('[Hazards] Filtrage des données pour bâtiment:', building);
+            const tableauFilter = document.getElementById('tableau-filter');
+            if (!building) {
+                tableauxData = [];
+                checklistsData = [];
+                missingData = [];
+                showNoBuildingMessage();
+                renderHazardsTable();
+                renderHazardsChart();
+                updateMissingDataAlert();
+                return;
+            }
+
+            tableauxData = await loadTableaux(building);
+            const tableau = tableauFilter.value;
+            const filteredData = tableauxData.filter(t => !tableau || t.id === tableau);
+            missingData = filteredData.flatMap(t => 
+                t.disjoncteurs.filter(d => !d.ip || d.temp === null || d.ue === null || d.section === null)
+                    .map(d => ({ tableauId: t.id, disjoncteurId: d.id }))
             );
+            document.getElementById('no-building-selected').classList.add('hidden');
+            document.getElementById('data-section').classList.remove('hidden');
             renderHazardsTable(filteredData);
             renderHazardsChart(filteredData);
+            updateMissingDataAlert();
+        }
+
+        function resetFilters() {
+            console.log('[Hazards] Réinitialisation des filtres');
+            localStorage.removeItem('selectedBuilding');
+            const buildingFilter = document.getElementById('building-filter');
+            const tableauFilter = document.getElementById('tableau-filter');
+            buildingFilter.value = '';
+            tableauFilter.value = '';
+            tableauFilter.disabled = true;
+            tableauxData = [];
+            checklistsData = [];
+            missingData = [];
+            showNoBuildingMessage();
+            renderHazardsTable();
+            renderHazardsChart();
+            updateMissingDataAlert();
         }
 
         function exportToCSV() {
             console.log('[Hazards] Exportation des données en CSV');
             if (!tableauxData || tableauxData.length === 0) {
-                showPopup('Aucune donnée à exporter.', '', () => {});
+                showPopup('Aucune donnée à exporter. Veuillez sélectionner un bâtiment.', '', () => {});
                 return;
             }
 
@@ -369,6 +489,7 @@
         function isObsolete(disjoncteur) {
             if (!disjoncteur.date || !disjoncteur.lifespan) return false;
             const manufactureYear = new Date(disjoncteur.date).getFullYear();
+            if (isNaN(manufactureYear)) return false;
             const lifespan = parseInt(disjoncteur.lifespan) || 30;
             return (currentYear - manufactureYear) >= lifespan;
         }
@@ -627,8 +748,8 @@
                 </div>
             `;
             document.getElementById('modal-content').innerHTML = content;
-            errorDiv.classList.add('hidden');
-            successDiv.classList.add('hidden');
+            document.getElementById('modal-error').classList.add('hidden');
+            document.getElementById('modal-success').classList.add('hidden');
             modal.classList.remove('hidden');
             gsap.from('#modal-details', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
 
@@ -643,44 +764,44 @@
 
                 if (ip && !validIpValues.includes(ip)) {
                     console.log('[Hazards] Validation échouée: IP invalide', ip);
-                    errorDiv.classList.remove('hidden');
-                    errorDiv.textContent = 'Indice de protection invalide. Valeurs acceptées : IP20, IP40, IP54, IP65.';
-                    successDiv.classList.add('hidden');
+                    document.getElementById('modal-error').classList.remove('hidden');
+                    document.getElementById('modal-error').textContent = 'Indice de protection invalide. Valeurs acceptées : IP20, IP40, IP54, IP65.';
+                    document.getElementById('modal-success').classList.add('hidden');
                     return;
                 }
                 if (temp && (isNaN(parseFloat(temp)) || parseFloat(temp) < 0)) {
                     console.log('[Hazards] Validation échouée: Température invalide', temp);
-                    errorDiv.classList.remove('hidden');
-                    errorDiv.textContent = 'La température doit être une valeur numérique positive (ex. 70).';
-                    successDiv.classList.add('hidden');
+                    document.getElementById('modal-error').classList.remove('hidden');
+                    document.getElementById('modal-error').textContent = 'La température doit être une valeur numérique positive (ex. 70).';
+                    document.getElementById('modal-success').classList.add('hidden');
                     return;
                 }
                 if (ue && (isNaN(parseFloat(ue)) || parseFloat(ue) < 0)) {
                     console.log('[Hazards] Validation échouée: Tension invalide', ue);
-                    errorDiv.classList.remove('hidden');
-                    errorDiv.textContent = 'La tension nominale doit être une valeur numérique positive (ex. 400).';
-                    successDiv.classList.add('hidden');
+                    document.getElementById('modal-error').classList.remove('hidden');
+                    document.getElementById('modal-error').textContent = 'La tension nominale doit être une valeur numérique positive (ex. 400).';
+                    document.getElementById('modal-success').classList.add('hidden');
                     return;
                 }
                 if (section && (isNaN(parseFloat(section)) || parseFloat(section) < 0)) {
                     console.log('[Hazards] Validation échouée: Section invalide', section);
-                    errorDiv.classList.remove('hidden');
-                    errorDiv.textContent = 'La section du câble doit être une valeur numérique positive (ex. 2.5).';
-                    successDiv.classList.add('hidden');
+                    document.getElementById('modal-error').classList.remove('hidden');
+                    document.getElementById('modal-error').textContent = 'La section du câble doit être une valeur numérique positive (ex. 2.5).';
+                    document.getElementById('modal-success').classList.add('hidden');
                     return;
                 }
                 if (humidite && (isNaN(parseFloat(humidite)) || parseFloat(humidite) < 0 || parseFloat(humidite) > 100)) {
                     console.log('[Hazards] Validation échouée: Humidité invalide', humidite);
-                    errorDiv.classList.remove('hidden');
-                    errorDiv.textContent = 'L’humidité doit être une valeur numérique entre 0 et 100 (ex. 60).';
-                    successDiv.classList.add('hidden');
+                    document.getElementById('modal-error').classList.remove('hidden');
+                    document.getElementById('modal-error').textContent = 'L’humidité doit être une valeur numérique entre 0 et 100 (ex. 60).';
+                    document.getElementById('modal-success').classList.add('hidden');
                     return;
                 }
                 if (temp_ambiante && (isNaN(parseFloat(temp_ambiante)) || parseFloat(temp_ambiante) < -20 || parseFloat(temp_ambiante) > 60)) {
                     console.log('[Hazards] Validation échouée: Température ambiante invalide', temp_ambiante);
-                    errorDiv.classList.remove('hidden');
-                    errorDiv.textContent = 'La température ambiante doit être une valeur numérique entre -20 et 60 (ex. 25).';
-                    successDiv.classList.add('hidden');
+                    document.getElementById('modal-error').classList.remove('hidden');
+                    document.getElementById('modal-error').textContent = 'La température ambiante doit être une valeur numérique entre -20 et 60 (ex. 25).';
+                    document.getElementById('modal-success').classList.add('hidden');
                     return;
                 }
 
@@ -702,14 +823,15 @@
                     });
                     clearTimeout(timeoutId);
                     if (!response.ok) {
-                        const responseData = await response.json();
+                        const responseData = await response.json().catch(() => ({}));
                         throw new Error(responseData.error || `Erreur HTTP: ${response.status}`);
                     }
                     console.log('[Hazards] Disjoncteur mis à jour');
-                    errorDiv.classList.add('hidden');
-                    successDiv.classList.remove('hidden');
-                    successDiv.textContent = 'Données mises à jour avec succès !';
-                    await loadTableaux();
+                    document.getElementById('modal-error').classList.add('hidden');
+                    document.getElementById('modal-success').classList.remove('hidden');
+                    document.getElementById('modal-success').textContent = 'Données mises à jour avec succès !';
+                    localStorage.removeItem(`hazards_data_${tableau.building}`); // Invalider le cache
+                    await filterData(document.getElementById('building-filter').value);
                     gsap.to('#modal-details', {
                         opacity: 0,
                         scale: 0.8,
@@ -719,9 +841,9 @@
                     });
                 } catch (error) {
                     console.error('[Hazards] Erreur mise à jour:', error);
-                    errorDiv.classList.remove('hidden');
-                    errorDiv.textContent = 'Erreur : ' + error.message;
-                    successDiv.classList.add('hidden');
+                    document.getElementById('modal-error').classList.remove('hidden');
+                    document.getElementById('modal-error').textContent = 'Erreur : ' + error.message;
+                    document.getElementById('modal-success').classList.add('hidden');
                 }
             };
 
@@ -737,7 +859,7 @@
             };
         }
 
-        window.onload = () => {
+        window.onload = async () => {
             console.log('[Hazards] Initialisation hazards_assessment.html');
             if (window.location.protocol === 'file:') {
                 showPopup('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/hazards_assessment.html) pour accéder à l\'API.', '', () => {});
@@ -748,7 +870,14 @@
             const popup = document.getElementById('popup');
             if (modal) modal.classList.add('hidden');
             if (popup) popup.classList.add('hidden');
-            loadTableaux();
+            document.getElementById('data-section').classList.add('hidden');
+            const buildings = await loadBuildings();
+            if (buildings.length > 0) {
+                populateFilters(buildings);
+            } else {
+                showPopup('Aucun bâtiment disponible.', '', () => {});
+                showNoBuildingMessage();
+            }
         };
     </script>
 </body>
