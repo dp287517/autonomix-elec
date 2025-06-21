@@ -20,9 +20,12 @@
         .touch-friendly { min-height: 44px; padding: 0.5rem 1rem; }
         .animate-fade-in { animation: fadeIn 0.8s ease-out; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @media (min-width: 640px) {
             .gantt th, .gantt td { font-size: 1rem; }
             .error-message { font-size: 1rem; }
+            #building-filter, #tableau-filter { font-size: 1rem; }
         }
     </style>
 </head>
@@ -46,15 +49,28 @@
 
     <div class="container mx-auto mt-28 p-4 sm:p-6 flex flex-col sm:flex-row">
         <div class="flex-1 sm:pr-4">
-            <div class="flex justify-between items-center mb-4 sm:mb-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-4 sm:mb-6">
                 <h1 class="text-2xl sm:text-3xl font-bold flex items-center"><i class="fas fa-bolt mr-2 sm:mr-3"></i>Évaluation du Niveau de Défaut</h1>
-                <button id="export-csv-btn" onclick="exportToCSV()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center touch-friendly hidden">
-                    <i class="fas fa-file-csv mr-2"></i>Exporter en CSV
-                </button>
+                <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mt-4 sm:mt-0">
+                    <button id="export-csv-btn" onclick="exportToCSV()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center touch-friendly hidden">
+                        <i class="fas fa-file-csv mr-2"></i>Exporter en CSV
+                    </button>
+                    <button onclick="resetFilters()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 flex items-center touch-friendly">
+                        <i class="fas fa-undo mr-2"></i>Réinitialiser le filtre
+                    </button>
+                </div>
             </div>
             <div id="api-error" class="hidden bg-red-900 text-red-200 p-3 rounded mb-4 sm:mb-6 animate-fade-in">
-                <p><i class="fas fa-exclamation-triangle mr-2"></i>Erreur lors du chargement des données. Veuillez réessayer plus tard.</p>
+                <p class="text-sm sm:text-base"><i class="fas fa-exclamation-triangle mr-2"></i>Erreur lors du chargement des données. Veuillez réessayer plus tard.</p>
             </div>
+            <div id="loading-spinner" class="hidden flex justify-center items-center mb-4 sm:mb-6">
+                <div class="spinner"></div>
+                <p class="ml-2 text-sm sm:text-base">Chargement des données...</p>
+            </div>
+            <div id="no-building-selected" class="bg-gray-800 p-4 rounded-lg shadow-lg mb-4 sm:mb-6 animate-fade-in">
+                <p class="text-gray-300 text-sm sm:text-base">Veuillez sélectionner un bâtiment pour afficher les données.</p>
+            </div>
+
             <div class="mb-4 sm:mb-6 bg-gray-800 p-4 rounded-lg shadow-lg animate-fade-in">
                 <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-info-circle mr-2"></i>Qu’est-ce que l’évaluation du niveau de défaut ?</h2>
                 <p class="mb-2 text-sm sm:text-base">Cette page évalue la capacité des disjoncteurs BT et des cellules HTA à supporter un court-circuit (Ik) par rapport à leur pouvoir de coupure (Icn).</p>
@@ -64,30 +80,27 @@
                 <p class="text-sm sm:text-base"><strong>Exemple</strong> : Un disjoncteur avec Icn = 4,5 kA et Ik = 6 kA est KO. Pour un tableau HTA avec un transformateur de 1600 kVA, Ik peut atteindre 20 kA, à comparer avec Icn de la cellule HTA.</p>
             </div>
 
-            <div class="mb-4 sm:mb-6 flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+            <div class="mb-4 sm:mb-6 flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 animate-fade-in">
                 <div>
-                    <label for="building-filter" class="block text-sm font-medium mb-1">Filtrer par bâtiment</label>
-                    <select id="building-filter" class="bg-gray-700 text-white p-2 rounded text-sm sm:text-base">
-                        <option value="">Tous les bâtiments</option>
+                    <label for="building-filter" class="block text-sm font-medium mb-1">Filtrer par Bâtiment <span class="text-red-600">*</span></label>
+                    <select id="building-filter" class="bg-gray-700 text-white p-2 rounded text-sm sm:text-base" aria-label="Filtrer par bâtiment" required>
+                        <option value="">Sélectionnez un bâtiment</option>
                     </select>
                 </div>
                 <div>
-                    <label for="tableau-filter" class="block text-sm font-medium mb-1">Filtrer par tableau</label>
-                    <select id="tableau-filter" class="bg-gray-700 text-white p-2 rounded text-sm sm:text-base">
+                    <label for="tableau-filter" class="block text-sm font-medium mb-1">Filtrer par Tableau</label>
+                    <select id="tableau-filter" class="bg-gray-700 text-white p-2 rounded text-sm sm:text-base" aria-label="Filtrer par tableau" disabled>
                         <option value="">Tous les tableaux</option>
                     </select>
                 </div>
-            </div>
-
-            <div id="no-building-selected" class="bg-gray-800 p-4 rounded-lg shadow-lg mb-4 sm:mb-6 animate-fade-in">
-                <p class="text-gray-300 text-sm sm:text-base">Veuillez sélectionner un bâtiment pour afficher les données.</p>
             </div>
 
             <div id="data-section" class="hidden">
                 <div class="mb-4 sm:mb-6 bg-gray-800 p-4 rounded-lg shadow-lg animate-fade-in">
                     <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
                     <ul class="list-disc list-inside space-y-2 text-sm sm:text-base">
-                        <li>Filtrez par bâtiment ou tableau pour cibler les disjoncteurs et cellules HTA.</li>
+                        <li>Sélectionnez un bâtiment pour charger les données spécifiques (requis).</li>
+                        <li>Filtrez par tableau pour cibler les disjoncteurs et cellules HTA.</li>
                         <li>Le tableau indique Ik, Icn (BT et HTA si applicable), et le statut (OK/KO/Incomplet).</li>
                         <li>Cliquez sur <i class="fas fa-chart-line"></i> pour modifier Ue, section, longueur de câble, ou impédance dans le panneau latéral.</li>
                         <li>Pour les tableaux HTA, Ik est calculé à partir du transformateur (puissance, tension).</li>
@@ -95,7 +108,6 @@
                         <li>Le schéma montre les connexions entre tableaux (ex. 01-9-G sous 02-9-G). Les tableaux HTA sont en rouge.</li>
                         <li>Le graphique à bulles montre Ik vs Icn pour les disjoncteurs BT. Les bulles rouges indiquent un risque (Ik > Icn).</li>
                         <li>Si des données manquent, complétez-les via le panneau latéral ou <a href="edit.html" class="text-blue-400 underline">Modifier</a>.</li>
-                        SHARED
                         <li>Exportez les données en CSV, incluant les paramètres HTA et l’impédance.</li>
                     </ul>
                 </div>
@@ -184,6 +196,7 @@
         let bubbleChartInstance = null;
         let networkInstance = null;
         let lastClickTime = 0;
+        let filterDebounceTimeout = null;
 
         function showPopup(message, content = '', confirmCallback = () => {}) {
             console.log('[FLA] Affichage pop-up:', message);
@@ -229,26 +242,85 @@
             return match ? parseFloat(match[0]) : null;
         }
 
-        async function loadTableaux() {
-            console.log('[FLA] Chargement des données FLA');
+        async function loadBuildings() {
+            console.log('[FLA] Chargement de la liste des bâtiments');
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000);
-                const response = await fetch('/api/fault-level', { signal: controller.signal });
+                const response = await fetch('/api/buildings', { method: 'GET', signal: controller.signal });
                 clearTimeout(timeoutId);
                 if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
+                const buildings = await response.json();
+                console.log('[FLA] Bâtiments reçus:', buildings.length);
+                return buildings;
+            } catch (error) {
+                console.error('[FLA] Erreur chargement bâtiments:', error);
+                showPopup('Erreur lors du chargement des bâtiments: ' + error.message, '', () => {});
+                return [];
+            }
+        }
+
+        async function loadTableaux(building) {
+            if (!building) {
+                console.warn('[FLA] Aucun bâtiment spécifié pour le chargement');
+                return [];
+            }
+            console.log('[FLA] Chargement des données pour bâtiment:', building);
+            document.getElementById('loading-spinner').classList.remove('hidden');
+            try {
+                const cacheKey = `fla_data_${building}`;
+                const cachedData = localStorage.getItem(cacheKey);
+                if (cachedData) {
+                    const parsed = JSON.parse(cachedData);
+                    if (parsed.timestamp && Date.now() - parsed.timestamp < 15 * 60 * 1000) { // Cache valide 15 min
+                        console.log('[FLA] Utilisation des données en cache pour:', building);
+                        document.getElementById('loading-spinner').classList.add('hidden');
+                        return parsed.data;
+                    }
+                }
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                const response = await fetch(`/api/fault-level?building=${encodeURIComponent(building)}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `Erreur HTTP: ${response.status}`);
+                }
                 const data = await response.json();
-                console.log('[FLA] Données reçues:', data);
-                tableauxData = data.data || [];
+                const processedData = (data.data || []).map(tableau => ({
+                    ...tableau,
+                    disjoncteurs: (tableau.disjoncteurs || []).map(d => ({
+                        ...d,
+                        id: d.id || d.disjoncteur_id || `unknown_${Math.random().toString(36).substring(2, 9)}`,
+                        ik: d.ik || null,
+                        icn: normalizeIcn(d.icn),
+                        tableauId: tableau.id,
+                        linkedTableauIds: d.linkedTableauIds || (d.linkedTableauId ? [d.linkedTableauId] : []),
+                        ue: d.ue || null,
+                        section: d.section || null,
+                        cableLength: d.cableLength || null,
+                        impedance: d.impedance || null
+                    })),
+                    issitemain: tableau.issitemain || false,
+                    isHTA: tableau.isHTA || false,
+                    htaData: tableau.htaData || null
+                }));
+                localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data: processedData }));
+                console.log('[FLA] Données chargées:', { tableaux: processedData.length });
+                document.getElementById('loading-spinner').classList.add('hidden');
                 document.getElementById('api-error').classList.add('hidden');
-                populateFilters();
-                showNoBuildingMessage();
-                renderData(tableauxData);
+                return processedData;
             } catch (error) {
                 console.error('[FLA] Erreur chargement:', error);
                 showPopup('Erreur lors du chargement des données: ' + error.message, '', () => {});
-                tableauxData = [];
-                showNoBuildingMessage();
+                document.getElementById('loading-spinner').classList.add('hidden');
+                document.getElementById('api-error').classList.remove('hidden');
+                return [];
             }
         }
 
@@ -257,9 +329,16 @@
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000);
-                const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, { signal: controller.signal });
+                const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: controller.signal
+                });
                 clearTimeout(timeoutId);
-                if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `Erreur HTTP: ${response.status}`);
+                }
                 const data = await response.json();
                 console.log('[FLA] Tableau reçu:', data.id);
                 return {
@@ -267,11 +346,15 @@
                     building: data.id.split('-')[0] || 'Inconnu',
                     disjoncteurs: (data.disjoncteurs || []).map(d => ({
                         ...d,
-                        id: d.id || d.disjoncteur_id,
+                        id: d.id || d.disjoncteur_id || `unknown_${Math.random().toString(36).substring(2, 9)}`,
                         ik: d.ik || null,
                         icn: normalizeIcn(d.icn),
                         tableauId: data.id,
-                        linkedTableauIds: d.linkedTableauIds || (d.linkedTableauId ? [d.linkedTableauId] : [])
+                        linkedTableauIds: d.linkedTableauIds || (d.linkedTableauId ? [d.linkedTableauId] : []),
+                        ue: d.ue || null,
+                        section: d.section || null,
+                        cableLength: d.cableLength || null,
+                        impedance: d.impedance || null
                     })),
                     issitemain: data.issitemain || false,
                     isHTA: data.isHTA || false,
@@ -284,11 +367,17 @@
             }
         }
 
-        function populateFilters() {
-            console.log('[FLA] Remplissage des filtres');
-            const buildings = [...new Set(tableauxData.map(t => t.building))].sort();
+        function populateFilters(buildings) {
+            console.log('[FLA] Remplissage des filtres, bâtiments:', buildings.length);
             const buildingFilter = document.getElementById('building-filter');
-            buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
+            const tableauFilter = document.getElementById('tableau-filter');
+            if (!buildingFilter || !tableauFilter) {
+                console.error('[FLA] Éléments de filtre non trouvés');
+                showPopup('Erreur: Éléments de filtre introuvables.', '', () => {});
+                return;
+            }
+
+            buildingFilter.innerHTML = '<option value="">Sélectionnez un bâtiment</option>';
             buildings.forEach(b => {
                 const option = document.createElement('option');
                 option.value = b;
@@ -297,7 +386,6 @@
             });
 
             function updateTableauFilter(selectedBuilding) {
-                const tableauFilter = document.getElementById('tableau-filter');
                 tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
                 const filteredTableaux = selectedBuilding
                     ? tableauxData.filter(t => t.building === selectedBuilding)
@@ -308,15 +396,38 @@
                     option.textContent = t.id;
                     tableauFilter.appendChild(option);
                 });
+                tableauFilter.disabled = !selectedBuilding;
             }
 
-            updateTableauFilter('');
-            buildingFilter.addEventListener('change', () => {
+            const savedBuilding = localStorage.getItem('selectedBuilding');
+            if (savedBuilding && buildings.includes(savedBuilding)) {
+                buildingFilter.value = savedBuilding;
+                updateTableauFilter(savedBuilding);
+                filterData(savedBuilding);
+            } else {
+                updateTableauFilter('');
+                showNoBuildingMessage();
+            }
+
+            buildingFilter.onchange = () => {
                 const selectedBuilding = buildingFilter.value;
+                console.log('[FLA] Bâtiment sélectionné:', selectedBuilding);
+                localStorage.setItem('selectedBuilding', selectedBuilding);
                 updateTableauFilter(selectedBuilding);
-                filterData();
-            });
-            document.getElementById('tableau-filter').addEventListener('change', filterData);
+                if (selectedBuilding) {
+                    filterData(selectedBuilding);
+                } else {
+                    showNoBuildingMessage();
+                }
+            };
+
+            tableauFilter.onchange = () => {
+                clearTimeout(filterDebounceTimeout);
+                filterDebounceTimeout = setTimeout(() => {
+                    console.log('[FLA] Tableau sélectionné:', tableauFilter.value);
+                    filterData(buildingFilter.value);
+                }, 300);
+            };
         }
 
         function showNoBuildingMessage() {
@@ -324,25 +435,30 @@
             document.getElementById('no-building-selected').classList.remove('hidden');
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('export-csv-btn').classList.add('hidden');
+            document.getElementById('missing-data-alert').classList.add('hidden');
+            document.getElementById('no-linked-tableau-alert').classList.add('hidden');
+            document.getElementById('high-ik-alert').classList.add('hidden');
         }
 
-        function filterData() {
-            console.log('[FLA] Filtrage des données');
-            const building = document.getElementById('building-filter').value;
-            const tableau = document.getElementById('tableau-filter').value;
-            let filteredData = tableauxData;
-
+        async function filterData(building) {
+            console.log('[FLA] Filtrage des données pour bâtiment:', building);
+            const tableauFilter = document.getElementById('tableau-filter');
             if (!building) {
+                tableauxData = [];
                 showNoBuildingMessage();
+                renderData([]);
                 return;
             }
 
-            filteredData = filteredData.filter(t => t.building === building);
+            tableauxData = await loadTableaux(building);
+            const tableau = tableauFilter.value;
+            let filteredData = tableauxData;
             if (tableau) filteredData = filteredData.filter(t => t.id === tableau);
 
             if (filteredData.length === 0) {
                 showPopup('Aucun tableau trouvé pour les critères sélectionnés.', '', () => {});
                 showNoBuildingMessage();
+                renderData([]);
                 return;
             }
 
@@ -350,6 +466,19 @@
             document.getElementById('data-section').classList.remove('hidden');
             document.getElementById('export-csv-btn').classList.remove('hidden');
             renderData(filteredData);
+        }
+
+        function resetFilters() {
+            console.log('[FLA] Réinitialisation des filtres');
+            localStorage.removeItem('selectedBuilding');
+            const buildingFilter = document.getElementById('building-filter');
+            const tableauFilter = document.getElementById('tableau-filter');
+            buildingFilter.value = '';
+            tableauFilter.value = '';
+            tableauFilter.disabled = true;
+            tableauxData = [];
+            showNoBuildingMessage();
+            renderData([]);
         }
 
         function exportToCSV() {
@@ -540,7 +669,11 @@
                     tbody.appendChild(row);
                 });
             });
+            document.querySelectorAll('.action-btn').forEach(btn => {
+                btn.addEventListener('click', handleActionClick);
+            });
             console.log('[FLA] Tableau rendu avec', tbody.children.length, 'lignes');
+            gsap.from('#disjoncteurs-table tr', { opacity: 0, y: 20, duration: 0.5, stagger: 0.05 });
         }
 
         function handleActionClick(event) {
@@ -800,7 +933,8 @@
                             successDiv.classList.remove('hidden');
                             successDiv.textContent = 'Données mises à jour avec succès !';
                             errorDiv.classList.add('hidden');
-                            await loadTableaux();
+                            localStorage.removeItem(`fla_data_${tableau.building}`); // Invalider le cache
+                            await filterData(document.getElementById('building-filter').value);
                             gsap.to('#details-panel', {
                                 opacity: 0,
                                 x: 100,
@@ -975,7 +1109,7 @@
 
             const diagonalData = {
                 label: 'Icn = Ik',
-                data: [{ x: 0, y: 0 }, { x: maxIk * 1.1, y: maxIcn * 1.1 }],
+                data: [{ x: 0, y: 0 }, { x: maxIk * 1.1 || 50, y: maxIcn * 1.1 || 50 }],
                 type: 'line',
                 borderColor: '#4B5563',
                 borderWidth: 2,
@@ -1241,7 +1375,7 @@
             renderNetwork(data);
         }
 
-        window.onload = () => {
+        window.onload = async () => {
             console.log('[FLA] Initialisation page fault_level_assessment');
             if (window.location.protocol === 'file:') {
                 showPopup('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/fault_level_assessment.html) pour accéder à l\'API.', '', () => {});
@@ -1257,7 +1391,14 @@
             document.removeEventListener('click', handleActionClick);
             document.addEventListener('click', handleActionClick);
             console.log('[FLA] Gestionnaire d\'événements attaché au document');
-            loadTableaux();
+            document.getElementById('data-section').classList.add('hidden');
+            const buildings = await loadBuildings();
+            if (buildings.length > 0) {
+                populateFilters(buildings);
+            } else {
+                showPopup('Aucun bâtiment disponible.', '', () => {});
+                showNoBuildingMessage();
+            }
         };
     </script>
 </body>
