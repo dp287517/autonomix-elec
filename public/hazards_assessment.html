@@ -5,14 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Évaluation des Risques Électriques - Autonomix Elec</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link href="styles.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="/styles.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <style>
+        .touch-friendly { min-height: 44px; padding: 0.5rem 1rem; }
+        .animate-slide-up { animation: slideUp 0.8s ease-out; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-zoom-in { animation: zoomIn 0.5s ease-out; }
+        @keyframes zoomIn { from { opacity: 0; scale: 0.8; } to { opacity: 1; scale: 1; } }
+        table th, table td { border: 1px solid #4B5563; padding: 0.5rem; font-size: 0.875rem; text-align: left; }
+        table th { background-color: #374151; }
+        .error-message { color: #ef4444; font-size: 0.875rem; }
+        #building-filter, #tableau-filter { font-size: 0.875rem; }
+        @media (min-width: 640px) {
+            table th, table td { font-size: 1rem; }
+            .error-message { font-size: 1rem; }
+            #building-filter, #tableau-filter { font-size: 1rem; }
+        }
+    </style>
 </head>
 <body class="bg-gray-900 text-white">
     <nav class="bg-blue-700 p-4 sticky top-0 z-50 shadow-lg">
-        <ul class="flex space-x-6 text-white font-semibold">
+        <ul class="flex flex-wrap space-x-6 justify-center text-sm sm:text-base">
             <li><a href="index.html" class="hover:text-yellow-300 transition"><i class="fas fa-home mr-2"></i>Accueil</a></li>
             <li><a href="create.html" class="hover:text-yellow-300 transition"><i class="fas fa-plus-circle mr-2"></i>Créer un tableau</a></li>
             <li><a href="view.html" class="hover:text-yellow-300 transition"><i class="fas fa-table mr-2"></i>Voir les tableaux</a></li>
@@ -20,43 +36,43 @@
             <li><a href="obsolescence.html" class="hover:text-yellow-300 transition"><i class="fas fa-clock mr-2"></i>Obsolescence</a></li>
             <li><a href="fault_level_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-bolt mr-2"></i>Évaluation du Niveau de Défaut</a></li>
             <li><a href="hazards_assessment.html" class="text-yellow-300"><i class="fas fa-exclamation-triangle mr-2"></i>Évaluation des Risques</a></li>
-            <li><a href="maintenance_chart.html" class="hover:text-yellow-300 transition"><i class="fas fa-sitemap mr-2"></i>Organigramme Maintenance</a></li>
-            <li><a href="distribution_emergency.html" class="hover:text-yellow-300 transition"><i class="fas fa-siren mr-2"></i>Urgence Distribution</a></li>
-            <li><a href="reports.html" class="hover:text-yellow-300 transition"><i class="fas fa-file-pdf mr-2"></i>Rapports</a></li>
+            <li><a href="maintenance_org.html" class="hover:text-yellow-300 transition"><i class="fas fa-sitemap mr-2"></i>Organigramme Maintenance</a></li>
+            <li><a href="distribution_emergency.html" class="hover:text-yellow-300 transition"><i class="fas fa-plug mr-2"></i>Urgence Distribution</a></li>
+            <li><a href="reports.html" class="hover:text-yellow-300 transition"><i class="fas fa-file-alt mr-2"></i>Rapports</a></li>
+            <li><a href="electrical_safety_program.html" class="hover:text-yellow-300 transition"><i class="fas fa-hard-hat mr-2"></i>Programme de Sécurité Électrique</a></li>
+            <li><a href="breaker_control.html" class="hover:text-yellow-300 transition"><i class="fas fa-cogs mr-2"></i>Contrôle des Disjoncteurs</a></li>
         </ul>
     </nav>
 
-    <div class="container mx-auto p-6">
-        <div class="flex justify-between items-center mb-6">
-            <h1 class="text-3xl font-bold flex items-center"><i class="fas fa-exclamation-triangle mr-3"></i>Évaluation des Risques Électriques</h1>
-            <button onclick="exportToCSV()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center">
+    <div class="container mx-auto p-4 sm:p-6">
+        <div class="flex flex-col sm:flex-row justify-between items-center mb-4 sm:mb-6">
+            <h1 class="text-2xl sm:text-3xl font-bold flex items-center"><i class="fas fa-exclamation-triangle mr-2 sm:mr-3"></i>Évaluation des Risques Électriques</h1>
+            <button onclick="exportToCSV()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center touch-friendly mt-4 sm:mt-0">
                 <i class="fas fa-file-csv mr-2"></i>Exporter en CSV
             </button>
         </div>
-        <div id="api-error" class="hidden bg-red-900 text-red-200 p-3 rounded mb-6">
-            <p><i class="fas fa-exclamation-triangle mr-2"></i>Erreur lors du chargement des données. Veuillez réessayer plus tard.</p>
+        <div id="api-error" class="hidden bg-red-900 text-red-200 p-3 rounded mb-4 sm:mb-6 animate-slide-up">
+            <p class="text-sm sm:text-base"><i class="fas fa-exclamation-triangle mr-2"></i>Erreur lors du chargement des données. Veuillez réessayer plus tard.</p>
         </div>
 
-        <!-- Filtres -->
-        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg flex space-x-4">
+        <div class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0 animate-slide-up">
             <div>
-                <label for="building-filter" class="block text-sm font-medium">Filtrer par Bâtiment</label>
-                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600">
+                <label for="building-filter" class="block text-sm font-medium mb-1">Filtrer par Bâtiment</label>
+                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" aria-label="Filtrer par bâtiment">
                     <option value="">Tous les bâtiments</option>
                 </select>
             </div>
             <div>
-                <label for="tableau-filter" class="block text-sm font-medium">Filtrer par Tableau</label>
-                <select id="tableau-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600">
+                <label for="tableau-filter" class="block text-sm font-medium mb-1">Filtrer par Tableau</label>
+                <select id="tableau-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" aria-label="Filtrer par tableau">
                     <option value="">Tous les tableaux</option>
                 </select>
             </div>
         </div>
 
-        <!-- Instructions -->
-        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
-            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
-            <ul class="list-disc pl-6 text-gray-300">
+        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up">
+            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
+            <ul class="list-disc pl-6 text-gray-300 text-sm sm:text-base">
                 <li>Filtrez par bâtiment ou tableau pour analyser les risques électriques spécifiques.</li>
                 <li>Le tableau liste les disjoncteurs avec les risques potentiels : arc électrique, choc électrique, surchauffe.</li>
                 <li>La colonne "Obsolète" indique si le disjoncteur a dépassé sa durée de vie.</li>
@@ -70,46 +86,57 @@
             </ul>
         </div>
 
-        <!-- Alertes -->
-        <div id="missing-data-alert" class="hidden bg-red-900 text-red-200 p-3 rounded mb-4 flex items-center">
-            <p><i class="fas fa-exclamation-triangle mr-2"></i>Données manquantes pour certains disjoncteurs (ex. IP, température, tension, section). <a href="#" id="missing-data-link" class="underline">Modifier</a></p>
+        <div id="missing-data-alert" class="hidden bg-red-900 text-red-200 p-3 rounded mb-4 sm:mb-6 flex items-center animate-slide-up">
+            <p class="text-sm sm:text-base"><i class="fas fa-exclamation-triangle mr-2"></i>Données manquantes pour certains disjoncteurs (ex. IP, température, tension, section). <a href="#" id="missing-data-link" class="underline">Modifier</a></p>
         </div>
 
-        <!-- Tableau des Risques -->
-        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
-            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-table mr-2"></i>Tableau des Risques</h2>
-            <table class="w-full border-collapse">
-                <thead>
-                    <tr class="bg-gray-700">
-                        <th class="border border-gray-600 p-2">Tableau</th>
-                        <th class="border border-gray-600 p-2">Disjoncteur ID</th>
-                        <th class="border border-gray-600 p-2">Marque</th>
-                        <th class="border border-gray-600 p-2">Risque Arc</th>
-                        <th class="border border-gray-600 p-2">Risque Choc</th>
-                        <th class="border border-gray-600 p-2">Risque Surchauffe</th>
-                        <th class="border border-gray-600 p-2">Obsolète</th>
-                        <th class="border border-gray-600 p-2">Statut Contrôle</th>
-                        <th class="border border-gray-600 p-2">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="hazards-table-body"></tbody>
-            </table>
+        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up">
+            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-table mr-2"></i>Tableau des Risques</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full border-collapse">
+                    <thead>
+                        <tr class="bg-gray-700">
+                            <th class="p-2">Tableau</th>
+                            <th class="p-2">Disjoncteur ID</th>
+                            <th class="p-2">Marque</th>
+                            <th class="p-2">Risque Arc</th>
+                            <th class="p-2">Risque Choc</th>
+                            <th class="p-2">Risque Surchauffe</th>
+                            <th class="p-2">Obsolète</th>
+                            <th class="p-2">Statut Contrôle</th>
+                            <th class="p-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="hazards-table-body"></tbody>
+                </table>
+            </div>
         </div>
 
-        <!-- Graphique des Risques -->
-        <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
-            <h2 class="text-xl font-semibold mb-2 flex items-center"><i class="fas fa-chart-bar mr-2"></i>Répartition des Risques</h2>
+        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up">
+            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-chart-bar mr-2"></i>Répartition des Risques</h2>
             <canvas id="hazards-chart" class="w-full h-96"></canvas>
         </div>
 
-        <!-- Modal Détails -->
-        <div id="modal-details" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-            <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full animate-zoom-in">
-                <h2 class="text-xl font-semibold mb-4 flex items-center"><i class="fas fa-info-circle mr-2"></i>Détails du Disjoncteur</h2>
-                <div id="modal-content" class="mb-4 text-gray-300"></div>
+        <div id="modal-details" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden" role="dialog" aria-labelledby="modal-title">
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl max-w-lg w-full animate-zoom-in">
+                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center" id="modal-title"><i class="fas fa-info-circle mr-2"></i>Détails du Disjoncteur</h2>
+                <div id="modal-content" class="mb-4 text-gray-300 text-sm sm:text-base"></div>
+                <div id="modal-error" class="text-red-600 hidden mt-2 text-sm sm:text-base"></div>
+                <div id="modal-success" class="text-green-600 hidden mt-2 text-sm sm:text-base"></div>
+                <div class="flex space-x-4 mt-4">
+                    <button id="save-disjoncteur" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 touch-friendly" aria-label="Enregistrer les modifications"><i class="fas fa-save mr-2"></i>Enregistrer</button>
+                    <button id="close-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 touch-friendly" aria-label="Fermer le modal"><i class="fas fa-times mr-2"></i>Fermer</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="popup" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[60] hidden" role="dialog" aria-labelledby="popup-message">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full animate-slide-up">
+                <p id="popup-message" class="mb-4 text-sm sm:text-base"></p>
+                <div id="popup-content" class="mb-4"></div>
                 <div class="flex space-x-4">
-                    <button id="save-disjoncteur" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"><i class="fas fa-save mr-2"></i>Enregistrer</button>
-                    <button id="close-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
+                    <button id="popup-confirm" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 touch-friendly"><i class="fas fa-check mr-2"></i>Confirmer</button>
+                    <button id="popup-cancel" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 touch-friendly"><i class="fas fa-times mr-2"></i>Annuler</button>
                 </div>
             </div>
         </div>
@@ -123,61 +150,82 @@
         const currentYear = 2025;
         const validIpValues = ['IP20', 'IP40', 'IP54', 'IP65'];
 
-        // Nettoyer les valeurs pour extraire les nombres
-        function cleanNumericValue(value) {
-            if (value === null || value === undefined) return '';
-            if (typeof value === 'number' && !isNaN(value)) return value;
-            if (typeof value !== 'string') return '';
-            const match = value.match(/[\d.]+/);
-            return match ? parseFloat(match[0]) : '';
+        function showPopup(message, content = '', confirmCallback = () => {}) {
+            console.log('[Hazards] Affichage pop-up:', message);
+            document.getElementById('popup-message').textContent = message;
+            document.getElementById('popup-content').innerHTML = content;
+            document.getElementById('popup').classList.remove('hidden');
+            document.getElementById('popup-confirm').onclick = () => {
+                console.log('[Hazards] Pop-up confirmé:', message);
+                confirmCallback();
+                hidePopup();
+            };
+            document.getElementById('popup-cancel').onclick = () => {
+                console.log('[Hazards] Pop-up annulé:', message);
+                hidePopup();
+            };
+            gsap.from('#popup > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
         }
 
-        // Charger les données
+        function hidePopup() {
+            console.log('[Hazards] Masquage pop-up');
+            document.getElementById('popup').classList.add('hidden');
+        }
+
+        function cleanNumericValue(value) {
+            if (value === null || value === undefined) return null;
+            if (typeof value === 'number' && !isNaN(value)) return value;
+            if (typeof value !== 'string') return null;
+            const match = value.match(/[\d.]+/);
+            return match ? parseFloat(match[0]) : null;
+        }
+
         async function loadTableaux() {
+            console.log('[Hazards] Chargement des données');
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 2000);
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
                 const [faultLevelResponse, checklistsResponse] = await Promise.all([
                     fetch('/api/fault-level', { method: 'GET', signal: controller.signal }),
                     fetch('/api/breaker-checklists', { method: 'GET', signal: controller.signal })
                 ]);
                 clearTimeout(timeoutId);
 
-                if (!faultLevelResponse.ok) {
-                    const errorData = await faultLevelResponse.json();
-                    throw new Error(errorData.error || 'Erreur lors du chargement des données fault-level');
-                }
-                if (!checklistsResponse.ok) {
-                    const errorData = await checklistsResponse.json();
-                    throw new Error(errorData.error || 'Erreur lors du chargement des checklists');
-                }
+                if (!faultLevelResponse.ok) throw new Error(`Erreur HTTP: ${faultLevelResponse.status}`);
+                if (!checklistsResponse.ok) throw new Error(`Erreur HTTP: ${checklistsResponse.status}`);
 
                 const faultLevelData = await faultLevelResponse.json();
                 checklistsData = await checklistsResponse.json();
 
-                // Appliquer des valeurs par défaut aux champs manquants
                 tableauxData = faultLevelData.data.map(tableau => ({
                     ...tableau,
-                    disjoncteurs: tableau.disjoncteurs.map(d => ({
+                    disjoncteurs: (tableau.disjoncteurs || []).map(d => ({
                         ...d,
+                        id: d.id || d.disjoncteur_id,
                         ip: d.ip || 'IP20',
                         temp: cleanNumericValue(d.temp) || 70,
                         ue: cleanNumericValue(d.ue) || 400,
                         section: cleanNumericValue(d.section) || (d.in ? getRecommendedSection(d.in) : 2.5),
-                        humidite: d.humidite || 50,
-                        temp_ambiante: d.temp_ambiante || 25
+                        humidite: cleanNumericValue(d.humidite) || 50,
+                        temp_ambiante: cleanNumericValue(d.temp_ambiante) || 25,
+                        date: d.date || null,
+                        lifespan: d.lifespan || 30
                     }))
                 }));
 
-                missingData = tableauxData.flatMap(t => t.disjoncteurs.filter(d => !d.ip || !d.temp || !d.ue || !d.section).map(d => ({ tableauId: t.id, disjoncteurId: d.id })));
-                console.log('[Client] Données chargées:', tableauxData, 'Checklists:', checklistsData.length, 'Données manquantes:', missingData);
+                missingData = tableauxData.flatMap(t => 
+                    t.disjoncteurs.filter(d => !d.ip || d.temp === null || d.ue === null || d.section === null)
+                        .map(d => ({ tableauId: t.id, disjoncteurId: d.id }))
+                );
+                console.log('[Hazards] Données chargées:', { tableaux: tableauxData.length, checklists: checklistsData.length, missingData: missingData.length });
                 document.getElementById('api-error').classList.add('hidden');
                 populateFilters();
                 renderHazardsTable();
                 renderHazardsChart();
                 updateMissingDataAlert();
             } catch (error) {
-                console.error('[Client] Erreur chargement:', error);
+                console.error('[Hazards] Erreur chargement:', error);
+                showPopup('Erreur lors du chargement des données: ' + error.message, '', () => {});
                 document.getElementById('api-error').classList.remove('hidden');
                 tableauxData = [];
                 checklistsData = [];
@@ -188,9 +236,8 @@
             }
         }
 
-        // Fonction pour obtenir la section recommandée
         function getRecommendedSection(inValue) {
-            const inNum = parseFloat(inValue?.match(/[\d.]+/)?.[0]) || 0;
+            const inNum = cleanNumericValue(inValue) || 0;
             const sections = [
                 { in: 2, section: 1.5 }, { in: 10, section: 1.5 }, { in: 16, section: 2.5 },
                 { in: 20, section: 2.5 }, { in: 25, section: 4 }, { in: 32, section: 6 },
@@ -208,10 +255,15 @@
             return 1600;
         }
 
-        // Remplir les filtres
         function populateFilters() {
+            console.log('[Hazards] Remplissage des filtres');
             const buildingFilter = document.getElementById('building-filter');
             const tableauFilter = document.getElementById('tableau-filter');
+            if (!buildingFilter || !tableauFilter) {
+                console.error('[Hazards] Éléments de filtre non trouvés');
+                showPopup('Erreur: Éléments de filtre introuvables.', '', () => {});
+                return;
+            }
             const buildings = [...new Set(tableauxData.map(t => t.building))].sort();
 
             buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
@@ -236,7 +288,6 @@
             }
 
             updateTableauFilter('');
-
             buildingFilter.onchange = () => {
                 const selectedBuilding = buildingFilter.value;
                 updateTableauFilter(selectedBuilding);
@@ -245,8 +296,8 @@
             tableauFilter.onchange = filterData;
         }
 
-        // Filtrer les données
         function filterData() {
+            console.log('[Hazards] Filtrage des données');
             const building = document.getElementById('building-filter').value;
             const tableau = document.getElementById('tableau-filter').value;
             const filteredData = tableauxData.filter(t => 
@@ -257,17 +308,18 @@
             renderHazardsChart(filteredData);
         }
 
-        // Exporter en CSV
         function exportToCSV() {
-            console.log('[Client] Exportation des données en CSV');
+            console.log('[Hazards] Exportation des données en CSV');
             if (!tableauxData || tableauxData.length === 0) {
-                alert('Aucune donnée à exporter.');
+                showPopup('Aucune donnée à exporter.', '', () => {});
                 return;
             }
 
             const headers = [
                 'Tableau_ID', 'Bâtiment', 'Disjoncteur_ID', 'Marque', 'Risque_Arc', 'Risque_Choc', 
-                'Risque_Surchauffe', 'Obsolète', 'Statut_Contrôle', 'Date_Dernier_Contrôle'
+                'Risque_Surchauffe', 'Obsolète', 'Statut_Contrôle', 'Date_Dernier_Contrôle',
+                'IP', 'Température_Limite_C', 'Tension_Nominale_V', 'Section_Cable_mm2', 
+                'Humidité_Ambiante_Pourcentage', 'Température_Ambiante_C'
             ];
             const rows = [];
 
@@ -286,14 +338,20 @@
                         risks.surchauffe,
                         isObsoleteStatus ? 'Oui' : 'Non',
                         latestCheck.status || 'Non contrôlé',
-                        latestCheck.timestamp ? new Date(latestCheck.timestamp).toLocaleDateString('fr-FR') : 'N/A'
+                        latestCheck.timestamp ? new Date(latestCheck.timestamp).toLocaleDateString('fr-FR') : 'N/A',
+                        disjoncteur.ip || 'N/A',
+                        disjoncteur.temp || 'N/A',
+                        disjoncteur.ue || 'N/A',
+                        disjoncteur.section || 'N/A',
+                        disjoncteur.humidite || 'N/A',
+                        disjoncteur.temp_ambiante || 'N/A'
                     ]);
                 });
             });
 
             const csvContent = [
                 headers.map(h => `"${h}"`).join(','),
-                ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+                ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
             ].join('\n');
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -305,10 +363,9 @@
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
-            console.log('[Client] Fichier CSV téléchargé');
+            console.log('[Hazards] Fichier CSV téléchargé');
         }
 
-        // Vérifier si le disjoncteur est obsolète
         function isObsolete(disjoncteur) {
             if (!disjoncteur.date || !disjoncteur.lifespan) return false;
             const manufactureYear = new Date(disjoncteur.date).getFullYear();
@@ -316,20 +373,24 @@
             return (currentYear - manufactureYear) >= lifespan;
         }
 
-        // Évaluer les risques
         function evaluateRisks(disjoncteur) {
             const risks = { arc: 'Faible', choc: 'Faible', surchauffe: 'Faible' };
-            if (disjoncteur.ik && disjoncteur.icn && disjoncteur.ik > disjoncteur.icn) {
-                risks.arc = 'Élevé';
+            if (disjoncteur.ik && disjoncteur.icn && disjoncteur.ik > disjoncteur.icn * 0.9) {
+                risks.arc = disjoncteur.ik > disjoncteur.icn * 1.2 ? 'Élevé' : 'Moyen';
             }
             if (!disjoncteur.ip || disjoncteur.ip === 'IP20') {
+                risks.choc = 'Moyen';
+            }
+            if (disjoncteur.ip === 'IP40' && disjoncteur.humidite > 70) {
                 risks.choc = 'Moyen';
             }
             if (disjoncteur.humidite && parseFloat(disjoncteur.humidite) > 80) {
                 risks.choc = 'Élevé';
             }
-            if (disjoncteur.temp && parseFloat(disjoncteur.temp) > 70) {
+            if (disjoncteur.temp && parseFloat(disjoncteur.temp) > 80) {
                 risks.surchauffe = 'Élevé';
+            } else if (disjoncteur.temp && parseFloat(disjoncteur.temp) > 60) {
+                risks.surchauffe = 'Moyen';
             }
             if (disjoncteur.temp_ambiante && parseFloat(disjoncteur.temp_ambiante) > 40) {
                 risks.surchauffe = 'Moyen';
@@ -337,7 +398,6 @@
             return risks;
         }
 
-        // Obtenir le dernier statut de contrôle
         function getLatestCheckStatus(tableauId, disjoncteurId) {
             const latestCheck = checklistsData
                 .filter(c => c.tableau_id === tableauId && c.disjoncteur_id === disjoncteurId)
@@ -359,8 +419,8 @@
             };
         }
 
-        // Rendre le tableau des risques
         function renderHazardsTable(data = tableauxData) {
+            console.log('[Hazards] Rendu du tableau des risques');
             const tbody = document.getElementById('hazards-table-body');
             tbody.innerHTML = '';
             data.forEach(tableau => {
@@ -375,16 +435,16 @@
                                        'text-gray-600';
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
-                        <td class="border border-gray-600 p-2">${tableau.id}</td>
-                        <td class="border border-gray-600 p-2">${disjoncteur.id}</td>
-                        <td class="border border-gray-600 p-2">${disjoncteur.marque || 'Inconnu'}</td>
-                        <td class="border border-gray-600 p-2 ${risks.arc === 'Élevé' ? 'text-red-600' : risks.arc === 'Moyen' ? 'text-yellow-400' : 'text-green-600'}">${risks.arc}</td>
-                        <td class="border border-gray-600 p-2 ${risks.choc === 'Élevé' ? 'text-red-600' : risks.choc === 'Moyen' ? 'text-yellow-400' : 'text-green-600'}">${risks.choc}</td>
-                        <td class="border border-gray-600 p-2 ${risks.surchauffe === 'Élevé' ? 'text-red-600' : risks.surchauffe === 'Moyen' ? 'text-yellow-400' : 'text-green-600'}">${risks.surchauffe}</td>
-                        <td class="border border-gray-600 p-2 ${isObsoleteStatus ? 'text-red-600' : 'text-green-600'}">${isObsoleteStatus ? 'Oui' : 'Non'}</td>
-                        <td class="border border-gray-600 p-2 ${statusClass}">${latestCheck.status || 'Non contrôlé'}</td>
-                        <td class="border border-gray-600 p-2">
-                            <button class="action-btn text-blue-400 hover:text-blue-600" data-tableau-id="${tableau.id}" data-disjoncteur-id="${disjoncteur.id}"><i class="fas fa-eye"></i></button>
+                        <td class="p-2">${tableau.id}</td>
+                        <td class="p-2">${disjoncteur.id}</td>
+                        <td class="p-2">${disjoncteur.marque || 'Inconnu'}</td>
+                        <td class="p-2 ${risks.arc === 'Élevé' ? 'text-red-600' : risks.arc === 'Moyen' ? 'text-yellow-400' : 'text-green-600'}">${risks.arc}</td>
+                        <td class="p-2 ${risks.choc === 'Élevé' ? 'text-red-600' : risks.choc === 'Moyen' ? 'text-yellow-400' : 'text-green-600'}">${risks.choc}</td>
+                        <td class="p-2 ${risks.surchauffe === 'Élevé' ? 'text-red-600' : risks.surchauffe === 'Moyen' ? 'text-yellow-400' : 'text-green-600'}">${risks.surchauffe}</td>
+                        <td class="p-2 ${isObsoleteStatus ? 'text-red-600' : 'text-green-600'}">${isObsoleteStatus ? 'Oui' : 'Non'}</td>
+                        <td class="p-2 ${statusClass}">${latestCheck.status || 'Non contrôlé'}</td>
+                        <td class="p-2">
+                            <button class="action-btn text-blue-400 hover:text-blue-600 touch-friendly" data-tableau-id="${encodeURIComponent(tableau.id)}" data-disjoncteur-id="${encodeURIComponent(disjoncteur.id)}"><i class="fas fa-eye"></i></button>
                         </td>
                     `;
                     tbody.appendChild(tr);
@@ -392,21 +452,33 @@
             });
             document.querySelectorAll('.action-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    const tableauId = btn.dataset.tableauId;
-                    const disjoncteurId = btn.dataset.disjoncteurId;
-                    console.log('[Client] Bouton Action cliqué:', { tableauId, disjoncteurId });
+                    const tableauId = decodeURIComponent(btn.dataset.tableauId);
+                    const disjoncteurId = decodeURIComponent(btn.dataset.disjoncteurId);
+                    console.log('[Hazards] Bouton Action cliqué:', { tableauId, disjoncteurId });
                     openModal(tableauId, disjoncteurId);
                 });
             });
-            gsap.from('tr', { opacity: 0, y: 20, duration: 0.5, stagger: 0.1 });
+            gsap.from('tr', { opacity: 0, y: 20, duration: 0.5, stagger: 0.05 });
         }
 
-        // Rendre le graphique des risques
         function renderHazardsChart(data = tableauxData) {
-            const ctx = document.getElementById('hazards-chart').getContext('2d');
-            
+            console.log('[Hazards] Rendu du graphique des risques');
+            const canvas = document.getElementById('hazards-chart');
+            if (!canvas) {
+                console.error('[Hazards] Canvas hazards-chart non trouvé');
+                showPopup('Erreur: Élément de graphique non trouvé.', '', () => {});
+                return;
+            }
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                console.error('[Hazards] Contexte 2D non disponible');
+                showPopup('Erreur: Contexte de rendu graphique non disponible.', '', () => {});
+                return;
+            }
+
             if (chartInstance) {
                 chartInstance.destroy();
+                console.log('[Hazards] Ancien graphique détruit');
             }
 
             const counts = { arc: { faible: 0, moyen: 0, élevé: 0 }, choc: { faible: 0, moyen: 0, élevé: 0 }, surchauffe: { faible: 0, moyen: 0, élevé: 0 } };
@@ -419,36 +491,72 @@
                 });
             });
 
-            chartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['Arc Électrique', 'Choc Électrique', 'Surchauffe'],
-                    datasets: [
-                        { label: 'Faible', data: [counts.arc.faible, counts.choc.faible, counts.surchauffe.faible], backgroundColor: '#22c55e' },
-                        { label: 'Moyen', data: [counts.arc.moyen, counts.choc.moyen, counts.surchauffe.moyen], backgroundColor: '#f4b400' },
-                        { label: 'Élevé', data: [counts.arc.élevé, counts.choc.élevé, counts.surchauffe.élevé], backgroundColor: '#dc2626' }
-                    ]
-                },
-                options: {
-                    scales: {
-                        y: { beginAtZero: true, title: { display: true, text: 'Nombre de Disjoncteurs', color: '#FFF' }, ticks: { color: '#FFF' } },
-                        x: { title: { display: true, text: 'Type de Risque', color: '#FFF' }, ticks: { color: '#FFF' } }
-                    },
-                    plugins: { legend: { labels: { color: '#FFF' } } }
+            if (Object.values(counts).every(type => Object.values(type).every(v => v === 0))) {
+                console.log('[Hazards] Aucune donnée valide pour le graphique');
+                const parent = canvas.parentElement;
+                const existingError = parent.querySelector('.error-message');
+                if (!existingError) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'text-red-600 mt-2 error-message';
+                    errorDiv.textContent = 'Aucune donnée valide pour afficher le graphique. Veuillez vérifier les données des disjoncteurs.';
+                    parent.appendChild(errorDiv);
                 }
-            });
-            gsap.from('#hazards-chart', { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+                return;
+            }
+
+            const existingError = canvas.parentElement.querySelector('.error-message');
+            if (existingError) existingError.remove();
+
+            try {
+                chartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Arc Électrique', 'Choc Électrique', 'Surchauffe'],
+                        datasets: [
+                            { label: 'Faible', data: [counts.arc.faible, counts.choc.faible, counts.surchauffe.faible], backgroundColor: '#22c55e' },
+                            { label: 'Moyen', data: [counts.arc.moyen, counts.choc.moyen, counts.surchauffe.moyen], backgroundColor: '#f4b400' },
+                            { label: 'Élevé', data: [counts.arc.élevé, counts.choc.élevé, counts.surchauffe.élevé], backgroundColor: '#dc2626' }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { 
+                                beginAtZero: true, 
+                                title: { display: true, text: 'Nombre de Disjoncteurs', color: '#FFF', font: { size: 12 } }, 
+                                ticks: { color: '#FFF', font: { size: 12 } },
+                                grid: { color: '#4B5563' }
+                            },
+                            x: { 
+                                title: { display: true, text: 'Type de Risque', color: '#FFF', font: { size: 12 } }, 
+                                ticks: { color: '#FFF', font: { size: 12 } },
+                                grid: { display: false }
+                            }
+                        },
+                        plugins: { 
+                            legend: { labels: { color: '#FFF', font: { size: 12 } } },
+                            tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}` } }
+                        }
+                    }
+                });
+                console.log('[Hazards] Graphique rendu avec succès');
+                gsap.from('#hazards-chart', { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+            } catch (error) {
+                console.error('[Hazards] Erreur rendu graphique:', error);
+                showPopup('Erreur lors du rendu du graphique: ' + error.message, '', () => {});
+            }
         }
 
-        // Gérer l'alerte des données manquantes
         function updateMissingDataAlert() {
+            console.log('[Hazards] Mise à jour alerte données manquantes');
             const alert = document.getElementById('missing-data-alert');
             const link = document.getElementById('missing-data-link');
             if (missingData.length > 0) {
                 alert.classList.remove('hidden');
                 link.onclick = () => {
                     const { tableauId, disjoncteurId } = missingData[0];
-                    console.log('[Client] Clic sur lien données manquantes:', { tableauId, disjoncteurId });
+                    console.log('[Hazards] Clic sur lien données manquantes:', { tableauId, disjoncteurId });
                     openModal(tableauId, disjoncteurId);
                 };
             } else {
@@ -456,140 +564,190 @@
             }
         }
 
-        // Gérer le modal
         function openModal(tableauId, disjoncteurId) {
-            console.log('[Client] Ouverture modal:', { tableauId, disjoncteurId });
+            console.log('[Hazards] Ouverture modal:', { tableauId, disjoncteurId });
             const modal = document.getElementById('modal-details');
+            const errorDiv = document.getElementById('modal-error');
+            const successDiv = document.getElementById('modal-success');
             const tableau = tableauxData.find(t => t.id === tableauId);
             if (!tableau) {
-                console.error('[Client] Tableau non trouvé:', tableauId);
-                alert('Erreur: Tableau non trouvé');
+                console.error('[Hazards] Tableau non trouvé:', tableauId);
+                showPopup('Erreur: Tableau non trouvé.', '', () => {});
                 return;
             }
             const disjoncteur = tableau.disjoncteurs.find(d => d.id === disjoncteurId);
             if (!disjoncteur) {
-                console.error('[Client] Disjoncteur non trouvé:', disjoncteurId);
-                alert('Erreur: Disjoncteur non trouvé');
+                console.error('[Hazards] Disjoncteur non trouvé:', disjoncteurId);
+                showPopup('Erreur: Disjoncteur non trouvé.', '', () => {});
                 return;
             }
             const risks = evaluateRisks(disjoncteur);
             const isObsoleteStatus = isObsolete(disjoncteur);
             const content = `
-                <p><strong>Tableau :</strong> ${tableauId}</p>
-                <p><strong>Disjoncteur :</strong> ${disjoncteur.id}</p>
-                <p><strong>Bâtiment :</strong> ${tableau.building}</p>
-                <p><strong>Risque Arc Électrique :</strong> ${risks.arc}</p>
-                <p><strong>Risque Choc Électrique :</strong> ${risks.choc}</p>
-                <p><strong>Risque Surchauffe :</strong> ${risks.surchauffe}</p>
-                <p><strong>Obsolète :</strong> ${isObsoleteStatus ? 'Oui' : 'Non'}</p>
+                <p class="text-sm sm:text-base"><strong>Tableau :</strong> ${tableauId}</p>
+                <p class="text-sm sm:text-base"><strong>Disjoncteur :</strong> ${disjoncteur.id}</p>
+                <p class="text-sm sm:text-base"><strong>Bâtiment :</strong> ${tableau.building}</p>
+                <p class="text-sm sm:text-base"><strong>Risque Arc Électrique :</strong> ${risks.arc}</p>
+                <p class="text-sm sm:text-base"><strong>Risque Choc Électrique :</strong> ${risks.choc}</p>
+                <p class="text-sm sm:text-base"><strong>Risque Surchauffe :</strong> ${risks.surchauffe}</p>
+                <p class="text-sm sm:text-base"><strong>Obsolète :</strong> ${isObsoleteStatus ? 'Oui' : 'Non'}</p>
                 <h3 class="text-lg font-semibold mt-4">Recommandations :</h3>
-                <ul class="list-disc pl-6">
-                    ${risks.arc === 'Élevé' ? '<li>Remplacer le disjoncteur par un modèle avec un pouvoir de coupure (Icn) supérieur au courant de court-circuit (Ik).</li>' : ''}
+                <ul class="list-disc pl-6 text-sm sm:text-base">
+                    ${risks.arc === 'Élevé' ? '<li>Remplacer le disjoncteur par un modèle avec un pouvoir de coupure (Icn) supérieur au courant de court-circuit (Ik).</li>' : risks.arc === 'Moyen' ? '<li>Vérifier si le pouvoir de coupure (Icn) est suffisant pour le courant de court-circuit (Ik).</li>' : ''}
                     ${risks.choc === 'Moyen' || risks.choc === 'Élevé' ? '<li>Améliorer l’indice de protection (ex. IP40 ou IP54 pour environnements humides ou poussiéreux).</li>' : ''}
                     ${risks.choc === 'Élevé' && disjoncteur.humidite > 80 ? '<li>Réduire l’humidité ambiante ou installer un boîtier étanche (ex. IP65).</li>' : ''}
-                    ${risks.surchauffe === 'Élevé' ? '<li>Vérifier la ventilation ou réduire la charge électrique.</li>' : ''}
+                    ${risks.surchauffe === 'Élevé' ? '<li>Vérifier la ventilation ou réduire la charge électrique.</li>' : risks.surchauffe === 'Moyen' ? '<li>Surveiller la température et envisager une meilleure ventilation.</li>' : ''}
                     ${risks.surchauffe === 'Moyen' && disjoncteur.temp_ambiante > 40 ? '<li>Améliorer le refroidissement ou déplacer l’équipement dans un environnement plus frais.</li>' : ''}
                     ${isObsoleteStatus ? '<li>Planifier le remplacement du disjoncteur obsolète pour éviter les défaillances.</li>' : ''}
                 </ul>
                 <h3 class="text-lg font-semibold mt-4">Modifier les données :</h3>
                 <div class="mb-4">
                     <label for="ip-input" class="block text-sm font-medium">Indice de protection (IP):</label>
-                    <input id="ip-input" type="text" value="${disjoncteur.ip || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. IP40">
+                    <input id="ip-input" type="text" value="${disjoncteur.ip || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" placeholder="Ex. IP40" aria-label="Indice de protection">
                 </div>
                 <div class="mb-4">
                     <label for="temp-input" class="block text-sm font-medium">Température limite (°C):</label>
-                    <input id="temp-input" type="number" step="0.1" value="${disjoncteur.temp || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 70">
+                    <input id="temp-input" type="number" step="0.1" value="${disjoncteur.temp || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" placeholder="Ex. 70" aria-label="Température limite">
                 </div>
                 <div class="mb-4">
                     <label for="ue-input" class="block text-sm font-medium">Tension nominale (V):</label>
-                    <input id="ue-input" type="number" step="0.1" value="${disjoncteur.ue || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 400">
+                    <input id="ue-input" type="number" step="0.1" value="${disjoncteur.ue || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" placeholder="Ex. 400" aria-label="Tension nominale">
                 </div>
                 <div class="mb-4">
                     <label for="section-input" class="block text-sm font-medium">Section du câble (mm²):</label>
-                    <input id="section-input" type="number" step="0.1" value="${disjoncteur.section || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 2.5">
+                    <input id="section-input" type="number" step="0.1" value="${disjoncteur.section || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" placeholder="Ex. 2.5" aria-label="Section du câble">
                 </div>
                 <div class="mb-4">
                     <label for="humidite-input" class="block text-sm font-medium">Humidité ambiante (%):</label>
-                    <input id="humidite-input" type="number" step="0.1" value="${disjoncteur.humidite || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 60">
+                    <input id="humidite-input" type="number" step="0.1" value="${disjoncteur.humidite || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" placeholder="Ex. 60" aria-label="Humidité ambiante">
                 </div>
                 <div class="mb-4">
                     <label for="temp_ambiante-input" class="block text-sm font-medium">Température ambiante (°C):</label>
-                    <input id="temp_ambiante-input" type="number" step="0.1" value="${disjoncteur.temp_ambiante || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" placeholder="Ex. 25">
+                    <input id="temp_ambiante-input" type="number" step="0.1" value="${disjoncteur.temp_ambiante || ''}" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" placeholder="Ex. 25" aria-label="Température ambiante">
                 </div>
             `;
             document.getElementById('modal-content').innerHTML = content;
+            errorDiv.classList.add('hidden');
+            successDiv.classList.add('hidden');
             modal.classList.remove('hidden');
+            gsap.from('#modal-details', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+
             document.getElementById('save-disjoncteur').onclick = async () => {
-                console.log('[Client] Bouton Enregistrer cliqué:', { tableauId, disjoncteurId });
+                console.log('[Hazards] Bouton Enregistrer cliqué:', { tableauId, disjoncteurId });
+                const ip = document.getElementById('ip-input').value.trim();
+                const temp = document.getElementById('temp-input').value.trim();
+                const ue = document.getElementById('ue-input').value.trim();
+                const section = document.getElementById('section-input').value.trim();
+                const humidite = document.getElementById('humidite-input').value.trim();
+                const temp_ambiante = document.getElementById('temp_ambiante-input').value.trim();
+
+                if (ip && !validIpValues.includes(ip)) {
+                    console.log('[Hazards] Validation échouée: IP invalide', ip);
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.textContent = 'Indice de protection invalide. Valeurs acceptées : IP20, IP40, IP54, IP65.';
+                    successDiv.classList.add('hidden');
+                    return;
+                }
+                if (temp && (isNaN(parseFloat(temp)) || parseFloat(temp) < 0)) {
+                    console.log('[Hazards] Validation échouée: Température invalide', temp);
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.textContent = 'La température doit être une valeur numérique positive (ex. 70).';
+                    successDiv.classList.add('hidden');
+                    return;
+                }
+                if (ue && (isNaN(parseFloat(ue)) || parseFloat(ue) < 0)) {
+                    console.log('[Hazards] Validation échouée: Tension invalide', ue);
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.textContent = 'La tension nominale doit être une valeur numérique positive (ex. 400).';
+                    successDiv.classList.add('hidden');
+                    return;
+                }
+                if (section && (isNaN(parseFloat(section)) || parseFloat(section) < 0)) {
+                    console.log('[Hazards] Validation échouée: Section invalide', section);
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.textContent = 'La section du câble doit être une valeur numérique positive (ex. 2.5).';
+                    successDiv.classList.add('hidden');
+                    return;
+                }
+                if (humidite && (isNaN(parseFloat(humidite)) || parseFloat(humidite) < 0 || parseFloat(humidite) > 100)) {
+                    console.log('[Hazards] Validation échouée: Humidité invalide', humidite);
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.textContent = 'L’humidité doit être une valeur numérique entre 0 et 100 (ex. 60).';
+                    successDiv.classList.add('hidden');
+                    return;
+                }
+                if (temp_ambiante && (isNaN(parseFloat(temp_ambiante)) || parseFloat(temp_ambiante) < -20 || parseFloat(temp_ambiante) > 60)) {
+                    console.log('[Hazards] Validation échouée: Température ambiante invalide', temp_ambiante);
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.textContent = 'La température ambiante doit être une valeur numérique entre -20 et 60 (ex. 25).';
+                    successDiv.classList.add('hidden');
+                    return;
+                }
+
                 try {
-                    const ip = document.getElementById('ip-input').value;
-                    const temp = document.getElementById('temp-input').value;
-                    const ue = document.getElementById('ue-input').value;
-                    const section = document.getElementById('section-input').value;
-                    const humidite = document.getElementById('humidite-input').value;
-                    const temp_ambiante = document.getElementById('temp_ambiante-input').value;
-
-                    if (ip && !validIpValues.includes(ip)) {
-                        console.log('[Client] Validation échouée: IP invalide', ip);
-                        alert('Indice de protection invalide. Valeurs acceptées : IP20, IP40, IP54, IP65.');
-                        return;
-                    }
-                    if (temp && (isNaN(parseFloat(temp)) || temp < 0)) {
-                        console.log('[Client] Validation échouée: Température invalide', temp);
-                        alert('La température doit être une valeur numérique positive (ex. 70).');
-                        return;
-                    }
-                    if (ue && (isNaN(parseFloat(ue)) || ue < 0)) {
-                        console.log('[Client] Validation échouée: Tension invalide', ue);
-                        alert('La tension nominale doit être une valeur numérique positive (ex. 400).');
-                        return;
-                    }
-                    if (section && (isNaN(parseFloat(section)) || section < 0)) {
-                        console.log('[Client] Validation échouée: Section invalide', section);
-                        alert('La section du câble doit être une valeur numérique positive (ex. 2.5).');
-                        return;
-                    }
-                    if (humidite && (isNaN(parseFloat(humidite)) || humidite < 0 || humidite > 100)) {
-                        console.log('[Client] Validation échouée: Humidité invalide', humidite);
-                        alert('L’humidité doit être une valeur numérique entre 0 et 100 (ex. 60).');
-                        return;
-                    }
-                    if (temp_ambiante && (isNaN(parseFloat(temp_ambiante)) || temp_ambiante < -20 || temp_ambiante > 60)) {
-                        console.log('[Client] Validation échouée: Température ambiante invalide', temp_ambiante);
-                        alert('La température ambiante doit être une valeur numérique entre -20 et 60 (ex. 25).');
-                        return;
-                    }
-
-                    const response = await fetch(`/api/disjoncteur/${tableauId}/${disjoncteurId}`, {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    const response = await fetch(`/api/disjoncteur/${encodeURIComponent(tableauId)}/${encodeURIComponent(disjoncteurId)}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ip, temp, ue, section, humidite, temp_ambiante })
+                        body: JSON.stringify({ 
+                            ip: ip || null, 
+                            temp: temp ? parseFloat(temp) : null, 
+                            ue: ue ? parseFloat(ue) : null, 
+                            section: section ? parseFloat(section) : null, 
+                            humidite: humidite ? parseFloat(humidite) : null, 
+                            temp_ambiante: temp_ambiante ? parseFloat(temp_ambiante) : null 
+                        }),
+                        signal: controller.signal
                     });
-                    const responseData = await response.json();
+                    clearTimeout(timeoutId);
                     if (!response.ok) {
-                        console.error('[Client] Erreur mise à jour serveur:', responseData.error);
-                        throw new Error(responseData.error || 'Erreur lors de la mise à jour');
+                        const responseData = await response.json();
+                        throw new Error(responseData.error || `Erreur HTTP: ${response.status}`);
                     }
-                    console.log('[Client] Disjoncteur mis à jour:', responseData.data);
-                    alert('Données mises à jour avec succès !');
-                    modal.classList.add('hidden');
+                    console.log('[Hazards] Disjoncteur mis à jour');
+                    errorDiv.classList.add('hidden');
+                    successDiv.classList.remove('hidden');
+                    successDiv.textContent = 'Données mises à jour avec succès !';
                     await loadTableaux();
+                    gsap.to('#modal-details', {
+                        opacity: 0,
+                        scale: 0.8,
+                        duration: 0.5,
+                        ease: 'power2.in',
+                        onComplete: () => modal.classList.add('hidden')
+                    });
                 } catch (error) {
-                    console.error('[Client] Erreur mise à jour:', error.message);
-                    alert('Erreur : ' + error.message);
+                    console.error('[Hazards] Erreur mise à jour:', error);
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.textContent = 'Erreur : ' + error.message;
+                    successDiv.classList.add('hidden');
                 }
             };
+
             document.getElementById('close-modal').onclick = () => {
-                console.log('[Client] Bouton Fermer cliqué');
-                modal.classList.add('hidden');
+                console.log('[Hazards] Bouton Fermer cliqué');
+                gsap.to('#modal-details', {
+                    opacity: 0,
+                    scale: 0.8,
+                    duration: 0.5,
+                    ease: 'power2.in',
+                    onComplete: () => modal.classList.add('hidden')
+                });
             };
         }
 
-        // Initialisation
         window.onload = () => {
-            console.log('[Client] Initialisation hazards_assessment.html');
+            console.log('[Hazards] Initialisation hazards_assessment.html');
+            if (window.location.protocol === 'file:') {
+                showPopup('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/hazards_assessment.html) pour accéder à l\'API.', '', () => {});
+                return;
+            }
+            if (typeof Chart === 'undefined') console.error('[Hazards] Chart.js non chargé');
             const modal = document.getElementById('modal-details');
+            const popup = document.getElementById('popup');
             if (modal) modal.classList.add('hidden');
+            if (popup) popup.classList.add('hidden');
             loadTableaux();
         };
     </script>
