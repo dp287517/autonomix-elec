@@ -383,6 +383,7 @@
                 const htaFields = document.getElementById('hta-fields');
                 console.log('[Edit] Bascule champs HTA:', isHTA);
                 htaFields.classList.toggle('hidden', !isHTA);
+                console.log('[Edit] Classe hta-fields:', htaFields.className);
                 if (!isHTA) {
                     document.getElementById('hta-transformerPower').value = '';
                     document.getElementById('hta-voltage').value = '';
