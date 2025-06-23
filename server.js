@@ -288,7 +288,8 @@ async function initDb() {
                             temp_ambiante: d.temp_ambiante || 25,
                             charge: d.charge || 80,
                             linkedTableauIds: Array.isArray(d.linkedTableauIds) ? d.linkedTableauIds : d.linkedTableauId ? [d.linkedTableauId] : [],
-                            isPrincipal: !!d.isPrincipal
+                            isPrincipal: !!d.isPrincipal,
+                            isHTAFeeder: !!d.isHTAFeeder // Ajout de isHTAFeeder
                         };
                     } catch (err) {
                         console.warn('[Server] Erreur normalisation disjoncteur dans tableau:', row.id, 'Disjoncteur:', d, 'Erreur:', err.message);
@@ -375,7 +376,7 @@ app.post('/api/disjoncteur', async (req, res) => {
     try {
         client = await pool.connect();
         if (!marque || !ref) throw new Error('Marque et référence sont requis');
-        const prompt = `Fournis les caractéristiques techniques du disjoncteur de marque "${marque}" et référence "${ref}". Retourne un JSON avec les champs suivants : id (laisser vide), type, poles, montage, ue, ui, uimp, frequence, in, ir, courbe, triptime, icn, ics, ip, temp, dimensions, section, date, tension, selectivite, lifespan (durée de vie en années, ex. 30), cableLength (laisser vide), impedance (laisser vide), humidite (en %, ex. 50), temp_ambiante (en °C, ex. 25), charge (en %, ex. 80), linkedTableauIds (tableau vide). Si une information est manquante, utilise des valeurs par défaut plausibles ou laisse le champ vide.`;
+        const prompt = `Fournis les caractéristiques techniques du disjoncteur de marque "${marque}" et référence "${ref}". Retourne un JSON avec les champs suivants : id (laisser vide), type, poles, montage, ue, ui, uimp, frequence, in, ir, courbe, triptime, icn, ics, ip, temp, dimensions, section, date, tension, selectivite, lifespan (durée de vie en années, ex. 30), cableLength (laisser vide), impedance (laisser vide), humidite (en %, ex. 50), temp_ambiante (en °C, ex. 25), charge (en %, ex. 80), linkedTableauIds (tableau vide), isPrincipal (false), isHTAFeeder (false). Si une information est manquante, utilise des valeurs par défaut plausibles ou laisse le champ vide.`;
         console.log('[Server] Prompt envoyé à OpenAI:', prompt);
         const response = await openai.chat.completions.create({
             model: 'gpt-4o',
@@ -400,7 +401,9 @@ app.post('/api/disjoncteur', async (req, res) => {
             humidite: data.humidite || 50,
             temp_ambiante: data.temp_ambiante || 25,
             charge: data.charge || 80,
-            linkedTableauIds: Array.isArray(data.linkedTableauIds) ? data.linkedTableauIds : []
+            linkedTableauIds: Array.isArray(data.linkedTableauIds) ? data.linkedTableauIds : [],
+            isPrincipal: !!data.isPrincipal,
+            isHTAFeeder: !!data.isHTAFeeder // Ajout de isHTAFeeder
         };
         res.json(normalizedData);
     } catch (error) {
@@ -647,7 +650,8 @@ app.post('/api/tableaux', async (req, res) => {
                 temp_ambiante: d.temp_ambiante || 25,
                 charge: d.charge || 80,
                 linkedTableauIds: Array.isArray(d.linkedTableauIds) ? d.linkedTableauIds : d.linkedTableauId ? [d.linkedTableauId] : [],
-                isPrincipal: !!d.isPrincipal
+                isPrincipal: !!d.isPrincipal,
+                isHTAFeeder: !!d.isHTAFeeder // Ajout de isHTAFeeder
             };
         });
         await client.query(
@@ -750,7 +754,8 @@ app.put('/api/tableaux/:id', async (req, res) => {
                 temp_ambiante: d.temp_ambiante || 25,
                 charge: d.charge || 80,
                 linkedTableauIds: Array.isArray(d.linkedTableauIds) ? d.linkedTableauIds : d.linkedTableauId ? [d.linkedTableauId] : [],
-                isPrincipal: !!d.isPrincipal
+                isPrincipal: !!d.isPrincipal,
+                isHTAFeeder: !!d.isHTAFeeder // Ajout de isHTAFeeder
             };
         });
         // Mise à jour dans la base de données
@@ -1170,7 +1175,7 @@ app.post('/api/reports', async (req, res) => {
             doc.text('Tableau | Disjoncteur Principal | Statut', 50, doc.y);
             doc.moveDown(0.5);
             selectivityReportData.forEach(tableau => {
-                const principal = tableau.disjoncteurs.find(d => d.isPrincipal) || {};
+                const principal = tableau.disjoncteurs.find(d => d.isPrincipal || d.isHTAFeeder) || {};
                 doc.text(`${tableau.id} | ${principal.id || 'N/A'} | ${principal.selectivityStatus || 'N/A'}`, 50, doc.y);
                 doc.moveDown(0.5);
             });
@@ -1424,7 +1429,8 @@ app.put('/api/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
             temp_ambiante: updatedData.temp_ambiante || disjoncteurs[disjoncteurIndex].temp_ambiante || 25,
             charge: updatedData.charge || disjoncteurs[disjoncteurIndex].charge || 80,
             linkedTableauIds: Array.isArray(updatedData.linkedTableauIds) ? updatedData.linkedTableauIds : [],
-            isPrincipal: !!disjoncteurs[disjoncteurIndex].isPrincipal
+            isPrincipal: !!updatedData.isPrincipal,
+            isHTAFeeder: !!updatedData.isHTAFeeder // Gestion de isHTAFeeder
         };
         disjoncteurs[disjoncteurIndex] = updatedDisjoncteur;
         await client.query('UPDATE tableaux SET disjoncteurs = $1::jsonb WHERE id = $2', [JSON.stringify(disjoncteurs), tableauId]);
@@ -1458,9 +1464,9 @@ app.get('/api/fault-level', async (req, res) => {
                     const ueMatch = d.ue.match(/[\d.]+/);
                     const ue = ueMatch ? parseFloat(ueMatch[0]) : 400;
                     let z;
-                    let L = isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 0 : 20) : parseFloat(d.cableLength);
-                    if (d.isPrincipal && L < 0) L = 0;
-                    else if (!d.isPrincipal && L < 20) L = 20;
+                    let L = isNaN(parseFloat(d.cableLength)) ? ((d.isPrincipal || d.isHTAFeeder) ? 0 : 20) : parseFloat(d.cableLength);
+                    if ((d.isPrincipal || d.isHTAFeeder) && L < 0) L = 0;
+                    else if (!d.isPrincipal && !d.isHTAFeeder && L < 20) L = 20;
                     if (d.impedance) {
                         z = parseFloat(d.impedance);
                         if (z < 0.05) z = 0.05;
