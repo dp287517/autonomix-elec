@@ -1,70 +1,4 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contrôle des Disjoncteurs - Autonomix Elec</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link href="/styles.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <style>
-        .task-bar {
-            height: 28px;
-            border-radius: 4px;
-            margin: 4px 0;
-            cursor: pointer;
-            text-align: center;
-            color: #FFF;
-            font-size: 0.875rem;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        @media (min-width: 640px) {
-            .task-bar { font-size: 1rem; }
-        }
-        .task-bar-green { background-color: #22c55e; }
-        .task-bar-red { background-color: #dc2626; }
-        .task-bar-orange { background-color: #f4b400; }
-        .task-bar-purple { background-color: #9333ea; }
-        .task-bar-gray { background-color: #6B7280; }
-        .touch-friendly {
-            min-height: 44px;
-            padding: 0.5rem 1rem;
-        }
-        .modal-content {
-            max-height: 70vh;
-            overflow-y: auto;
-            scrollbar-width: thin;
-            scrollbar-color: #6B7280 #1F2937;
-        }
-        .modal-content::-webkit-scrollbar {
-            width: 8px;
-        }
-        .modal-content::-webkit-scrollbar-track {
-            background: #1F2937;
-        }
-        .modal-content::-webkit-scrollbar-thumb {
-            background: #6B7280;
-            border-radius: 4px;
-        }
-        .animate-fade-in { animation: fadeIn 0.8s ease-out; }
-        .animate-slide-up { animation: slideUp 0.8s ease-out; }
-        .animate-zoom-in { animation: zoomIn 0.5s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes zoomIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
-        @media (max-width: 640px) {
-            .container { padding: 0.5rem; }
-            table th, table td { font-size: 0.875rem; padding: 0.5rem; }
-            canvas { height: 200px !important; }
-            input, select, textarea, button { font-size: 0.875rem; }
-            .modal-content { font-size: 0.875rem; }
-        }
+```html
         .gantt th, .gantt td { border: 1px solid #4B5563; padding: 0.5rem; text-align: left; }
         .gantt th { background-color: #374151; }
         .error-popup {
@@ -73,6 +7,18 @@
             padding: 1rem;
             border-radius: 0.5rem;
             margin-bottom: 1rem;
+        }
+        /* Ajustement des z-index pour les modals */
+        #modal-breaker, #modal-create-checklist, #modal-complete-checklist, #modal-apply-checklist, #modal-view-checklists {
+            z-index: 1000;
+        }
+        #error-popup {
+            z-index: 2000;
+        }
+        /* S'assurer que les sections n'ont pas de z-index conflictuel */
+        #gantt-section, #doughnut-section, #advanced-charts-section {
+            position: relative;
+            z-index: 10;
         }
     </style>
 </head>
@@ -172,1110 +118,998 @@
         <div id="doughnut-section" class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg animate-slide-up hidden">
             <h2 class="text-lg sm:text-xl font-semibold mb-2 flex items-center"><i class="fas fa-chart-pie mr-2"></i>Répartition des Statuts</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="doughnut-container"></div>
-ദ
-
-System: ### `breaker_control.html` corrigé (suite)
-
-Voici la suite du fichier `breaker_control.html` corrigé, avec les modifications nécessaires pour assurer la robustesse et la compatibilité avec le schéma de la base de données (notamment `issitemain` et la gestion des réponses de l’API). Ce fichier complète la partie précédente et inclut toutes les corrections demandées.
-
-<xaiArtifact artifact_id="70c64c1a-0a36-42c4-80a8-2d3ce43da11d" artifact_version_id="3403facd-d85b-4dbe-8ddf-97dbac535092" title="breaker_control.html" contentType="text/html">
-```html
-        <!-- Graphiques en anneau (suite) -->
         </div>
-    </div>
 
-    <!-- Graphiques avancés -->
-    <div id="advanced-charts-section" class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg animate-slide-up hidden">
-        <h2 class="text-lg sm:text-xl font-semibold mb-2 flex items-center"><i class="fas fa-chart-bar mr-2"></i>Analyses Avancées</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="advanced-charts-container">
-            <div class="bg-gray-700 p-4 rounded-lg shadow">
-                <h3 class="text-base sm:text-lg font-semibold mb-2"><i class="fas fa-chart-bar mr-2"></i>Disjoncteurs par Statut et Bâtiment</h3>
-                <canvas id="bar-chart"></canvas>
-            </div>
-            <div class="bg-gray-700 p-4 rounded-lg shadow">
-                <h3 class="text-base sm:text-lg font-semibold mb-2"><i class="fas fa-chart-line mr-2"></i>Évolution des Contrôles</h3>
-                <canvas id="line-chart"></canvas>
-            </div>
-            <div class="bg-gray-700 p-4 rounded-lg shadow">
-                <h3 class="text-base sm:text-lg font-semibold mb-2"><i class="fas fa-chart-scatter mr-2"></i>Répartition par Courant Nominal</h3>
-                <canvas id="scatter-chart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal pour voir l’historique des checklists -->
-    <div id="modal-breaker" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 overflow-y-auto pt-4 pb-4 hidden">
-        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-4xl my-4 modal-content">
-            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-cogs mr-2"></i>Historique des Contrôles</h2>
-            <div id="modal-content" class="mb-4 text-gray-300 text-sm sm:text-base"></div>
-            <button id="close-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition w-full sm:w-auto touch-friendly">
-                <i class="fas fa-times mr-2"></i>Fermer
-            </button>
-        </div>
-    </div>
-
-    <!-- Modal pour créer une checklist -->
-    <div id="modal-create-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 overflow-y-auto pt-4 pb-4 hidden">
-        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-2xl my-4 modal-content">
-            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-plus-circle mr-2"></i>Créer une Checklist</h2>
-            <form id="create-checklist-form" class="grid gap-4">
-                <div>
-                    <label for="checklist-name" class="block text-sm font-medium">Nom de la Checklist</label>
-                    <input type="text" id="checklist-name" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" placeholder="Ex: Vérification annuelle" required>
+        <!-- Graphiques avancés -->
+        <div id="advanced-charts-section" class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg animate-slide-up hidden">
+            <h2 class="text-lg sm:text-xl font-semibold mb-2 flex items-center"><i class="fas fa-chart-bar mr-2"></i>Analyses Avancées</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="advanced-charts-container">
+                <div class="bg-gray-700 p-4 rounded-lg shadow">
+                    <h3 class="text-base sm:text-lg font-semibold mb-2"><i class="fas fa-chart-bar mr-2"></i>Disjoncteurs par Statut et Bâtiment</h3>
+                    <canvas id="bar-chart"></canvas>
                 </div>
-                <div id="checklist-points" class="grid gap-2"></div>
-                <button type="button" id="add-point" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm sm:text-base touch-friendly">
-                    <i class="fas fa-plus mr-2"></i>Ajouter un point de contrôle
+                <div class="bg-gray-700 p-4 rounded-lg shadow">
+                    <h3 class="text-base sm:text-lg font-semibold mb-2"><i class="fas fa-chart-line mr-2"></i>Évolution des Contrôles</h3>
+                    <canvas id="line-chart"></canvas>
+                </div>
+                <div class="bg-gray-700 p-4 rounded-lg shadow">
+                    <h3 class="text-base sm:text-lg font-semibold mb-2"><i class="fas fa-chart-scatter mr-2"></i>Répartition par Courant Nominal</h3>
+                    <canvas id="scatter-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal pour voir l’historique des checklists -->
+        <div id="modal-breaker" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-[1000] overflow-y-auto pt-4 pb-4 hidden">
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-4xl my-4 modal-content">
+                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-cogs mr-2"></i>Historique des Contrôles</h2>
+                <div id="modal-content" class="mb-4 text-gray-300 text-sm sm:text-base"></div>
+                <button id="close-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition w-full sm:w-auto touch-friendly">
+                    <i class="fas fa-times mr-2"></i>Fermer
                 </button>
-                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm sm:text-base touch-friendly">
-                        <i class="fas fa-save mr-2"></i>Enregistrer
-                    </button>
-                    <button type="button" id="close-create-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition text-sm sm:text-base touch-friendly">
-                        <i class="fas fa-times mr-2"></i>Fermer
-                    </button>
-                </div>
-            </form>
+            </div>
         </div>
-    </div>
 
-    <!-- Modal pour compléter une checklist -->
-    <div id="modal-complete-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 overflow-y-auto pt-4 pb-4 hidden">
-        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-2xl my-4 modal-content">
-            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-check-circle mr-2"></i>Compléter la Checklist</h2>
-            <form id="complete-checklist-form" class="grid gap-4">
-                <div id="complete-checklist-points" class="grid gap-2"></div>
-                <div>
-                    <label for="complete-checklist-comment" class="block text-sm font-medium">Commentaire global</label>
-                    <textarea id="complete-checklist-comment" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" rows="4"></textarea>
-                </div>
-                <div>
-                    <label for="complete-checklist-photo" class="block text-sm font-medium">Photo globale (max 1 Mo)</label>
-                    <input type="file" id="complete-checklist-photo" accept="image/*" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">
-                </div>
-                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm sm:text-base touch-friendly">
-                        <i class="fas fa-save mr-2"></i>Enregistrer
+        <!-- Modal pour créer une checklist -->
+        <div id="modal-create-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-[1000] overflow-y-auto pt-4 pb-4 hidden">
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-2xl my-4 modal-content">
+                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-plus-circle mr-2"></i>Créer une Checklist</h2>
+                <form id="create-checklist-form" class="grid gap-4">
+                    <div>
+                        <label for="checklist-name" class="block text-sm font-medium">Nom de la Checklist</label>
+                        <input type="text" id="checklist-name" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" placeholder="Ex: Vérification annuelle" required>
+                    </div>
+                    <div id="checklist-points" class="grid gap-2"></div>
+                    <button type="button" id="add-point" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm sm:text-base touch-friendly">
+                        <i class="fas fa-plus mr-2"></i>Ajouter un point de contrôle
                     </button>
-                    <button type="button" id="close-complete-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition text-sm sm:text-base touch-friendly">
-                        <i class="fas fa-times mr-2"></i>Fermer
-                    </button>
-                </div>
-            </form>
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm sm:text-base touch-friendly">
+                            <i class="fas fa-save mr-2"></i>Enregistrer
+                        </button>
+                        <button type="button" id="close-create-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition text-sm sm:text-base touch-friendly">
+                            <i class="fas fa-times mr-2"></i>Fermer
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
-    </div>
 
-    <!-- Modal pour appliquer une checklist -->
-    <div id="modal-apply-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 overflow-y-auto pt-4 pb-4 hidden">
-        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-2xl my-4 modal-content">
-            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-check-circle mr-2"></i>Appliquer une Checklist</h2>
-            <form id="apply-checklist-form" class="grid gap-4">
-                <div>
-                    <label for="checklist-select" class="block text-sm font-medium">Sélectionner une checklist</label>
-                    <select id="checklist-select" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
-                        <option value="">Choisir une checklist</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium">Sélectionner les tableaux</label>
-                    <div id="tableaux-select" class="grid gap-2 max-h-40 overflow-y-auto bg-gray-700 p-2 rounded border-gray-600"></div>
-                </div>
-                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm sm:text-base touch-friendly">
-                        <i class="fas fa-save mr-2"></i>Appliquer
-                    </button>
-                    <button type="button" id="close-apply-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition text-sm sm:text-base touch-friendly">
-                        <i class="fas fa-times mr-2"></i>Fermer
-                    </button>
-                </div>
-            </form>
+        <!-- Modal pour compléter une checklist -->
+        <div id="modal-complete-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-[1000] overflow-y-auto pt-4 pb-4 hidden">
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-2xl my-4 modal-content">
+                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-check-circle mr-2"></i>Compléter la Checklist</h2>
+                <form id="complete-checklist-form" class="grid gap-4">
+                    <div id="complete-checklist-points" class="grid gap-2"></div>
+                    <div>
+                        <label for="complete-checklist-comment" class="block text-sm font-medium">Commentaire global</label>
+                        <textarea id="complete-checklist-comment" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" rows="4"></textarea>
+                    </div>
+                    <div>
+                        <label for="complete-checklist-photo" class="block text-sm font-medium">Photo globale (max 1 Mo)</label>
+                        <input type="file" id="complete-checklist-photo" accept="image/*" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">
+                    </div>
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm sm:text-base touch-friendly">
+                            <i class="fas fa-save mr-2"></i>Enregistrer
+                        </button>
+                        <button type="button" id="close-complete-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition text-sm sm:text-base touch-friendly">
+                            <i class="fas fa-times mr-2"></i>Fermer
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
-    </div>
 
-    <!-- Modal pour voir et gérer les checklists -->
-    <div id="modal-view-checklists" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 overflow-y-auto pt-4 pb-4 hidden">
-        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-4xl my-4 modal-content">
-            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-list mr-2"></i>Gérer les Checklists</h2>
-            <div id="checklists-content" class="mb-4 text-gray-300 text-sm sm:text-base"></div>
-            <button id="close-view-checklists-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition w-full sm:w-auto touch-friendly">
-                <i class="fas fa-times mr-2"></i>Fermer
-            </button>
+        <!-- Modal pour appliquer une checklist -->
+        <div id="modal-apply-checklist" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-[1000] overflow-y-auto pt-4 pb-4 hidden">
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-2xl my-4 modal-content">
+                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-check-circle mr-2"></i>Appliquer une Checklist</h2>
+                <form id="apply-checklist-form" class="grid gap-4">
+                    <div>
+                        <label for="checklist-select" class="block text-sm font-medium">Sélectionner une checklist</label>
+                        <select id="checklist-select" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
+                            <option value="">Choisir une checklist</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium">Sélectionner les tableaux</label>
+                        <div id="tableaux-select" class="grid gap-2 max-h-40 overflow-y-auto bg-gray-700 p-2 rounded border-gray-600"></div>
+                    </div>
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm sm:text-base touch-friendly">
+                            <i class="fas fa-save mr-2"></i>Appliquer
+                        </button>
+                        <button type="button" id="close-apply-checklist-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition text-sm sm:text-base touch-friendly">
+                            <i class="fas fa-times mr-2"></i>Fermer
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
-    </div>
 
-    <!-- Modal pour les erreurs -->
-    <div id="error-popup" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[1000] hidden">
-        <div class="bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full">
-            <div id="error-message" class="error-popup mb-4 text-sm sm:text-base"></div>
-            <button id="error-close" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 w-full touch-friendly">
-                <i class="fas fa-times mr-2"></i>Fermer
-            </button>
+        <!-- Modal pour voir et gérer les checklists -->
+        <div id="modal-view-checklists" class="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-[1000] overflow-y-auto pt-4 pb-4 hidden">
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-4xl my-4 modal-content">
+                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-list mr-2"></i>Gérer les Checklists</h2>
+                <div id="checklists-content" class="mb-4 text-gray-300 text-sm sm:text-base"></div>
+                <button id="close-view-checklists-modal" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition w-full sm:w-auto touch-friendly">
+                    <i class="fas fa-times mr-2"></i>Fermer
+                </button>
+            </div>
         </div>
-    </div>
 
-    <script>
-        let tableauxData = [];
-        let checklistsData = [];
-        let currentTableauId = '';
-        let currentCheckId = null;
-        let chartInstances = {};
+        <!-- Modal pour les erreurs -->
+        <div id="error-popup" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[2000] hidden">
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full">
+                <div id="error-message" class="error-popup mb-4 text-sm sm:text-base"></div>
+                <button id="error-close" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 w-full touch-friendly">
+                    <i class="fas fa-times mr-2"></i>Fermer
+                </button>
+            </div>
+        </div>
 
-        // Normaliser les valeurs numériques
-        function normalizeCurrent(value) {
-            if (!value) return null;
-            if (typeof value === 'number' && !isNaN(value)) return value;
-            if (typeof value === 'string') {
-                const match = value.match(/[\d.]+/);
-                return match ? parseFloat(match[0]) : null;
+        <script>
+            let tableauxData = [];
+            let checklistsData = [];
+            let currentTableauId = '';
+            let currentCheckId = null;
+            let chartInstances = {};
+
+            // Normaliser les valeurs numériques
+            function normalizeCurrent(value) {
+                if (!value) return null;
+                if (typeof value === 'number' && !isNaN(value)) return value;
+                if (typeof value === 'string') {
+                    const match = value.match(/[\d.]+/);
+                    return match ? parseFloat(match[0]) : null;
+                }
+                return null;
             }
-            return null;
-        }
 
-        // Encoder les ID en slug sécurisé
-        function sanitizeId(id) {
-            return id.replace(/[^a-zA-Z0-9-_]/g, '-').replace(/-+/g, '-').toLowerCase();
-        }
-
-        // Déterminer le statut global d’une checklist
-        function determineGlobalStatus(points) {
-            const statuses = points.map(p => p.status).filter(s => s);
-            if (statuses.length === 0) return 'Non applicable';
-            if (statuses.includes('Non conforme')) return 'Non conforme';
-            if (statuses.some(s => s === 'Conforme')) return 'Conforme';
-            return 'Non applicable';
-        }
-
-        // Vérifier si un commentaire est un JSON valide
-        function isValidJson(comment) {
-            try {
-                JSON.parse(comment);
-                return true;
-            } catch {
-                return false;
+            // Encoder les ID en slug sécurisé
+            function sanitizeId(id) {
+                return id.replace(/[^a-zA-Z0-9-_]/g, '-').replace(/-+/g, '-').toLowerCase();
             }
-        }
 
-        // Afficher une erreur dans un popup
-        function showErrorPopup(message) {
-            console.error('[Client] Affichage erreur:', message);
-            const popup = document.getElementById('error-popup');
-            const messageDiv = document.getElementById('error-message');
-            messageDiv.textContent = message;
-            popup.classList.remove('hidden');
-            document.getElementById('error-close').onclick = () => popup.classList.add('hidden');
-            gsap.from('#error-popup > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
-        }
+            // Déterminer le statut global d’une checklist
+            function determineGlobalStatus(points) {
+                const statuses = points.map(p => p.status).filter(s => s);
+                if (statuses.length === 0) return 'Non applicable';
+                if (statuses.includes('Non conforme')) return 'Non conforme';
+                if (statuses.some(s => s === 'Conforme')) return 'Conforme';
+                return 'Non applicable';
+            }
 
-        // Détruire les graphiques existants
-        function destroyCharts() {
-            Object.values(chartInstances).forEach(chart => {
-                if (chart) chart.destroy();
-            });
-            chartInstances = {};
-        }
-
-        // Sauvegarder les filtres dans localStorage
-        function saveFilters() {
-            const buildingFilter = document.getElementById('building-filter').value;
-            const tableauFilter = document.getElementById('tableau-filter').value;
-            localStorage.setItem('breakerControlBuildingFilter', buildingFilter);
-            localStorage.setItem('breakerControlTableauFilter', tableauFilter);
-            console.log('[Client] Filtres sauvegardés:', { buildingFilter, tableauFilter });
-        }
-
-        // Restaurer les filtres depuis localStorage
-        function restoreFilters() {
-            const buildingFilter = localStorage.getItem('breakerControlBuildingFilter') || '';
-            const tableauFilter = localStorage.getItem('breakerControlTableauFilter') || '';
-            const buildingSelect = document.getElementById('building-filter');
-            const tableauSelect = document.getElementById('tableau-filter');
-            buildingSelect.value = buildingFilter;
-            updateTableauFilter(buildingFilter);
-            tableauSelect.value = tableauFilter;
-            console.log('[Client] Filtres restaurés:', { buildingFilter, tableauFilter });
-            return { building: buildingFilter, tableau: tableauFilter };
-        }
-
-        // Réinitialiser les filtres
-        function resetFilters() {
-            localStorage.removeItem('breakerControlBuildingFilter');
-            localStorage.removeItem('breakerControlTableauFilter');
-            document.getElementById('building-filter').value = '';
-            document.getElementById('tableau-filter').value = '';
-            console.log('[Client] Filtres réinitialisés');
-            filterData();
-        }
-
-        // Compresser une image avant conversion en Base64
-        function compressImage(file, maxWidth = 400, maxHeight = 400, quality = 0.3) {
-            return new Promise((resolve, reject) => {
-                if (file.size > 1 * 1024 * 1024) {
-                    reject(new Error('L’image est trop volumineuse (max 1 Mo).'));
-                    return;
+            // Vérifier si un commentaire est un JSON valide
+            function isValidJson(comment) {
+                try {
+                    JSON.parse(comment);
+                    return true;
+                } catch {
+                    return false;
                 }
+            }
 
-                const img = new Image();
-                img.src = URL.createObjectURL(file);
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width;
-                    let height = img.height;
+            // Afficher une erreur dans un popup
+            function showErrorPopup(message) {
+                console.error('[Client] Affichage erreur:', message);
+                const popup = document.getElementById('error-popup');
+                const messageDiv = document.getElementById('error-message');
+                messageDiv.textContent = message;
+                popup.classList.remove('hidden');
+                document.getElementById('error-close').onclick = () => popup.classList.add('hidden');
+                gsap.from('#error-popup > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+            }
 
-                    if (width > maxWidth) {
-                        height = Math.round((height * maxWidth) / width);
-                        width = maxWidth;
-                    }
-                    if (height > maxHeight) {
-                        width = Math.round((width * maxHeight) / height);
-                        height = maxHeight;
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-
-                    canvas.toBlob(
-                        blob => {
-                            URL.revokeObjectURL(img.src);
-                            resolve(blob);
-                        },
-                        'image/jpeg',
-                        quality
-                    );
-                };
-                img.onerror = () => {
-                    URL.revokeObjectURL(img.src);
-                    reject(new Error('Erreur lors du chargement de l’image.'));
-                };
-            });
-        }
-
-        // Convertir fichier en Base64 après compression
-        function toBase64(file) {
-            return new Promise((resolve, reject) => {
-                compressImage(file)
-                    .then(compressedBlob => {
-                        const reader = new FileReader();
-                        reader.readAsDataURL(compressedBlob);
-                        reader.onload = () => {
-                            const base64 = reader.result;
-                            if (base64.length > 500 * 1024) {
-                                reject(new Error('L’image compressée est encore trop volumineuse (max ~500 KB après compression).'));
-                            } else {
-                                resolve(base64);
-                            }
-                        };
-                        reader.onerror = error => reject(error);
-                    })
-                    .catch(error => reject(error));
-            });
-        }
-
-        // Mettre à jour le filtre des tableaux
-        function updateTableauFilter(selectedBuilding) {
-            const tableauFilter = document.getElementById('tableau-filter');
-            tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
-            const filteredTableaux = selectedBuilding 
-                ? tableauxData.filter(t => t.id.split('-')[0] === selectedBuilding)
-                : tableauxData;
-            filteredTableaux.forEach(t => {
-                const option = document.createElement('option');
-                option.value = t.id;
-                option.textContent = t.id + (t.issitemain ? ' (Principal)' : '');
-                tableauFilter.appendChild(option);
-            });
-        }
-
-        // Charger les données
-        async function loadData() {
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-                const tableauxResponse = await fetch('/api/tableaux', { signal: controller.signal });
-                if (!tableauxResponse.ok) {
-                    const errorData = await tableauxResponse.text();
-                    throw new Error(`Erreur lors du chargement des tableaux: ${tableauxResponse.status} ${errorData || tableauxResponse.statusText}`);
-                }
-                tableauxData = await tableauxResponse.json();
-                console.log('[Client] Tableaux chargés:', tableauxData.length);
-
-                const checklistsResponse = await fetch('/api/breaker-checklists', { signal: controller.signal });
-                if (!checklistsResponse.ok) {
-                    const errorData = await checklistsResponse.text();
-                    throw new Error(`Erreur lors du chargement des checklists: ${checklistsResponse.status} ${errorData || checklistsResponse.statusText}`);
-                }
-                const checklistsDataRaw = await checklistsResponse.json();
-                checklistsData = Array.isArray(checklistsDataRaw) ? checklistsDataRaw : [];
-                console.log('[Client] Checklists chargées:', checklistsData.length);
-
-                clearTimeout(timeoutId);
-                populateFilters();
-                const { building } = restoreFilters();
-                if (building) {
-                    filterData();
-                } else {
-                    showNoBuildingMessage();
-                }
-            } catch (error) {
-                console.error('[Client] Erreur chargement:', {
-                    message: error.message,
-                    stack: error.stack
+            // Détruire les graphiques existants
+            function destroyCharts() {
+                Object.values(chartInstances).forEach(chart => {
+                    if (chart) chart.destroy();
                 });
-                checklistsData = [];
-                showErrorPopup('Erreur lors du chargement des données: ' + error.message);
-                showNoBuildingMessage();
+                chartInstances = {};
             }
-        }
 
-        // Afficher le message "aucun bâtiment sélectionné"
-        function showNoBuildingMessage() {
-            document.getElementById('no-building-selected').classList.remove('hidden');
-            document.getElementById('gantt-section').classList.add('hidden');
-            document.getElementById('add-checklist-container').classList.add('hidden');
-            document.getElementById('doughnut-section').classList.add('hidden');
-            document.getElementById('advanced-charts-section').classList.add('hidden');
-            document.getElementById('no-data-message').classList.add('hidden');
-        }
+            // Sauvegarder les filtres dans localStorage
+            function saveFilters() {
+                const buildingFilter = document.getElementById('building-filter').value;
+                const tableauFilter = document.getElementById('tableau-filter').value;
+                localStorage.setItem('breakerControlBuildingFilter', buildingFilter);
+                localStorage.setItem('breakerControlTableauFilter', tableauFilter);
+                console.log('[Client] Filtres sauvegardés:', { buildingFilter, tableauFilter });
+            }
 
-        // Remplir les filtres
-        function populateFilters() {
-            const buildingFilter = document.getElementById('building-filter');
-            const tableauFilter = document.getElementById('tableau-filter');
-            const buildings = [...new Set(tableauxData.map(t => t.id.split('-')[0] || 'Inconnu'))].sort();
+            // Restaurer les filtres depuis localStorage
+            function restoreFilters() {
+                const buildingFilter = localStorage.getItem('breakerControlBuildingFilter') || '';
+                const tableauFilter = localStorage.getItem('breakerControlTableauFilter') || '';
+                const buildingSelect = document.getElementById('building-filter');
+                const tableauSelect = document.getElementById('tableau-filter');
+                buildingSelect.value = buildingFilter;
+                updateTableauFilter(buildingFilter);
+                tableauSelect.value = tableauFilter;
+                console.log('[Client] Filtres restaurés:', { buildingFilter, tableauFilter });
+                return { building: buildingFilter, tableau: tableauFilter };
+            }
 
-            buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
-            buildings.forEach(b => {
-                const option = document.createElement('option');
-                option.value = b;
-                option.textContent = b;
-                buildingFilter.appendChild(option);
-            });
-
-            const savedBuilding = localStorage.getItem('breakerControlBuildingFilter') || '';
-            updateTableauFilter(savedBuilding);
-
-            buildingFilter.onchange = () => {
-                const selectedBuilding = buildingFilter.value;
-                updateTableauFilter(selectedBuilding);
-                saveFilters();
+            // Réinitialiser les filtres
+            function resetFilters() {
+                localStorage.removeItem('breakerControlBuildingFilter');
+                localStorage.removeItem('breakerControlTableauFilter');
+                document.getElementById('building-filter').value = '';
+                document.getElementById('tableau-filter').value = '';
+                console.log('[Client] Filtres réinitialisés');
                 filterData();
-            };
-            tableauFilter.onchange = () => {
-                saveFilters();
-                filterData();
-            };
-            document.getElementById('reset-filters').onclick = resetFilters;
-        }
-
-        // Filtrer les données
-        function filterData() {
-            const building = document.getElementById('building-filter').value;
-            currentTableauId = document.getElementById('tableau-filter').value;
-            
-            if (!building) {
-                showNoBuildingMessage();
-                return;
             }
 
-            const filteredData = tableauxData.filter(t => 
-                (!building || t.id.split('-')[0] === building) && 
-                (!currentTableauId || t.id === currentTableauId)
-            );
-
-            document.getElementById('no-building-selected').classList.add('hidden');
-            document.getElementById('gantt-section').classList.remove('hidden');
-            document.getElementById('doughnut-section').classList.remove('hidden');
-            document.getElementById('advanced-charts-section').classList.remove('hidden');
-            renderGanttChart(filteredData);
-            renderDoughnuts(filteredData);
-            renderAdvancedCharts(filteredData);
-            toggleAddChecklistButton();
-        }
-
-        // Afficher/masquer les boutons Créer/Appliquer/Voir
-        function toggleAddChecklistButton() {
-            const container = document.getElementById('add-checklist-container');
-            if (currentTableauId) {
-                container.classList.remove('hidden');
-            } else {
-                container.classList.add('hidden');
-            }
-        }
-
-        // Rendre le diagramme de Gantt
-        function renderGanttChart(data = tableauxData) {
-            const tbody = document.getElementById('gantt-body');
-            const noDataMessage = document.getElementById('no-data-message');
-            tbody.innerHTML = '';
-
-            let hasData = false;
-            const filteredData = currentTableauId ? data.filter(t => t.id === currentTableauId) : data;
-
-            filteredData.forEach(tableau => {
-                const validDisjoncteurs = tableau.disjoncteurs.filter(breaker => breaker.id);
-                validDisjoncteurs.forEach(breaker => {
-                    const tr = document.createElement('tr');
-                    const tdBreaker = document.createElement('td');
-                    const sanitizedId = sanitizeId(breaker.id);
-                    tdBreaker.innerHTML = `${breaker.id}${tableau.issitemain ? ' (Principal)' : ''}`;
-                    tdBreaker.className = 'sticky left-0 bg-gray-700 font-medium p-2';
-                    tr.appendChild(tdBreaker);
-
-                    const tdStatus = document.createElement('td');
-                    const latestCheck = checklistsData
-                        .filter(c => c.tableau_id === tableau.id && c.disjoncteur_id === breaker.id)
-                        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-                    let statusClass = 'task-bar';
-                    let statusText = 'Non contrôlé';
-                    if (latestCheck) {
-                        let points = [];
-                        let isValidChecklist = false;
-                        if (isValidJson(latestCheck.comment)) {
-                            try {
-                                const comment = latestCheck.comment.startsWith('Checklist vide: ') 
-                                    ? latestCheck.comment.replace('Checklist vide: ', '') 
-                                    : latestCheck.comment;
-                                points = JSON.parse(comment).points || [];
-                                isValidChecklist = true;
-                                statusText = latestCheck.status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : latestCheck.status;
-                            } catch (e) {
-                                console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
-                            }
-                        }
-                        if (isValidChecklist) {
-                            if (statusText === 'Conforme') statusClass += ' task-bar-green';
-                            else if (statusText === 'Non conforme') statusClass += ' task-bar-red';
-                            else if (statusText === 'Non applicable') statusClass += ' task-bar-orange';
-                            else if (statusText === 'En attente') statusClass += ' task-bar-purple';
-                            else statusClass += ' task-bar-gray';
-                        } else {
-                            statusText = 'Non contrôlé';
-                            statusClass += ' task-bar-gray';
-                        }
-                    } else {
-                        statusClass += ' task-bar-gray';
+            // Compresser une image avant conversion en Base64
+            function compressImage(file, maxWidth = 400, maxHeight = 400, quality = 0.3) {
+                return new Promise((resolve, reject) => {
+                    if (file.size > 1 * 1024 * 1024) {
+                        reject(new Error('L’image est trop volumineuse (max 1 Mo).'));
+                        return;
                     }
-                    const bar = document.createElement('div');
-                    bar.className = `${statusClass} p-2 flex items-center justify-center`;
-                    bar.dataset.tableauId = tableau.id;
-                    bar.dataset.breakerId = breaker.id;
-                    bar.dataset.sanitizedId = sanitizedId;
-                    bar.onclick = () => openBreakerModal(tableau.id, breaker.id, sanitizedId);
-                    bar.textContent = statusText;
-                    tdStatus.appendChild(bar);
-                    tr.appendChild(tdStatus);
 
-                    tbody.appendChild(tr);
-                    hasData = true;
-                });
-                if (validDisjoncteurs.length !== tableau.disjoncteurs.length) {
-                    console.warn('[Client] Disjoncteurs invalides détectés dans tableau:', tableau.id, 'Total:', tableau.disjoncteurs.length, 'Valides:', validDisjoncteurs.length);
-                }
-            });
+                    const img = new Image();
+                    img.src = URL.createObjectURL(file);
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
 
-            if (!hasData) {
-                noDataMessage.classList.remove('hidden');
-            } else {
-                noDataMessage.classList.add('hidden');
-            }
-
-            if (document.querySelectorAll('.task-bar').length > 0) {
-                gsap.from('.task-bar', { scaleX: 0, duration: 1, stagger: 0.1, ease: 'power2.out' });
-            } else {
-                console.warn('[Client] Aucun élément .task-bar trouvé pour l’animation GSAP');
-            }
-        }
-
-        // Rendre les graphiques en anneau
-        function renderDoughnuts(data = tableauxData) {
-            const container = document.getElementById('doughnut-container');
-            container.innerHTML = '';
-
-            const categories = ['Conforme', 'Non conforme', 'Non applicable', 'En attente', 'Non contrôlé'];
-            const colors = ['#22c55e', '#dc2626', '#f4b400', '#9333ea', '#6B7280'];
-
-            const groups = currentTableauId
-                ? data.filter(t => t.id === currentTableauId).map(t => ({
-                      id: t.id,
-                      building: t.id.split('-')[0] || 'Inconnu',
-                      disjoncteurs: t.disjoncteurs.filter(d => d.id)
-                  }))
-                : [...new Set(data.map(t => t.id.split('-')[0] || 'Inconnu'))].map(b => ({
-                      id: b,
-                      building: b,
-                      disjoncteurs: data.filter(t => t.id.split('-')[0] === b).flatMap(t => t.disjoncteurs.filter(d => d.id))
-                  }));
-
-            groups.forEach((group, index) => {
-                const div = document.createElement('div');
-                div.className = 'bg-gray-700 p-4 rounded-lg shadow flex flex-col items-center';
-                const canvas = document.createElement('canvas');
-                canvas.id = `doughnut-${index}`;
-                canvas.className = 'max-w-[300px] w-full';
-                div.appendChild(canvas);
-                const title = document.createElement('h3');
-                title.className = 'text-base sm:text-lg font-semibold mb-2 text-center';
-                title.innerHTML = `<i class="fas ${group.building === group.id ? 'fa-table' : 'fa-building'} mr-2"></i>${group.building === group.id ? `Tableau ${group.id}` : `Bâtiment ${group.building}`}`;
-                div.insertBefore(title, canvas);
-                container.appendChild(div);
-
-                const counts = categories.reduce((acc, cat, i) => {
-                    acc[cat] = group.disjoncteurs.filter(d => {
-                        const latestCheck = checklistsData
-                            .filter(c => c.tableau_id === (group.building === group.id ? group.id : data.find(t => t.disjoncteurs.includes(d)).id) && c.disjoncteur_id === d.id)
-                            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-                        let status = latestCheck ? latestCheck.status : 'Non contrôlé';
-                        let isValidChecklist = false;
-                        let points = [];
-                        if (latestCheck) {
-                            if (isValidJson(latestCheck.comment)) {
-                                try {
-                                    const comment = latestCheck.comment.startsWith('Checklist vide: ') 
-                                        ? latestCheck.comment.replace('Checklist vide: ', '') 
-                                        : latestCheck.comment;
-                                    points = JSON.parse(comment).points || [];
-                                    isValidChecklist = true;
-                                } catch (e) {
-                                    console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
-                                }
-                            }
-                            status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
+                        if (width > maxWidth) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
                         }
-                        return (i === 0 && status === 'Conforme') ||
-                               (i === 1 && status === 'Non conforme') ||
-                               (i === 2 && status === 'Non applicable') ||
-                               (i === 3 && status === 'En attente') ||
-                               (i === 4 && status === 'Non contrôlé');
-                    }).length;
-                    return acc;
-                }, {});
+                        if (height > maxHeight) {
+                            width = Math.round((width * maxHeight) / height);
+                            height = maxHeight;
+                        }
 
-                chartInstances[`doughnut-${index}`] = new Chart(canvas, {
-                    type: 'doughnut',
-                    data: {
-                        labels: categories,
-                        datasets: [{
-                            data: categories.map(c => counts[c]),
-                            backgroundColor: colors
-                        }]
-                    },
-                    options: {
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                                labels: {
-                                    color: '#ffffff',
-                                    font: { size: 12 },
-                                    generateLabels: chart => chart.data.labels.map((label, i) => ({
-                                        text: label,
-                                        fillStyle: colors[i],
-                                        strokeStyle: colors[i],
-                                        lineWidth: 1
-                                    }))
-                                }
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        canvas.toBlob(
+                            blob => {
+                                URL.revokeObjectURL(img.src);
+                                resolve(blob);
                             },
-                            tooltip: { backgroundColor: '#1F2937', titleColor: '#ffffff', bodyColor: '#ffffff' }
-                        },
-                        animation: { duration: 1500, easing: 'easeOutBounce' },
-                        maintainAspectRatio: true
-                    }
-                });
-
-                gsap.from(`#doughnut-${index}`, { opacity: 0, y: 20, duration: 1, delay: index * 0.2, ease: 'power2.out' });
-            });
-        }
-
-        // Rendre les graphiques avancés
-        function renderAdvancedCharts(data = tableauxData) {
-            const categories = ['Conforme', 'Non conforme', 'Non applicable', 'En attente', 'Non contrôlé'];
-            const colors = ['#22c55e', '#dc2626', '#f4b400', '#9333ea', '#6B7280'];
-
-            destroyCharts();
-
-            // Graphique en barres
-            const barCanvas = document.getElementById('bar-chart');
-            const buildings = [...new Set(data.map(t => t.id.split('-')[0] || 'Inconnu'))].sort();
-            const barData = buildings.map(building => ({
-                label: building,
-                data: categories.map(cat => {
-                    const disjoncteurs = data.filter(t => t.id.split('-')[0] === building).flatMap(t => t.disjoncteurs.filter(d => d.id));
-                    return disjoncteurs.filter(d => {
-                        const latestCheck = checklistsData
-                            .filter(c => c.tableau_id === data.find(t => t.disjoncteurs.includes(d)).id && c.disjoncteur_id === d.id)
-                            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-                        let status = latestCheck ? latestCheck.status : 'Non contrôlé';
-                        let isValidChecklist = false;
-                        let points = [];
-                        if (latestCheck) {
-                            if (isValidJson(latestCheck.comment)) {
-                                try {
-                                    const comment = latestCheck.comment.startsWith('Checklist vide: ') 
-                                        ? latestCheck.comment.replace('Checklist vide: ', '') 
-                                        : latestCheck.comment;
-                                    points = JSON.parse(comment).points || [];
-                                    isValidChecklist = true;
-                                } catch (e) {
-                                    console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
-                                }
-                            }
-                            status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
-                        }
-                        return status === cat;
-                    }).length;
-                })
-            }));
-
-            chartInstances['bar-chart'] = new Chart(barCanvas, {
-                type: 'bar',
-                data: {
-                    labels: categories,
-                    datasets: barData.map((d, i) => ({
-                        label: d.label,
-                        data: d.data,
-                        backgroundColor: colors[i % colors.length],
-                        borderColor: colors[i % colors.length],
-                        borderWidth: 1
-                    }))
-                },
-                options: {
-                    scales: {
-                        y: { 
-                            beginAtZero: true, 
-                            title: { display: true, text: 'Nombre de disjoncteurs', color: '#ffffff', font: { size: 12 } },
-                            ticks: { color: '#ffffff', font: { size: 10 } },
-                            grid: { color: '#4B5563' }
-                        },
-                        x: { 
-                            title: { display: true, text: 'Statut', color: '#ffffff', font: { size: 12 } },
-                            ticks: { color: '#ffffff', font: { size: 10 } },
-                            grid: { display: false }
-                        }
-                    },
-                    plugins: { 
-                        legend: { position: 'top', labels: { color: '#ffffff', font: { size: 12 } } },
-                        tooltip: { backgroundColor: '#1F2937', titleColor: '#ffffff', bodyColor: '#ffffff' }
-                    },
-                    animation: { duration: 1500, easing: 'easeOutBounce' }
-                }
-            });
-
-            // Graphique en ligne
-            const lineCanvas = document.getElementById('line-chart');
-            const dates = [...new Set(checklistsData.map(c => new Date(c.timestamp).toLocaleDateString('fr-FR')))].sort((a, b) => new Date(a) - new Date(b));
-            const lineData = categories.map((cat, i) => ({
-                label: cat,
-                data: dates.map(date => checklistsData.filter(c => {
-                    const checkDate = new Date(c.timestamp).toLocaleDateString('fr-FR');
-                    let status = c.status;
-                    let isValidChecklist = false;
-                    let points = [];
-                    if (isValidJson(c.comment)) {
-                        try {
-                            const comment = c.comment.startsWith('Checklist vide: ') 
-                                ? c.comment.replace('Checklist vide: ', '') 
-                                : c.comment;
-                            points = JSON.parse(comment).points || [];
-                            isValidChecklist = true;
-                        } catch (e) {
-                            console.warn('[Client] Erreur parsing comment:', c.comment);
-                        }
-                    }
-                    status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
-                    return checkDate === date && status === cat;
-                }).length),
-                borderColor: colors[i],
-                backgroundColor: colors[i],
-                fill: false,
-                tension: 0.4
-            }));
-
-            chartInstances['line-chart'] = new Chart(lineCanvas, {
-                type: 'line',
-                data: {
-                    labels: dates,
-                    datasets: lineData
-                },
-                options: {
-                    scales: {
-                        y: { 
-                            beginAtZero: true, 
-                            title: { display: true, text: 'Nombre de contrôles', color: '#ffffff', font: { size: 12 } },
-                            ticks: { color: '#ffffff', font: { size: 10 } },
-                            grid: { color: '#4B5563' }
-                        },
-                        x: { 
-                            title: { display: true, text: 'Date', color: '#ffffff', font: { size: 12 } },
-                            ticks: { color: '#ffffff', font: { size: 10 } },
-                            grid: { display: false }
-                        }
-                    },
-                    plugins: { 
-                        legend: { position: 'top', labels: { color: '#ffffff', font: { size: 12 } } },
-                        tooltip: { backgroundColor: '#1F2937', titleColor: '#ffffff', bodyColor: '#ffffff' }
-                    },
-                    animation: { duration: 1500, easing: 'easeOutBounce' }
-                }
-            });
-
-            // Graphique en nuage de points
-            const scatterCanvas = document.getElementById('scatter-chart');
-            const scatterData = categories.map((cat, i) => ({
-                label: cat,
-                data: data.flatMap(t => t.disjoncteurs.filter(d => d.id).map(d => {
-                    const latestCheck = checklistsData
-                        .filter(c => c.tableau_id === t.id && c.disjoncteur_id === d.id)
-                        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-                    let status = latestCheck ? latestCheck.status : 'Non contrôlé';
-                    let isValidChecklist = false;
-                    let points = [];
-                    if (latestCheck) {
-                        if (isValidJson(latestCheck.comment)) {
-                            try {
-                                const comment = latestCheck.comment.startsWith('Checklist vide: ') 
-                                    ? latestCheck.comment.replace('Checklist vide: ', '') 
-                                    : latestCheck.comment;
-                                points = JSON.parse(comment).points || [];
-                                isValidChecklist = true;
-                            } catch (e) {
-                                console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
-                            }
-                        }
-                        status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
-                    }
-                    return status === cat ? { x: normalizeCurrent(d.in) || 0, y: Math.random() * 100 } : null;
-                }).filter(d => d !== null)),
-                backgroundColor: colors[i],
-                pointRadius: 5
-            }));
-
-            chartInstances['scatter-chart'] = new Chart(scatterCanvas, {
-                type: 'scatter',
-                data: { datasets: scatterData },
-                options: {
-                    scales: {
-                        x: { 
-                            title: { display: true, text: 'Courant nominal (A)', color: '#ffffff', font: { size: 12 } },
-                            beginAtZero: true,
-                            ticks: { color: '#ffffff', font: { size: 10 } },
-                            grid: { color: '#4B5563' }
-                        },
-                        y: { 
-                            title: { display: true, text: 'Valeur aléatoire', color: '#ffffff', font: { size: 12 } },
-                            beginAtZero: true,
-                            max: 100,
-                            ticks: { color: '#ffffff', font: { size: 10 } },
-                            grid: { color: '#4B5563' }
-                        }
-                    },
-                    plugins: { 
-                        legend: { position: 'top', labels: { color: '#ffffff', font: { size: 12 } } },
-                        tooltip: { backgroundColor: '#1F2937', titleColor: '#ffffff', bodyColor: '#ffffff' }
-                    },
-                    animation: { duration: 1500, easing: 'easeOutBounce' }
-                }
-            });
-
-            gsap.from('#advanced-charts-container > div', { opacity: 0, y: 20, duration: 1, stagger: 0.2, ease: 'power2.out' });
-        }
-
-        // Ouvrir le modal pour voir l’historique des checklists
-        function openBreakerModal(tableauId, breakerId, sanitizedId) {
-            const modal = document.getElementById('modal-breaker');
-            const tableau = tableauxData.find(t => t.id === tableauId);
-            if (!tableau) {
-                console.error('[Client] Tableau non trouvé:', tableauId);
-                showErrorPopup('Erreur: Tableau non trouvé');
-                return;
-            }
-            const breaker = tableau.disjoncteurs.find(d => d.id === breakerId);
-            if (!breaker) {
-                console.error('[Client] Disjoncteur non trouvé:', breakerId);
-                showErrorPopup('Erreur: Disjoncteur non trouvé');
-                return;
-            }
-
-            const breakerChecks = checklistsData
-                .filter(c => c.tableau_id === tableauId && c.disjoncteur_id === breakerId)
-                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-            let content = `
-                <p><strong>Tableau :</strong> ${tableau.id}${tableau.issitemain ? ' (Principal)' : ''}</p>
-                <p><strong>Disjoncteur :</strong> ${breaker.id}</p>
-                <p><strong>Marque :</strong> ${breaker.marque || 'Inconnu'}</p>
-                <p><strong>Référence :</strong> ${breaker.ref || 'Inconnu'}</p>
-                <p><strong>Courant nominal :</strong> ${breaker.in || 'Inconnu'}</p>
-                <p><strong>Liaisons :</strong> ${breaker.linkedTableauIds?.length > 0 ? breaker.linkedTableauIds.join(', ') : 'Aucune'}</p>
-                <h3 class="text-base sm:text-lg font-semibold mt-4">Historique des contrôles :</h3>
-                <div class="space-y-4">
-                    ${breakerChecks.length > 0 ? breakerChecks.map(check => {
-                        let points = [];
-                        let commentGlobal = '';
-                        let checklistName = 'Sans nom';
-                        let isValidChecklist = false;
-                        if (isValidJson(check.comment)) {
-                            try {
-                                const comment = check.comment.startsWith('Checklist vide: ') 
-                                    ? check.comment.replace('Checklist vide: ', '') 
-                                    : check.comment;
-                                const parsed = JSON.parse(comment);
-                                points = parsed.points || [];
-                                commentGlobal = parsed.comment || '';
-                                checklistName = parsed.name || 'Sans nom';
-                                isValidChecklist = true;
-                            } catch (e) {
-                                console.warn('[Client] Erreur parsing comment:', check.comment);
-                            }
-                        } else {
-                            points = [{ description: 'Contrôle par défaut', status: null, value: null }];
-                            commentGlobal = check.comment;
-                        }
-                        const isPending = isValidChecklist && check.status === 'Non applicable' && points.every(p => !p.status);
-                        return `
-                            <div class="bg-gray-700 p-4 rounded-lg">
-                                <p><strong>Checklist :</strong> ${checklistName}</p>
-                                <p><strong>Statut global :</strong> <span class="${check.status === 'Conforme' ? 'text-green-500' : check.status === 'Non conforme' ? 'text-red-500' : check.status === 'Non applicable' && !isPending ? 'text-yellow-400' : isPending ? 'text-purple-500' : 'text-blue-400'}">
-                                    <i class="fas ${check.status === 'Conforme' ? 'fa-check-circle' : check.status === 'Non conforme' ? 'fa-times-circle' : check.status === 'Non applicable' && !isPending ? 'fa-hourglass-half' : isPending ? 'fa-clock' : 'fa-balance-scale'} mr-1"></i>
-                                    ${isPending ? 'En attente' : check.status}
-                                </span></p>
-                                <p><strong>Date :</strong> ${new Date(check.timestamp).toLocaleString('fr-FR')}</p>
-                                <h4 class="text-sm sm:text-md font-semibold mt-2">Points de contrôle :</h4>
-                                <ul class="list-disc pl-6">
-                                    ${points.length > 0 ? points.map(p => `
-                                        <li>
-                                            ${p.description} : <span class="${p.status === 'Conforme' ? 'text-green-500' : p.status === 'Non conforme' ? 'text-red-500' : p.status === 'Non applicable' ? 'text-yellow-400' : 'text-gray-400'}">${p.status || 'Non défini'}</span>
-                                            ${p.value ? `<br>Valeur : ${p.value}` : ''}
-                                        </li>
-                                    `).join('') : '<li>Aucun point défini</li>'}
-                                </ul>
-                                <p><strong>Commentaire global :</strong> ${commentGlobal || 'Aucun'}</p>
-                                <p><strong>Photo :</strong> ${check.photo ? `<img src="${check.photo}" alt="Photo contrôle" class="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded mt-2" />` : 'Aucune'}</p>
-                                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mt-2">
-                                    <button class="${isPending ? 'complete-check' : 'edit-check'} bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition text-sm sm:text-base touch-friendly" data-check-id="${check.id}">
-                                        <i class="fas ${isPending ? 'fa-check' : 'fa-edit'}"></i> ${isPending ? 'Compléter' : 'Modifier'}
-                                    </button>
-                                    <button class="delete-check bg-red-600 text-white p-2 rounded hover:bg-red-700 transition text-sm sm:text-base touch-friendly" data-check-id="${check.id}">
-                                        <i class="fas fa-trash"></i> Supprimer
-                                    </button>
-                                </div>
-                            </div>
-                        `;
-                    }).join('') : '<p class="p-2 text-center">Aucun contrôle trouvé</p>'}
-                </div>
-            `;
-            document.getElementById('modal-content').innerHTML = content;
-
-            document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
-            document.querySelectorAll('.complete-check, .edit-check').forEach(btn => {
-                btn.onclick = () => {
-                    const checkId = btn.dataset.checkId;
-                    const check = breakerChecks.find(c => c.id == checkId);
-                    openCompleteChecklistModal(check, tableauId, breakerId, sanitizedId);
-                };
-            });
-            document.querySelectorAll('.delete-check').forEach(btn => {
-                btn.onclick = () => deleteChecklist(btn.dataset.checkId, tableauId, breakerId, sanitizedId);
-            });
-
-            modal.classList.remove('hidden');
-            gsap.from('#modal-breaker > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
-        }
-
-        // Ouvrir le modal pour créer une checklist
-        function openCreateChecklistModal() {
-            const modal = document.getElementById('modal-create-checklist');
-            const form = document.getElementById('create-checklist-form');
-            const pointsContainer = document.getElementById('checklist-points');
-            const addPointBtn = document.getElementById('add-point');
-            const checklistNameInput = document.getElementById('checklist-name');
-
-            checklistNameInput.value = '';
-            let points = [{ description: '', value: null }];
-            let pointCount = 1;
-
-            function renderPoints() {
-                pointsContainer.innerHTML = '';
-                points.forEach((point, index) => {
-                    const div = document.createElement('div');
-                    div.className = 'flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start';
-                    div.innerHTML = `
-                        <div class="flex-1">
-                            <label class="block text-sm font-medium">Point ${index + 1}</label>
-                            <input type="text" class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.description}" placeholder="Ex: Vérification câblage" required>
-                        </div>
-                        <div class="flex-1">
-                            <label class="block text-sm font-medium">Valeur (facultatif)</label>
-                            <input type="text" class="point-value mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.value || ''}" placeholder="Ex: 0.02 Ohm">
-                            <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition mt-2 sm:mt-6 ${pointCount === 1 ? 'invisible' : ''} touch-friendly">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    `;
-                    pointsContainer.appendChild(div);
-                });
-
-                pointsContainer.querySelectorAll('.remove-point').forEach((btn, index) => {
-                    btn.onclick = () => {
-                        points.splice(index, 1);
-                        pointCount--;
-                        renderPoints();
+                            'image/jpeg',
+                            quality
+                        );
+                    };
+                    img.onerror = () => {
+                        URL.revokeObjectURL(img.src);
+                        reject(new Error('Erreur lors du chargement de l’image.'));
                     };
                 });
             }
 
-            renderPoints();
+            // Convertir fichier en Base64 après compression
+            function toBase64(file) {
+                return new Promise((resolve, reject) => {
+                    compressImage(file)
+                        .then(compressedBlob => {
+                            const reader = new FileReader();
+                            reader.readAsDataURL(compressedBlob);
+                            reader.onload = () => {
+                                const base64 = reader.result;
+                                if (base64.length > 500 * 1024) {
+                                    reject(new Error('L’image compressée est encore trop volumineuse (max ~500 KB après compression).'));
+                                } else {
+                                    resolve(base64);
+                                }
+                            };
+                            reader.onerror = error => reject(error);
+                        })
+                        .catch(error => reject(error));
+                });
+            }
 
-            addPointBtn.onclick = () => {
-                if (pointCount < 10) {
-                    points.push({ description: '', value: null });
-                    pointCount++;
-                    renderPoints();
-                } else {
-                    showErrorPopup('Vous ne pouvez pas ajouter plus de 10 points de contrôle.');
+            // Mettre à jour le filtre des tableaux
+            function updateTableauFilter(selectedBuilding) {
+                const tableauFilter = document.getElementById('tableau-filter');
+                tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
+                const filteredTableaux = selectedBuilding 
+                    ? tableauxData.filter(t => t.id.split('-')[0] === selectedBuilding)
+                    : tableauxData;
+                filteredTableaux.forEach(t => {
+                    const option = document.createElement('option');
+                    option.value = t.id;
+                    option.textContent = t.id + (t.issitemain ? ' (Principal)' : '');
+                    tableauFilter.appendChild(option);
+                });
+            }
+
+            // Charger les données
+            async function loadData() {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+                    const tableauxResponse = await fetch('/api/tableaux', { signal: controller.signal });
+                    if (!tableauxResponse.ok) {
+                        const errorData = await tableauxResponse.text();
+                        throw new Error(`Erreur lors du chargement des tableaux: ${tableauxResponse.status} ${errorData || tableauxResponse.statusText}`);
+                    }
+                    tableauxData = await tableauxResponse.json();
+                    console.log('[Client] Tableaux chargés:', tableauxData.length);
+
+                    const checklistsResponse = await fetch('/api/breaker-checklists', { signal: controller.signal });
+                    if (!checklistsResponse.ok) {
+                        const errorData = await checklistsResponse.text();
+                        throw new Error(`Erreur lors du chargement des checklists: ${checklistsResponse.status} ${errorData || checklistsResponse.statusText}`);
+                    }
+                    const checklistsDataRaw = await checklistsResponse.json();
+                    checklistsData = Array.isArray(checklistsDataRaw) ? checklistsDataRaw : [];
+                    console.log('[Client] Checklists chargées:', checklistsData.length);
+
+                    clearTimeout(timeoutId);
+                    populateFilters();
+                    const { building } = restoreFilters();
+                    if (building) {
+                        filterData();
+                    } else {
+                        showNoBuildingMessage();
+                    }
+                } catch (error) {
+                    console.error('[Client] Erreur chargement:', {
+                        message: error.message,
+                        stack: error.stack
+                    });
+                    checklistsData = [];
+                    showErrorPopup('Erreur lors du chargement des données: ' + error.message);
+                    showNoBuildingMessage();
                 }
-            };
+            }
 
-            form.onsubmit = async (e) => {
-                e.preventDefault();
-                const checklistName = checklistNameInput.value.trim();
-                points = Array.from(pointsContainer.children).map(div => ({
-                    description: div.querySelector('.point-description').value.trim(),
-                    status: null,
-                    value: div.querySelector('.point-value').value.trim() || null
+            // Afficher le message "aucun bâtiment sélectionné"
+            function showNoBuildingMessage() {
+                document.getElementById('no-building-selected').classList.remove('hidden');
+                document.getElementById('gantt-section').classList.add('hidden');
+                document.getElementById('add-checklist-container').classList.add('hidden');
+                document.getElementById('doughnut-section').classList.add('hidden');
+                document.getElementById('advanced-charts-section').classList.add('hidden');
+                document.getElementById('no-data-message').classList.add('hidden');
+            }
+
+            // Remplir les filtres
+            function populateFilters() {
+                const buildingFilter = document.getElementById('building-filter');
+                const tableauFilter = document.getElementById('tableau-filter');
+                const buildings = [...new Set(tableauxData.map(t => t.id.split('-')[0] || 'Inconnu'))].sort();
+
+                buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
+                buildings.forEach(b => {
+                    const option = document.createElement('option');
+                    option.value = b;
+                    option.textContent = b;
+                    buildingFilter.appendChild(option);
+                });
+
+                const savedBuilding = localStorage.getItem('breakerControlBuildingFilter') || '';
+                updateTableauFilter(savedBuilding);
+
+                buildingFilter.onchange = () => {
+                    const selectedBuilding = buildingFilter.value;
+                    updateTableauFilter(selectedBuilding);
+                    saveFilters();
+                    filterData();
+                };
+                tableauFilter.onchange = () => {
+                    saveFilters();
+                    filterData();
+                };
+                document.getElementById('reset-filters').onclick = resetFilters;
+            }
+
+            // Filtrer les données
+            function filterData() {
+                const building = document.getElementById('building-filter').value;
+                currentTableauId = document.getElementById('tableau-filter').value;
+                
+                if (!building) {
+                    showNoBuildingMessage();
+                    return;
+                }
+
+                const filteredData = tableauxData.filter(t => 
+                    (!building || t.id.split('-')[0] === building) && 
+                    (!currentTableauId || t.id === currentTableauId)
+                );
+
+                document.getElementById('no-building-selected').classList.add('hidden');
+                document.getElementById('gantt-section').classList.remove('hidden');
+                document.getElementById('doughnut-section').classList.remove('hidden');
+                document.getElementById('advanced-charts-section').classList.remove('hidden');
+                renderGanttChart(filteredData);
+                renderDoughnuts(filteredData);
+                renderAdvancedCharts(filteredData);
+                toggleAddChecklistButton();
+            }
+
+            // Afficher/masquer les boutons Créer/Appliquer/Voir
+            function toggleAddChecklistButton() {
+                const container = document.getElementById('add-checklist-container');
+                if (currentTableauId) {
+                    container.classList.remove('hidden');
+                } else {
+                    container.classList.add('hidden');
+                }
+            }
+
+            // Rendre le diagramme de Gantt
+            function renderGanttChart(data = tableauxData) {
+                const tbody = document.getElementById('gantt-body');
+                const noDataMessage = document.getElementById('no-data-message');
+                tbody.innerHTML = '';
+
+                let hasData = false;
+                const filteredData = currentTableauId ? data.filter(t => t.id === currentTableauId) : data;
+
+                filteredData.forEach(tableau => {
+                    const validDisjoncteurs = tableau.disjoncteurs.filter(breaker => breaker.id);
+                    validDisjoncteurs.forEach(breaker => {
+                        const tr = document.createElement('tr');
+                        const tdBreaker = document.createElement('td');
+                        const sanitizedId = sanitizeId(breaker.id);
+                        tdBreaker.innerHTML = `${breaker.id}${tableau.issitemain ? ' (Principal)' : ''}`;
+                        tdBreaker.className = 'sticky left-0 bg-gray-700 font-medium p-2';
+                        tr.appendChild(tdBreaker);
+
+                        const tdStatus = document.createElement('td');
+                        const latestCheck = checklistsData
+                            .filter(c => c.tableau_id === tableau.id && c.disjoncteur_id === breaker.id)
+                            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                        let statusClass = 'task-bar';
+                        let statusText = 'Non contrôlé';
+                        if (latestCheck) {
+                            let points = [];
+                            let isValidChecklist = false;
+                            if (isValidJson(latestCheck.comment)) {
+                                try {
+                                    const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                        ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                        : latestCheck.comment;
+                                    points = JSON.parse(comment).points || [];
+                                    isValidChecklist = true;
+                                    statusText = latestCheck.status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : latestCheck.status;
+                                } catch (e) {
+                                    console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
+                                }
+                            }
+                            if (isValidChecklist) {
+                                if (statusText === 'Conforme') statusClass += ' task-bar-green';
+                                else if (statusText === 'Non conforme') statusClass += ' task-bar-red';
+                                else if (statusText === 'Non applicable') statusClass += ' task-bar-orange';
+                                else if (statusText === 'En attente') statusClass += ' task-bar-purple';
+                                else statusClass += ' task-bar-gray';
+                            } else {
+                                statusText = 'Non contrôlé';
+                                statusClass += ' task-bar-gray';
+                            }
+                        } else {
+                            statusClass += ' task-bar-gray';
+                        }
+                        const bar = document.createElement('div');
+                        bar.className = `${statusClass} p-2 flex items-center justify-center`;
+                        bar.dataset.tableauId = tableau.id;
+                        bar.dataset.breakerId = breaker.id;
+                        bar.dataset.sanitizedId = sanitizedId;
+                        bar.onclick = () => openBreakerModal(tableau.id, breaker.id, sanitizedId);
+                        bar.textContent = statusText;
+                        tdStatus.appendChild(bar);
+                        tr.appendChild(tdStatus);
+
+                        tbody.appendChild(tr);
+                        hasData = true;
+                    });
+                    if (validDisjoncteurs.length !== tableau.disjoncteurs.length) {
+                        console.warn('[Client] Disjoncteurs invalides détectés dans tableau:', tableau.id, 'Total:', tableau.disjoncteurs.length, 'Valides:', validDisjoncteurs.length);
+                    }
+                });
+
+                if (!hasData) {
+                    noDataMessage.classList.remove('hidden');
+                } else {
+                    noDataMessage.classList.add('hidden');
+                }
+
+                if (document.querySelectorAll('.task-bar').length > 0) {
+                    gsap.from('.task-bar', { scaleX: 0, duration: 1, stagger: 0.1, ease: 'power2.out' });
+                } else {
+                    console.warn('[Client] Aucun élément .task-bar trouvé pour l’animation GSAP');
+                }
+            }
+
+            // Rendre les graphiques en anneau
+            function renderDoughnuts(data = tableauxData) {
+                const container = document.getElementById('doughnut-container');
+                container.innerHTML = '';
+
+                const categories = ['Conforme', 'Non conforme', 'Non applicable', 'En attente', 'Non contrôlé'];
+                const colors = ['#22c55e', '#dc2626', '#f4b400', '#9333ea', '#6B7280'];
+
+                const groups = currentTableauId
+                    ? data.filter(t => t.id === currentTableauId).map(t => ({
+                          id: t.id,
+                          building: t.id.split('-')[0] || 'Inconnu',
+                          disjoncteurs: t.disjoncteurs.filter(d => d.id)
+                      }))
+                    : [...new Set(data.map(t => t.id.split('-')[0] || 'Inconnu'))].map(b => ({
+                          id: b,
+                          building: b,
+                          disjoncteurs: data.filter(t => t.id.split('-')[0] === b).flatMap(t => t.disjoncteurs.filter(d => d.id))
+                      }));
+
+                groups.forEach((group, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'bg-gray-700 p-4 rounded-lg shadow flex flex-col items-center';
+                    const canvas = document.createElement('canvas');
+                    canvas.id = `doughnut-${index}`;
+                    canvas.className = 'max-w-[300px] w-full';
+                    div.appendChild(canvas);
+                    const title = document.createElement('h3');
+                    title.className = 'text-base sm:text-lg font-semibold mb-2 text-center';
+                    title.innerHTML = `<i class="fas ${group.building === group.id ? 'fa-table' : 'fa-building'} mr-2"></i>${group.building === group.id ? `Tableau ${group.id}` : `Bâtiment ${group.building}`}`;
+                    div.insertBefore(title, canvas);
+                    container.appendChild(div);
+
+                    const counts = categories.reduce((acc, cat, i) => {
+                        acc[cat] = group.disjoncteurs.filter(d => {
+                            const latestCheck = checklistsData
+                                .filter(c => c.tableau_id === (group.building === group.id ? group.id : data.find(t => t.disjoncteurs.includes(d)).id) && c.disjoncteur_id === d.id)
+                                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                            let status = latestCheck ? latestCheck.status : 'Non contrôlé';
+                            let isValidChecklist = false;
+                            let points = [];
+                            if (latestCheck) {
+                                if (isValidJson(latestCheck.comment)) {
+                                    try {
+                                        const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                            ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                            : latestCheck.comment;
+                                        points = JSON.parse(comment).points || [];
+                                        isValidChecklist = true;
+                                    } catch (e) {
+                                        console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
+                                    }
+                                }
+                                status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
+                            }
+                            return (i === 0 && status === 'Conforme') ||
+                                   (i === 1 && status === 'Non conforme') ||
+                                   (i === 2 && status === 'Non applicable') ||
+                                   (i === 3 && status === 'En attente') ||
+                                   (i === 4 && status === 'Non contrôlé');
+                        }).length;
+                        return acc;
+                    }, {});
+
+                    chartInstances[`doughnut-${index}`] = new Chart(canvas, {
+                        type: 'doughnut',
+                        data: {
+                            labels: categories,
+                            datasets: [{
+                                data: categories.map(c => counts[c]),
+                                backgroundColor: colors
+                            }]
+                        },
+                        options: {
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        color: '#ffffff',
+                                        font: { size: 12 },
+                                        generateLabels: chart => chart.data.labels.map((label, i) => ({
+                                            text: label,
+                                            fillStyle: colors[i],
+                                            strokeStyle: colors[i],
+                                            lineWidth: 1
+                                        }))
+                                    }
+                                },
+                                tooltip: { backgroundColor: '#1F2937', titleColor: '#ffffff', bodyColor: '#ffffff' }
+                            },
+                            animation: { duration: 1500, easing: 'easeOutBounce' },
+                            maintainAspectRatio: true
+                        }
+                    });
+
+                    gsap.from(`#doughnut-${index}`, { opacity: 0, y: 20, duration: 1, delay: index * 0.2, ease: 'power2.out' });
+                });
+            }
+
+            // Rendre les graphiques avancés
+            function renderAdvancedCharts(data = tableauxData) {
+                const categories = ['Conforme', 'Non conforme', 'Non applicable', 'En attente', 'Non contrôlé'];
+                const colors = ['#22c55e', '#dc2626', '#f4b400', '#9333ea', '#6B7280'];
+
+                destroyCharts();
+
+                // Graphique en barres
+                const barCanvas = document.getElementById('bar-chart');
+                const buildings = [...new Set(data.map(t => t.id.split('-')[0] || 'Inconnu'))].sort();
+                const barData = buildings.map(building => ({
+                    label: building,
+                    data: categories.map(cat => {
+                        const disjoncteurs = data.filter(t => t.id.split('-')[0] === building).flatMap(t => t.disjoncteurs.filter(d => d.id));
+                        return disjoncteurs.filter(d => {
+                            const latestCheck = checklistsData
+                                .filter(c => c.tableau_id === data.find(t => t.disjoncteurs.includes(d)).id && c.disjoncteur_id === d.id)
+                                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                            let status = latestCheck ? latestCheck.status : 'Non contrôlé';
+                            let isValidChecklist = false;
+                            let points = [];
+                            if (latestCheck) {
+                                if (isValidJson(latestCheck.comment)) {
+                                    try {
+                                        const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                            ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                            : latestCheck.comment;
+                                        points = JSON.parse(comment).points || [];
+                                        isValidChecklist = true;
+                                    } catch (e) {
+                                        console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
+                                    }
+                                }
+                                status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
+                            }
+                            return status === cat;
+                        }).length;
+                    })
                 }));
 
-                if (!checklistName) {
-                    showErrorPopup('Veuillez donner un nom à la checklist.');
-                    return;
-                }
-                if (points.some(p => !p.description)) {
-                    showErrorPopup('Tous les points de contrôle doivent avoir une description.');
-                    return;
-                }
-
-                try {
-                    const tableau = tableauxData.find(t => t.id === currentTableauId);
-                    if (!tableau) throw new Error('Tableau non trouvé');
-
-                    const comment = JSON.stringify({ name: checklistName, points, comment: '' });
-
-                    for (const breaker of tableau.disjoncteurs.filter(b => b.id)) {
-                        console.log('[Client] Envoi POST /api/breaker-checklists:', {
-                            tableau_id: currentTableauId,
-                            disjoncteur_id: breaker.id,
-                            status: 'Non applicable',
-                            comment
-                        });
-                        const body = {
-                            tableau_id: currentTableauId,
-                            disjoncteur_id: breaker.id,
-                            status: 'Non applicable',
-                            comment,
-                            photo: null
-                        };
-
-                        const response = await fetch('/api/breaker-checklists', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(body)
-                        });
-                        const responseData = await response.json();
-                        if (!response.ok) throw new Error(`Erreur lors de l’enregistrement pour ${breaker.id}: ${responseData.error || response.statusText}`);
+                chartInstances['bar-chart'] = new Chart(barCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels: categories,
+                        datasets: barData.map((d, i) => ({
+                            label: d.label,
+                            data: d.data,
+                            backgroundColor: colors[i % colors.length],
+                            borderColor: colors[i % colors.length],
+                            borderWidth: 1
+                        }))
+                    },
+                    options: {
+                        scales: {
+                            y: { 
+                                beginAtZero: true, 
+                                title: { display: true, text: 'Nombre de disjoncteurs', color: '#ffffff', font: { size: 12 } },
+                                ticks: { color: '#ffffff', font: { size: 10 } },
+                                grid: { color: '#4B5563' }
+                            },
+                            x: { 
+                                title: { display: true, text: 'Statut', color: '#ffffff', font: { size: 12 } },
+                                ticks: { color: '#ffffff', font: { size: 10 } },
+                                grid: { display: false }
+                            }
+                        },
+                        plugins: { 
+                            legend: { position: 'top', labels: { color: '#ffffff', font: { size: 12 } } },
+                            tooltip: { backgroundColor: '#1F2937', titleColor: '#ffffff', bodyColor: '#ffffff' }
+                        },
+                        animation: { duration: 1500, easing: 'easeOutBounce' }
                     }
+                });
 
-                    modal.classList.add('hidden');
-                    await loadData();
-                } catch (error) {
-                    console.error('[Client] Erreur enregistrement checklist:', error);
-                    showErrorPopup('Erreur lors de la création de la checklist: ' + error.message);
-                }
-            };
-
-            document.getElementById('close-create-checklist-modal').onclick = () => modal.classList.add('hidden');
-            modal.classList.remove('hidden');
-            gsap.from('#modal-create-checklist > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
-        }
-
-        // Ouvrir le modal pour appliquer une checklist
-        function openApplyChecklistModal() {
-            const modal = document.getElementById('modal-apply-checklist');
-            const form = document.getElementById('apply-checklist-form');
-            const checklistSelect = document.getElementById('checklist-select');
-            const tableauxSelect = document.getElementById('tableaux-select');
-
-            checklistSelect.innerHTML = '<option value="">Choisir une checklist</option>';
-            const checklistMap = new Map();
-            checklistsData.forEach(c => {
-                if (isValidJson(c.comment)) {
-                    try {
-                        const parsed = JSON.parse(c.comment.startsWith('Checklist vide: ') ? c.comment.replace('Checklist vide: ', '') : c.comment);
-                        const key = parsed.name || `Checklist ${checklistsData.filter(ch => ch.comment === c.comment).length}`;
-                        if (!checklistMap.has(key)) {
-                            checklistMap.set(key, { comment: c.comment, points: parsed.points || [], name: key });
+                // Graphique en ligne
+                const lineCanvas = document.getElementById('line-chart');
+                const dates = [...new Set(checklistsData.map(c => new Date(c.timestamp).toLocaleDateString('fr-FR')))].sort((a, b) => new Date(a) - new Date(b));
+                const lineData = categories.map((cat, i) => ({
+                    label: cat,
+                    data: dates.map(date => checklistsData.filter(c => {
+                        const checkDate = new Date(c.timestamp).toLocaleDateString('fr-FR');
+                        let status = c.status;
+                        let isValidChecklist = false;
+                        let points = [];
+                        if (isValidJson(c.comment)) {
+                            try {
+                                const comment = c.comment.startsWith('Checklist vide: ') 
+                                    ? c.comment.replace('Checklist vide: ', '') 
+                                    : c.comment;
+                                points = JSON.parse(comment).points || [];
+                                isValidChecklist = true;
+                            } catch (e) {
+                                console.warn('[Client] Erreur parsing comment:', c.comment);
+                            }
                         }
-                    } catch (e) {
-                        console.warn('[Client] Erreur parsing comment:', c.comment);
+                        status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
+                        return checkDate === date && status === cat;
+                    }).length),
+                    borderColor: colors[i],
+                    backgroundColor: colors[i],
+                    fill: false,
+                    tension: 0.4
+                }));
+
+                chartInstances['line-chart'] = new Chart(lineCanvas, {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: lineData
+                    },
+                    options: {
+                        scales: {
+                            y: { 
+                                beginAtZero: true, 
+                                title: { display: true, text: 'Nombre de contrôles', color: '#ffffff', font: { size: 12 } },
+                                ticks: { color: '#ffffff', font: { size: 10 } },
+                                grid: { color: '#4B5563' }
+                            },
+                            x: { 
+                                title: { display: true, text: 'Date', color: '#ffffff', font: { size: 12 } },
+                                ticks: { color: '#ffffff', font: { size: 10 } },
+                                grid: { display: false }
+                            }
+                        },
+                        plugins: { 
+                            legend: { position: 'top', labels: { color: '#ffffff', font: { size: 12 } } },
+                            tooltip: { backgroundColor: '#1F2937', titleColor: '#ffffff', bodyColor: '#ffffff' }
+                        },
+                        animation: { duration: 1500, easing: 'easeOutBounce' }
                     }
+                });
+
+                // Graphique en nuage de points
+                const scatterCanvas = document.getElementById('scatter-chart');
+                const scatterData = categories.map((cat, i) => ({
+                    label: cat,
+                    data: data.flatMap(t => t.disjoncteurs.filter(d => d.id).map(d => {
+                        const latestCheck = checklistsData
+                            .filter(c => c.tableau_id === t.id && c.disjoncteur_id === d.id)
+                            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+                        let status = latestCheck ? latestCheck.status : 'Non contrôlé';
+                        let isValidChecklist = false;
+                        let points = [];
+                        if (latestCheck) {
+                            if (isValidJson(latestCheck.comment)) {
+                                try {
+                                    const comment = latestCheck.comment.startsWith('Checklist vide: ') 
+                                        ? latestCheck.comment.replace('Checklist vide: ', '') 
+                                        : latestCheck.comment;
+                                    points = JSON.parse(comment).points || [];
+                                    isValidChecklist = true;
+                                } catch (e) {
+                                    console.warn('[Client] Erreur parsing comment:', latestCheck.comment);
+                                }
+                            }
+                            status = isValidChecklist ? (status === 'Non applicable' && points.every(p => !p.status) ? 'En attente' : status) : 'Non contrôlé';
+                        }
+                        return status === cat ? { x: normalizeCurrent(d.in) || 0, y: Math.random() * 100 } : null;
+                    }).filter(d => d !== null)),
+                    backgroundColor: colors[i],
+                    pointRadius: 5
+                }));
+
+                chartInstances['scatter-chart'] = new Chart(scatterCanvas, {
+                    type: 'scatter',
+                    data: { datasets: scatterData },
+                    options: {
+                        scales: {
+                            x: { 
+                                title: { display: true, text: 'Courant nominal (A)', color: '#ffffff', font: { size: 12 } },
+                                beginAtZero: true,
+                                ticks: { color: '#ffffff', font: { size: 10 } },
+                                grid: { color: '#4B5563' }
+                            },
+                            y: { 
+                                title: { display: true, text: 'Valeur aléatoire', color: '#ffffff', font: { size: 12 } },
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: { color: '#ffffff', font: { size: 10 } },
+                                grid: { color: '#4B5563' }
+                            }
+                        },
+                        plugins: { 
+                            legend: { position: 'top', labels: { color: '#ffffff', font: { size: 12 } } },
+                            tooltip: { backgroundColor: '#1F2937', titleColor: '#ffffff', bodyColor: '#ffffff' }
+                        },
+                        animation: { duration: 1500, easing: 'easeOutBounce' }
+                    }
+                });
+
+                gsap.from('#advanced-charts-container > div', { opacity: 0, y: 20, duration: 1, stagger: 0.2, ease: 'power2.out' });
+            }
+
+            // Ouvrir le modal pour voir l’historique des checklists
+            function openBreakerModal(tableauId, breakerId, sanitizedId) {
+                console.log('[Client] Ouverture modal pour:', { tableauId, breakerId, sanitizedId });
+                const modal = document.getElementById('modal-breaker');
+                const tableau = tableauxData.find(t => t.id === tableauId);
+                if (!tableau) {
+                    console.error('[Client] Tableau non trouvé:', tableauId);
+                    showErrorPopup('Erreur: Tableau non trouvé');
+                    return;
                 }
-            });
-
-            const uniqueChecklists = Array.from(checklistMap.values());
-            uniqueChecklists.forEach(c => {
-                const option = document.createElement('option');
-                option.value = c.comment;
-                option.textContent = `${c.name} (${c.points.length} points)`;
-                checklistSelect.appendChild(option);
-            });
-
-            tableauxSelect.innerHTML = '';
-            tableauxData.forEach(tableau => {
-                const div = document.createElement('div');
-                div.className = 'flex items-center';
-                div.innerHTML = `
-                    <input type="checkbox" class="tableau-checkbox mr-2" value="${tableau.id}">
-                    <label>${tableau.id}${tableau.issitemain ? ' (Principal)' : ''}</label>
-                `;
-                tableauxSelect.appendChild(div);
-            });
-
-            form.onsubmit = async (e) => {
-                e.preventDefault();
-                const selectedChecklist = checklistSelect.value;
-                const selectedTableaux = Array.from(tableauxSelect.querySelectorAll('.tableau-checkbox:checked')).map(cb => cb.value);
-
-                if (!selectedChecklist || selectedTableaux.length === 0) {
-                    showErrorPopup('Veuillez sélectionner une checklist et au moins un tableau.');
+                const breaker = tableau.disjoncteurs.find(d => d.id === breakerId);
+                if (!breaker) {
+                    console.error('[Client] Disjoncteur non trouvé:', breakerId);
+                    showErrorPopup('Erreur: Disjoncteur non trouvé');
                     return;
                 }
 
-                try {
-                    for (const tableauId of selectedTableaux) {
-                        const tableau = tableauxData.find(t => t.id === tableauId);
-                        if (!tableau) continue;
+                const breakerChecks = checklistsData
+                    .filter(c => c.tableau_id === tableauId && c.disjoncteur_id === breakerId)
+                    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                let content = `
+                    <p><strong>Tableau :</strong> ${tableau.id}${tableau.issitemain ? ' (Principal)' : ''}</p>
+                    <p><strong>Disjoncteur :</strong> ${breaker.id}</p>
+                    <p><strong>Marque :</strong> ${breaker.marque || 'Inconnu'}</p>
+                    <p><strong>Référence :</strong> ${breaker.ref || 'Inconnu'}</p>
+                    <p><strong>Courant nominal :</strong> ${breaker.in || 'Inconnu'}</p>
+                    <p><strong>Liaisons :</strong> ${breaker.linkedTableauIds?.length > 0 ? breaker.linkedTableauIds.join(', ') : 'Aucune'}</p>
+                    <h3 class="text-base sm:text-lg font-semibold mt-4">Historique des contrôles :</h3>
+                    <div class="space-y-4">
+                        ${breakerChecks.length > 0 ? breakerChecks.map(check => {
+                            let points = [];
+                            let commentGlobal = '';
+                            let checklistName = 'Sans nom';
+                            let isValidChecklist = false;
+                            if (isValidJson(check.comment)) {
+                                try {
+                                    const comment = check.comment.startsWith('Checklist vide: ') 
+                                        ? check.comment.replace('Checklist vide: ', '') 
+                                        : check.comment;
+                                    const parsed = JSON.parse(comment);
+                                    points = parsed.points || [];
+                                    commentGlobal = parsed.comment || '';
+                                    checklistName = parsed.name || 'Sans nom';
+                                    isValidChecklist = true;
+                                } catch (e) {
+                                    console.warn('[Client] Erreur parsing comment:', check.comment);
+                                }
+                            } else {
+                                points = [{ description: 'Contrôle par défaut', status: null, value: null }];
+                                commentGlobal = check.comment;
+                            }
+                            const isPending = isValidChecklist && check.status === 'Non applicable' && points.every(p => !p.status);
+                            return `
+                                <div class="bg-gray-700 p-4 rounded-lg">
+                                    <p><strong>Checklist :</strong> ${checklistName}</p>
+                                    <p><strong>Statut global :</strong> <span class="${check.status === 'Conforme' ? 'text-green-500' : check.status === 'Non conforme' ? 'text-red-500' : check.status === 'Non applicable' && !isPending ? 'text-yellow-400' : isPending ? 'text-purple-500' : 'text-blue-400'}">
+                                        <i class="fas ${check.status === 'Conforme' ? 'fa-check-circle' : check.status === 'Non conforme' ? 'fa-times-circle' : check.status === 'Non applicable' && !isPending ? 'fa-hourglass-half' : isPending ? 'fa-clock' : 'fa-balance-scale'} mr-1"></i>
+                                        ${isPending ? 'En attente' : check.status}
+                                    </span></p>
+                                    <p><strong>Date :</strong> ${new Date(check.timestamp).toLocaleString('fr-FR')}</p>
+                                    <h4 class="text-sm sm:text-md font-semibold mt-2">Points de contrôle :</h4>
+                                    <ul class="list-disc pl-6">
+                                        ${points.length > 0 ? points.map(p => `
+                                            <li>
+                                                ${p.description} : <span class="${p.status === 'Conforme' ? 'text-green-500' : p.status === 'Non conforme' ? 'text-red-500' : p.status === 'Non applicable' ? 'text-yellow-400' : 'text-gray-400'}">${p.status || 'Non défini'}</span>
+                                                ${p.value ? `<br>Valeur : ${p.value}` : ''}
+                                            </li>
+                                        `).join('') : '<li>Aucun point défini</li>'}
+                                    </ul>
+                                    <p><strong>Commentaire global :</strong> ${commentGlobal || 'Aucun'}</p>
+                                    <p><strong>Photo :</strong> ${check.photo ? `<img src="${check.photo}" alt="Photo contrôle" class="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded mt-2" />` : 'Aucune'}</p>
+                                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mt-2">
+                                        <button class="${isPending ? 'complete-check' : 'edit-check'} bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition text-sm sm:text-base touch-friendly" data-check-id="${check.id}">
+                                            <i class="fas ${isPending ? 'fa-check' : 'fa-edit'}"></i> ${isPending ? 'Compléter' : 'Modifier'}
+                                        </button>
+                                        <button class="delete-check bg-red-600 text-white p-2 rounded hover:bg-red-700 transition text-sm sm:text-base touch-friendly" data-check-id="${check.id}">
+                                            <i class="fas fa-trash"></i> Supprimer
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('') : '<p class="p-2 text-center">Aucun contrôle trouvé</p>'}
+                    </div>
+                `;
+                document.getElementById('modal-content').innerHTML = content;
+
+                document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
+                document.querySelectorAll('.complete-check, .edit-check').forEach(btn => {
+                    btn.onclick = () => {
+                        const checkId = btn.dataset.checkId;
+                        const check = breakerChecks.find(c => c.id == checkId);
+                        openCompleteChecklistModal(check, tableauId, breakerId, sanitizedId);
+                    };
+                });
+                document.querySelectorAll('.delete-check').forEach(btn => {
+                    btn.onclick = () => deleteChecklist(btn.dataset.checkId, tableauId, breakerId, sanitizedId);
+                });
+
+                modal.classList.remove('hidden');
+                gsap.from('#modal-breaker > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+            }
+
+            // Ouvrir le modal pour créer une checklist
+            function openCreateChecklistModal() {
+                console.log('[Client] Ouverture modal création checklist');
+                const modal = document.getElementById('modal-create-checklist');
+                const form = document.getElementById('create-checklist-form');
+                const pointsContainer = document.getElementById('checklist-points');
+                const addPointBtn = document.getElementById('add-point');
+                const checklistNameInput = document.getElementById('checklist-name');
+
+                checklistNameInput.value = '';
+                let points = [{ description: '', value: null }];
+                let pointCount = 1;
+
+                function renderPoints() {
+                    pointsContainer.innerHTML = '';
+                    points.forEach((point, index) => {
+                        const div = document.createElement('div');
+                        div.className = 'flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start';
+                        div.innerHTML = `
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium">Point ${index + 1}</label>
+                                <input type="text" class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.description}" placeholder="Ex: Vérification câblage" required>
+                            </div>
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium">Valeur (facultatif)</label>
+                                <input type="text" class="point-value mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.value || ''}" placeholder="Ex: 0.02 Ohm">
+                                <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition mt-2 sm:mt-6 ${pointCount === 1 ? 'invisible' : ''} touch-friendly">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                        pointsContainer.appendChild(div);
+                    });
+
+                    pointsContainer.querySelectorAll('.remove-point').forEach((btn, index) => {
+                        btn.onclick = () => {
+                            points.splice(index, 1);
+                            pointCount--;
+                            renderPoints();
+                        };
+                    });
+                }
+
+                renderPoints();
+
+                addPointBtn.onclick = () => {
+                    if (pointCount < 10) {
+                        points.push({ description: '', value: null });
+                        pointCount++;
+                        renderPoints();
+                    } else {
+                        showErrorPopup('Vous ne pouvez pas ajouter plus de 10 points de contrôle.');
+                    }
+                };
+
+                form.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const checklistName = checklistNameInput.value.trim();
+                    points = Array.from(pointsContainer.children).map(div => ({
+                        description: div.querySelector('.point-description').value.trim(),
+                        status: null,
+                        value: div.querySelector('.point-value').value.trim() || null
+                    }));
+
+                    if (!checklistName) {
+                        showErrorPopup('Veuillez donner un nom à la checklist.');
+                        return;
+                    }
+                    if (points.some(p => !p.description)) {
+                        showErrorPopup('Tous les points de contrôle doivent avoir une description.');
+                        return;
+                    }
+
+                    try {
+                        const tableau = tableauxData.find(t => t.id === currentTableauId);
+                        if (!tableau) throw new Error('Tableau non trouvé');
+
+                        const comment = JSON.stringify({ name: checklistName, points, comment: '' });
 
                         for (const breaker of tableau.disjoncteurs.filter(b => b.id)) {
-                            const existingCheck = checklistsData.find(c => 
-                                c.tableau_id === tableauId && 
-                                c.disjoncteur_id === breaker.id && 
-                                c.comment === selectedChecklist
-                            );
-                            if (existingCheck) {
-                                console.log('[Client] Checklist déjà appliquée pour', breaker.id, 'dans', tableauId);
-                                continue;
-                            }
-
                             console.log('[Client] Envoi POST /api/breaker-checklists:', {
-                                tableau_id: tableauId,
+                                tableau_id: currentTableauId,
                                 disjoncteur_id: breaker.id,
                                 status: 'Non applicable',
-                                comment: selectedChecklist
+                                comment
                             });
                             const body = {
-                                tableau_id: tableauId,
+                                tableau_id: currentTableauId,
                                 disjoncteur_id: breaker.id,
                                 status: 'Non applicable',
-                                comment: selectedChecklist,
+                                comment,
                                 photo: null
                             };
 
@@ -1285,405 +1119,462 @@ Voici la suite du fichier `breaker_control.html` corrigé, avec les modification
                                 body: JSON.stringify(body)
                             });
                             const responseData = await response.json();
-                            if (!response.ok) throw new Error(`Erreur lors de l’application pour ${breaker.id} dans ${tableauId}: ${responseData.error || response.statusText}`);
+                            if (!response.ok) throw new Error(`Erreur lors de l’enregistrement pour ${breaker.id}: ${responseData.error || response.statusText}`);
                         }
+
+                        modal.classList.add('hidden');
+                        await loadData();
+                    } catch (error) {
+                        console.error('[Client] Erreur enregistrement checklist:', error);
+                        showErrorPopup('Erreur lors de la création de la checklist: ' + error.message);
                     }
+                };
 
-                    modal.classList.add('hidden');
-                    await loadData();
-                } catch (error) {
-                    console.error('[Client] Erreur application checklist:', error);
-                    showErrorPopup('Erreur lors de l’application de la checklist: ' + error.message);
-                }
-            };
-
-            document.getElementById('close-apply-checklist-modal').onclick = () => modal.classList.add('hidden');
-            modal.classList.remove('hidden');
-            gsap.from('#modal-apply-checklist > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
-        }
-
-        // Ouvrir le modal pour voir et gérer les checklists
-        function openViewChecklistsModal() {
-            const modal = document.getElementById('modal-view-checklists');
-            const content = document.getElementById('checklists-content');
-
-            const checklistMap = new Map();
-            checklistsData.forEach(c => {
-                if (isValidJson(c.comment)) {
-                    try {
-                        const parsed = JSON.parse(c.comment.startsWith('Checklist vide: ') ? c.comment.replace('Checklist vide: ', '') : c.comment);
-                        const key = parsed.name || `Checklist ${checklistsData.filter(ch => ch.comment === c.comment).length}`;
-                        if (!checklistMap.has(key)) {
-                            checklistMap.set(key, { comment: c.comment, points: parsed.points || [], name: key });
-                        }
-                    } catch (e) {
-                        console.warn('[Client] Erreur parsing comment:', c.comment);
-                    }
-                }
-            });
-
-            const uniqueChecklists = Array.from(checklistMap.values());
-            content.innerHTML = uniqueChecklists.length > 0 ? uniqueChecklists.map(c => `
-                <div class="bg-gray-700 p-4 rounded-lg mb-4">
-                    <p><strong>Checklist :</strong> ${c.name}</p>
-                    <p><strong>Points de contrôle :</strong> ${c.points.length}</p>
-                    <ul class="list-disc pl-6">
-                        ${c.points.map(p => `<li>${p.description}${p.value ? ` (Valeur: ${p.value})` : ''}</li>`).join('')}
-                    </ul>
-                    <div class="flex space-x-2 mt-2">
-                        <button class="edit-checklist bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition text-sm sm:text-base touch-friendly" data-comment="${c.comment}">
-                            <i class="fas fa-edit"></i> Modifier
-                        </button>
-                        <button class="delete-checklist bg-red-600 text-white p-2 rounded hover:bg-red-700 transition text-sm sm:text-base touch-friendly" data-comment="${c.comment}">
-                            <i class="fas fa-trash"></i> Supprimer
-                        </button>
-                    </div>
-                </div>
-            `).join('') : '<p class="p-2 text-center">Aucune checklist trouvée</p>';
-
-            document.getElementById('close-view-checklists-modal').onclick = () => modal.classList.add('hidden');
-            document.querySelectorAll('.edit-checklist').forEach(btn => {
-                btn.onclick = () => openEditChecklistModal(btn.dataset.comment);
-            });
-            document.querySelectorAll('.delete-checklist').forEach(btn => {
-                btn.onclick = () => deleteChecklistTemplate(btn.dataset.comment);
-            });
-
-            modal.classList.remove('hidden');
-            gsap.from('#modal-view-checklists > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
-        }
-
-        // Ouvrir le modal pour modifier une checklist
-        function openEditChecklistModal(comment) {
-            const modal = document.getElementById('modal-create-checklist');
-            const form = document.getElementById('create-checklist-form');
-            const pointsContainer = document.getElementById('checklist-points');
-            const addPointBtn = document.getElementById('add-point');
-            const checklistNameInput = document.getElementById('checklist-name');
-
-            let parsed;
-            try {
-                const cleanComment = comment.startsWith('Checklist vide: ') ? comment.replace('Checklist vide: ', '') : comment;
-                parsed = JSON.parse(cleanComment);
-            } catch (e) {
-                console.warn('[Client] Erreur parsing comment:', comment);
-                showErrorPopup('Erreur lors du chargement de la checklist.');
-                return;
+                document.getElementById('close-create-checklist-modal').onclick = () => modal.classList.add('hidden');
+                modal.classList.remove('hidden');
+                gsap.from('#modal-create-checklist > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
             }
 
-            checklistNameInput.value = parsed.name || '';
-            let points = parsed.points || [{ description: '', value: null }];
-            let pointCount = points.length;
+            // Ouvrir le modal pour appliquer une checklist
+            function openApplyChecklistModal() {
+                console.log('[Client] Ouverture modal application checklist');
+                const modal = document.getElementById('modal-apply-checklist');
+                const form = document.getElementById('apply-checklist-form');
+                const checklistSelect = document.getElementById('checklist-select');
+                const tableauxSelect = document.getElementById('tableaux-select');
 
-            function renderPoints() {
-                pointsContainer.innerHTML = '';
-                points.forEach((point, index) => {
+                checklistSelect.innerHTML = '<option value="">Choisir une checklist</option>';
+                const checklistMap = new Map();
+                checklistsData.forEach(c => {
+                    if (isValidJson(c.comment)) {
+                        try {
+                            const parsed = JSON.parse(c.comment.startsWith('Checklist vide: ') ? c.comment.replace('Checklist vide: ', '') : c.comment);
+                            const key = parsed.name || `Checklist ${checklistsData.filter(ch => ch.comment === c.comment).length}`;
+                            if (!checklistMap.has(key)) {
+                                checklistMap.set(key, { comment: c.comment, points: parsed.points || [], name: key });
+                            }
+                        } catch (e) {
+                            console.warn('[Client] Erreur parsing comment:', c.comment);
+                        }
+                    }
+                });
+
+                const uniqueChecklists = Array.from(checklistMap.values());
+                uniqueChecklists.forEach(c => {
+                    const option = document.createElement('option');
+                    option.value = c.comment;
+                    option.textContent = `${c.name} (${c.points.length} points)`;
+                    checklistSelect.appendChild(option);
+                });
+
+                tableauxSelect.innerHTML = '';
+                tableauxData.forEach(tableau => {
                     const div = document.createElement('div');
-                    div.className = 'flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start';
+                    div.className = 'flex items-center';
                     div.innerHTML = `
-                        <div class="flex-1">
-                            <label class="block text-sm font-medium">Point ${index + 1}</label>
-                            <input type="text" class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.description}" placeholder="Ex: Vérification câblage" required>
-                        </div>
-                        <div class="flex-1">
-                            <label class="block text-sm font-medium">Valeur (facultatif)</label>
-                            <input type="text" class="point-value mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.value || ''}" placeholder="Ex: 0.02 Ohm">
-                            <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition mt-2 sm:mt-6 ${pointCount === 1 ? 'invisible' : ''} touch-friendly">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
+                        <input type="checkbox" class="tableau-checkbox mr-2" value="${tableau.id}">
+                        <label>${tableau.id}${tableau.issitemain ? ' (Principal)' : ''}</label>
                     `;
-                    pointsContainer.appendChild(div);
+                    tableauxSelect.appendChild(div);
                 });
 
-                pointsContainer.querySelectorAll('.remove-point').forEach((btn, index) => {
-                    btn.onclick = () => {
-                        points.splice(index, 1);
-                        pointCount--;
-                        renderPoints();
-                    };
-                });
+                form.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const selectedChecklist = checklistSelect.value;
+                    const selectedTableaux = Array.from(tableauxSelect.querySelectorAll('.tableau-checkbox:checked')).map(cb => cb.value);
+
+                    if (!selectedChecklist || selectedTableaux.length === 0) {
+                        showErrorPopup('Veuillez sélectionner une checklist et au moins un tableau.');
+                        return;
+                    }
+
+                    try {
+                        for (const tableauId of selectedTableaux) {
+                            const tableau = tableauxData.find(t => t.id === tableauId);
+                            if (!tableau) continue;
+
+                            for (const breaker of tableau.disjoncteurs.filter(b => b.id)) {
+                                const existingCheck = checklistsData.find(c => 
+                                    c.tableau_id === tableauId && 
+                                    c.disjoncteur_id === breaker.id && 
+                                    c.comment === selectedChecklist
+                                );
+                                if (existingCheck) {
+                                    console.log('[Client] Checklist déjà appliquée pour', breaker.id, 'dans', tableauId);
+                                    continue;
+                                }
+
+                                console.log('[Client] Envoi POST /api/breaker-checklists:', {
+                                    tableau_id: tableauId,
+                                    disjoncteur_id: breaker.id,
+                                    status: 'Non applicable',
+                                    comment: selectedChecklist
+                                });
+                                const body = {
+                                    tableau_id: tableauId,
+                                    disjoncteur_id: breaker.id,
+                                    status: 'Non applicable',
+                                    comment: selectedChecklist,
+                                    photo: null
+                                };
+
+                                const response = await fetch('/api/breaker-checklists', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(body)
+                                });
+                                const responseData = await response.json();
+                                if (!response.ok) throw new Error(`Erreur lors de l’application pour ${breaker.id} dans ${tableauId}: ${responseData.error || response.statusText}`);
+                            }
+                        }
+
+                        modal.classList.add('hidden');
+                        await loadData();
+                    } catch (error) {
+                        console.error('[Client] Erreur application checklist:', error);
+                        showErrorPopup('Erreur lors de l’application de la checklist: ' + error.message);
+                    }
+                };
+
+                document.getElementById('close-apply-checklist-modal').onclick = () => modal.classList.add('hidden');
+                modal.classList.remove('hidden');
+                gsap.from('#modal-apply-checklist > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
             }
 
-            renderPoints();
+            // Ouvrir le modal pour modifier une checklist
+            function openEditChecklistModal(comment) {
+                console.log('[Client] Ouverture modal modification checklist:', comment);
+                const modal = document.getElementById('modal-create-checklist');
+                const form = document.getElementById('create-checklist-form');
+                const pointsContainer = document.getElementById('checklist-points');
+                const addPointBtn = document.getElementById('add-point');
+                const checklistNameInput = document.getElementById('checklist-name');
 
-            addPointBtn.onclick = () => {
-                if (pointCount < 10) {
-                    points.push({ description: '', value: null });
-                    pointCount++;
-                    renderPoints();
-                } else {
-                    showErrorPopup('Vous ne pouvez pas ajouter plus de 10 points de contrôle.');
-                }
-            };
-
-            form.onsubmit = async (e) => {
-                e.preventDefault();
-                const checklistName = checklistNameInput.value.trim();
-                points = Array.from(pointsContainer.children).map(div => ({
-                    description: div.querySelector('.point-description').value.trim(),
-                    status: null,
-                    value: div.querySelector('.point-value').value.trim() || null
-                }));
-
-                if (!checklistName) {
-                    showErrorPopup('Veuillez donner un nom à la checklist.');
-                    return;
-                }
-                if (points.some(p => !p.description)) {
-                    showErrorPopup('Tous les points de contrôle doivent avoir une description.');
-                    return;
-                }
-
+                let parsed;
                 try {
-                    const newComment = JSON.stringify({ name: checklistName, points, comment: '' });
-                    const checksToUpdate = checklistsData.filter(c => c.comment === comment);
+                    const cleanComment = comment.startsWith('Checklist vide: ') ? comment.replace('Checklist vide: ', '') : comment;
+                    parsed = JSON.parse(cleanComment);
+                } catch (e) {
+                    console.warn('[Client] Erreur parsing comment:', comment);
+                    showErrorPopup('Erreur lors du chargement de la checklist.');
+                    return;
+                }
 
-                    for (const check of checksToUpdate) {
-                        const body = {
-                            tableau_id: check.tableau_id,
-                            disjoncteur_id: check.disjoncteur_id,
-                            status: check.status,
-                            comment: newComment,
-                            photo: check.photo
+                checklistNameInput.value = parsed.name || '';
+                let points = parsed.points || [{ description: '', value: null }];
+                let pointCount = points.length;
+
+                function renderPoints() {
+                    pointsContainer.innerHTML = '';
+                    points.forEach((point, index) => {
+                        const div = document.createElement('div');
+                        div.className = 'flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start';
+                        div.innerHTML = `
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium">Point ${index + 1}</label>
+                                <input type="text" class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.description}" placeholder="Ex: Vérification câblage" required>
+                            </div>
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium">Valeur (facultatif)</label>
+                                <input type="text" class="point-value mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.value || ''}" placeholder="Ex: 0.02 Ohm">
+                                <button type="button" class="remove-point bg-red-600 text-white p-2 rounded hover:bg-red-700 transition mt-2 sm:mt-6 ${pointCount === 1 ? 'invisible' : ''} touch-friendly">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                        pointsContainer.appendChild(div);
+                    });
+
+                    pointsContainer.querySelectorAll('.remove-point').forEach((btn, index) => {
+                        btn.onclick = () => {
+                            points.splice(index, 1);
+                            pointCount--;
+                            renderPoints();
                         };
+                    });
+                }
+
+                renderPoints();
+
+                addPointBtn.onclick = () => {
+                    if (pointCount < 10) {
+                        points.push({ description: '', value: null });
+                        pointCount++;
+                        renderPoints();
+                    } else {
+                        showErrorPopup('Vous ne pouvez pas ajouter plus de 10 points de contrôle.');
+                    }
+                };
+
+                form.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const checklistName = checklistNameInput.value.trim();
+                    points = Array.from(pointsContainer.children).map(div => ({
+                        description: div.querySelector('.point-description').value.trim(),
+                        status: null,
+                        value: div.querySelector('.point-value').value.trim() || null
+                    }));
+
+                    if (!checklistName) {
+                        showErrorPopup('Veuillez donner un nom à la checklist.');
+                        return;
+                    }
+                    if (points.some(p => !p.description)) {
+                        showErrorPopup('Tous les points de contrôle doivent avoir une description.');
+                        return;
+                    }
+
+                    try {
+                        const newComment = JSON.stringify({ name: checklistName, points, comment: '' });
+                        const checksToUpdate = checklistsData.filter(c => c.comment === comment);
+
+                        for (const check of checksToUpdate) {
+                            const body = {
+                                tableau_id: check.tableau_id,
+                                disjoncteur_id: check.disjoncteur_id,
+                                status: check.status,
+                                comment: newComment,
+                                photo: check.photo
+                            };
+
+                            console.log('[Client] Envoi PUT /api/breaker-checklists:', {
+                                id: check.id,
+                                tableau_id: check.tableau_id,
+                                disjoncteur_id: check.disjoncteur_id,
+                                status: check.status,
+                                comment: newComment,
+                                photo: check.photo ? `Présente (${(check.photo.length / 1024).toFixed(2)} KB)` : 'Absente'
+                            });
+
+                            const response = await fetch(`/api/breaker-checklists/${check.id}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(body)
+                            });
+                            const responseData = await response.json();
+                            if (!response.ok) throw new Error(`Erreur lors de la mise à jour du contrôle ${check.id}: ${responseData.error || response.statusText}`);
+                        }
+
+                        modal.classList.add('hidden');
+                        await loadData();
+                        openViewChecklistsModal();
+                    } catch (error) {
+                        console.error('[Client] Erreur mise à jour checklist:', error);
+                        showErrorPopup('Erreur lors de la mise à jour de la checklist: ' + error.message);
+                    }
+                };
+
+                document.getElementById('close-create-checklist-modal').onclick = () => modal.classList.add('hidden');
+                modal.classList.remove('hidden');
+                gsap.from('#modal-create-checklist > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+            }
+
+            // Supprimer un modèle de checklist
+            async function deleteChecklistTemplate(comment) {
+                if (!confirm('Voulez-vous supprimer cette checklist et tous ses contrôles associés ?')) return;
+                try {
+                    const checksToDelete = checklistsData.filter(c => c.comment === comment);
+                    for (const check of checksToDelete) {
+                        console.log('[Client] Envoi DELETE /api/breaker-checklists:', { id: check.id });
+                        const response = await fetch(`/api/breaker-checklists/${check.id}`, { method: 'DELETE' });
+                        if (!response.ok) throw new Error(`Erreur lors de la suppression du contrôle ${check.id}: ${response.statusText}`);
+                    }
+                    await loadData();
+                    openViewChecklistsModal();
+                } catch (error) {
+                    console.error('[Client] Erreur suppression checklist:', error);
+                    showErrorPopup('Erreur lors de la suppression de la checklist: ' + error.message);
+                }
+            }
+
+            // Ouvrir le modal pour compléter ou modifier une checklist
+            function openCompleteChecklistModal(check, tableauId, breakerId, sanitizedId) {
+                console.log('[Client] Ouverture modal complétion checklist:', { checkId: check.id, tableauId, breakerId });
+                const modal = document.getElementById('modal-complete-checklist');
+                const form = document.getElementById('complete-checklist-form');
+                const pointsContainer = document.getElementById('complete-checklist-points');
+                const commentInput = document.getElementById('complete-checklist-comment');
+                const photoInput = document.getElementById('complete-checklist-photo');
+
+                currentCheckId = check.id;
+                let points = [];
+                let commentGlobal = '';
+                let checklistName = 'Sans nom';
+                let isValidChecklist = false;
+                if (isValidJson(check.comment)) {
+                    try {
+                        const comment = check.comment.startsWith('Checklist vide: ') 
+                            ? check.comment.replace('Checklist vide: ', '') 
+                            : check.comment;
+                        const parsed = JSON.parse(comment);
+                        points = parsed.points || [];
+                        commentGlobal = parsed.comment || '';
+                        checklistName = parsed.name || 'Sans nom';
+                        isValidChecklist = true;
+                    } catch (e) {
+                        console.warn('[Client] Erreur parsing comment:', check.comment);
+                    }
+                } else {
+                    points = [{ description: 'Contrôle par défaut', status: null, value: null }];
+                    commentGlobal = check.comment;
+                }
+                commentInput.value = commentGlobal;
+                photoInput.value = '';
+
+                pointsContainer.innerHTML = `
+                    <p class="mb-2"><strong>Checklist :</strong> ${checklistName}</p>
+                    ${points.map((point, index) => `
+                        <div class="point-item flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start">
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium">Point ${index + 1}</label>
+                                <p class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">${point.description}</p>
+                            </div>
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium">Valeur (facultatif)</label>
+                                <input type="text" class="point-value mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.value || ''}" placeholder="Ex: 0.02 Ohm">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-sm font-medium">Statut</label>
+                                <select class="point-status mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
+                                    <option value="" ${!point.status ? 'selected' : ''}>Sélectionner</option>
+                                    <option value="Conforme" ${point.status === 'Conforme' ? 'selected' : ''}>Conforme</option>
+                                    <option value="Non conforme" ${point.status === 'Non conforme' ? 'selected' : ''}>Non conforme</option>
+                                    <option value="Non applicable" ${point.status === 'Non applicable' ? 'selected' : ''}>Non applicable</option>
+                                </select>
+                            </div>
+                        </div>
+                    `).join('')}
+                `;
+
+                form.onsubmit = async (e) => {
+                    e.preventDefault();
+                    const comment = commentInput.value.trim();
+                    const photo = photoInput.files[0];
+
+                    const updatedPoints = Array.from(pointsContainer.querySelectorAll('.point-item')).map(div => ({
+                        description: div.querySelector('.point-description').textContent,
+                        status: div.querySelector('.point-status').value,
+                        value: div.querySelector('.point-value').value.trim() || null
+                    }));
+
+                    if (updatedPoints.some(p => !p.status)) {
+                        showErrorPopup('Tous les points de contrôle doivent avoir un statut.');
+                        return;
+                    }
+
+                    try {
+                        let photoBase64 = check.photo;
+                        if (photo) {
+                            try {
+                                photoBase64 = await toBase64(photo);
+                                console.log('[Client] Photo compressée et convertie en Base64, taille:', (photoBase64.length / 1024).toFixed(2), 'KB');
+                            } catch (error) {
+                                console.error('[Client] Erreur compression photo:', error);
+                                showErrorPopup(error.message);
+                                return;
+                            }
+                        }
+
+                        const globalStatus = determineGlobalStatus(updatedPoints);
+                        const commentJson = JSON.stringify({ name: checklistName, comment, points: updatedPoints });
 
                         console.log('[Client] Envoi PUT /api/breaker-checklists:', {
-                            id: check.id,
-                            tableau_id: check.tableau_id,
-                            disjoncteur_id: check.disjoncteur_id,
-                            status: check.status,
-                            comment: newComment,
-                            photo: check.photo ? `Présente (${(check.photo.length / 1024).toFixed(2)} KB)` : 'Absente'
+                            id: currentCheckId,
+                            tableau_id: tableauId,
+                            disjoncteur_id: breakerId,
+                            status: globalStatus,
+                            comment: commentJson,
+                            photo: photoBase64 ? `Présente (${(photoBase64.length / 1024).toFixed(2)} KB)` : 'Absente'
                         });
 
-                        const response = await fetch(`/api/breaker-checklists/${check.id}`, {
+                        const body = {
+                            tableau_id: tableauId,
+                            disjoncteur_id: breakerId,
+                            status: globalStatus,
+                            comment: commentJson,
+                            photo: photoBase64
+                        };
+
+                        const response = await fetch(`/api/breaker-checklists/${currentCheckId}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(body)
                         });
-                        const responseData = await response.json();
-                        if (!response.ok) throw new Error(`Erreur lors de la mise à jour du contrôle ${check.id}: ${responseData.error || response.statusText}`);
-                    }
+                        if (!response.ok) {
+                            let errorData;
+                            try {
+                                errorData = await response.json();
+                            } catch {
+                                errorData = await response.text();
+                            }
+                            throw new Error(`Erreur lors de la mise à jour du contrôle: ${errorData.error || errorData || response.statusText}`);
+                        }
 
-                    modal.classList.add('hidden');
-                    await loadData();
-                    openViewChecklistsModal();
-                } catch (error) {
-                    console.error('[Client] Erreur mise à jour checklist:', error);
-                    showErrorPopup('Erreur lors de la mise à jour de la checklist: ' + error.message);
-                }
-            };
-
-            document.getElementById('close-create-checklist-modal').onclick = () => modal.classList.add('hidden');
-            modal.classList.remove('hidden');
-            gsap.from('#modal-create-checklist > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
-        }
-
-        // Supprimer un modèle de checklist
-        async function deleteChecklistTemplate(comment) {
-            if (!confirm('Voulez-vous supprimer cette checklist et tous ses contrôles associés ?')) return;
-            try {
-                const checksToDelete = checklistsData.filter(c => c.comment === comment);
-                for (const check of checksToDelete) {
-                    console.log('[Client] Envoi DELETE /api/breaker-checklists:', { id: check.id });
-                    const response = await fetch(`/api/breaker-checklists/${check.id}`, { method: 'DELETE' });
-                    if (!response.ok) throw new Error(`Erreur lors de la suppression du contrôle ${check.id}: ${response.statusText}`);
-                }
-                await loadData();
-                openViewChecklistsModal();
-            } catch (error) {
-                console.error('[Client] Erreur suppression checklist:', error);
-                showErrorPopup('Erreur lors de la suppression de la checklist: ' + error.message);
-            }
-        }
-
-        // Ouvrir le modal pour compléter ou modifier une checklist
-        function openCompleteChecklistModal(check, tableauId, breakerId, sanitizedId) {
-            const modal = document.getElementById('modal-complete-checklist');
-            const form = document.getElementById('complete-checklist-form');
-            const pointsContainer = document.getElementById('complete-checklist-points');
-            const commentInput = document.getElementById('complete-checklist-comment');
-            const photoInput = document.getElementById('complete-checklist-photo');
-
-            currentCheckId = check.id;
-            let points = [];
-            let commentGlobal = '';
-            let checklistName = 'Sans nom';
-            let isValidChecklist = false;
-            if (isValidJson(check.comment)) {
-                try {
-                    const comment = check.comment.startsWith('Checklist vide: ') 
-                        ? check.comment.replace('Checklist vide: ', '') 
-                        : check.comment;
-                    const parsed = JSON.parse(comment);
-                    points = parsed.points || [];
-                    commentGlobal = parsed.comment || '';
-                    checklistName = parsed.name || 'Sans nom';
-                    isValidChecklist = true;
-                } catch (e) {
-                    console.warn('[Client] Erreur parsing comment:', check.comment);
-                }
-            } else {
-                points = [{ description: 'Contrôle par défaut', status: null, value: null }];
-                commentGlobal = check.comment;
-            }
-            commentInput.value = commentGlobal;
-            photoInput.value = '';
-
-            pointsContainer.innerHTML = `
-                <p class="mb-2"><strong>Checklist :</strong> ${checklistName}</p>
-                ${points.map((point, index) => `
-                    <div class="point-item flex flex-col space-y-2 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2 items-start">
-                        <div class="flex-1">
-                            <label class="block text-sm font-medium">Point ${index + 1}</label>
-                            <p class="point-description mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">${point.description}</p>
-                        </div>
-                        <div class="flex-1">
-                            <label class="block text-sm font-medium">Valeur (facultatif)</label>
-                            <input type="text" class="point-value mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" value="${point.value || ''}" placeholder="Ex: 0.02 Ohm">
-                        </div>
-                        <div class="col-span-2">
-                            <label class="block text-sm font-medium">Statut</label>
-                            <select class="point-status mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
-                                <option value="" ${!point.status ? 'selected' : ''}>Sélectionner</option>
-                                <option value="Conforme" ${point.status === 'Conforme' ? 'selected' : ''}>Conforme</option>
-                                <option value="Non conforme" ${point.status === 'Non conforme' ? 'selected' : ''}>Non conforme</option>
-                                <option value="Non applicable" ${point.status === 'Non applicable' ? 'selected' : ''}>Non applicable</option>
-                            </select>
-                        </div>
-                    </div>
-                `).join('')}
-            `;
-
-            form.onsubmit = async (e) => {
-                e.preventDefault();
-                const comment = commentInput.value.trim();
-                const photo = photoInput.files[0];
-
-                const updatedPoints = Array.from(pointsContainer.querySelectorAll('.point-item')).map(div => ({
-                    description: div.querySelector('.point-description').textContent,
-                    status: div.querySelector('.point-status').value,
-                    value: div.querySelector('.point-value').value.trim() || null
-                }));
-
-                if (updatedPoints.some(p => !p.status)) {
-                    showErrorPopup('Tous les points de contrôle doivent avoir un statut.');
-                    return;
-                }
-
-                try {
-                    let photoBase64 = check.photo;
-                    if (photo) {
-                        try {
-                            photoBase64 = await toBase64(photo);
-                            console.log('[Client] Photo compressée et convertie en Base64, taille:', (photoBase64.length / 1024).toFixed(2), 'KB');
-                        } catch (error) {
-                            console.error('[Client] Erreur compression photo:', error);
+                        modal.classList.add('hidden');
+                        await loadData();
+                        openBreakerModal(tableauId, breakerId, sanitizedId);
+                    } catch (error) {
+                        console.error('[Client] Erreur mise à jour checklist:', error);
+                        if (error.message.includes('L’image')) {
                             showErrorPopup(error.message);
-                            return;
+                        } else if (error.message.includes('413') || error.message.includes('Payload Too Large')) {
+                            showErrorPopup('La photo est trop volumineuse même après compression. Veuillez choisir une image plus petite (max 1 Mo).');
+                        } else {
+                            showErrorPopup('Erreur lors de la mise à jour de la checklist: ' + error.message);
                         }
                     }
+                };
 
-                    const globalStatus = determineGlobalStatus(updatedPoints);
-                    const commentJson = JSON.stringify({ name: checklistName, comment, points: updatedPoints });
+                document.getElementById('close-complete-checklist-modal').onclick = () => modal.classList.add('hidden');
+                modal.classList.remove('hidden');
+                gsap.from('#modal-complete-checklist > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+            }
 
-                    console.log('[Client] Envoi PUT /api/breaker-checklists:', {
-                        tableau_id: tableauId,
-                        disjoncteur_id: breakerId,
-                        status: globalStatus,
-                        comment: commentJson,
-                        photo: photoBase64 ? `Présente (${(photoBase64.length / 1024).toFixed(2)} KB)` : 'Absente'
-                    });
-
-                    const body = {
-                        tableau_id: tableauId,
-                        disjoncteur_id: breakerId,
-                        status: globalStatus,
-                        comment: commentJson,
-                        photo: photoBase64
-                    };
-
-                    const response = await fetch(`/api/breaker-checklists/${currentCheckId}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                    });
+            // Supprimer une checklist individuelle
+            async function deleteChecklist(checkId, tableauId, breakerId, sanitizedId) {
+                if (!confirm('Voulez-vous supprimer ce contrôle ?')) return;
+                try {
+                    console.log('[Client] Envoi DELETE /api/breaker-checklists:', { id: checkId });
+                    const response = await fetch(`/api/breaker-checklists/${checkId}`, { method: 'DELETE' });
                     if (!response.ok) {
-                        let errorData;
-                        try {
-                            errorData = await response.json();
-                        } catch {
-                            errorData = await response.text();
-                        }
-                        throw new Error(`Erreur lors de la mise à jour du contrôle: ${errorData.error || errorData || response.statusText}`);
+                        const errorData = await response.text();
+                        throw new Error(`Erreur lors de la suppression du contrôle: ${response.status} ${errorData || response.statusText}`);
                     }
-
-                    modal.classList.add('hidden');
                     await loadData();
                     openBreakerModal(tableauId, breakerId, sanitizedId);
                 } catch (error) {
-                    console.error('[Client] Erreur mise à jour checklist:', error);
-                    if (error.message.includes('L’image')) {
-                        showErrorPopup(error.message);
-                    } else if (error.message.includes('413') || error.message.includes('Payload Too Large')) {
-                        showErrorPopup('La photo est trop volumineuse même après compression. Veuillez choisir une image plus petite (max 1 Mo).');
-                    } else {
-                        showErrorPopup('Erreur lors de la mise à jour de la checklist: ' + error.message);
-                    }
+                    console.error('[Client] Erreur suppression checklist:', error);
+                    showErrorPopup('Erreur lors de la suppression de la checklist: ' + error.message);
+                }
+            }
+
+            // Initialisation
+            window.onload = () => {
+                console.log('[Client] Page breaker_control.html chargée à', new Date().toLocaleString('fr-FR'));
+                if (window.location.protocol === 'file:') {
+                    showErrorPopup('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/breaker_control.html) pour accéder à l\'API.');
+                    return;
+                }
+                try {
+                    const breakerModal = document.getElementById('modal-breaker');
+                    const createChecklistModal = document.getElementById('modal-create-checklist');
+                    const completeChecklistModal = document.getElementById('modal-complete-checklist');
+                    const applyChecklistModal = document.getElementById('modal-apply-checklist');
+                    const viewChecklistsModal = document.getElementById('modal-view-checklists');
+                    if (breakerModal) breakerModal.classList.add('hidden');
+                    if (createChecklistModal) createChecklistModal.classList.add('hidden');
+                    if (completeChecklistModal) completeChecklistModal.classList.add('hidden');
+                    if (applyChecklistModal) applyChecklistModal.classList.add('hidden');
+                    if (viewChecklistsModal) viewChecklistsModal.classList.add('hidden');
+                    document.getElementById('add-checklist').onclick = () => openCreateChecklistModal();
+                    document.getElementById('apply-checklist').onclick = () => openApplyChecklistModal();
+                    document.getElementById('view-checklists').onclick = () => openViewChecklistsModal();
+                    loadData();
+                } catch (error) {
+                    console.error('[Client] Erreur lors de l’initialisation:', error.message, error.stack);
+                    showErrorPopup('Erreur lors de l’initialisation de la page: ' + error.message);
                 }
             };
-
-            document.getElementById('close-complete-checklist-modal').onclick = () => modal.classList.add('hidden');
-            modal.classList.remove('hidden');
-            gsap.from('#modal-complete-checklist > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
-        }
-
-        // Supprimer une checklist individuelle
-        async function deleteChecklist(checkId, tableauId, breakerId, sanitizedId) {
-            if (!confirm('Voulez-vous supprimer ce contrôle ?')) return;
-            try {
-                console.log('[Client] Envoi DELETE /api/breaker-checklists:', { id: checkId });
-                const response = await fetch(`/api/breaker-checklists/${checkId}`, { method: 'DELETE' });
-                if (!response.ok) {
-                    const errorData = await response.text();
-                    throw new Error(`Erreur lors de la suppression du contrôle: ${response.status} ${errorData || response.statusText}`);
-                }
-                await loadData();
-                openBreakerModal(tableauId, breakerId, sanitizedId);
-            } catch (error) {
-                console.error('[Client] Erreur suppression checklist:', error);
-                showErrorPopup('Erreur lors de la suppression de la checklist: ' + error.message);
-            }
-        }
-
-        // Initialisation
-        window.onload = () => {
-            console.log('[Client] Page breaker_control.html chargée');
-            if (window.location.protocol === 'file:') {
-                showErrorPopup('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/breaker_control.html) pour accéder à l\'API.');
-                return;
-            }
-            try {
-                const breakerModal = document.getElementById('modal-breaker');
-                const createChecklistModal = document.getElementById('modal-create-checklist');
-                const completeChecklistModal = document.getElementById('modal-complete-checklist');
-                const applyChecklistModal = document.getElementById('modal-apply-checklist');
-                const viewChecklistsModal = document.getElementById('modal-view-checklists');
-                if (breakerModal) breakerModal.classList.add('hidden');
-                if (createChecklistModal) createChecklistModal.classList.add('hidden');
-                if (completeChecklistModal) completeChecklistModal.classList.add('hidden');
-                if (applyChecklistModal) applyChecklistModal.classList.add('hidden');
-                if (viewChecklistsModal) viewChecklistsModal.classList.add('hidden');
-                document.getElementById('add-checklist').onclick = () => openCreateChecklistModal();
-                document.getElementById('apply-checklist').onclick = () => openApplyChecklistModal();
-                document.getElementById('view-checklists').onclick = () => openViewChecklistsModal();
-                loadData();
-            } catch (error) {
-                console.error('[Client] Erreur lors de l’initialisation:', error.message, error.stack);
-                showErrorPopup('Erreur lors de l’initialisation de la page: ' + error.message);
-            }
-        };
-    </script>
-</body>
+        </script>
+    </body>
 </html>
