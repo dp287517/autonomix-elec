@@ -52,17 +52,6 @@ if (fs.existsSync(REPLACEMENT_FILE)) {
     }
 }
 
-// Tableau des sections de câbles selon le courant assigné (cuivre, monophasé)
-const cableSections = [
-    { in: 2, section: 1.5 }, { in: 10, section: 1.5 }, { in: 16, section: 2.5 }, { in: 20, section: 2.5 },
-    { in: 25, section: 4 }, { in: 32, section: 6 }, { in: 40, section: 10 }, { in: 50, section: 16 },
-    { in: 63, section: 25 }, { in: 80, section: 35 }, { in: 100, section: 50 }, { in: 125, section: 70 },
-    { in: 160, section: 95 }, { in: 200, section: 120 }, { in: 250, section: 150 }, { in: 315, section: 185 },
-    { in: 400, section: 240 }, { in: 500, section: 300 }, { in: 630, section: 400 }, { in: 800, section: 500 },
-    { in: 1000, section: 630 }, { in: 1250, section: 800 }, { in: 1600, section: 1000 }, { in: 2000, section: 1200 },
-    { in: 2500, section: 1600 }
-];
-
 // Fonction pour obtenir la section recommandée selon In
 function getRecommendedSection(inValue) {
     const inNum = parseFloat(inValue?.match(/[\d.]+/)?.[0]) || 0;
@@ -201,9 +190,9 @@ async function initDb() {
             CREATE TABLE IF NOT EXISTS tableaux (
                 id VARCHAR(50) PRIMARY KEY,
                 disjoncteurs JSONB DEFAULT '[]'::jsonb,
-                isSiteMain BOOLEAN DEFAULT FALSE,
-                isHTA BOOLEAN DEFAULT FALSE,
-                htaData JSONB
+                issitemain BOOLEAN DEFAULT FALSE,
+                ishta BOOLEAN DEFAULT FALSE,
+                htadata JSONB
             );
         `);
         await client.query(`
@@ -485,12 +474,12 @@ app.get('/api/tableaux/:id', async (req, res) => {
     try {
         client = await pool.connect();
         await client.query('SELECT 1');
-        // Vérifier les colonnes disponibles dans la table (pour débogage)
+        // Loguer les colonnes de la table pour débogage
         const columnsResult = await client.query("SELECT column_name FROM information_schema.columns WHERE table_name = 'tableaux'");
         console.log('[Server] Colonnes de la table tableaux:', columnsResult.rows.map(row => row.column_name));
-        // Requête avec noms de colonnes standards
+        // Requête avec noms de colonnes en minuscules
         const result = await client.query(
-            'SELECT id, disjoncteurs, "isSiteMain" AS is_site_main, "isHTA" AS is_hta, "htaData" AS hta_data FROM tableaux WHERE id = $1',
+            'SELECT id, disjoncteurs, issitemain, ishta, htadata FROM tableaux WHERE id = $1',
             [id]
         );
         if (result.rows.length === 0) {
@@ -500,9 +489,9 @@ app.get('/api/tableaux/:id', async (req, res) => {
         const tableau = {
             id: result.rows[0].id,
             disjoncteurs: result.rows[0].disjoncteurs || [],
-            isSiteMain: result.rows[0].is_site_main || false,
-            isHTA: result.rows[0].is_hta || false,
-            htaData: result.rows[0].hta_data || null
+            isSiteMain: result.rows[0].issitemain || false,
+            isHTA: result.rows[0].ishta || false,
+            htaData: result.rows[0].htadata || null
         };
         console.log('[Server] Tableau trouvé:', {
             id: tableau.id,
@@ -540,15 +529,15 @@ app.get('/api/tableaux', async (req, res) => {
     try {
         client = await pool.connect();
         await client.query('SELECT 1');
-        const result = await client.query('SELECT id, disjoncteurs, isSiteMain, isHTA, htaData FROM tableaux');
+        const result = await client.query('SELECT id, disjoncteurs, issitemain, ishta, htadata FROM tableaux');
         console.log('[Server] Tableaux récupérés:', result.rows.length);
-        const tableaux = result.rows.map(tableau => {
-            if (!Array.isArray(tableau.disjoncteurs)) {
-                console.warn('[Server] Disjoncteurs non valides pour tableau:', tableau.id, 'Retour à []');
-                return { ...tableau, disjoncteurs: [] };
-            }
-            return tableau;
-        });
+        const tableaux = result.rows.map(tableau => ({
+            id: tableau.id,
+            disjoncteurs: Array.isArray(tableau.disjoncteurs) ? tableau.disjoncteurs : [],
+            isSiteMain: tableau.issitemain || false,
+            isHTA: tableau.ishta || false,
+            htaData: tableau.htadata || null
+        }));
         res.json(tableaux);
     } catch (error) {
         console.error('[Server] Erreur GET /api/tableaux:', {
@@ -570,14 +559,14 @@ app.get('/api/selectivity', async (req, res) => {
     try {
         client = await pool.connect();
         await client.query('SELECT 1');
-        const result = await client.query('SELECT id, disjoncteurs, isSiteMain, isHTA, htaData FROM tableaux');
+        const result = await client.query('SELECT id, disjoncteurs, issitemain, ishta, htadata FROM tableaux');
         const tableaux = result.rows.map(row => ({
             id: row.id,
             disjoncteurs: Array.isArray(row.disjoncteurs) ? row.disjoncteurs : [],
             building: row.id.split('-')[0] || 'Inconnu',
-            isSiteMain: !!row.isSiteMain,
-            isHTA: !!row.isHTA,
-            htaData: row.htaData || null
+            isSiteMain: !!row.issitemain,
+            isHTA: !!row.ishta,
+            htaData: row.htadata || null
         }));
         console.log('[Server] Tableaux pour sélectivité:', tableaux.length);
         res.json(tableaux);
@@ -662,7 +651,7 @@ app.post('/api/tableaux', async (req, res) => {
             };
         });
         await client.query(
-            'INSERT INTO tableaux (id, disjoncteurs, isSiteMain, isHTA, htaData) VALUES ($1, $2::jsonb, $3, $4, $5::jsonb)',
+            'INSERT INTO tableaux (id, disjoncteurs, issitemain, ishta, htadata) VALUES ($1, $2::jsonb, $3, $4, $5::jsonb)',
             [id, JSON.stringify(normalizedDisjoncteurs), !!isSiteMain, !!isHTA, isHTA ? JSON.stringify(htaData) : null]
         );
         // Ajouter une checklist par défaut pour chaque disjoncteur
@@ -702,12 +691,7 @@ app.post('/api/tableaux', async (req, res) => {
 app.put('/api/tableaux/:id', async (req, res) => {
     const { id } = req.params;
     const { disjoncteurs, isSiteMain, isHTA, htaData } = req.body;
-    console.log('[Server] PUT /api/tableaux/:id', id, { 
-        disjoncteurs: disjoncteurs?.length, 
-        isSiteMain, 
-        isHTA, 
-        htaData 
-    });
+    console.log('[Server] PUT /api/tableaux/:id', id, { disjoncteurs: disjoncteurs?.length, isSiteMain, isHTA, htaData });
     let client;
     try {
         client = await pool.connect();
@@ -771,19 +755,25 @@ app.put('/api/tableaux/:id', async (req, res) => {
         });
         // Mise à jour dans la base de données
         const result = await client.query(
-            'UPDATE tableaux SET disjoncteurs = $1::jsonb, isSiteMain = $2, isHTA = $3, htaData = $4::jsonb WHERE id = $5 RETURNING id, disjoncteurs, isSiteMain, isHTA, htaData',
+            'UPDATE tableaux SET disjoncteurs = $1::jsonb, issitemain = $2, ishta = $3, htadata = $4::jsonb WHERE id = $5 RETURNING id, disjoncteurs, issitemain, ishta, htadata',
             [JSON.stringify(normalizedDisjoncteurs), !!isSiteMain, !!isHTA, isHTA ? JSON.stringify(htaData) : null, id]
         );
         console.log('[Server] Tableau modifié:', {
             id,
             disjoncteurs: normalizedDisjoncteurs.length,
-            isSiteMain: result.rows[0].isSiteMain,
-            isHTA: result.rows[0].isHTA,
-            htaData: result.rows[0].htaData
+            isSiteMain: result.rows[0].issitemain,
+            isHTA: result.rows[0].ishta,
+            htaData: result.rows[0].htadata
         });
         res.json({
             success: true,
-            data: result.rows[0]
+            data: {
+                id: result.rows[0].id,
+                disjoncteurs: result.rows[0].disjoncteurs,
+                isSiteMain: result.rows[0].issitemain,
+                isHTA: result.rows[0].ishta,
+                htaData: result.rows[0].htadata
+            }
         });
     } catch (error) {
         console.error('[Server] Erreur PUT /api/tableaux/:id:', {
@@ -892,7 +882,7 @@ app.get('/api/obsolescence', async (req, res) => {
     try {
         client = await pool.connect();
         await client.query('SELECT 1');
-        const result = await client.query('SELECT id, disjoncteurs, isSiteMain FROM tableaux');
+        const result = await client.query('SELECT id, disjoncteurs, issitemain FROM tableaux');
         const tableaux = result.rows.map(row => {
             const disjoncteurs = (Array.isArray(row.disjoncteurs) ? row.disjoncteurs : []).map(d => {
                 const date = d.date ? new Date(d.date) : null;
@@ -930,7 +920,7 @@ app.get('/api/obsolescence', async (req, res) => {
                 building: row.id.split('-')[0] || 'Inconnu',
                 disjoncteurs,
                 avgManufactureYear,
-                isSiteMain: !!row.isSiteMain
+                isSiteMain: !!row.issitemain
             };
         });
         console.log('[Server] Données obsolescence:', tableaux.length);
@@ -1016,7 +1006,7 @@ app.post('/api/reports', async (req, res) => {
     try {
         client = await pool.connect();
         await client.query('SELECT 1');
-        const result = await client.query('SELECT id, disjoncteurs, isSiteMain, isHTA, htaData FROM tableaux');
+        const result = await client.query('SELECT id, disjoncteurs, issitemain, ishta, htadata FROM tableaux');
         let tableauxData = result.rows.map(row => ({
             ...row,
             disjoncteurs: Array.isArray(row.disjoncteurs) ? row.disjoncteurs : []
@@ -1044,7 +1034,7 @@ app.post('/api/reports', async (req, res) => {
                 id: row.id,
                 building: row.id.split('-')[0] || 'Inconnu',
                 disjoncteurs,
-                isSiteMain: !!row.isSiteMain
+                isSiteMain: !!row.issitemain
             };
         });
         let faultLevelReportData = tableauxData.map(row => {
@@ -1078,7 +1068,7 @@ app.post('/api/reports', async (req, res) => {
                 id: row.id,
                 building: row.id.split('-')[0] || 'Inconnu',
                 disjoncteurs,
-                isSiteMain: !!row.isSiteMain
+                isSiteMain: !!row.issitemain
             };
         });
         let safetyReportData = [];
@@ -1460,7 +1450,7 @@ app.get('/api/fault-level', async (req, res) => {
     try {
         client = await pool.connect();
         await client.query('SELECT 1');
-        const result = await client.query('SELECT id, disjoncteurs, isSiteMain FROM tableaux');
+        const result = await client.query('SELECT id, disjoncteurs, issitemain FROM tableaux');
         const tableaux = result.rows.map(row => {
             const disjoncteurs = (Array.isArray(row.disjoncteurs) ? row.disjoncteurs : []).map(d => {
                 let ik = null;
@@ -1498,7 +1488,7 @@ app.get('/api/fault-level', async (req, res) => {
                 id: row.id,
                 building: row.id.split('-')[0] || 'Inconnu',
                 disjoncteurs,
-                isSiteMain: !!row.isSiteMain
+                isSiteMain: !!row.issitemain
             };
         });
         console.log('[Server] Données fault-level:', tableaux.length);
