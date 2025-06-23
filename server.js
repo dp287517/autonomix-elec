@@ -66,6 +66,15 @@ const cableSections = [
 // Fonction pour obtenir la section recommandée selon In
 function getRecommendedSection(inValue) {
     const inNum = parseFloat(inValue?.match(/[\d.]+/)?.[0]) || 0;
+    const cableSections = [
+        { in: 2, section: 1.5 }, { in: 10, section: 1.5 }, { in: 16, section: 2.5 }, { in: 20, section: 2.5 },
+        { in: 25, section: 4 }, { in: 32, section: 6 }, { in: 40, section: 10 }, { in: 50, section: 16 },
+        { in: 63, section: 25 }, { in: 80, section: 35 }, { in: 100, section: 50 }, { in: 125, section: 70 },
+        { in: 160, section: 95 }, { in: 200, section: 120 }, { in: 250, section: 150 }, { in: 315, section: 185 },
+        { in: 400, section: 240 }, { in: 500, section: 300 }, { in: 630, section: 400 }, { in: 800, section: 500 },
+        { in: 1000, section: 630 }, { in: 1250, section: 800 }, { in: 1600, section: 1000 }, { in: 2000, section: 1200 },
+        { in: 2500, section: 1600 }
+    ];
     for (let i = 0; i < cableSections.length; i++) {
         if (inNum <= cableSections[i].in) {
             return cableSections[i].section;
@@ -129,24 +138,31 @@ function validateDisjoncteurData(data) {
 function validateHTAData(data) {
     const errors = [];
     if (!data) return errors;
-    if (isNaN(parseFloat(data.transformerPower)) || parseFloat(data.transformerPower) <= 0) {
+    console.log('[Server] Validation HTA data:', data);
+    const parseValue = (value) => {
+        if (!value) return NaN;
+        const match = value.match(/[\d.]+/);
+        return match ? parseFloat(match[0]) : NaN;
+    };
+    if (isNaN(parseValue(data.transformerPower)) || parseValue(data.transformerPower) <= 0) {
         errors.push('La puissance du transformateur doit être une valeur numérique positive (ex. 1600).');
     }
-    if (isNaN(parseFloat(data.voltage)) || parseFloat(data.voltage) <= 0) {
+    if (isNaN(parseValue(data.voltage)) || parseValue(data.voltage) <= 0) {
         errors.push('La tension HTA doit être une valeur numérique positive (ex. 20).');
     }
-    if (isNaN(parseFloat(data.in)) || parseFloat(data.in) <= 0) {
+    if (isNaN(parseValue(data.in)) || parseValue(data.in) <= 0) {
         errors.push('Le courant nominal HTA (In) doit être une valeur numérique positive (ex. 50).');
     }
-    if (isNaN(parseFloat(data.ir)) || parseFloat(data.ir) <= 0) {
-        errors.push('Le courant réglable HTA (Ir) doit être une valeur numérique positive (ex. 400).');
+    if (isNaN(parseValue(data.ir)) || parseValue(data.ir) <= 0) {
+        errors.push('Le courant réglable HTA (Ir) doit être une valeur numérique positive (ex. 40).');
     }
-    if (isNaN(parseFloat(data.triptime)) || parseFloat(data.triptime) <= 0) {
+    if (isNaN(parseValue(data.triptime)) || parseValue(data.triptime) <= 0) {
         errors.push('Le temps de déclenchement HTA doit être une valeur numérique positive (ex. 0.2).');
     }
-    if (isNaN(parseFloat(data.icn)) || parseFloat(data.icn) <= 0) {
+    if (isNaN(parseValue(data.icn)) || parseValue(data.icn) <= 0) {
         errors.push('Le pouvoir de coupure HTA (Icn) doit être une valeur numérique positive (ex. 16).');
     }
+    console.log('[Server] Résultat validation HTA:', { errors });
     return errors;
 }
 
@@ -320,7 +336,7 @@ initDb().catch(err => {
     process.exit(1);
 });
 
-// Fonction pour normaliser icn
+// Fonction pour normaliser icn (pouvoir de coupure)
 function normalizeIcn(icn) {
     if (icn == null) return null;
     if (typeof icn === 'number' && !isNaN(icn)) return icn;
@@ -669,7 +685,12 @@ app.post('/api/tableaux', async (req, res) => {
 app.put('/api/tableaux/:id', async (req, res) => {
     const { id } = req.params;
     const { disjoncteurs, isSiteMain, isHTA, htaData } = req.body;
-    console.log('[Server] PUT /api/tableaux/:id', id, { disjoncteurs: disjoncteurs?.length, isSiteMain, isHTA });
+    console.log('[Server] PUT /api/tableaux/:id', id, { 
+        disjoncteurs: disjoncteurs?.length, 
+        isSiteMain, 
+        isHTA, 
+        htaData 
+    });
     let client;
     try {
         client = await pool.connect();
@@ -717,7 +738,7 @@ app.put('/api/tableaux/:id', async (req, res) => {
         const normalizedDisjoncteurs = disjoncteurs.map(d => {
             const validationErrors = validateDisjoncteurData(d);
             if (validationErrors.length > 0) {
-                throw new Error(`Données invalides pour disjoncteur ${d.id}: ${validationErrors.join('; ')}`);
+                throw new Error(`Données invalides pour disjoncteur ${d.id || 'sans ID'}: ${validationErrors.join('; ')}`);
             }
             return {
                 ...d,
@@ -731,6 +752,7 @@ app.put('/api/tableaux/:id', async (req, res) => {
                 isPrincipal: !!d.isPrincipal
             };
         });
+        // Mise à jour dans la base de données
         const result = await client.query(
             'UPDATE tableaux SET disjoncteurs = $1::jsonb, isSiteMain = $2, isHTA = $3, htaData = $4::jsonb WHERE id = $5 RETURNING id, disjoncteurs, isSiteMain, isHTA, htaData',
             [JSON.stringify(normalizedDisjoncteurs), !!isSiteMain, !!isHTA, isHTA ? JSON.stringify(htaData) : null, id]
@@ -739,7 +761,8 @@ app.put('/api/tableaux/:id', async (req, res) => {
             id,
             disjoncteurs: normalizedDisjoncteurs.length,
             isSiteMain: result.rows[0].isSiteMain,
-            isHTA: result.rows[0].isHTA
+            isHTA: result.rows[0].isHTA,
+            htaData: result.rows[0].htaData
         });
         res.json({
             success: true,
@@ -752,9 +775,14 @@ app.put('/api/tableaux/:id', async (req, res) => {
             code: error.code,
             detail: error.detail
         });
-        res.status(500).json({ error: 'Erreur lors de la mise à jour: ' + error.message });
+        res.status(error.message.includes('invalides') || error.message.includes('non trouvé') ? 400 : 500).json({ 
+            error: 'Erreur lors de la mise à jour: ' + error.message 
+        });
     } finally {
-        if (client) client.release();
+        if (client) {
+            client.release();
+            console.log('[Server] Client PostgreSQL libéré pour PUT /api/tableaux/:id');
+        }
     }
 });
 
