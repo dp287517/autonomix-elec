@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -19,7 +20,7 @@
         }
         .disjoncteur-principal { background-color: #fefcbf; }
         .conflict { color: #dc2626; font-weight: bold; }
-</style>
+    </style>
 </head>
 <body class="bg-gray-900 text-white">
     <nav class="bg-blue-700 p-4 sticky top-0 z-50 shadow-lg">
@@ -45,7 +46,8 @@
         <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-md mb-4 sm:mb-6 animate-fade-in">
             <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-info-circle mr-2"></i>Étapes pour créer un tableau</h2>
             <ol class="list-decimal list-inside space-y-2 text-sm sm:text-base text-gray-300">
-                <li>Entrez l'identifiant du tableau (unique, ex. 40-8-G).</li>
+                <li>Entrez l'identifiant du tableau (unique, ex. 40-8-G pour BT, HTA-01 pour HTA).</li>
+                <li>Indiquez si le tableau est HTA ou BT, et remplissez les champs HTA si applicable.</li>
                 <li>Indiquez si le tableau est le général principal du site (enregistré automatiquement).</li>
                 <li>Ajoutez des disjoncteurs en :
                     <ul class="list-disc list-inside ml-6">
@@ -56,7 +58,7 @@
                 </li>
                 <li>Complétez les champs, en suivant les instructions (ex. ID obligatoire, courbe = B, C ou D).</li>
                 <li>Désignez un disjoncteur comme principal si nécessaire.</li>
-                <li>Lier un disjoncteur non principal à un tableau aval si applicable.</li>
+                <li>Lier un disjoncteur non principal à un tableau aval si applicable (BT uniquement).</li>
                 <li>Enregistrez le tableau en cliquant sur "Enregistrer".</li>
             </ol>
         </div>
@@ -65,7 +67,40 @@
             <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-table mr-2"></i>Informations du tableau</h2>
             <div class="mb-4">
                 <label for="tableau-id" class="block text-sm font-medium">Identifiant du tableau</label>
-                <input id="tableau-id" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 40-8-G">
+                <input id="tableau-id" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 40-8-G ou HTA-01">
+            </div>
+            <div class="mb-4">
+                <label class="inline-flex items-center">
+                    <input id="tableau-isHTA" type="checkbox" class="form-checkbox h-5 w-5 text-blue-600" onchange="toggleHTAFields()">
+                    <span class="ml-2 text-sm font-medium">Tableau alimenté par une cellule HTA</span>
+                </label>
+                <p class="text-xs text-gray-500">Cochez si ce tableau est HTA.</p>
+            </div>
+            <div id="hta-fields" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="hta-transformerPower" class="block text-sm font-medium">Puissance du transformateur (kVA)</label>
+                    <input id="hta-transformerPower" type="number" step="0.01" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 1600">
+                </div>
+                <div>
+                    <label for="hta-voltage" class="block text-sm font-medium">Tension HTA (kV)</label>
+                    <input id="hta-voltage" type="number" step="0.01" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 20">
+                </div>
+                <div>
+                    <label for="hta-in" class="block text-sm font-medium">Courant nominal (In, A)</label>
+                    <input id="hta-in" type="number" step="0.01" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 50">
+                </div>
+                <div>
+                    <label for="hta-ir" class="block text-sm font-medium">Courant réglable (Ir, A)</label>
+                    <input id="hta-ir" type="number" step="0.01" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 40">
+                </div>
+                <div>
+                    <label for="hta-triptime" class="block text-sm font-medium">Temps de déclenchement (s)</label>
+                    <input id="hta-triptime" type="number" step="0.01" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 0.2">
+                </div>
+                <div>
+                    <label for="hta-icn" class="block text-sm font-medium">Pouvoir de coupure (Icn, kA)</label>
+                    <input id="hta-icn" type="number" step="0.01" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 16">
+                </div>
             </div>
             <div class="mb-4">
                 <label class="inline-flex items-center">
@@ -258,6 +293,7 @@
             let tableaux = [];
             let disjoncteurPrincipalIndex = null;
             let issitemain = false;
+            let isHTA = false;
 
             function validateDisjoncteurId(id) {
                 const validIdRegex = /^[\p{L}0-9\s\-_:]+$/u;
@@ -284,6 +320,44 @@
             function hidePopup() {
                 console.log('[Create] Masquage pop-up');
                 document.getElementById('popup').classList.add('hidden');
+            }
+
+            function toggleHTAFields() {
+                const isHTAChecked = document.getElementById('tableau-isHTA').checked;
+                const htaFields = document.getElementById('hta-fields');
+                console.log('[Create] Bascule champs HTA:', isHTAChecked);
+                htaFields.classList.toggle('hidden', !isHTAChecked);
+                if (!isHTAChecked) {
+                    document.getElementById('hta-transformerPower').value = '';
+                    document.getElementById('hta-voltage').value = '';
+                    document.getElementById('hta-in').value = '';
+                    document.getElementById('hta-ir').value = '';
+                    document.getElementById('hta-triptime').value = '';
+                    document.getElementById('hta-icn').value = '';
+                }
+            }
+
+            function collectHTAData() {
+                if (!document.getElementById('tableau-isHTA').checked) return null;
+                const transformerPower = parseFloat(document.getElementById('hta-transformerPower').value);
+                const voltage = parseFloat(document.getElementById('hta-voltage').value);
+                const inCurrent = parseFloat(document.getElementById('hta-in').value);
+                const irCurrent = parseFloat(document.getElementById('hta-ir').value);
+                const triptime = parseFloat(document.getElementById('hta-triptime').value);
+                const icn = parseFloat(document.getElementById('hta-icn').value);
+                console.log('[Create] Collecte données HTA:', { transformerPower, voltage, inCurrent, irCurrent, triptime, icn });
+                if ([transformerPower, voltage, inCurrent, irCurrent, triptime, icn].some(v => isNaN(v) || v <= 0)) {
+                    showPopup('Tous les champs HTA doivent être des valeurs numériques positives.', '', () => {});
+                    return null;
+                }
+                return {
+                    transformerPower: `${transformerPower} kVA`,
+                    voltage: `${voltage} kV`,
+                    in: `${inCurrent} A`,
+                    ir: `${irCurrent} A`,
+                    triptime: `${triptime} s`,
+                    icn: `${icn} kA`
+                };
             }
 
             async function saveIsSiteMain() {
@@ -516,9 +590,7 @@
                     isPrincipal: false,
                     linkedTableauId: document.getElementById('disjoncteur-linked-tableau').value.trim()
                 };
-
                 console.log('[Create] Disjoncteur à ajouter:', disjoncteur);
-
                 if (!disjoncteur.id) {
                     console.log('[Create] Erreur: ID vide');
                     showPopup('L\'ID du disjoncteur est obligatoire (ex. 11F1 Compresseur).', '', () => {});
@@ -549,10 +621,8 @@
                     showPopup('Cet ID est déjà utilisé dans ce tableau. Choisissez un ID unique.', '', () => {});
                     return;
                 }
-
                 disjoncteurs.push(disjoncteur);
                 console.log('[Create] Disjoncteur ajouté:', disjoncteur.id);
-
                 const select = document.getElementById('disjoncteur-existant');
                 const existingOptions = Array.from(select.options).map(opt => opt.value);
                 if (!existingOptions.includes(JSON.stringify(disjoncteur))) {
@@ -562,7 +632,6 @@
                     select.appendChild(option);
                     console.log('[Create] Disjoncteur ajouté à la liste déroulante:', `${disjoncteur.marque} ${disjoncteur.ref}`);
                 }
-
                 afficherDisjoncteurs();
                 document.getElementById('disjoncteur-form').classList.add('hidden');
                 document.getElementById('disjoncteur-marque').value = '';
@@ -674,10 +743,21 @@
                 console.log('[Create] Bouton Enregistrer le tableau cliqué');
                 const tableauId = document.getElementById('tableau-id').value.trim();
                 const currentIsSiteMain = document.getElementById('tableau-issitemain').checked;
-                console.log('[Create] Tableau ID:', tableauId, 'Disjoncteurs:', disjoncteurs.length, 'issitemain:', currentIsSiteMain);
+                isHTA = document.getElementById('tableau-isHTA').checked;
+                const htaData = collectHTAData();
+                console.log('[Create] Tableau ID:', tableauId, 'Disjoncteurs:', disjoncteurs.length, 'issitemain:', currentIsSiteMain, 'isHTA:', isHTA, 'htaData:', htaData);
                 if (!tableauId) {
                     console.log('[Create] Erreur: ID tableau vide');
                     showPopup('Veuillez entrer un identifiant pour le tableau.', '', () => {});
+                    return;
+                }
+                if (!validateDisjoncteurId(tableauId)) {
+                    console.log('[Create] Erreur: ID tableau invalide', tableauId);
+                    showPopup('L\'ID du tableau contient des caractères non autorisés. Utilisez lettres (y compris accentuées), chiffres, espaces, tirets, underscores ou deux-points.', '', () => {});
+                    return;
+                }
+                if (isHTA && !htaData) {
+                    console.log('[Create] Erreur: Données HTA invalides');
                     return;
                 }
                 if (disjoncteurs.length === 0) {
@@ -686,13 +766,13 @@
                     return;
                 }
                 try {
-                    console.log('[Create] Envoi requête POST /api/tableaux', { id: tableauId, disjoncteurs, issitemain: currentIsSiteMain });
+                    console.log('[Create] Envoi requête POST /api/tableaux', { id: tableauId, disjoncteurs, issitemain: currentIsSiteMain, isHTA, htaData });
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 5000);
                     const response = await fetch('/api/tableaux', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: tableauId, disjoncteurs, issitemain: currentIsSiteMain }),
+                        body: JSON.stringify({ id: tableauId, disjoncteurs, issitemain: currentIsSiteMain, isHTA, htaData }),
                         signal: controller.signal
                     });
                     clearTimeout(timeoutId);
@@ -714,14 +794,17 @@
             }
 
             window.onload = () => {
-                console.log('[Create] Initialisation page create');
+                console.log('[Create] Initialisation page create à', new Date().toLocaleString('fr-FR'));
                 if (window.location.protocol === 'file:') {
                     showPopup('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/create.html) pour accéder à l\'API.', '', () => {});
                     return;
                 }
                 document.getElementById('tableau-id').value = '';
                 document.getElementById('tableau-issitemain').checked = false;
+                document.getElementById('tableau-isHTA').checked = false;
+                toggleHTAFields();
                 issitemain = false;
+                isHTA = false;
                 chargerDisjoncteursExistants();
                 chargerTableaux();
             };
