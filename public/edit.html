@@ -464,14 +464,27 @@
                     isHTA = tableau.isHTA || false;
                     if (tableau.isHTA && tableau.htaData) {
                         console.log('[Edit] Remplissage champs HTA:', tableau.htaData);
-                        document.getElementById('hta-transformerPower').value = parseFloat(tableau.htaData.transformerPower) || '';
-                        document.getElementById('hta-voltage').value = parseFloat(tableau.htaData.voltage) || '';
-                        document.getElementById('hta-in').value = parseFloat(tableau.htaData.in) || '';
-                        document.getElementById('hta-ir').value = parseFloat(tableau.htaData.ir) || '';
-                        document.getElementById('hta-triptime').value = parseFloat(tableau.htaData.triptime) || '';
-                        document.getElementById('hta-icn').value = parseFloat(tableau.htaData.icn) || '';
+                        const parseValue = (value) => {
+                            if (!value) return '';
+                            const match = value.match(/[\d.]+/);
+                            return match ? parseFloat(match[0]) : '';
+                        };
+                        document.getElementById('hta-transformerPower').value = parseValue(tableau.htaData.transformerPower);
+                        document.getElementById('hta-voltage').value = parseValue(tableau.htaData.voltage);
+                        document.getElementById('hta-in').value = parseValue(tableau.htaData.in);
+                        document.getElementById('hta-ir').value = parseValue(tableau.htaData.ir);
+                        document.getElementById('hta-triptime').value = parseValue(tableau.htaData.triptime);
+                        document.getElementById('hta-icn').value = parseValue(tableau.htaData.icn);
+                        console.log('[Edit] Valeurs assignées aux champs HTA:', {
+                            transformerPower: document.getElementById('hta-transformerPower').value,
+                            voltage: document.getElementById('hta-voltage').value,
+                            in: document.getElementById('hta-in').value,
+                            ir: document.getElementById('hta-ir').value,
+                            triptime: document.getElementById('hta-triptime').value,
+                            icn: document.getElementById('hta-icn').value
+                        });
                     } else {
-                        console.log('[Edit] Pas de données HTA à charger');
+                        console.log('[Edit] Pas de données HTA à charger ou isHTA=false');
                         document.getElementById('hta-transformerPower').value = '';
                         document.getElementById('hta-voltage').value = '';
                         document.getElementById('hta-in').value = '';
