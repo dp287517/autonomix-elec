@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -103,7 +104,7 @@
             <ul class="list-disc pl-6 text-gray-300 text-sm sm:text-base">
                 <li>Utilisez les filtres pour sélectionner un bâtiment ou un tableau spécifique.</li>
                 <li>Consultez le tableau ci-dessous pour voir les tableaux électriques, leurs disjoncteurs, et la sélectivité HTA/BT si applicable.</li>
-                <li>Chaque tableau affiche son disjoncteur principal, le nombre de disjoncteurs non principaux (cliquez sur la loupe pour les détails), et les liaisons.</li>
+                <li>Chaque tableau affiche son disjoncteur principal ou alimenté par HTA, le nombre de disjoncteurs non principaux (cliquez sur la loupe pour les détails), et les liaisons.</li>
                 <li>Pour les données manquantes, cliquez sur la loupe pour voir les disjoncteurs concernés et leurs champs à compléter.</li>
                 <li>Cliquez sur l’icône <i class="fas fa-chart-line"></i> ou "Agrandir" pour voir le graphique de sélectivité, incluant HTA si configuré.</li>
                 <li>Le statut indique si la sélectivité est correcte (HTA/BT et BT interne), avec une explication dans le modal.</li>
@@ -120,7 +121,7 @@
                     <thead>
                         <tr class="bg-gray-700 text-white">
                             <th class="p-2">Tableau</th>
-                            <th class="p-2">Disjoncteur Principal</th>
+                            <th class="p-2">Disjoncteur Principal / HTA</th>
                             <th class="p-2">Disjoncteurs Non Principaux</th>
                             <th class="p-2">Liaisons</th>
                             <th class="p-2">Sélectivité BT</th>
@@ -373,7 +374,9 @@
                         id: d.id || d.disjoncteur_id,
                         inValue: normalizeCurrent(d.in),
                         irValue: normalizeCurrent(d.ir),
-                        linkedTableauIds: d.linkedTableauIds || (d.linkedTableauId ? [d.linkedTableauId] : [])
+                        linkedTableauIds: d.linkedTableauIds || (d.linkedTableauId ? [d.linkedTableauId] : []),
+                        isPrincipal: !!d.isPrincipal,
+                        isHTAFeeder: !!d.isHTAFeeder
                     })),
                     issitemain: tableau.issitemain || false,
                     isHTA: tableau.isHTA || false,
@@ -451,7 +454,7 @@
                 'Tableau_ID', 'Bâtiment', 'Est_Principal_Site', 'Alimenté_par_HTA', 'Puissance_Transfo_kVA', 'Tension_HTA_kV',
                 'In_HTA_A', 'Ir_HTA_A', 'Triptime_HTA_s', 'Icn_HTA_kA', 'Statut_Sélectivité_BT', 'Message_Sélectivité_BT',
                 'Statut_Sélectivité_HTA_BT', 'Message_Sélectivité_HTA_BT', 'Liaisons', 'Disjoncteur_ID', 'Disjoncteur_Principal',
-                'Marque', 'Référence', 'Ir_A', 'In_A', 'Courbe', 'Tableaux_Liés'
+                'Disjoncteur_Alimenté_HTA', 'Marque', 'Référence', 'Ir_A', 'In_A', 'Courbe', 'Tableaux_Liés'
             ];
             const rows = [];
 
@@ -502,6 +505,7 @@
                             liaisons,
                             disjoncteur.id || 'N/A',
                             disjoncteur.isPrincipal ? 'Oui' : 'Non',
+                            disjoncteur.isHTAFeeder ? 'Oui' : 'Non',
                             disjoncteur.marque || 'N/A',
                             disjoncteur.ref || 'N/A',
                             disjoncteur.irValue || 'N/A',
@@ -543,8 +547,8 @@
 
             tableaux.forEach((tableau, index) => {
                 console.log('[Selectivity] Traitement du tableau:', tableau.id);
-                const principal = tableau.disjoncteurs.find(d => d.isPrincipal) || {};
-                const nonPrincipaux = tableau.disjoncteurs.filter(d => !d.isPrincipal);
+                const principal = tableau.disjoncteurs.find(d => d.isPrincipal || d.isHTAFeeder) || {};
+                const nonPrincipaux = tableau.disjoncteurs.filter(d => !d.isPrincipal && !d.isHTAFeeder);
                 const liaisons = tableau.disjoncteurs
                     .filter(d => d.linkedTableauIds?.length > 0)
                     .map(d => `${d.id} → ${d.linkedTableauIds.join(', ')}`)
@@ -557,12 +561,18 @@
                     ? `${selectivityBT.upstreamDisjoncteurId} (${selectivityBT.upstreamTableauId})`
                     : tableau.issitemain
                         ? 'Principal du site'
-                        : 'Aucun amont défini';
+                        : tableau.isHTA
+                            ? 'Cellule HTA'
+                            : 'Aucun amont défini';
+
+                const principalText = principal.id 
+                    ? `${principal.id} (${principal.isHTAFeeder ? 'Alimenté par cellule HTA' : 'Principal'}, ${principal.marque || ''} ${principal.ref || ''})`
+                    : `Aucun (amont: ${upstreamInfo})`;
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td class="p-2">${tableau.id}${tableau.issitemain ? ' (Principal du site)' : ''}${tableau.isHTA ? ' (HTA)' : ''}</td>
-                    <td class="p-2${principal.id ? ' disjoncteur-principal' : ''}">${principal.id || 'Aucun (amont: ' + upstreamInfo + ')'} (${principal.marque || ''} ${principal.ref || ''})</td>
+                    <td class="p-2${principal.id ? ' disjoncteur-principal' : ''}">${principalText}</td>
                     <td class="p-2">
                         ${nonPrincipaux.length > 0 
                             ? `<button class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 flex items-center touch-friendly" onclick="openNonPrincipalModal('${encodeURIComponent(tableau.id)}')" aria-label="Voir ${nonPrincipaux.length} disjoncteurs non principaux"><i class="fas fa-magnifying-glass mr-1"></i> Voir ${nonPrincipaux.length} disjoncteur${nonPrincipaux.length > 1 ? 's' : ''}<span class="badge">${nonPrincipaux.length}</span></button>`
@@ -591,7 +601,7 @@
                 showPopup('Erreur: Tableau non trouvé.', '', () => {});
                 return;
             }
-            const nonPrincipaux = tableau.disjoncteurs.filter(d => !d.isPrincipal);
+            const nonPrincipaux = tableau.disjoncteurs.filter(d => !d.isPrincipal && !d.isHTAFeeder);
             const modal = document.getElementById('non-principal-modal');
             const tableBody = document.getElementById('non-principal-table-body');
             const modalTitle = document.getElementById('non-principal-modal-title');
@@ -784,6 +794,7 @@
                         courbe: courbe || null,
                         triptime: null,
                         isPrincipal: false,
+                        isHTAFeeder: false,
                         linkedTableauIds: linkedTableau ? [linkedTableau] : []
                     };
                     const tableau = tableauxData[0] || { id: 'TEMP', disjoncteurs: [] };
@@ -837,13 +848,13 @@
                 };
             }
 
-            const principal = tableau.disjoncteurs.find(d => d.isPrincipal);
+            const principal = tableau.disjoncteurs.find(d => d.isPrincipal || d.isHTAFeeder);
             let effectiveDisjoncteur = principal;
-            let disjoncteurSource = 'local';
+            let disjoncteurSource = tableau.isHTA && principal?.isHTAFeeder ? 'hta' : 'local';
             let upstreamDisjoncteurId = null;
             let upstreamTableauId = null;
 
-            if (!principal) {
+            if (!principal && !tableau.isHTA) {
                 const upstreamResult = findUpstreamDisjoncteur(tableauId, allTableaux);
                 if (upstreamResult) {
                     effectiveDisjoncteur = upstreamResult.disjoncteur;
@@ -855,11 +866,20 @@
                         status: 'Problème',
                         message: 'Aucun disjoncteur principal ou amont défini.',
                         criticalCurrent: null,
-                        details: `Veuillez définir un disjoncteur principal dans ${tableauId} ou lier un disjoncteur amont via un tableau parent.`,
+                        details: `Veuillez définir un disjoncteur principal ou alimenté par HTA dans ${tableauId} ou lier un disjoncteur amont via un tableau parent.`,
                         upstreamDisjoncteurId: null,
                         upstreamTableauId: null
                     };
                 }
+            } else if (tableau.isHTA && !principal) {
+                return {
+                    status: 'Problème',
+                    message: 'Aucun disjoncteur principal ou alimenté par HTA défini.',
+                    criticalCurrent: null,
+                    details: `Veuillez définir un disjoncteur principal ou alimenté par HTA dans ${tableauId} pour analyser la sélectivité.`,
+                    upstreamDisjoncteurId: null,
+                    upstreamTableauId: null
+                };
             }
 
             const disjoncteurIr = effectiveDisjoncteur.irValue || effectiveDisjoncteur.inValue;
@@ -868,7 +888,7 @@
             let criticalCurrent = null;
             let details = '';
 
-            const nonPrincipaux = tableau.disjoncteurs.filter(d => !d.isPrincipal);
+            const nonPrincipaux = tableau.disjoncteurs.filter(d => !d.isPrincipal && !d.isHTAFeeder);
             for (const d of nonPrincipaux) {
                 const subDisjoncteurIr = d.irValue || d.inValue;
                 const subDisjoncteurTripTime = d.triptime || calculerTripTime(d.inValue, d.irValue, d.courbe);
@@ -877,10 +897,10 @@
                 const courbeOrder = ['B', 'C', 'D'];
                 if (courbeOrder.indexOf(subDisjoncteurCourbe) < courbeOrder.indexOf(disjoncteurCourbe)) {
                     criticalCurrent = subDisjoncteurIr * (subDisjoncteurCourbe === 'B' ? 5 : 10);
-                    details = `Le disjoncteur ${d.id} (courbe ${subDisjoncteurCourbe}, Ir=${subDisjoncteurIr}A) est trop sensible par rapport au ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'} (courbe ${disjoncteurCourbe}, Ir=${disjoncteurIr}A). À ${criticalCurrent}A, il risque de déclencher avant, causant une coupure prématurée.`;
+                    details = `Le disjoncteur ${d.id} (courbe ${subDisjoncteurCourbe}, Ir=${subDisjoncteurIr}A) est trop sensible par rapport au ${disjoncteurSource === 'local' ? 'principal local' : disjoncteurSource === 'hta' ? 'disjoncteur alimenté par HTA' : 'disjoncteur amont'} (courbe ${disjoncteurCourbe}, Ir=${disjoncteurIr}A). À ${criticalCurrent}A, il risque de déclencher avant, causant une coupure prématurée.`;
                     return {
                         status: 'Problème',
-                        message: `Le disjoncteur ${d.id} (courbe ${subDisjoncteurCourbe}) est trop sensible par rapport au ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'}.`,
+                        message: `Le disjoncteur ${d.id} (courbe ${subDisjoncteurCourbe}) est trop sensible par rapport au ${disjoncteurSource === 'local' ? 'principal local' : disjoncteurSource === 'hta' ? 'disjoncteur alimenté par HTA' : 'disjoncteur amont'}.`,
                         criticalCurrent,
                         details,
                         upstreamDisjoncteurId,
@@ -890,10 +910,10 @@
 
                 if (subDisjoncteurIr && disjoncteurIr && Math.abs(subDisjoncteurIr - disjoncteurIr) / disjoncteurIr <= 0.1) {
                     criticalCurrent = Math.max(subDisjoncteurIr, disjoncteurIr);
-                    details = `Le disjoncteur ${d.id} (Ir=${subDisjoncteurIr}A) est trop proche du ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'} (Ir=${disjoncteurIr}A). À ${criticalCurrent}A, les deux risquent de déclencher simultanément, compromettant la sélectivité.`;
+                    details = `Le disjoncteur ${d.id} (Ir=${subDisjoncteurIr}A) est trop proche du ${disjoncteurSource === 'local' ? 'principal local' : disjoncteurSource === 'hta' ? 'disjoncteur alimenté par HTA' : 'disjoncteur amont'} (Ir=${disjoncteurIr}A). À ${criticalCurrent}A, les deux risquent de déclencher simultanément, compromettant la sélectivité.`;
                     return {
                         status: 'Problème',
-                        message: `Le disjoncteur ${d.id} (Ir=${subDisjoncteurIr}A) est trop proche du ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'}.`,
+                        message: `Le disjoncteur ${d.id} (Ir=${subDisjoncteurIr}A) est trop proche du ${disjoncteurSource === 'local' ? 'principal local' : disjoncteurSource === 'hta' ? 'disjoncteur alimenté par HTA' : 'disjoncteur amont'}.`,
                         criticalCurrent,
                         details,
                         upstreamDisjoncteurId,
@@ -903,10 +923,10 @@
 
                 if (subDisjoncteurIr && disjoncteurIr && subDisjoncteurIr > disjoncteurIr) {
                     criticalCurrent = disjoncteurIr;
-                    details = `Le disjoncteur ${d.id} (Ir=${subDisjoncteurIr}A) est plus grand que le ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'} (Ir=${disjoncteurIr}A). À ${criticalCurrent}A, le disjoncteur amont déclenchera avant, entraînant une coupure générale.`;
+                    details = `Le disjoncteur ${d.id} (Ir=${subDisjoncteurIr}A) est plus grand que le ${disjoncteurSource === 'local' ? 'principal local' : disjoncteurSource === 'hta' ? 'disjoncteur alimenté par HTA' : 'disjoncteur amont'} (Ir=${disjoncteurIr}A). À ${criticalCurrent}A, le disjoncteur amont déclenchera avant, entraînant une coupure générale.`;
                     return {
                         status: 'Problème',
-                        message: `Le disjoncteur ${d.id} (Ir=${subDisjoncteurIr}A) est plus grand que le ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'}.`,
+                        message: `Le disjoncteur ${d.id} (Ir=${subDisjoncteurIr}A) est plus grand que le ${disjoncteurSource === 'local' ? 'principal local' : disjoncteurSource === 'hta' ? 'disjoncteur alimenté par HTA' : 'disjoncteur amont'}.`,
                         criticalCurrent,
                         details,
                         upstreamDisjoncteurId,
@@ -915,10 +935,10 @@
                 }
             }
 
-            details = `Les disjoncteurs secondaires (ex. ${nonPrincipaux.length > 0 ? nonPrincipaux[0].id : 'aucun'}, Ir=${nonPrincipaux.length > 0 ? (nonPrincipaux[0].irValue || nonPrincipaux[0].inValue) : 'N/A'}A) sont bien dimensionnés. Ils déclencheront avant le ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'} (Ir=${disjoncteurIr}A), assurant une sélectivité correcte.`;
+            details = `Les disjoncteurs secondaires (ex. ${nonPrincipaux.length > 0 ? nonPrincipaux[0].id : 'aucun'}, Ir=${nonPrincipaux.length > 0 ? (nonPrincipaux[0].irValue || nonPrincipaux[0].inValue) : 'N/A'}A) sont bien dimensionnés. Ils déclencheront avant le ${disjoncteurSource === 'local' ? 'principal local' : disjoncteurSource === 'hta' ? 'disjoncteur alimenté par HTA' : 'disjoncteur amont'} (Ir=${disjoncteurIr}A), assurant une sélectivité correcte.`;
             return {
                 status: 'Parfait',
-                message: `Les disjoncteurs secondaires (ex. ${nonPrincipaux.length > 0 ? nonPrincipaux[0].id : 'aucun'}) sont bien dimensionnés et couperont avant le ${disjoncteurSource === 'local' ? 'principal local' : 'disjoncteur amont'}.`,
+                message: `Les disjoncteurs secondaires (ex. ${nonPrincipaux.length > 0 ? nonPrincipaux[0].id : 'aucun'}) sont bien dimensionnés et couperont avant le ${disjoncteurSource === 'local' ? 'principal local' : disjoncteurSource === 'hta' ? 'disjoncteur alimenté par HTA' : 'disjoncteur amont'}.`,
                 criticalCurrent: null,
                 details,
                 upstreamDisjoncteurId,
@@ -936,37 +956,42 @@
                 };
             }
 
-            const principal = tableau.disjoncteurs.find(d => d.isPrincipal);
-            if (!principal) {
+            const feeders = tableau.disjoncteurs.filter(d => d.isPrincipal || d.isHTAFeeder);
+            if (feeders.length === 0) {
                 return {
                     status: 'Problème',
-                    message: 'Aucun disjoncteur principal défini.',
-                    details: `Veuillez définir un disjoncteur principal dans ${tableau.id} pour analyser la sélectivité HTA/BT.`,
+                    message: 'Aucun disjoncteur principal ou alimenté par HTA défini.',
+                    details: `Veuillez définir un disjoncteur principal ou alimenté par HTA dans ${tableau.id} pour analyser la sélectivité HTA/BT.`,
                     criticalCurrent: null
                 };
             }
 
-            const btIr = normalizeCurrent(principal.ir) || normalizeCurrent(principal.in) || 100;
-            const btTriptime = parseFloat(principal.triptime) || calculerTripTime(normalizeCurrent(principal.in), normalizeCurrent(principal.ir), principal.courbe);
             const htaIr = normalizeCurrent(tableau.htaData.ir) || 100;
             const htaTriptime = parseFloat(tableau.htaData.triptime) || 0.2;
+            let allSelective = true;
+            let details = [];
+            let criticalCurrent = null;
 
-            if (htaTriptime > btTriptime && htaIr > btIr) {
-                return {
-                    status: 'OK',
-                    message: 'Sélectivité HTA/BT assurée.',
-                    details: `Le disjoncteur BT (Ir=${btIr}A, t=${btTriptime}s) déclenche avant la cellule HTA (Ir=${htaIr}A, t=${htaTriptime}s).`,
-                    criticalCurrent: null
-                };
-            } else {
-                const criticalCurrent = Math.max(btIr, htaIr);
-                return {
-                    status: 'KO',
-                    message: 'Sélectivité HTA/BT non assurée.',
-                    details: `À ${criticalCurrent}A, la cellule HTA (Ir=${htaIr}A, t=${htaTriptime}s) risque de déclencher avant le disjoncteur BT (Ir=${btIr}A, t=${btTriptime}s). Vérifiez les réglages.`,
-                    criticalCurrent
-                };
-            }
+            feeders.forEach((feeder, index) => {
+                const btIr = normalizeCurrent(feeder.ir) || normalizeCurrent(feeder.in) || 100;
+                const btTriptime = parseFloat(feeder.triptime) || calculerTripTime(normalizeCurrent(feeder.in), normalizeCurrent(feeder.ir), feeder.courbe);
+                
+                if (htaTriptime > btTriptime && htaIr > btIr) {
+                    details.push(`Le disjoncteur ${feeder.id} (Ir=${btIr}A, t=${btTriptime}s) déclenche avant la cellule HTA (Ir=${htaIr}A, t=${htaTriptime}s).`);
+                } else {
+                    allSelective = false;
+                    const curr = Math.max(btIr, htaIr);
+                    criticalCurrent = criticalCurrent ? Math.max(criticalCurrent, curr) : curr;
+                    details.push(`À ${curr}A, le disjoncteur ${feeder.id} (Ir=${btIr}A, t=${btTriptime}s) risque de ne pas déclencher avant la cellule HTA (Ir=${htaIr}A, t=${htaTriptime}s). Vérifiez les réglages.`);
+                }
+            });
+
+            return {
+                status: allSelective ? 'OK' : 'KO',
+                message: allSelective ? 'Sélectivité HTA/BT assurée pour tous les disjoncteurs.' : 'Sélectivité HTA/BT non assurée pour certains disjoncteurs.',
+                details: details.join(' '),
+                criticalCurrent
+            };
         }
 
         function buildArborescence(tableaux, focusedTableauId = null) {
@@ -1006,44 +1031,45 @@
                 });
 
                 if (isExpanded || expandedNodes.has(nodeId) || tableau.id === focusedTableauId) {
-                    const principal = tableau.disjoncteurs.find(d => d.isPrincipal);
-                    const principalLevel = parentLevel + 1;
-                    let principalNodeId = null;
+                    const feeders = tableau.disjoncteurs.filter(d => d.isPrincipal || d.isHTAFeeder);
+                    const feederLevel = parentLevel + 1;
+                    let feederNodeIds = [];
 
-                    if (principal) {
-                        principalNodeId = `principal-${tableau.id}-${principal.id}`;
+                    feeders.forEach(feeder => {
+                        const feederNodeId = `feeder-${tableau.id}-${feeder.id}`;
                         elements.nodes.push({
-                            id: principalNodeId,
-                            label: `${principal.id}\n(Principal, Ir=${principal.irValue || principal.inValue}A)`,
-                            title: `<strong>Disjoncteur :</strong> ${principal.id}<br><strong>Tableau :</strong> ${tableau.id}<br><strong>Marque :</strong> ${principal.marque || 'N/A'}<br><strong>Réf :</strong> ${principal.ref || 'N/A'}<br><strong>Ir :</strong> ${principal.irValue || 'N/A'}A<br><strong>In :</strong> ${principal.inValue || 'N/A'}A<br><strong>Courbe :</strong> ${principal.courbe || 'N/A'}`,
-                            color: '#3b82f6',
-                            group: 'principal',
-                            level: principalLevel,
-                            disjoncteurId: principal.id,
+                            id: feederNodeId,
+                            label: `${feeder.id}\n(${feeder.isHTAFeeder ? 'HTA Feeder' : 'Principal'}, Ir=${feeder.irValue || feeder.inValue}A)`,
+                            title: `<strong>Disjoncteur :</strong> ${feeder.id}<br><strong>Tableau :</strong> ${tableau.id}<br><strong>Marque :</strong> ${feeder.marque || 'N/A'}<br><strong>Réf :</strong> ${feeder.ref || 'N/A'}<br><strong>Ir :</strong> ${feeder.irValue || 'N/A'}A<br><strong>In :</strong> ${feeder.inValue || 'N/A'}A<br><strong>Courbe :</strong> ${feeder.courbe || 'N/A'}<br><strong>Rôle :</strong> ${feeder.isHTAFeeder ? 'Alimenté par HTA' : 'Principal'}`,
+                            color: feeder.isHTAFeeder ? '#f97316' : '#3b82f6',
+                            group: feeder.isHTAFeeder ? 'hta-feeder' : 'principal',
+                            level: feederLevel,
+                            disjoncteurId: feeder.id,
                             parentId: nodeId
                         });
                         elements.edges.push({
-                            id: `edge-${nodeId}-to-${principalNodeId}`,
+                            id: `edge-${nodeId}-to-${feederNodeId}`,
                             from: nodeId,
-                            to: principalNodeId,
+                            to: feederNodeId,
                             color: '#6B7280'
                         });
-                    }
+                        feederNodeIds.push(feederNodeId);
+                    });
 
-                    const nonPrincipalLevel = principal ? parentLevel + 2 : parentLevel + 1;
-                    tableau.disjoncteurs.filter(d => !d.isPrincipal).forEach(d => {
+                    const nonPrincipalLevel = feeders.length > 0 ? parentLevel + 2 : parentLevel + 1;
+                    tableau.disjoncteurs.filter(d => !d.isPrincipal && !d.isHTAFeeder).forEach(d => {
                         const disjoncteurNodeId = `disjoncteur-${tableau.id}-${d.id}`;
                         let isSelective = false;
-                        let upstreamDisjoncteur = principal;
+                        let upstreamDisjoncteur = feeders[0];
 
-                        if (!principal && !tableau.issitemain) {
+                        if (!feeders.length && !tableau.issitemain) {
                             const upstreamResult = findUpstreamDisjoncteur(tableau.id, tableaux);
                             if (upstreamResult) {
                                 upstreamDisjoncteur = upstreamResult.disjoncteur;
                                 isSelective = (d.irValue || d.inValue) < (upstreamDisjoncteur.irValue || upstreamDisjoncteur.inValue) * 0.9;
                             }
-                        } else if (principal) {
-                            isSelective = (d.irValue || d.inValue) < (principal.irValue || principal.inValue) * 0.9;
+                        } else if (feeders.length) {
+                            isSelective = (d.irValue || d.inValue) < (feeders[0].irValue || feeders[0].inValue) * 0.9;
                         }
 
                         const hasLink = d.linkedTableauIds?.some(id => tableauIds.has(id));
@@ -1060,7 +1086,7 @@
                             parentId: nodeId
                         });
 
-                        const sourceNodeId = principal ? principalNodeId : nodeId;
+                        const sourceNodeId = feeders.length ? feederNodeIds[0] : nodeId;
                         elements.edges.push({
                             id: `edge-${sourceNodeId}-to-${disjoncteurNodeId}`,
                             from: sourceNodeId,
@@ -1130,8 +1156,8 @@
             const selectivityBT = checkSelectivityStatus(tableau, tableauId);
             const selectivityHTA = checkHTASelectivity(tableau);
 
-            let graphDisjoncteurs = disjoncteurs.slice();
-            if (!tableau.issitemain && !disjoncteurs.find(d => d.isPrincipal) && selectivityBT.upstreamDisjoncteurId) {
+            let graphDisjoncteurs = disjoncteurs.filter(d => d.isPrincipal || d.isHTAFeeder || (!d.isPrincipal && !d.isHTAFeeder));
+            if (!tableau.issitemain && !disjoncteurs.find(d => d.isPrincipal || d.isHTAFeeder) && selectivityBT.upstreamDisjoncteurId) {
                 const upstreamTableau = tableauxData.find(t => t.id === selectivityBT.upstreamTableauId);
                 if (upstreamTableau) {
                     const upstreamDisjoncteur = upstreamTableau.disjoncteurs.find(d => d.id === selectivityBT.upstreamDisjoncteurId);
@@ -1151,11 +1177,11 @@
 
             const datasets = graphDisjoncteurs.map(d => {
                 const points = calculateTripCurve(d, false);
-                const isSelective = checkSelectivity(d, graphDisjoncteurs.find(p => p.isPrincipal));
+                const isSelective = checkSelectivity(d, graphDisjoncteurs.find(p => p.isPrincipal || p.isHTAFeeder));
                 return {
-                    label: `${d.id} (${d.marque || ''} ${d.ref || ''}${d.isPrincipal ? ' - Principal' : ''})`,
+                    label: `${d.id} (${d.marque || ''} ${d.ref || ''}${d.isPrincipal ? ' - Principal' : d.isHTAFeeder ? ' - HTA Feeder' : ''})`,
                     data: points,
-                    borderColor: isSelective ? (d.isPrincipal ? '#22c55e' : '#3b82f6') : '#dc2626',
+                    borderColor: isSelective ? (d.isPrincipal ? '#22c55e' : d.isHTAFeeder ? '#f97316' : '#3b82f6') : '#dc2626',
                     fill: false,
                     tension: 0.1,
                     pointRadius: 0
@@ -1318,7 +1344,7 @@
         }
 
         function checkSelectivity(disjoncteur, upstreamDisjoncteur) {
-            if (!upstreamDisjoncteur || disjoncteur.isPrincipal) return true;
+            if (!upstreamDisjoncteur || disjoncteur.isPrincipal || disjoncteur.isHTAFeeder) return true;
             const upstreamIr = upstreamDisjoncteur.irValue || upstreamDisjoncteur.inValue;
             const disjoncteurIr = disjoncteur.irValue || disjoncteur.inValue;
             const upstreamTripTime = upstreamDisjoncteur.triptime || calculerTripTime(upstreamDisjoncteur.inValue, upstreamDisjoncteur.irValue, upstreamDisjoncteur.courbe);
@@ -1344,10 +1370,10 @@
                 const liaisons = tableau.disjoncteurs
                     .filter(d => d.linkedTableauIds?.length > 0)
                     .map(d => {
-                        const principal = tableau.disjoncteurs.find(p => p.isPrincipal);
-                        let effectiveDisjoncteur = principal;
+                        const feeder = tableau.disjoncteurs.find(p => p.isPrincipal || p.isHTAFeeder);
+                        let effectiveDisjoncteur = feeder;
                         let upstreamTableauId = d.linkedTableauIds[0];
-                        if (!principal && !tableau.issitemain) {
+                        if (!feeder && !tableau.issitemain) {
                             const upstreamResult = findUpstreamDisjoncteur(d.linkedTableauIds[0], tableaux);
                             effectiveDisjoncteur = upstreamResult ? upstreamResult.disjoncteur : null;
                             upstreamTableauId = upstreamResult ? upstreamResult.tableauId : d.linkedTableauIds[0];
@@ -1476,7 +1502,7 @@
                 let x, y;
                 if (node.parentId) {
                     const parentPos = nodePositions[node.parentId] || { x: 200, y: 200 };
-                    x = parentPos.x + (node.group === 'tableau' ? 0 : node.group === 'principal' ? 200 : 400);
+                    x = parentPos.x + (node.group === 'tableau' ? 0 : node.group === 'principal' || node.group === 'hta-feeder' ? 200 : 400);
                     y = parentPos.y + 100;
                 } else {
                     x = 200 + (index % 4) * 300;
@@ -1571,17 +1597,19 @@
                                 <p class="text-sm sm:text-base"><strong>Statut BT :</strong> ${node.title.match(/Statut BT: ([\w\/]+|N\/A)/)?.[1] || 'N/A'}</p>
                                 <p class="text-sm sm:text-base"><strong>Détails BT :</strong> ${node.title.match(/Détails BT: (.+)/)?.[1] || 'N/A'}</p>
                                 <p class="text-sm sm:text-base"><strong>Statut HTA/BT :</strong> ${node.title.match(/Statut HTA\/BT: ([\w\/]+|N\/A)/)?.[1] || 'N/A'}</p>
-                                <p class="text-sm sm:text-base"><strong>Disjoncteurs :</strong> ${tableau?.disjoncteurs.length || 0} (${tableau?.disjoncteurs.filter(d => d.isPrincipal).length || 0} principal, ${tableau?.disjoncteurs.filter(d => !d.isPrincipal).length || 0} non principaux)</p>
+                                <p class="text-sm sm:text-base"><strong>Disjoncteurs :</strong> ${tableau?.disjoncteurs.length || 0} (${tableau?.disjoncteurs.filter(d => d.isPrincipal || d.isHTAFeeder).length || 0} principaux/HTA, ${tableau?.disjoncteurs.filter(d => !d.isPrincipal && !d.isHTAFeeder).length || 0} non principaux)</p>
                             `;
                             const miniModal = document.getElementById('mini-modal');
                             if (miniModal) {
                                 miniModal.classList.remove('hidden');
                                 gsap.from('#mini-modal', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
                             }
-                        } else if (node.group === 'principal' || node.group === 'non-principal') {
+                        } else if (node.group === 'principal' || node.group === 'hta-feeder' || node.group === 'non-principal') {
                             document.getElementById('mini-modal-title').textContent = node.group === 'principal' 
                                 ? `Disjoncteur Principal ${node.disjoncteurId}` 
-                                : `Disjoncteur ${node.disjoncteurId}`;
+                                : node.group === 'hta-feeder' 
+                                    ? `Disjoncteur HTA Feeder ${node.disjoncteurId}`
+                                    : `Disjoncteur ${node.disjoncteurId}`;
                             document.getElementById('mini-modal-content').innerHTML = `
                                 <p class="text-sm sm:text-base"><strong>Disjoncteur :</strong> ${node.disjoncteurId}</p>
                                 <p class="text-sm sm:text-base"><strong>Tableau :</strong> ${node.id.split('-')[1]}</p>
@@ -1591,7 +1619,7 @@
                                 <p class="text-sm sm:text-base"><strong>In :</strong> ${node.disjoncteur?.inValue || 'N/A'} A</p>
                                 <p class="text-sm sm:text-base"><strong>Courbe :</strong> ${node.disjoncteur?.courbe || 'N/A'}</p>
                                 <p class="text-sm sm:text-base"><strong>Triptime :</strong> ${node.disjoncteur?.triptime || 'N/A'} s</p>
-                                <p class="text-sm sm:text-base"><strong>Rôle :</strong> ${node.group === 'principal' ? 'Principal' : 'Non principal'}</p>
+                                <p class="text-sm sm:text-base"><strong>Rôle :</strong> ${node.group === 'principal' ? 'Principal' : node.group === 'hta-feeder' ? 'Alimenté par HTA' : 'Non principal'}</p>
                                 <p class="text-sm sm:text-base"><strong>Sélectivité :</strong> ${node.title.match(/Sélectivité: ([\w\/]+|N\/A)/)?.[1] || 'N/A'}</p>
                                 <p class="text-sm sm:text-base"><strong>Liaisons :</strong> ${node.disjoncteur?.linkedTableauIds?.join(', ') || 'Aucune'}</p>
                             `;
