@@ -394,7 +394,10 @@
             }
 
             function collectHTAData() {
-                if (!isHTA) return null;
+                if (!document.getElementById('tableau-isHTA').checked) {
+                    console.log('[Edit] HTA non sélectionné, retour null');
+                    return null;
+                }
                 const transformerPower = parseFloat(document.getElementById('hta-transformerPower').value);
                 const voltage = parseFloat(document.getElementById('hta-voltage').value);
                 const inCurrent = parseFloat(document.getElementById('hta-in').value);
@@ -402,8 +405,16 @@
                 const triptime = parseFloat(document.getElementById('hta-triptime').value);
                 const icn = parseFloat(document.getElementById('hta-icn').value);
                 console.log('[Edit] Collecte données HTA:', { transformerPower, voltage, inCurrent, irCurrent, triptime, icn });
-                if ([transformerPower, voltage, inCurrent, irCurrent, triptime, icn].some(v => isNaN(v) || v <= 0)) {
-                    showPopup('Tous les champs HTA doivent être des valeurs numériques positives.', '', () => {});
+                const errors = [];
+                if (isNaN(transformerPower) || transformerPower <= 0) errors.push('Puissance du transformateur');
+                if (isNaN(voltage) || voltage <= 0) errors.push('Tension HTA');
+                if (isNaN(inCurrent) || inCurrent <= 0) errors.push('Courant nominal');
+                if (isNaN(irCurrent) || irCurrent <= 0) errors.push('Courant réglable');
+                if (isNaN(triptime) || triptime <= 0) errors.push('Temps de déclenchement');
+                if (isNaN(icn) || icn <= 0) errors.push('Pouvoir de coupure');
+                if (errors.length > 0) {
+                    console.log('[Edit] Erreurs validation HTA:', errors);
+                    showPopup(`Veuillez remplir correctement les champs HTA suivants : ${errors.join(', ')}.`, '', () => {});
                     return null;
                 }
                 return {
@@ -444,20 +455,29 @@
                         return;
                     }
                     const tableau = await response.json();
-                    console.log('[Edit] Tableau reçu:', { id: tableau.id, issitemain: tableau.issitemain, isHTA: tableau.isHTA, disjoncteurs: tableau.disjoncteurs.length });
+                    console.log('[Edit] Tableau reçu:', { id: tableau.id, issitemain: tableau.issitemain, isHTA: tableau.isHTA, htaData: tableau.htaData, disjoncteurs: tableau.disjoncteurs.length });
                     document.getElementById('tableau-id').value = tableau.id;
                     document.getElementById('tableau-issitemain').checked = tableau.issitemain || false;
                     document.getElementById('tableau-isHTA').checked = tableau.isHTA || false;
                     toggleHTAFields();
                     issitemain = tableau.issitemain || false;
                     isHTA = tableau.isHTA || false;
-                    if (isHTA && tableau.htaData) {
+                    if (tableau.isHTA && tableau.htaData) {
+                        console.log('[Edit] Remplissage champs HTA:', tableau.htaData);
                         document.getElementById('hta-transformerPower').value = parseFloat(tableau.htaData.transformerPower) || '';
                         document.getElementById('hta-voltage').value = parseFloat(tableau.htaData.voltage) || '';
                         document.getElementById('hta-in').value = parseFloat(tableau.htaData.in) || '';
                         document.getElementById('hta-ir').value = parseFloat(tableau.htaData.ir) || '';
                         document.getElementById('hta-triptime').value = parseFloat(tableau.htaData.triptime) || '';
                         document.getElementById('hta-icn').value = parseFloat(tableau.htaData.icn) || '';
+                    } else {
+                        console.log('[Edit] Pas de données HTA à charger');
+                        document.getElementById('hta-transformerPower').value = '';
+                        document.getElementById('hta-voltage').value = '';
+                        document.getElementById('hta-in').value = '';
+                        document.getElementById('hta-ir').value = '';
+                        document.getElementById('hta-triptime').value = '';
+                        document.getElementById('hta-icn').value = '';
                     }
                     disjoncteurs = (tableau.disjoncteurs || []).map(d => ({
                         ...d,
@@ -599,7 +619,6 @@
                 }
                 tbody.innerHTML = '';
                 console.log('[Edit] tbody vidé');
-                // Ajouter une ligne de test dynamique
                 const testRow = document.createElement('tr');
                 testRow.innerHTML = '<td colspan="6" class="p-2 text-center">Ligne de test pour vérifier l’affichage</td>';
                 tbody.appendChild(testRow);
@@ -676,14 +695,6 @@
                     tbody.appendChild(emptyRow);
                     console.log('[Edit] Ligne vide ajoutée pour table vide');
                 }
-                // Animation GSAP désactivée pour débogage
-                // try {
-                //     gsap.from('#disjoncteurs-table tr', { opacity: 0, y: 20, duration: 0.5, stagger: 0.05 });
-                //     console.log('[Edit] Animation GSAP appliquée');
-                // } catch (error) {
-                //     console.error('[Edit] Erreur animation GSAP:', error);
-                // }
-                // Vérifier le contenu du tbody
                 console.log('[Edit] Contenu tbody:', tbody.innerHTML);
             }
 
@@ -1214,7 +1225,8 @@
             async function enregistrerModifications() {
                 console.log('[Edit] Bouton Enregistrer les modifications cliqué');
                 const newTableauId = document.getElementById('tableau-id').value.trim();
-                console.log('[Edit] Nouveau tableau ID:', newTableauId, 'Disjoncteurs:', disjoncteurs.length, 'issitemain:', issitemain, 'isHTA:', isHTA);
+                const isHTAChecked = document.getElementById('tableau-isHTA').checked;
+                console.log('[Edit] Nouveau tableau ID:', newTableauId, 'Disjoncteurs:', disjoncteurs.length, 'issitemain:', issitemain, 'isHTA:', isHTAChecked);
                 if (!newTableauId) {
                     console.log('[Edit] Erreur: ID tableau vide');
                     showPopup('Veuillez entrer un identifiant pour le tableau.', '', () => {});
@@ -1232,8 +1244,9 @@
                 }
                 try {
                     const htaData = collectHTAData();
-                    if (isHTA && !htaData) {
-                        console.log('[Edit] Erreur: Données HTA invalides');
+                    console.log('[Edit] Données HTA collectées:', htaData);
+                    if (isHTAChecked && !htaData) {
+                        console.log('[Edit] Erreur: Données HTA invalides, annulation enregistrement');
                         return;
                     }
                     const normalizedDisjoncteurs = disjoncteurs.map(d => ({
@@ -1244,27 +1257,32 @@
                         ir: normalizeNumericValue(d.ir),
                         triptime: normalizeNumericValue(d.triptime)
                     }));
-                    console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, 'avec nouvel ID:', newTableauId);
+                    console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, 'avec:', {
+                        id: newTableauId,
+                        disjoncteurs: normalizedDisjoncteurs.length,
+                        issitemain,
+                        isHTA: isHTAChecked,
+                        htaData
+                    });
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 5000);
                     const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: newTableauId, disjoncteurs: normalizedDisjoncteurs, issitemain, isHTA, htaData }),
+                        body: JSON.stringify({ id: newTableauId, disjoncteurs: normalizedDisjoncteurs, issitemain, isHTA: isHTAChecked, htaData }),
                         signal: controller.signal
                     });
                     clearTimeout(timeoutId);
                     const data = await response.json();
                     console.log('[Edit] Réponse serveur:', { status: response.status, data });
-                    if (response.ok) {
-                        showPopup('Modifications enregistrées avec succès !', '', () => {
-                            console.log('[Edit] Modifications enregistrées, redirection vers view.html');
-                            window.location.href = 'view.html';
-                        });
-                    } else {
+                    if (!response.ok) {
                         console.log('[Edit] Erreur serveur:', data.error);
-                        showPopup('Erreur lors de l\'enregistrement: ' + data.error, '', () => {});
+                        throw new Error(data.error || `Erreur serveur (statut ${response.status})`);
                     }
+                    showPopup('Modifications enregistrées avec succès !', '', () => {
+                        console.log('[Edit] Modifications enregistrées, redirection vers view.html');
+                        window.location.href = 'view.html';
+                    });
                 } catch (error) {
                     console.error('[Edit] Erreur enregistrement:', error);
                     showPopup('Erreur lors de l\'enregistrement: ' + error.message, '', () => {});
