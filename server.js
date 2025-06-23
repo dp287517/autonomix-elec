@@ -485,17 +485,27 @@ app.get('/api/tableaux/:id', async (req, res) => {
     try {
         client = await pool.connect();
         await client.query('SELECT 1');
-        const result = await client.query('SELECT id, disjoncteurs, isSiteMain, isHTA, htaData FROM tableaux WHERE id = $1', [id]);
+        const result = await client.query(
+            'SELECT id, disjoncteurs, isSiteMain AS is_site_main, ishta AS is_hta, htadata AS hta_data FROM tableaux WHERE id = $1',
+            [id]
+        );
         if (result.rows.length === 0) {
             console.log('[Server] Tableau non trouvé:', id);
             return res.status(404).json({ error: 'Tableau non trouvé' });
         }
-        const tableau = result.rows[0];
+        const tableau = {
+            id: result.rows[0].id,
+            disjoncteurs: result.rows[0].disjoncteurs,
+            isSiteMain: result.rows[0].is_site_main,
+            isHTA: result.rows[0].is_hta,
+            htaData: result.rows[0].hta_data
+        };
         console.log('[Server] Tableau trouvé:', {
-            id,
+            id: tableau.id,
             disjoncteurs: Array.isArray(tableau.disjoncteurs) ? tableau.disjoncteurs.length : 'Invalid',
             isSiteMain: tableau.isSiteMain,
-            isHTA: tableau.isHTA
+            isHTA: tableau.isHTA,
+            htaData: tableau.htaData
         });
         if (!Array.isArray(tableau.disjoncteurs)) {
             console.warn('[Server] Disjoncteurs non valides pour tableau:', id, 'Initialisation à []');
@@ -512,7 +522,10 @@ app.get('/api/tableaux/:id', async (req, res) => {
         });
         res.status(500).json({ error: 'Erreur lors de la récupération: ' + error.message });
     } finally {
-        if (client) client.release();
+        if (client) {
+            client.release();
+            console.log('[Server] Client PostgreSQL libéré pour GET /api/tableaux/:id');
+        }
     }
 });
 
