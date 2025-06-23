@@ -242,38 +242,16 @@
             return match ? parseFloat(match[0]) : null;
         }
 
-        async function loadBuildings() {
-            console.log('[FLA] Chargement de la liste des bâtiments');
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
-                const response = await fetch('/api/buildings', { method: 'GET', signal: controller.signal });
-                clearTimeout(timeoutId);
-                if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
-                const buildings = await response.json();
-                console.log('[FLA] Bâtiments reçus:', buildings.length);
-                return buildings;
-            } catch (error) {
-                console.error('[FLA] Erreur chargement bâtiments:', error);
-                showPopup('Erreur lors du chargement des bâtiments: ' + error.message, '', () => {});
-                return [];
-            }
-        }
-
-        async function loadTableaux(building) {
-            if (!building) {
-                console.warn('[FLA] Aucun bâtiment spécifié pour le chargement');
-                return [];
-            }
-            console.log('[FLA] Chargement des données pour bâtiment:', building);
+        async function loadTableaux() {
+            console.log('[FLA] Chargement des données FLA');
             document.getElementById('loading-spinner').classList.remove('hidden');
             try {
-                const cacheKey = `fla_data_${building}`;
+                const cacheKey = 'fla_data_all';
                 const cachedData = localStorage.getItem(cacheKey);
                 if (cachedData) {
                     const parsed = JSON.parse(cachedData);
                     if (parsed.timestamp && Date.now() - parsed.timestamp < 15 * 60 * 1000) { // Cache valide 15 min
-                        console.log('[FLA] Utilisation des données en cache pour:', building);
+                        console.log('[FLA] Utilisation des données en cache');
                         document.getElementById('loading-spinner').classList.add('hidden');
                         return parsed.data;
                     }
@@ -281,7 +259,7 @@
 
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000);
-                const response = await fetch(`/api/fault-level?building=${encodeURIComponent(building)}`, {
+                const response = await fetch('/api/fault-level', {
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' },
                     signal: controller.signal
@@ -294,6 +272,7 @@
                 const data = await response.json();
                 const processedData = (data.data || []).map(tableau => ({
                     ...tableau,
+                    building: tableau.id.split('-')[0] || 'Inconnu',
                     disjoncteurs: (tableau.disjoncteurs || []).map(d => ({
                         ...d,
                         id: d.id || d.disjoncteur_id || `unknown_${Math.random().toString(36).substring(2, 9)}`,
@@ -367,8 +346,9 @@
             }
         }
 
-        function populateFilters(buildings) {
-            console.log('[FLA] Remplissage des filtres, bâtiments:', buildings.length);
+        function populateFilters() {
+            console.log('[FLA] Remplissage des filtres');
+            const buildings = [...new Set(tableauxData.map(t => t.building))].sort();
             const buildingFilter = document.getElementById('building-filter');
             const tableauFilter = document.getElementById('tableau-filter');
             if (!buildingFilter || !tableauFilter) {
@@ -440,7 +420,7 @@
             document.getElementById('high-ik-alert').classList.add('hidden');
         }
 
-        async function filterData(building) {
+        function filterData(building) {
             console.log('[FLA] Filtrage des données pour bâtiment:', building);
             const tableauFilter = document.getElementById('tableau-filter');
             if (!building) {
@@ -450,9 +430,8 @@
                 return;
             }
 
-            tableauxData = await loadTableaux(building);
+            let filteredData = tableauxData.filter(t => t.building === building);
             const tableau = tableauFilter.value;
-            let filteredData = tableauxData;
             if (tableau) filteredData = filteredData.filter(t => t.id === tableau);
 
             if (filteredData.length === 0) {
@@ -476,7 +455,6 @@
             buildingFilter.value = '';
             tableauFilter.value = '';
             tableauFilter.disabled = true;
-            tableauxData = [];
             showNoBuildingMessage();
             renderData([]);
         }
@@ -933,8 +911,10 @@
                             successDiv.classList.remove('hidden');
                             successDiv.textContent = 'Données mises à jour avec succès !';
                             errorDiv.classList.add('hidden');
-                            localStorage.removeItem(`fla_data_${tableau.building}`); // Invalider le cache
-                            await filterData(document.getElementById('building-filter').value);
+                            localStorage.removeItem('fla_data_all'); // Invalider le cache
+                            tableauxData = await loadTableaux();
+                            populateFilters();
+                            filterData(document.getElementById('building-filter').value);
                             gsap.to('#details-panel', {
                                 opacity: 0,
                                 x: 100,
@@ -1392,11 +1372,11 @@
             document.addEventListener('click', handleActionClick);
             console.log('[FLA] Gestionnaire d\'événements attaché au document');
             document.getElementById('data-section').classList.add('hidden');
-            const buildings = await loadBuildings();
-            if (buildings.length > 0) {
-                populateFilters(buildings);
+            tableauxData = await loadTableaux();
+            if (tableauxData.length > 0) {
+                populateFilters();
             } else {
-                showPopup('Aucun bâtiment disponible.', '', () => {});
+                showPopup('Aucune donnée disponible. Veuillez vérifier la base de données ou ajouter des tableaux.', '', () => {});
                 showNoBuildingMessage();
             }
         };
