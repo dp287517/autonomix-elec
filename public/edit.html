@@ -20,6 +20,18 @@
             table th, table td { font-size: 0.875rem; padding: 0.5rem; }
         }
         select[multiple] { height: 120px; }
+        #popup { z-index: 1000; }
+        #disjoncteurs-table { 
+            display: table; 
+            visibility: visible; 
+            opacity: 1; 
+            position: relative; 
+            z-index: 10; 
+        }
+        #disjoncteurs-table tbody tr { 
+            display: table-row; 
+            opacity: 1; 
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
@@ -749,15 +761,26 @@ System: Voici le fichier `edit.html` complet et corrigé, intégrant les modific
             function afficherDisjoncteurs() {
                 console.log('[Edit] Affichage disjoncteurs, total:', disjoncteurs.length, 'principal index:', disjoncteurPrincipalIndex);
                 const tbody = document.querySelector('#disjoncteurs-table tbody');
+                if (!tbody) {
+                    console.error('[Edit] Erreur: tbody non trouvé pour #disjoncteurs-table');
+                    showPopup('Erreur: Impossible d\'afficher les disjoncteurs. Vérifiez la structure HTML.', '', () => {});
+                    return;
+                }
                 tbody.innerHTML = '';
+                console.log('[Edit] tbody vidé');
                 const idCounts = {};
                 disjoncteurs.forEach(d => {
                     idCounts[d.id] = (idCounts[d.id] || 0) + 1;
                 });
-                disjoncteurs.sort((a, b) => a.id.localeCompare(b.id));
+                disjoncteurs.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+                let rowCount = 0;
                 disjoncteurs.forEach((d, index) => {
+                    if (!d.id) {
+                        console.warn('[Edit] Disjoncteur sans ID à l\'index:', index, d);
+                        return;
+                    }
                     const isPrincipal = d.isPrincipal || false;
-                    console.log('[Edit] Disjoncteur', d.id, 'index:', index, 'isPrincipal:', isPrincipal, 'linkedTableauIds:', d.linkedTableauIds);
+                    console.log('[Edit] Disjoncteur', d.id, 'index:', index, 'isPrincipal:', isPrincipal, 'linkedTableauIds:', d.linkedTableauIds || []);
                     const hasConflict = idCounts[d.id] > 1;
                     const row = document.createElement('tr');
                     if (isPrincipal) row.className = 'disjoncteur-principal';
@@ -807,8 +830,22 @@ System: Voici le fichier `edit.html` complet et corrigé, intégrant les modific
                     }
                     row.appendChild(actionsCell);
                     tbody.appendChild(row);
+                    rowCount++;
+                    console.log('[Edit] Ligne ajoutée pour disjoncteur', d.id, 'index:', index);
                 });
-                gsap.from('#disjoncteurs-table tr', { opacity: 0, y: 20, duration: 0.5, stagger: 0.05 });
+                console.log('[Edit] Total lignes ajoutées:', rowCount);
+                if (rowCount === 0) {
+                    const emptyRow = document.createElement('tr');
+                    emptyRow.innerHTML = '<td colspan="6" class="p-2 text-center text-gray-500">Aucun disjoncteur à afficher</td>';
+                    tbody.appendChild(emptyRow);
+                    console.log('[Edit] Ligne vide ajoutée pour table vide');
+                }
+                try {
+                    gsap.from('#disjoncteurs-table tr', { opacity: 0, y: 20, duration: 0.5, stagger: 0.05 });
+                    console.log('[Edit] Animation GSAP appliquée');
+                } catch (error) {
+                    console.error('[Edit] Erreur animation GSAP:', error);
+                }
             }
 
             async function rechercherDisjoncteur() {
