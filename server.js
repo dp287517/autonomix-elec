@@ -486,7 +486,7 @@ app.get('/api/tableaux/:id', async (req, res) => {
         client = await pool.connect();
         await client.query('SELECT 1');
         const result = await client.query(
-            'SELECT id, disjoncteurs, isSiteMain AS is_site_main, ishta AS is_hta, htadata AS hta_data FROM tableaux WHERE id = $1',
+            'SELECT id, disjoncteurs, "isSiteMain" AS is_site_main, ishta AS is_hta, htadata AS hta_data FROM tableaux WHERE id = $1',
             [id]
         );
         if (result.rows.length === 0) {
@@ -495,10 +495,10 @@ app.get('/api/tableaux/:id', async (req, res) => {
         }
         const tableau = {
             id: result.rows[0].id,
-            disjoncteurs: result.rows[0].disjoncteurs,
-            isSiteMain: result.rows[0].is_site_main,
-            isHTA: result.rows[0].is_hta,
-            htaData: result.rows[0].hta_data
+            disjoncteurs: result.rows[0].disjoncteurs || [],
+            isSiteMain: result.rows[0].is_site_main || false,
+            isHTA: result.rows[0].is_hta || false,
+            htaData: result.rows[0].hta_data || null
         };
         console.log('[Server] Tableau trouvé:', {
             id: tableau.id,
