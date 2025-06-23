@@ -1,4 +1,70 @@
-```html
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contrôle des Disjoncteurs - Autonomix Elec</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="/styles.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <style>
+        .task-bar {
+            height: 28px;
+            border-radius: 4px;
+            margin: 4px 0;
+            cursor: pointer;
+            text-align: center;
+            color: #FFF;
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        @media (min-width: 640px) {
+            .task-bar { font-size: 1rem; }
+        }
+        .task-bar-green { background-color: #22c55e; }
+        .task-bar-red { background-color: #dc2626; }
+        .task-bar-orange { background-color: #f4b400; }
+        .task-bar-purple { background-color: #9333ea; }
+        .task-bar-gray { background-color: #6B7280; }
+        .touch-friendly {
+            min-height: 44px;
+            padding: 0.5rem 1rem;
+        }
+        .modal-content {
+            max-height: 70vh;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #6B7280 #1F2937;
+        }
+        .modal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        .modal-content::-webkit-scrollbar-track {
+            background: #1F2937;
+        }
+        .modal-content::-webkit-scrollbar-thumb {
+            background: #6B7280;
+            border-radius: 4px;
+        }
+        .animate-fade-in { animation: fadeIn 0.8s ease-out; }
+        .animate-slide-up { animation: slideUp 0.8s ease-out; }
+        .animate-zoom-in { animation: zoomIn 0.5s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes zoomIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+        @media (max-width: 640px) {
+            .container { padding: 0.5rem; }
+            table th, table td { font-size: 0.875rem; padding: 0.5rem; }
+            canvas { height: 200px !important; }
+            input, select, textarea, button { font-size: 0.875rem; }
+            .modal-content { font-size: 0.875rem; }
+        }
         .gantt th, .gantt td { border: 1px solid #4B5563; padding: 0.5rem; text-align: left; }
         .gantt th { background-color: #374151; }
         .error-popup {
@@ -8,7 +74,7 @@
             border-radius: 0.5rem;
             margin-bottom: 1rem;
         }
-        /* Ajustement des z-index pour les modals */
+        /* Correction des z-index pour les modals */
         #modal-breaker, #modal-create-checklist, #modal-complete-checklist, #modal-apply-checklist, #modal-view-checklists {
             z-index: 1000;
         }
@@ -47,13 +113,13 @@
         <div class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0">
             <div class="flex-1">
                 <label for="building-filter" class="block text-sm font-medium">Filtrer par bâtiment</label>
-                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">
+                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" aria-label="Filtrer par bâtiment">
                     <option value="">Tous les bâtiments</option>
                 </select>
             </div>
             <div class="flex-1">
                 <label for="tableau-filter" class="block text-sm font-medium">Filtrer par tableau</label>
-                <select id="tableau-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">
+                <select id="tableau-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" aria-label="Filtrer par tableau">
                     <option value="">Tous les tableaux</option>
                 </select>
             </div>
@@ -80,7 +146,7 @@
         </div>
 
         <!-- Message aucun bâtiment sélectionné -->
-        <div id="no-building-selected" class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg animate-fade-in hidden">
+        <div id="no-building-selected" class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg animate-fade-in">
             <p class="text-gray-300">Veuillez sélectionner un bâtiment pour afficher les disjoncteurs.</p>
         </div>
 
@@ -349,14 +415,12 @@
                         reject(new Error('L’image est trop volumineuse (max 1 Mo).'));
                         return;
                     }
-
                     const img = new Image();
                     img.src = URL.createObjectURL(file);
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
                         let width = img.width;
                         let height = img.height;
-
                         if (width > maxWidth) {
                             height = Math.round((height * maxWidth) / width);
                             width = maxWidth;
@@ -365,12 +429,10 @@
                             width = Math.round((width * maxHeight) / height);
                             height = maxHeight;
                         }
-
                         canvas.width = width;
                         canvas.height = height;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, width, height);
-
                         canvas.toBlob(
                             blob => {
                                 URL.revokeObjectURL(img.src);
@@ -425,10 +487,10 @@
 
             // Charger les données
             async function loadData() {
+                console.log('[Client] Chargement des données à', new Date().toLocaleString('fr-FR'));
                 try {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 5000);
-
                     const tableauxResponse = await fetch('/api/tableaux', { signal: controller.signal });
                     if (!tableauxResponse.ok) {
                         const errorData = await tableauxResponse.text();
@@ -436,7 +498,6 @@
                     }
                     tableauxData = await tableauxResponse.json();
                     console.log('[Client] Tableaux chargés:', tableauxData.length);
-
                     const checklistsResponse = await fetch('/api/breaker-checklists', { signal: controller.signal });
                     if (!checklistsResponse.ok) {
                         const errorData = await checklistsResponse.text();
@@ -445,7 +506,6 @@
                     const checklistsDataRaw = await checklistsResponse.json();
                     checklistsData = Array.isArray(checklistsDataRaw) ? checklistsDataRaw : [];
                     console.log('[Client] Checklists chargées:', checklistsData.length);
-
                     clearTimeout(timeoutId);
                     populateFilters();
                     const { building } = restoreFilters();
@@ -455,10 +515,7 @@
                         showNoBuildingMessage();
                     }
                 } catch (error) {
-                    console.error('[Client] Erreur chargement:', {
-                        message: error.message,
-                        stack: error.stack
-                    });
+                    console.error('[Client] Erreur chargement:', { message: error.message, stack: error.stack });
                     checklistsData = [];
                     showErrorPopup('Erreur lors du chargement des données: ' + error.message);
                     showNoBuildingMessage();
@@ -467,6 +524,7 @@
 
             // Afficher le message "aucun bâtiment sélectionné"
             function showNoBuildingMessage() {
+                console.log('[Client] Affichage message aucun bâtiment sélectionné');
                 document.getElementById('no-building-selected').classList.remove('hidden');
                 document.getElementById('gantt-section').classList.add('hidden');
                 document.getElementById('add-checklist-container').classList.add('hidden');
@@ -477,10 +535,10 @@
 
             // Remplir les filtres
             function populateFilters() {
+                console.log('[Client] Remplissage des filtres');
                 const buildingFilter = document.getElementById('building-filter');
                 const tableauFilter = document.getElementById('tableau-filter');
                 const buildings = [...new Set(tableauxData.map(t => t.id.split('-')[0] || 'Inconnu'))].sort();
-
                 buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
                 buildings.forEach(b => {
                     const option = document.createElement('option');
@@ -488,17 +546,17 @@
                     option.textContent = b;
                     buildingFilter.appendChild(option);
                 });
-
                 const savedBuilding = localStorage.getItem('breakerControlBuildingFilter') || '';
                 updateTableauFilter(savedBuilding);
-
                 buildingFilter.onchange = () => {
                     const selectedBuilding = buildingFilter.value;
+                    console.log('[Client] Bâtiment sélectionné:', selectedBuilding);
                     updateTableauFilter(selectedBuilding);
                     saveFilters();
                     filterData();
                 };
                 tableauFilter.onchange = () => {
+                    console.log('[Client] Tableau sélectionné:', tableauFilter.value);
                     saveFilters();
                     filterData();
                 };
@@ -509,17 +567,15 @@
             function filterData() {
                 const building = document.getElementById('building-filter').value;
                 currentTableauId = document.getElementById('tableau-filter').value;
-                
+                console.log('[Client] Filtrage des données:', { building, tableau: currentTableauId });
                 if (!building) {
                     showNoBuildingMessage();
                     return;
                 }
-
                 const filteredData = tableauxData.filter(t => 
                     (!building || t.id.split('-')[0] === building) && 
                     (!currentTableauId || t.id === currentTableauId)
                 );
-
                 document.getElementById('no-building-selected').classList.add('hidden');
                 document.getElementById('gantt-section').classList.remove('hidden');
                 document.getElementById('doughnut-section').classList.remove('hidden');
@@ -534,21 +590,22 @@
             function toggleAddChecklistButton() {
                 const container = document.getElementById('add-checklist-container');
                 if (currentTableauId) {
+                    console.log('[Client] Affichage boutons checklist pour tableau:', currentTableauId);
                     container.classList.remove('hidden');
                 } else {
+                    console.log('[Client] Masquage boutons checklist');
                     container.classList.add('hidden');
                 }
             }
 
             // Rendre le diagramme de Gantt
             function renderGanttChart(data = tableauxData) {
+                console.log('[Client] Rendu du diagramme Gantt avec', data.length, 'tableaux');
                 const tbody = document.getElementById('gantt-body');
                 const noDataMessage = document.getElementById('no-data-message');
                 tbody.innerHTML = '';
-
                 let hasData = false;
                 const filteredData = currentTableauId ? data.filter(t => t.id === currentTableauId) : data;
-
                 filteredData.forEach(tableau => {
                     const validDisjoncteurs = tableau.disjoncteurs.filter(breaker => breaker.id);
                     validDisjoncteurs.forEach(breaker => {
@@ -558,7 +615,6 @@
                         tdBreaker.innerHTML = `${breaker.id}${tableau.issitemain ? ' (Principal)' : ''}`;
                         tdBreaker.className = 'sticky left-0 bg-gray-700 font-medium p-2';
                         tr.appendChild(tdBreaker);
-
                         const tdStatus = document.createElement('td');
                         const latestCheck = checklistsData
                             .filter(c => c.tableau_id === tableau.id && c.disjoncteur_id === breaker.id)
@@ -602,7 +658,6 @@
                         bar.textContent = statusText;
                         tdStatus.appendChild(bar);
                         tr.appendChild(tdStatus);
-
                         tbody.appendChild(tr);
                         hasData = true;
                     });
@@ -610,13 +665,12 @@
                         console.warn('[Client] Disjoncteurs invalides détectés dans tableau:', tableau.id, 'Total:', tableau.disjoncteurs.length, 'Valides:', validDisjoncteurs.length);
                     }
                 });
-
                 if (!hasData) {
+                    console.log('[Client] Aucun disjoncteur trouvé pour le Gantt');
                     noDataMessage.classList.remove('hidden');
                 } else {
                     noDataMessage.classList.add('hidden');
                 }
-
                 if (document.querySelectorAll('.task-bar').length > 0) {
                     gsap.from('.task-bar', { scaleX: 0, duration: 1, stagger: 0.1, ease: 'power2.out' });
                 } else {
@@ -626,12 +680,11 @@
 
             // Rendre les graphiques en anneau
             function renderDoughnuts(data = tableauxData) {
+                console.log('[Client] Rendu des graphiques en anneau');
                 const container = document.getElementById('doughnut-container');
                 container.innerHTML = '';
-
                 const categories = ['Conforme', 'Non conforme', 'Non applicable', 'En attente', 'Non contrôlé'];
                 const colors = ['#22c55e', '#dc2626', '#f4b400', '#9333ea', '#6B7280'];
-
                 const groups = currentTableauId
                     ? data.filter(t => t.id === currentTableauId).map(t => ({
                           id: t.id,
@@ -643,7 +696,6 @@
                           building: b,
                           disjoncteurs: data.filter(t => t.id.split('-')[0] === b).flatMap(t => t.disjoncteurs.filter(d => d.id))
                       }));
-
                 groups.forEach((group, index) => {
                     const div = document.createElement('div');
                     div.className = 'bg-gray-700 p-4 rounded-lg shadow flex flex-col items-center';
@@ -656,7 +708,6 @@
                     title.innerHTML = `<i class="fas ${group.building === group.id ? 'fa-table' : 'fa-building'} mr-2"></i>${group.building === group.id ? `Tableau ${group.id}` : `Bâtiment ${group.building}`}`;
                     div.insertBefore(title, canvas);
                     container.appendChild(div);
-
                     const counts = categories.reduce((acc, cat, i) => {
                         acc[cat] = group.disjoncteurs.filter(d => {
                             const latestCheck = checklistsData
@@ -687,7 +738,6 @@
                         }).length;
                         return acc;
                     }, {});
-
                     chartInstances[`doughnut-${index}`] = new Chart(canvas, {
                         type: 'doughnut',
                         data: {
@@ -718,18 +768,16 @@
                             maintainAspectRatio: true
                         }
                     });
-
                     gsap.from(`#doughnut-${index}`, { opacity: 0, y: 20, duration: 1, delay: index * 0.2, ease: 'power2.out' });
                 });
             }
 
             // Rendre les graphiques avancés
             function renderAdvancedCharts(data = tableauxData) {
+                console.log('[Client] Rendu des graphiques avancés');
                 const categories = ['Conforme', 'Non conforme', 'Non applicable', 'En attente', 'Non contrôlé'];
                 const colors = ['#22c55e', '#dc2626', '#f4b400', '#9333ea', '#6B7280'];
-
                 destroyCharts();
-
                 // Graphique en barres
                 const barCanvas = document.getElementById('bar-chart');
                 const buildings = [...new Set(data.map(t => t.id.split('-')[0] || 'Inconnu'))].sort();
@@ -762,7 +810,6 @@
                         }).length;
                     })
                 }));
-
                 chartInstances['bar-chart'] = new Chart(barCanvas, {
                     type: 'bar',
                     data: {
@@ -796,7 +843,6 @@
                         animation: { duration: 1500, easing: 'easeOutBounce' }
                     }
                 });
-
                 // Graphique en ligne
                 const lineCanvas = document.getElementById('line-chart');
                 const dates = [...new Set(checklistsData.map(c => new Date(c.timestamp).toLocaleDateString('fr-FR')))].sort((a, b) => new Date(a) - new Date(b));
@@ -826,7 +872,6 @@
                     fill: false,
                     tension: 0.4
                 }));
-
                 chartInstances['line-chart'] = new Chart(lineCanvas, {
                     type: 'line',
                     data: {
@@ -854,7 +899,6 @@
                         animation: { duration: 1500, easing: 'easeOutBounce' }
                     }
                 });
-
                 // Graphique en nuage de points
                 const scatterCanvas = document.getElementById('scatter-chart');
                 const scatterData = categories.map((cat, i) => ({
@@ -885,7 +929,6 @@
                     backgroundColor: colors[i],
                     pointRadius: 5
                 }));
-
                 chartInstances['scatter-chart'] = new Chart(scatterCanvas, {
                     type: 'scatter',
                     data: { datasets: scatterData },
@@ -912,7 +955,6 @@
                         animation: { duration: 1500, easing: 'easeOutBounce' }
                     }
                 });
-
                 gsap.from('#advanced-charts-container > div', { opacity: 0, y: 20, duration: 1, stagger: 0.2, ease: 'power2.out' });
             }
 
@@ -932,11 +974,9 @@
                     showErrorPopup('Erreur: Disjoncteur non trouvé');
                     return;
                 }
-
                 const breakerChecks = checklistsData
                     .filter(c => c.tableau_id === tableauId && c.disjoncteur_id === breakerId)
                     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
                 let content = `
                     <p><strong>Tableau :</strong> ${tableau.id}${tableau.issitemain ? ' (Principal)' : ''}</p>
                     <p><strong>Disjoncteur :</strong> ${breaker.id}</p>
@@ -1002,8 +1042,10 @@
                     </div>
                 `;
                 document.getElementById('modal-content').innerHTML = content;
-
-                document.getElementById('close-modal').onclick = () => modal.classList.add('hidden');
+                document.getElementById('close-modal').onclick = () => {
+                    console.log('[Client] Fermeture modal breaker');
+                    modal.classList.add('hidden');
+                };
                 document.querySelectorAll('.complete-check, .edit-check').forEach(btn => {
                     btn.onclick = () => {
                         const checkId = btn.dataset.checkId;
@@ -1014,8 +1056,8 @@
                 document.querySelectorAll('.delete-check').forEach(btn => {
                     btn.onclick = () => deleteChecklist(btn.dataset.checkId, tableauId, breakerId, sanitizedId);
                 });
-
                 modal.classList.remove('hidden');
+                console.log('[Client] Modal breaker affiché avec z-index:', getComputedStyle(modal).zIndex);
                 gsap.from('#modal-breaker > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
             }
 
@@ -1027,11 +1069,9 @@
                 const pointsContainer = document.getElementById('checklist-points');
                 const addPointBtn = document.getElementById('add-point');
                 const checklistNameInput = document.getElementById('checklist-name');
-
                 checklistNameInput.value = '';
                 let points = [{ description: '', value: null }];
                 let pointCount = 1;
-
                 function renderPoints() {
                     pointsContainer.innerHTML = '';
                     points.forEach((point, index) => {
@@ -1052,7 +1092,6 @@
                         `;
                         pointsContainer.appendChild(div);
                     });
-
                     pointsContainer.querySelectorAll('.remove-point').forEach((btn, index) => {
                         btn.onclick = () => {
                             points.splice(index, 1);
@@ -1061,9 +1100,7 @@
                         };
                     });
                 }
-
                 renderPoints();
-
                 addPointBtn.onclick = () => {
                     if (pointCount < 10) {
                         points.push({ description: '', value: null });
@@ -1073,7 +1110,6 @@
                         showErrorPopup('Vous ne pouvez pas ajouter plus de 10 points de contrôle.');
                     }
                 };
-
                 form.onsubmit = async (e) => {
                     e.preventDefault();
                     const checklistName = checklistNameInput.value.trim();
@@ -1082,7 +1118,6 @@
                         status: null,
                         value: div.querySelector('.point-value').value.trim() || null
                     }));
-
                     if (!checklistName) {
                         showErrorPopup('Veuillez donner un nom à la checklist.');
                         return;
@@ -1091,13 +1126,10 @@
                         showErrorPopup('Tous les points de contrôle doivent avoir une description.');
                         return;
                     }
-
                     try {
                         const tableau = tableauxData.find(t => t.id === currentTableauId);
                         if (!tableau) throw new Error('Tableau non trouvé');
-
                         const comment = JSON.stringify({ name: checklistName, points, comment: '' });
-
                         for (const breaker of tableau.disjoncteurs.filter(b => b.id)) {
                             console.log('[Client] Envoi POST /api/breaker-checklists:', {
                                 tableau_id: currentTableauId,
@@ -1112,7 +1144,6 @@
                                 comment,
                                 photo: null
                             };
-
                             const response = await fetch('/api/breaker-checklists', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
@@ -1121,7 +1152,7 @@
                             const responseData = await response.json();
                             if (!response.ok) throw new Error(`Erreur lors de l’enregistrement pour ${breaker.id}: ${responseData.error || response.statusText}`);
                         }
-
+                        console.log('[Client] Fermeture modal création checklist');
                         modal.classList.add('hidden');
                         await loadData();
                     } catch (error) {
@@ -1129,9 +1160,12 @@
                         showErrorPopup('Erreur lors de la création de la checklist: ' + error.message);
                     }
                 };
-
-                document.getElementById('close-create-checklist-modal').onclick = () => modal.classList.add('hidden');
+                document.getElementById('close-create-checklist-modal').onclick = () => {
+                    console.log('[Client] Fermeture modal création checklist');
+                    modal.classList.add('hidden');
+                };
                 modal.classList.remove('hidden');
+                console.log('[Client] Modal création checklist affiché avec z-index:', getComputedStyle(modal).zIndex);
                 gsap.from('#modal-create-checklist > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
             }
 
@@ -1142,7 +1176,6 @@
                 const form = document.getElementById('apply-checklist-form');
                 const checklistSelect = document.getElementById('checklist-select');
                 const tableauxSelect = document.getElementById('tableaux-select');
-
                 checklistSelect.innerHTML = '<option value="">Choisir une checklist</option>';
                 const checklistMap = new Map();
                 checklistsData.forEach(c => {
@@ -1158,7 +1191,6 @@
                         }
                     }
                 });
-
                 const uniqueChecklists = Array.from(checklistMap.values());
                 uniqueChecklists.forEach(c => {
                     const option = document.createElement('option');
@@ -1166,7 +1198,6 @@
                     option.textContent = `${c.name} (${c.points.length} points)`;
                     checklistSelect.appendChild(option);
                 });
-
                 tableauxSelect.innerHTML = '';
                 tableauxData.forEach(tableau => {
                     const div = document.createElement('div');
@@ -1177,22 +1208,18 @@
                     `;
                     tableauxSelect.appendChild(div);
                 });
-
                 form.onsubmit = async (e) => {
                     e.preventDefault();
                     const selectedChecklist = checklistSelect.value;
                     const selectedTableaux = Array.from(tableauxSelect.querySelectorAll('.tableau-checkbox:checked')).map(cb => cb.value);
-
                     if (!selectedChecklist || selectedTableaux.length === 0) {
                         showErrorPopup('Veuillez sélectionner une checklist et au moins un tableau.');
                         return;
                     }
-
                     try {
                         for (const tableauId of selectedTableaux) {
                             const tableau = tableauxData.find(t => t.id === tableauId);
                             if (!tableau) continue;
-
                             for (const breaker of tableau.disjoncteurs.filter(b => b.id)) {
                                 const existingCheck = checklistsData.find(c => 
                                     c.tableau_id === tableauId && 
@@ -1203,7 +1230,6 @@
                                     console.log('[Client] Checklist déjà appliquée pour', breaker.id, 'dans', tableauId);
                                     continue;
                                 }
-
                                 console.log('[Client] Envoi POST /api/breaker-checklists:', {
                                     tableau_id: tableauId,
                                     disjoncteur_id: breaker.id,
@@ -1217,7 +1243,6 @@
                                     comment: selectedChecklist,
                                     photo: null
                                 };
-
                                 const response = await fetch('/api/breaker-checklists', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
@@ -1227,7 +1252,7 @@
                                 if (!response.ok) throw new Error(`Erreur lors de l’application pour ${breaker.id} dans ${tableauId}: ${responseData.error || response.statusText}`);
                             }
                         }
-
+                        console.log('[Client] Fermeture modal application checklist');
                         modal.classList.add('hidden');
                         await loadData();
                     } catch (error) {
@@ -1235,10 +1260,65 @@
                         showErrorPopup('Erreur lors de l’application de la checklist: ' + error.message);
                     }
                 };
-
-                document.getElementById('close-apply-checklist-modal').onclick = () => modal.classList.add('hidden');
+                document.getElementById('close-apply-checklist-modal').onclick = () => {
+                    console.log('[Client] Fermeture modal application checklist');
+                    modal.classList.add('hidden');
+                };
                 modal.classList.remove('hidden');
+                console.log('[Client] Modal application checklist affiché avec z-index:', getComputedStyle(modal).zIndex);
                 gsap.from('#modal-apply-checklist > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+            }
+
+            // Ouvrir le modal pour voir et gérer les checklists
+            function openViewChecklistsModal() {
+                console.log('[Client] Ouverture modal gestion checklists');
+                const modal = document.getElementById('modal-view-checklists');
+                const content = document.getElementById('checklists-content');
+                const checklistMap = new Map();
+                checklistsData.forEach(c => {
+                    if (isValidJson(c.comment)) {
+                        try {
+                            const parsed = JSON.parse(c.comment.startsWith('Checklist vide: ') ? c.comment.replace('Checklist vide: ', '') : c.comment);
+                            const key = parsed.name || `Checklist ${checklistsData.filter(ch => ch.comment === c.comment).length}`;
+                            if (!checklistMap.has(key)) {
+                                checklistMap.set(key, { comment: c.comment, points: parsed.points || [], name: key });
+                            }
+                        } catch (e) {
+                            console.warn('[Client] Erreur parsing comment:', c.comment);
+                        }
+                    }
+                });
+                const uniqueChecklists = Array.from(checklistMap.values());
+                content.innerHTML = uniqueChecklists.length > 0 ? uniqueChecklists.map(c => `
+                    <div class="bg-gray-700 p-4 rounded-lg mb-4">
+                        <p><strong>Checklist :</strong> ${c.name}</p>
+                        <p><strong>Points de contrôle :</strong> ${c.points.length}</p>
+                        <ul class="list-disc pl-6">
+                            ${c.points.map(p => `<li>${p.description}${p.value ? ` (Valeur: ${p.value})` : ''}</li>`).join('')}
+                        </ul>
+                        <div class="flex space-x-2 mt-2">
+                            <button class="edit-checklist bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition text-sm sm:text-base touch-friendly" data-comment="${c.comment}">
+                                <i class="fas fa-edit"></i> Modifier
+                            </button>
+                            <button class="delete-checklist bg-red-600 text-white p-2 rounded hover:bg-red-700 transition text-sm sm:text-base touch-friendly" data-comment="${c.comment}">
+                                <i class="fas fa-trash"></i> Supprimer
+                            </button>
+                        </div>
+                    </div>
+                `).join('') : '<p class="p-2 text-center">Aucune checklist trouvée</p>';
+                document.getElementById('close-view-checklists-modal').onclick = () => {
+                    console.log('[Client] Fermeture modal gestion checklists');
+                    modal.classList.add('hidden');
+                };
+                document.querySelectorAll('.edit-checklist').forEach(btn => {
+                    btn.onclick = () => openEditChecklistModal(btn.dataset.comment);
+                });
+                document.querySelectorAll('.delete-checklist').forEach(btn => {
+                    btn.onclick = () => deleteChecklistTemplate(btn.dataset.comment);
+                });
+                modal.classList.remove('hidden');
+                console.log('[Client] Modal gestion checklists affiché avec z-index:', getComputedStyle(modal).zIndex);
+                gsap.from('#modal-view-checklists > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
             }
 
             // Ouvrir le modal pour modifier une checklist
@@ -1249,7 +1329,6 @@
                 const pointsContainer = document.getElementById('checklist-points');
                 const addPointBtn = document.getElementById('add-point');
                 const checklistNameInput = document.getElementById('checklist-name');
-
                 let parsed;
                 try {
                     const cleanComment = comment.startsWith('Checklist vide: ') ? comment.replace('Checklist vide: ', '') : comment;
@@ -1259,11 +1338,9 @@
                     showErrorPopup('Erreur lors du chargement de la checklist.');
                     return;
                 }
-
                 checklistNameInput.value = parsed.name || '';
                 let points = parsed.points || [{ description: '', value: null }];
                 let pointCount = points.length;
-
                 function renderPoints() {
                     pointsContainer.innerHTML = '';
                     points.forEach((point, index) => {
@@ -1284,7 +1361,6 @@
                         `;
                         pointsContainer.appendChild(div);
                     });
-
                     pointsContainer.querySelectorAll('.remove-point').forEach((btn, index) => {
                         btn.onclick = () => {
                             points.splice(index, 1);
@@ -1293,9 +1369,7 @@
                         };
                     });
                 }
-
                 renderPoints();
-
                 addPointBtn.onclick = () => {
                     if (pointCount < 10) {
                         points.push({ description: '', value: null });
@@ -1305,7 +1379,6 @@
                         showErrorPopup('Vous ne pouvez pas ajouter plus de 10 points de contrôle.');
                     }
                 };
-
                 form.onsubmit = async (e) => {
                     e.preventDefault();
                     const checklistName = checklistNameInput.value.trim();
@@ -1314,7 +1387,6 @@
                         status: null,
                         value: div.querySelector('.point-value').value.trim() || null
                     }));
-
                     if (!checklistName) {
                         showErrorPopup('Veuillez donner un nom à la checklist.');
                         return;
@@ -1323,11 +1395,9 @@
                         showErrorPopup('Tous les points de contrôle doivent avoir une description.');
                         return;
                     }
-
                     try {
                         const newComment = JSON.stringify({ name: checklistName, points, comment: '' });
                         const checksToUpdate = checklistsData.filter(c => c.comment === comment);
-
                         for (const check of checksToUpdate) {
                             const body = {
                                 tableau_id: check.tableau_id,
@@ -1336,7 +1406,6 @@
                                 comment: newComment,
                                 photo: check.photo
                             };
-
                             console.log('[Client] Envoi PUT /api/breaker-checklists:', {
                                 id: check.id,
                                 tableau_id: check.tableau_id,
@@ -1345,7 +1414,6 @@
                                 comment: newComment,
                                 photo: check.photo ? `Présente (${(check.photo.length / 1024).toFixed(2)} KB)` : 'Absente'
                             });
-
                             const response = await fetch(`/api/breaker-checklists/${check.id}`, {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json' },
@@ -1354,7 +1422,7 @@
                             const responseData = await response.json();
                             if (!response.ok) throw new Error(`Erreur lors de la mise à jour du contrôle ${check.id}: ${responseData.error || response.statusText}`);
                         }
-
+                        console.log('[Client] Fermeture modal modification checklist');
                         modal.classList.add('hidden');
                         await loadData();
                         openViewChecklistsModal();
@@ -1363,9 +1431,12 @@
                         showErrorPopup('Erreur lors de la mise à jour de la checklist: ' + error.message);
                     }
                 };
-
-                document.getElementById('close-create-checklist-modal').onclick = () => modal.classList.add('hidden');
+                document.getElementById('close-create-checklist-modal').onclick = () => {
+                    console.log('[Client] Fermeture modal modification checklist');
+                    modal.classList.add('hidden');
+                };
                 modal.classList.remove('hidden');
+                console.log('[Client] Modal modification checklist affiché avec z-index:', getComputedStyle(modal).zIndex);
                 gsap.from('#modal-create-checklist > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
             }
 
@@ -1395,7 +1466,6 @@
                 const pointsContainer = document.getElementById('complete-checklist-points');
                 const commentInput = document.getElementById('complete-checklist-comment');
                 const photoInput = document.getElementById('complete-checklist-photo');
-
                 currentCheckId = check.id;
                 let points = [];
                 let commentGlobal = '';
@@ -1420,7 +1490,6 @@
                 }
                 commentInput.value = commentGlobal;
                 photoInput.value = '';
-
                 pointsContainer.innerHTML = `
                     <p class="mb-2"><strong>Checklist :</strong> ${checklistName}</p>
                     ${points.map((point, index) => `
@@ -1445,23 +1514,19 @@
                         </div>
                     `).join('')}
                 `;
-
                 form.onsubmit = async (e) => {
                     e.preventDefault();
                     const comment = commentInput.value.trim();
                     const photo = photoInput.files[0];
-
                     const updatedPoints = Array.from(pointsContainer.querySelectorAll('.point-item')).map(div => ({
                         description: div.querySelector('.point-description').textContent,
                         status: div.querySelector('.point-status').value,
                         value: div.querySelector('.point-value').value.trim() || null
                     }));
-
                     if (updatedPoints.some(p => !p.status)) {
                         showErrorPopup('Tous les points de contrôle doivent avoir un statut.');
                         return;
                     }
-
                     try {
                         let photoBase64 = check.photo;
                         if (photo) {
@@ -1474,10 +1539,8 @@
                                 return;
                             }
                         }
-
                         const globalStatus = determineGlobalStatus(updatedPoints);
                         const commentJson = JSON.stringify({ name: checklistName, comment, points: updatedPoints });
-
                         console.log('[Client] Envoi PUT /api/breaker-checklists:', {
                             id: currentCheckId,
                             tableau_id: tableauId,
@@ -1486,7 +1549,6 @@
                             comment: commentJson,
                             photo: photoBase64 ? `Présente (${(photoBase64.length / 1024).toFixed(2)} KB)` : 'Absente'
                         });
-
                         const body = {
                             tableau_id: tableauId,
                             disjoncteur_id: breakerId,
@@ -1494,7 +1556,6 @@
                             comment: commentJson,
                             photo: photoBase64
                         };
-
                         const response = await fetch(`/api/breaker-checklists/${currentCheckId}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
@@ -1509,7 +1570,7 @@
                             }
                             throw new Error(`Erreur lors de la mise à jour du contrôle: ${errorData.error || errorData || response.statusText}`);
                         }
-
+                        console.log('[Client] Fermeture modal complétion checklist');
                         modal.classList.add('hidden');
                         await loadData();
                         openBreakerModal(tableauId, breakerId, sanitizedId);
@@ -1524,9 +1585,12 @@
                         }
                     }
                 };
-
-                document.getElementById('close-complete-checklist-modal').onclick = () => modal.classList.add('hidden');
+                document.getElementById('close-complete-checklist-modal').onclick = () => {
+                    console.log('[Client] Fermeture modal complétion checklist');
+                    modal.classList.add('hidden');
+                };
                 modal.classList.remove('hidden');
+                console.log('[Client] Modal complétion checklist affiché avec z-index:', getComputedStyle(modal).zIndex);
                 gsap.from('#modal-complete-checklist > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
             }
 
