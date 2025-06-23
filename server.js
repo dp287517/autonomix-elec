@@ -485,8 +485,12 @@ app.get('/api/tableaux/:id', async (req, res) => {
     try {
         client = await pool.connect();
         await client.query('SELECT 1');
+        // Vérifier les colonnes disponibles dans la table (pour débogage)
+        const columnsResult = await client.query("SELECT column_name FROM information_schema.columns WHERE table_name = 'tableaux'");
+        console.log('[Server] Colonnes de la table tableaux:', columnsResult.rows.map(row => row.column_name));
+        // Requête avec noms de colonnes standards
         const result = await client.query(
-            'SELECT id, disjoncteurs, "isSiteMain" AS is_site_main, ishta AS is_hta, htadata AS hta_data FROM tableaux WHERE id = $1',
+            'SELECT id, disjoncteurs, "isSiteMain" AS is_site_main, "isHTA" AS is_hta, "htaData" AS hta_data FROM tableaux WHERE id = $1',
             [id]
         );
         if (result.rows.length === 0) {
