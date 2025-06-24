@@ -217,7 +217,7 @@
                 if (!response.ok) throw new Error(`Erreur HTTP ${response.status}: ${await response.text()}`);
                 const responseData = await response.json();
                 console.log('Actions reçues:', responseData);
-                const actions = Array.isArray(responseData) ? responseData : responseData.data || [];
+                const actions = responseData.data || responseData;
                 if (!Array.isArray(actions)) throw new Error('Les actions ne sont pas un tableau');
                 const tbody = document.getElementById('actions-table-body');
                 tbody.innerHTML = '';
@@ -332,7 +332,12 @@
                 // Charger les données de l'action si actionId est fourni
                 if (actionId) {
                     const actionResponse = await fetch(`/api/safety-actions/${actionId}`);
-                    if (!actionResponse.ok) throw new Error(`Erreur HTTP ${actionResponse.status}: ${await actionResponse.text()}`);
+                    if (!actionResponse.ok) {
+                        if (actionResponse.status === 404) {
+                            throw new Error(`Action avec ID ${actionId} non trouvée`);
+                        }
+                        throw new Error(`Erreur HTTP ${actionResponse.status}: ${await actionResponse.text()}`);
+                    }
                     const responseData = await actionResponse.json();
                     console.log('Action reçue:', responseData);
                     const action = responseData.data || responseData;
@@ -351,7 +356,7 @@
                 modal.classList.remove('hidden');
             } catch (error) {
                 console.error('Erreur ouverture du modal:', error);
-                showError('Impossible d’ouvrir le formulaire : ' + error.message);
+                showError(error.message.includes('non trouvée') ? error.message : 'Impossible d’ouvrir le formulaire : ' + error.message);
             }
         }
 
