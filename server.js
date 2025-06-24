@@ -1717,6 +1717,44 @@ app.delete('/api/safety-actions/:id', async (req, res) => {
     }
 });
 
+// Endpoint pour récupérer une action de sécurité spécifique
+app.get('/api/safety-actions/:id', async (req, res) => {
+    const { id } = req.params;
+    console.log('[Server] GET /api/safety-actions/:id', id);
+    let client;
+    try {
+        client = await pool.connect();
+        await client.query('SELECT 1');
+        const result = await client.query('SELECT * FROM safety_actions WHERE id = $1', [id]);
+        if (result.rows.length === 0) {
+            console.log('[Server] Action non trouvée:', id);
+            return res.status(404).json({ error: 'Action non trouvée' });
+        }
+        const action = {
+            id: result.rows[0].id,
+            type: result.rows[0].type,
+            description: result.rows[0].description,
+            building: result.rows[0].building,
+            tableau: result.rows[0].tableau_id,
+            status: result.rows[0].status,
+            date: result.rows[0].date ? result.rows[0].date.toISOString().split('T')[0] : null,
+            timestamp: result.rows[0].timestamp
+        };
+        console.log('[Server] Action récupérée:', action);
+        res.json({ data: action });
+    } catch (error) {
+        console.error('[Server] Erreur GET /api/safety-actions/:id:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
+        res.status(500).json({ error: 'Erreur lors de la récupération de l’action: ' + error.message });
+    } finally {
+        if (client) client.release();
+    }
+});
+
 // Endpoint pour gérer les checklists des disjoncteurs
 app.get('/api/breaker-checklists', async (req, res) => {
     const { tableauId, disjoncteurId } = req.query;
