@@ -160,8 +160,9 @@
             const tableauFilter = document.getElementById('tableau-filter');
             try {
                 const response = await fetch('/api/tableaux');
-                if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
+                if (!response.ok) throw new Error(`Erreur HTTP ${response.status}: ${await response.text()}`);
                 const tableaux = await response.json();
+                console.log('Tableaux chargés:', tableaux);
                 const buildings = [...new Set(tableaux.map(t => t.id.split('-')[0]))].sort();
                 buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
                 buildings.forEach(building => {
@@ -179,7 +180,7 @@
                 });
             } catch (error) {
                 console.error('Erreur chargement filtres:', error);
-                showError('Impossible de charger les filtres.');
+                showError('Impossible de charger les filtres : ' + error.message);
             }
         }
 
@@ -189,7 +190,7 @@
             const tableauFilter = document.getElementById('tableau-filter');
             try {
                 const response = await fetch('/api/tableaux');
-                if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
+                if (!response.ok) throw new Error(`Erreur HTTP ${response.status}: ${await response.text()}`);
                 const tableaux = await response.json();
                 tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
                 const filteredTableaux = building
@@ -203,7 +204,7 @@
                 });
             } catch (error) {
                 console.error('Erreur mise à jour filtre tableau:', error);
-                showError('Impossible de mettre à jour le filtre tableau.');
+                showError('Impossible de mettre à jour le filtre tableau : ' + error.message);
             }
         }
 
@@ -213,8 +214,11 @@
             const tableau = document.getElementById('tableau-filter').value;
             try {
                 const response = await fetch(`/api/safety-actions?building=${encodeURIComponent(building)}&tableau=${encodeURIComponent(tableau)}`);
-                if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
-                const actions = await response.json();
+                if (!response.ok) throw new Error(`Erreur HTTP ${response.status}: ${await response.text()}`);
+                const responseData = await response.json();
+                console.log('Actions reçues:', responseData);
+                const actions = Array.isArray(responseData) ? responseData : responseData.data || [];
+                if (!Array.isArray(actions)) throw new Error('Les actions ne sont pas un tableau');
                 const tbody = document.getElementById('actions-table-body');
                 tbody.innerHTML = '';
                 actions.forEach(action => {
@@ -240,7 +244,7 @@
                 gsap.from('.action-table tr', { opacity: 0, y: 20, duration: 0.8, stagger: 0.1, ease: 'power2.out' });
             } catch (error) {
                 console.error('Erreur chargement actions:', error);
-                showError('Impossible de charger les actions.');
+                showError('Impossible de charger les actions : ' + error.message);
             }
         }
 
@@ -249,11 +253,11 @@
             if (!confirm('Voulez-vous vraiment supprimer cette action ?')) return;
             try {
                 const response = await fetch(`/api/safety-actions/${actionId}`, { method: 'DELETE' });
-                if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
+                if (!response.ok) throw new Error(`Erreur HTTP ${response.status}: ${await response.text()}`);
                 loadActions();
             } catch (error) {
                 console.error('Erreur suppression action:', error);
-                showError('Impossible de supprimer l’action.');
+                showError('Impossible de supprimer l’action : ' + error.message);
             }
         }
 
@@ -308,8 +312,9 @@
             try {
                 // Charger les bâtiments et tableaux
                 const response = await fetch('/api/tableaux');
-                if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
+                if (!response.ok) throw new Error(`Erreur HTTP ${response.status}: ${await response.text()}`);
                 const tableaux = await response.json();
+                console.log('Tableaux pour modal:', tableaux);
                 const buildings = [...new Set(tableaux.map(t => t.id.split('-')[0]))].sort();
                 buildings.forEach(building => {
                     const option = document.createElement('option');
@@ -327,8 +332,10 @@
                 // Charger les données de l'action si actionId est fourni
                 if (actionId) {
                     const actionResponse = await fetch(`/api/safety-actions/${actionId}`);
-                    if (!actionResponse.ok) throw new Error(`Erreur HTTP ${actionResponse.status}`);
-                    const action = await actionResponse.json();
+                    if (!actionResponse.ok) throw new Error(`Erreur HTTP ${actionResponse.status}: ${await actionResponse.text()}`);
+                    const responseData = await actionResponse.json();
+                    console.log('Action reçue:', responseData);
+                    const action = responseData.data || responseData;
                     document.getElementById('action-type').value = action.type || '';
                     document.getElementById('action-description').value = action.description || '';
                     document.getElementById('action-building').value = action.building || '';
@@ -344,7 +351,7 @@
                 modal.classList.remove('hidden');
             } catch (error) {
                 console.error('Erreur ouverture du modal:', error);
-                showError('Impossible d’ouvrir le formulaire.');
+                showError('Impossible d’ouvrir le formulaire : ' + error.message);
             }
         }
 
@@ -373,12 +380,13 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(action)
                 });
-                if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
+                if (!response.ok) throw new Error(`Erreur HTTP ${response.status}: ${await response.text()}`);
+                console.log('Action enregistrée:', await response.json());
                 document.getElementById('modal-details').classList.add('hidden');
                 loadActions();
             } catch (error) {
                 console.error('Erreur soumission formulaire:', error);
-                showError('Impossible d’enregistrer l’action.');
+                showError('Impossible d’enregistrer l’action : ' + error.message);
             }
         });
 
