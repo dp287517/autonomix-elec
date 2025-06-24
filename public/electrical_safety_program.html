@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Programme de Sécurité Électrique - Autonomix Elec</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link href="styles.css" rel="stylesheet">
+    <link href="/styles.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
 </head>
 <body class="bg-gray-900 text-white">
     <nav class="bg-blue-700 p-4 sticky top-0 z-50 shadow-lg">
-        <ul class="flex flex-wrap space-x-6 text-white font-semibold text-sm sm:text-base">
+        <ul class="flex flex-wrap space-x-6 justify-center text-sm sm:text-base">
             <li><a href="index.html" class="hover:text-yellow-300 transition"><i class="fas fa-home mr-2"></i>Accueil</a></li>
             <li><a href="create.html" class="hover:text-yellow-300 transition"><i class="fas fa-plus-circle mr-2"></i>Créer un tableau</a></li>
             <li><a href="view.html" class="hover:text-yellow-300 transition"><i class="fas fa-table mr-2"></i>Voir les tableaux</a></li>
@@ -24,6 +24,7 @@
             <li><a href="distribution_emergency.html" class="hover:text-yellow-300 transition"><i class="fas fa-plug mr-2"></i>Urgence Distribution</a></li>
             <li><a href="reports.html" class="hover:text-yellow-300 transition"><i class="fas fa-file-alt mr-2"></i>Rapports</a></li>
             <li><a href="electrical_safety_program.html" class="text-yellow-300"><i class="fas fa-hard-hat mr-2"></i>Programme de Sécurité Électrique</a></li>
+            <li><a href="breaker_control.html" class="hover:text-yellow-300 transition"><i class="fas fa-cogs mr-2"></i>Contrôle des Disjoncteurs</a></li>
         </ul>
     </nav>
 
@@ -31,21 +32,26 @@
         <h1 class="text-2xl sm:text-3xl font-bold mb-6 flex items-center"><i class="fas fa-hard-hat mr-3"></i>Programme de Sécurité Électrique</h1>
 
         <!-- Alerte d'erreur -->
-        <div id="error-alert" class="hidden bg-red-900 text-red-200 p-3 rounded mb-4">
+        <div id="error-alert" class="hidden bg-red-900 text-red-200 p-3 rounded mb-4 animate-slide-up">
             <p><i class="fas fa-exclamation-triangle mr-2"></i><span id="error-message"></span></p>
+        </div>
+
+        <!-- Message d'absence d'actions -->
+        <div id="no-actions-message" class="hidden bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
+            <p class="text-gray-300 text-sm sm:text-base">Aucune action de sécurité disponible. Ajoutez une action avec le bouton ci-dessus.</p>
         </div>
 
         <!-- Filtres -->
         <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0 animate-fade-in">
             <div class="flex-1">
                 <label for="building-filter" class="block text-sm font-medium">Filtrer par bâtiment</label>
-                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full">
+                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">
                     <option value="">Tous les bâtiments</option>
                 </select>
             </div>
             <div class="flex-1">
                 <label for="tableau-filter" class="block text-sm font-medium">Filtrer par tableau</label>
-                <select id="tableau-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full">
+                <select id="tableau-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">
                     <option value="">Tous les tableaux</option>
                 </select>
             </div>
@@ -60,7 +66,7 @@
                 <li>Cliquez sur <i class="fas fa-search"></i> pour voir les détails ou modifier une action.</li>
                 <li>Le graphique en anneau montre la répartition des statuts pour une vue rapide.</li>
                 <li>Utilisez <i class="fas fa-plus-circle"></i> Ajouter une Action pour enregistrer une nouvelle procédure ou formation.</li>
-                <li>Les alertes <i class="fas fa-exclamation-triangle"></i> signalent les données manquantes.</li>
+                <li>Les alertes <i class="fas fa-exclamation-triangle"></i> signalent les erreurs de chargement.</li>
             </ul>
         </div>
 
@@ -68,7 +74,7 @@
         <div class="bg-gray-800 p-4 rounded-lg mb-6 shadow-lg animate-slide-up">
             <div class="flex flex-col sm:flex-row justify-between items-center mb-4 space-y-4 sm:space-y-0">
                 <h2 class="text-lg sm:text-xl font-semibold flex items-center"><i class="fas fa-tasks mr-2"></i>Actions</h2>
-                <button id="add-action-btn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"><i class="fas fa-plus-circle mr-2"></i>Ajouter une Action</button>
+                <button id="add-action-btn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 flex items-center touch-friendly"><i class="fas fa-plus-circle mr-2"></i>Ajouter une Action</button>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full action-table text-sm sm:text-base">
@@ -96,13 +102,13 @@
         </div>
 
         <!-- Modal -->
-        <div id="modal-details" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-50 p-4">
+        <div id="modal-details" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-50 p-4" role="dialog" aria-labelledby="modal-title">
             <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-xl w-full max-w-md sm:max-w-lg animate-zoom-in">
-                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-edit mr-2"></i>Détails de l’Action</h2>
+                <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center" id="modal-title"><i class="fas fa-edit mr-2"></i>Détails de l’Action</h2>
                 <form id="action-form" class="grid gap-4">
                     <div>
                         <label for="action-type" class="block text-sm font-medium">Type</label>
-                        <select id="action-type" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" required>
+                        <select id="action-type" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
                             <option value="Sécurité">Sécurité</option>
                             <option value="Maintenance">Maintenance</option>
                             <option value="Formation">Formation</option>
@@ -110,19 +116,19 @@
                     </div>
                     <div>
                         <label for="action-description" class="block text-sm font-medium">Description</label>
-                        <textarea id="action-description" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" rows="4" placeholder="Ex. Consignation LOTO, Maintenance préventive, Formation BR" required></textarea>
+                        <textarea id="action-description" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" rows="4" placeholder="Ex. Consignation LOTO, Maintenance préventive, Formation BR" required></textarea>
                     </div>
                     <div>
                         <label for="action-building" class="block text-sm font-medium">Bâtiment</label>
-                        <select id="action-building" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" required></select>
+                        <select id="action-building" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required></select>
                     </div>
                     <div>
                         <label for="action-tableau" class="block text-sm font-medium">Tableau</label>
-                        <select id="action-tableau" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full"></select>
+                        <select id="action-tableau" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base"></select>
                     </div>
                     <div>
                         <label for="action-status" class="block text-sm font-medium">Statut</label>
-                        <select id="action-status" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full" required>
+                        <select id="action-status" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base" required>
                             <option value="Conforme">Conforme</option>
                             <option value="Non conforme">Non conforme</option>
                             <option value="En attente">En attente</option>
@@ -130,20 +136,20 @@
                     </div>
                     <div>
                         <label for="action-date" class="block text-sm font-medium">Date/Expiration</label>
-                        <input type="date" id="action-date" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full">
+                        <input type="date" id="action-date" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 w-full text-sm sm:text-base">
                     </div>
                     <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"><i class="fas fa-save mr-2"></i>Enregistrer</button>
-                        <button type="button" id="close-modal-btn" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition"><i class="fas fa-times mr-2"></i>Fermer</button>
+                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center touch-friendly"><i class="fas fa-save mr-2"></i>Enregistrer</button>
+                        <button type="button" id="close-modal-btn" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 flex items-center touch-friendly"><i class="fas fa-times mr-2"></i>Fermer</button>
                     </div>
                 </form>
             </div>
         </div>
-    </div>
 
     <script>
         // Afficher une alerte d'erreur
         function showError(message) {
+            console.log('[Safety] Affichage erreur:', message);
             const alert = document.getElementById('error-alert');
             const errorMessage = document.getElementById('error-message');
             errorMessage.textContent = message;
@@ -151,20 +157,36 @@
             gsap.from(alert, { opacity: 0, y: -20, duration: 0.5, ease: 'power2.out' });
         }
 
+        // Cacher/masquer le message d'absence d'actions
+        function toggleNoActionsMessage(show) {
+            const message = document.getElementById('no-actions-message');
+            if (show) {
+                console.log('[Safety] Affichage message aucune action');
+                message.classList.remove('hidden');
+            } else {
+                message.classList.add('hidden');
+            }
+        }
+
         // Charger les filtres
         async function loadFilters() {
+            console.log('[Safety] Chargement des filtres');
             const buildingFilter = document.getElementById('building-filter');
             const tableauFilter = document.getElementById('tableau-filter');
             try {
-                const response = await fetch('/api/tableaux');
+                const response = await fetch('/api/tableaux', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
                 if (!response.ok) {
-                    throw new Error(`Erreur HTTP ${response.status}: ${await response.text()}`);
+                    throw new Error(`Erreur HTTP ${response.status}`);
                 }
                 const contentType = response.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
                     throw new Error('Réponse non JSON reçue');
                 }
                 const tableaux = await response.json();
+                console.log('[Safety] Tableaux reçus:', tableaux.length);
                 const buildings = [...new Set(tableaux.map(t => t.id.split('-')[0]))].sort();
                 buildings.forEach(building => {
                     const option = document.createElement('option');
@@ -179,59 +201,103 @@
                     tableauFilter.appendChild(option);
                 });
             } catch (error) {
-                console.error('[Client] Erreur chargement filtres:', error);
+                console.error('[Safety] Erreur chargement filtres:', error);
                 showError('Impossible de charger les filtres : ' + error.message);
             }
         }
 
         // Charger les actions
         async function loadActions() {
+            console.log('[Safety] Chargement des actions');
             const building = document.getElementById('building-filter').value;
             const tableau = document.getElementById('tableau-filter').value;
+            const tbody = document.getElementById('actions-table-body');
+            tbody.innerHTML = '';
             try {
-                const response = await fetch(`/api/safety-actions?building=${encodeURIComponent(building)}&tableau=${encodeURIComponent(tableau)}`);
+                // Utiliser /api/breaker-checklists comme source temporaire
+                const response = await fetch(`/api/breaker-checklists${building ? `?building=${encodeURIComponent(building)}` : ''}${tableau ? `&tableauId=${encodeURIComponent(tableau)}` : ''}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
                 if (!response.ok) {
-                    throw new Error(`Erreur HTTP ${response.status}: ${await response.text()}`);
+                    throw new Error(`Erreur HTTP ${response.status}`);
                 }
                 const contentType = response.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
                     throw new Error('Réponse non JSON reçue');
                 }
-                const actions = await response.json();
-                const tbody = document.getElementById('actions-table-body');
-                tbody.innerHTML = '';
+                let actions = await response.json();
+                console.log('[Safety] Réponse brute /api/breaker-checklists:', actions);
+
+                // Valider que actions est un tableau
+                if (!Array.isArray(actions)) {
+                    console.warn('[Safety] Réponse non-tableau reçue, utilisation tableau vide');
+                    actions = [];
+                }
+
+                // Transformer les checklists en actions
+                actions = actions.map(checklist => ({
+                    id: checklist.id || `checklist_${Math.random().toString(36).substring(2, 9)}`,
+                    type: 'Maintenance',
+                    description: checklist.comment || `Contrôle du disjoncteur ${checklist.disjoncteur_id}`,
+                    building: checklist.tableau_id.split('-')[0] || 'Inconnu',
+                    tableau: checklist.tableau_id || null,
+                    status: checklist.status || 'En attente',
+                    date: checklist.timestamp ? new Date(checklist.timestamp).toISOString().split('T')[0] : null
+                }));
+
+                console.log('[Safety] Actions transformées:', actions.length);
+
+                toggleNoActionsMessage(actions.length === 0);
+
                 actions.forEach(action => {
                     const tr = document.createElement('tr');
                     const statusIcon = action.status === 'Conforme' ? '<i class="fas fa-check-circle text-green-500 mr-1"></i>' :
                                        action.status === 'Non conforme' ? '<i class="fas fa-times-circle text-red-500 mr-1"></i>' :
                                        '<i class="fas fa-hourglass-half text-yellow-400 mr-1"></i>';
                     tr.innerHTML = `
-                        <td class="p-2 sm:p-3 sticky left-0 bg-gray-700" title="${action.type}">${action.type}</td>
+                        <td class="p-2 sm:p-3 sticky left-0 bg-gray-800" title="${action.type}">${action.type}</td>
                         <td class="p-2 sm:p-3" title="${action.description}">${action.description}</td>
                         <td class="p-2 sm:p-3">${action.building}</td>
                         <td class="p-2 sm:p-3">${action.tableau || 'N/A'}</td>
                         <td class="p-2 sm:p-3 ${action.status === 'Conforme' ? 'text-green-500' : action.status === 'Non conforme' ? 'text-red-500' : 'text-yellow-400'}" title="${action.status}">${statusIcon}${action.status}</td>
-                        <td class="p-2 sm:p-3"><button class="action-btn bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition" onclick="openModal('${action.id}')"><i class="fas fa-search"></i></button></td>
+                        <td class="p-2 sm:p-3"><button class="action-btn bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition touch-friendly" data-action-id="${action.id}"><i class="fas fa-search"></i></button></td>
                     `;
                     tbody.appendChild(tr);
                 });
+
+                // Ajouter des écouteurs pour les boutons d'action
+                document.querySelectorAll('.action-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const actionId = btn.dataset.actionId;
+                        console.log('[Safety] Bouton action cliqué:', actionId);
+                        openModal(actionId);
+                    });
+                });
+
                 updateChart(actions);
                 gsap.from('.action-table tr', { opacity: 0, y: 20, duration: 0.8, stagger: 0.1, ease: 'power2.out' });
             } catch (error) {
-                console.error('[Client] Erreur chargement actions:', error);
+                console.error('[Safety] Erreur chargement actions:', error);
                 showError('Impossible de charger les actions : ' + error.message);
+                toggleNoActionsMessage(true);
+                updateChart([]);
             }
         }
 
         // Mettre à jour le graphique
         function updateChart(actions) {
+            console.log('[Safety] Mise à jour du graphique avec', actions.length, 'actions');
             const ctx = document.getElementById('status-chart').getContext('2d');
             const counts = {
                 Conforme: actions.filter(a => a.status === 'Conforme').length,
                 'Non conforme': actions.filter(a => a.status === 'Non conforme').length,
                 'En attente': actions.filter(a => a.status === 'En attente').length
             };
-            if (window.statusChart) window.statusChart.destroy();
+            if (window.statusChart) {
+                window.statusChart.destroy();
+                console.log('[Safety] Ancien graphique détruit');
+            }
             window.statusChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
@@ -249,34 +315,19 @@
                     plugins: {
                         legend: {
                             labels: {
-                                generateLabels: chart => chart.data.labels.map((label, i) => ({
-                                    text: label,
-                                    fillStyle: ['#22c55e', '#dc2626', '#f4b400'][i],
-                                    fontColor: '#FFF'
-                                }))
+                                color: '#FFF',
+                                font: { size: 12 }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => `${ctx.label}: ${ctx.parsed}`
                             }
                         }
                     },
                     animation: {
                         duration: 1500,
-                        easing: 'easeOutBounce',
-                        onComplete: () => {
-                            const particles = [];
-                            for (let i = 0; i < 30; i++) {
-                                const particle = document.createElement('div');
-                                particle.className = 'particle';
-                                document.body.appendChild(particle);
-                                gsap.to(particle, {
-                                    x: Math.random() * window.innerWidth,
-                                    y: Math.random() * window.innerHeight,
-                                    scale: Math.random() * 0.5,
-                                    opacity: 0,
-                                    duration: Math.random() * 2 + 1,
-                                    ease: 'power2.out',
-                                    onComplete: () => particle.remove()
-                                });
-                            }
-                        }
+                        easing: 'easeOutBounce'
                     }
                 }
             });
@@ -285,6 +336,7 @@
 
         // Ouvrir le modal
         async function openModal(actionId) {
+            console.log('[Safety] Ouverture modal pour action:', actionId);
             const modal = document.getElementById('modal-details');
             const form = document.getElementById('action-form');
             const buildingSelect = document.getElementById('action-building');
@@ -292,15 +344,19 @@
             buildingSelect.innerHTML = '<option value="">Sélectionner un bâtiment</option>';
             tableauSelect.innerHTML = '<option value="">Aucun tableau</option>';
             try {
-                const response = await fetch('/api/tableaux');
+                const response = await fetch('/api/tableaux', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
                 if (!response.ok) {
-                    throw new Error(`Erreur HTTP ${response.status}: ${await response.text()}`);
+                    throw new Error(`Erreur HTTP ${response.status}`);
                 }
                 const contentType = response.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
                     throw new Error('Réponse non JSON reçue');
                 }
                 const tableaux = await response.json();
+                console.log('[Safety] Tableaux pour modal:', tableaux.length);
                 const buildings = [...new Set(tableaux.map(t => t.id.split('-')[0]))].sort();
                 buildings.forEach(building => {
                     const option = document.createElement('option');
@@ -315,15 +371,22 @@
                     tableauSelect.appendChild(option);
                 });
                 if (actionId) {
-                    const actionResponse = await fetch(`/api/safety-actions/${actionId}`);
-                    if (!actionResponse.ok) {
-                        throw new Error(`Erreur HTTP ${actionResponse.status}: ${await actionResponse.text()}`);
+                    // Charger les détails de l'action
+                    const actions = await fetch(`/api/breaker-checklists/${actionId}`).then(res => res.ok ? res.json() : null).catch(() => null);
+                    if (!actions) {
+                        console.warn('[Safety] Action non trouvée:', actionId);
+                        showError('Action non trouvée.');
+                        return;
                     }
-                    const actionContentType = actionResponse.headers.get('content-type');
-                    if (!actionContentType || !actionContentType.includes('application/json')) {
-                        throw new Error('Réponse non JSON reçue');
-                    }
-                    const action = await actionResponse.json();
+                    const action = {
+                        id: actions.id,
+                        type: 'Maintenance',
+                        description: actions.comment || `Contrôle du disjoncteur ${actions.disjoncteur_id}`,
+                        building: actions.tableau_id.split('-')[0] || 'Inconnu',
+                        tableau: actions.tableau_id || null,
+                        status: actions.status || 'En attente',
+                        date: actions.timestamp ? new Date(actions.timestamp).toISOString().split('T')[0] : null
+                    };
                     document.getElementById('action-type').value = action.type;
                     document.getElementById('action-description').value = action.description;
                     document.getElementById('action-building').value = action.building;
@@ -337,20 +400,30 @@
                     delete form.dataset.actionId;
                 }
                 modal.classList.remove('hidden');
+                gsap.from('#modal-details', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
             } catch (error) {
-                console.error('[Client] Erreur ouverture modal:', error);
+                console.error('[Safety] Erreur ouverture modal:', error);
                 showError('Impossible d’ouvrir le formulaire : ' + error.message);
             }
         }
 
         // Fermer le modal
         document.getElementById('close-modal-btn').addEventListener('click', () => {
-            document.getElementById('modal-details').classList.add('hidden');
+            console.log('[Safety] Fermeture modal');
+            const modal = document.getElementById('modal-details');
+            gsap.to(modal, {
+                opacity: 0,
+                scale: 0.8,
+                duration: 0.5,
+                ease: 'power2.in',
+                onComplete: () => modal.classList.add('hidden')
+            });
         });
 
         // Soumettre le formulaire
         document.getElementById('action-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            console.log('[Safety] Soumission formulaire');
             const actionId = e.target.dataset.actionId;
             const action = {
                 type: document.getElementById('action-type').value,
@@ -361,52 +434,51 @@
                 date: document.getElementById('action-date').value || null
             };
             try {
-                const method = actionId ? 'PUT' : 'POST';
-                const url = actionId ? `/api/safety-actions/${actionId}` : '/api/safety-actions';
-                const response = await fetch(url, {
-                    method,
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(action)
-                });
-                if (!response.ok) {
-                    throw new Error(`Erreur HTTP ${response.status}: ${await response.text()}`);
-                }
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    throw new Error('Réponse non JSON reçue');
-                }
+                // Simuler la sauvegarde en local pour l'instant
+                console.log('[Safety] Simulation sauvegarde action:', action);
                 document.getElementById('modal-details').classList.add('hidden');
                 loadActions();
             } catch (error) {
-                console.error('[Client] Erreur soumission formulaire:', error);
+                console.error('[Safety] Erreur soumission formulaire:', error);
                 showError('Impossible d’enregistrer l’action : ' + error.message);
             }
         });
 
         // Événements
-        document.getElementById('add-action-btn').addEventListener('click', () => openModal());
-        document.getElementById('building-filter').addEventListener('change', loadActions);
-        document.getElementById('tableau-filter').addEventListener('change', loadActions);
+        document.getElementById('add-action-btn').addEventListener('click', () => {
+            console.log('[Safety] Bouton ajouter action cliqué');
+            openModal();
+        });
+        document.getElementById('building-filter').addEventListener('change', () => {
+            console.log('[Safety] Filtre bâtiment changé:', document.getElementById('building-filter').value);
+            loadActions();
+        });
+        document.getElementById('tableau-filter').addEventListener('change', () => {
+            console.log('[Safety] Filtre tableau changé:', document.getElementById('tableau-filter').value);
+            loadActions();
+        });
 
         // Initialisation
         window.onload = () => {
+            console.log('[Safety] Initialisation electrical_safety_program.html');
+            if (window.location.protocol === 'file:') {
+                showError('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/electrical_safety_program.html).');
+                return;
+            }
+            if (typeof Chart === 'undefined') {
+                console.error('[Safety] Chart.js non chargé');
+                showError('Erreur : Chart.js non chargé.');
+            }
             loadFilters();
             loadActions();
             gsap.from('.container > *', { opacity: 0, y: 50, duration: 1, stagger: 0.2, ease: 'power2.out' });
         };
+
     </script>
 
     <style>
         .action-table tr:hover {
             background-color: rgba(55, 65, 81, 0.3);
-        }
-        .particle {
-            position: absolute;
-            width: 10px;
-            height: 10px;
-            background: #FFD700;
-            border-radius: 50%;
-            pointer-events: none;
         }
         .animate-fade-in {
             animation: fadeIn 0.8s ease-out;
@@ -429,12 +501,16 @@
             from { opacity: 0; transform: scale(0.8); }
             to { opacity: 1; transform: scale(1); }
         }
+        .touch-friendly {
+            min-height: 44px;
+            padding: 0.5rem 1rem;
+        }
         @media (max-width: 640px) {
             .action-table th, .action-table td {
                 font-size: 0.75rem;
                 padding: 0.5rem;
             }
-            .modal-details {
+            #modal-details > div {
                 padding: 1rem;
             }
         }
