@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Évaluation des Risques Électriques - Autonomes Elec</h2>
+    <title>Évaluation des Risques Électriques - Autonomix Elec</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" media="print" onload="this.media='all'">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" media="print" onload="this.media='all'">
     <style>
@@ -44,6 +44,9 @@
     </nav>
 
     <div class="container mx-auto p-4 sm:p-6">
+        <div id="fallback-message" class="bg-gray-800 p-4 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up hidden">
+            <p class="text-gray-300 text-sm sm:text-base">Erreur de chargement. Vérifiez votre connexion ou contactez l'administrateur.</p>
+        </div>
         <div class="flex flex-col sm:flex-row justify-between items-center mb-4 sm:mb-6">
             <h1 class="text-2xl sm:text-3xl font-bold flex items-center"><i class="fas fa-exclamation-triangle mr-2 sm:mr-3"></i>Évaluation des Risques Électriques</h1>
             <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mt-4 sm:mt-0">
@@ -172,28 +175,44 @@
         let buildingsCache = null;
 
         function loadScript(src, async = true) {
+            console.log('[Hazards] Chargement script:', src);
             return new Promise((resolve, reject) => {
                 const script = document.createElement('script');
                 script.src = src;
                 script.async = async;
-                script.onload = resolve;
-                script.onerror = reject;
+                script.onload = () => {
+                    console.log('[Hazards] Script chargé:', src);
+                    resolve();
+                };
+                script.onerror = () => {
+                    console.error('[Hazards] Erreur chargement script:', src);
+                    reject(new Error(`Échec du chargement de ${src}`));
+                };
                 document.head.appendChild(script);
             });
         }
 
         function showPopup(message, content = '', confirmCallback = () => {}) {
+            console.log('[Hazards] Affichage pop-up:', message);
             document.getElementById('popup-message').textContent = message;
             document.getElementById('popup-content').innerHTML = content;
             document.getElementById('popup').classList.remove('hidden');
             document.getElementById('popup-confirm').onclick = () => {
+                console.log('[Hazards] Pop-up confirmé');
                 confirmCallback();
                 hidePopup();
             };
-            document.getElementById('popup-cancel').onclick = hidePopup;
+            document.getElementById('popup-cancel').onclick = () => {
+                console.log('[Hazards] Pop-up annulé');
+                hidePopup();
+            };
+            if (typeof gsap !== 'undefined') {
+                gsap.from('#popup > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+            }
         }
 
         function hidePopup() {
+            console.log('[Hazards] Masquage pop-up');
             document.getElementById('popup').classList.add('hidden');
         }
 
@@ -206,10 +225,14 @@
         }
 
         async function loadBuildings() {
-            if (buildingsCache) return buildingsCache;
+            console.log('[Hazards] Chargement des bâtiments');
+            if (buildingsCache) {
+                console.log('[Hazards] Utilisation du cache des bâtiments');
+                return buildingsCache;
+            }
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                const timeoutId = setTimeout(() => controller.abort(), 2000);
                 const response = await fetch('/api/fault-level', {
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' },
@@ -219,19 +242,26 @@
                 if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
                 const data = await response.json();
                 buildingsCache = [...new Set(data.data.map(tableau => tableau.building))].sort();
+                console.log('[Hazards] Bâtiments chargés:', buildingsCache);
                 return buildingsCache;
             } catch (error) {
+                console.error('[Hazards] Erreur chargement bâtiments:', error);
                 showPopup('Erreur lors du chargement des bâtiments: ' + error.message);
+                document.getElementById('fallback-message').classList.remove('hidden');
                 return [];
             }
         }
 
         async function loadTableaux(building, tableauId = null) {
-            if (!building) return [];
+            if (!building) {
+                console.warn('[Hazards] Aucun bâtiment spécifié');
+                return [];
+            }
+            console.log('[Hazards] Chargement tableaux pour bâtiment:', building, 'Tableau ID:', tableauId);
             document.getElementById('loading-spinner').classList.remove('hidden');
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                const timeoutId = setTimeout(() => controller.abort(), 2000);
                 const url = tableauId 
                     ? `/api/fault-level?building=${encodeURIComponent(building)}&tableauId=${encodeURIComponent(tableauId)}`
                     : `/api/fault-level?building=${encodeURIComponent(building)}`;
@@ -249,9 +279,8 @@
                 ]);
                 clearTimeout(timeoutId);
 
-                if (!faultLevelResponse.ok || !checklistsResponse.ok) {
-                    throw new Error('Erreur lors du chargement des données');
-                }
+                if (!faultLevelResponse.ok) throw new Error(`Erreur HTTP (fault-level): ${faultLevelResponse.status}`);
+                if (!checklistsResponse.ok) throw new Error(`Erreur HTTP (breaker-checklists): ${checklistsResponse.status}`);
 
                 const faultLevelData = await faultLevelResponse.json();
                 checklistsData = await checklistsResponse.json();
@@ -272,13 +301,17 @@
                     }))
                 }));
 
+                console.log('[Hazards] Tableaux chargés:', data.length);
                 document.getElementById('loading-spinner').classList.add('hidden');
                 document.getElementById('api-error').classList.add('hidden');
+                document.getElementById('fallback-message').classList.add('hidden');
                 return data;
             } catch (error) {
+                console.error('[Hazards] Erreur chargement tableaux:', error);
                 showPopup('Erreur lors du chargement des données: ' + error.message);
                 document.getElementById('loading-spinner').classList.add('hidden');
                 document.getElementById('api-error').classList.remove('hidden');
+                document.getElementById('fallback-message').classList.remove('hidden');
                 return [];
             }
         }
@@ -303,10 +336,13 @@
         }
 
         function populateFilters(buildings) {
+            console.log('[Hazards] Remplissage des filtres avec', buildings.length, 'bâtiments');
             const buildingFilter = document.getElementById('building-filter');
             const tableauFilter = document.getElementById('tableau-filter');
             if (!buildingFilter || !tableauFilter) {
+                console.error('[Hazards] Éléments de filtre non trouvés');
                 showPopup('Erreur: Éléments de filtre introuvables.');
+                document.getElementById('fallback-message').classList.remove('hidden');
                 return;
             }
 
@@ -319,6 +355,7 @@
             });
 
             function updateTableauFilter(selectedBuilding) {
+                console.log('[Hazards] Mise à jour filtre tableau pour bâtiment:', selectedBuilding);
                 tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
                 const filteredTableaux = selectedBuilding
                     ? tableauxData.filter(t => t.building === selectedBuilding)
@@ -334,6 +371,7 @@
 
             const savedBuilding = localStorage.getItem('selectedBuilding');
             if (savedBuilding && buildings.includes(savedBuilding)) {
+                console.log('[Hazards] Restauration bâtiment sauvegardé:', savedBuilding);
                 buildingFilter.value = savedBuilding;
                 updateTableauFilter(savedBuilding);
                 filterData(savedBuilding);
@@ -344,6 +382,7 @@
 
             buildingFilter.onchange = () => {
                 const selectedBuilding = buildingFilter.value;
+                console.log('[Hazards] Changement bâtiment:', selectedBuilding);
                 localStorage.setItem('selectedBuilding', selectedBuilding);
                 updateTableauFilter(selectedBuilding);
                 if (selectedBuilding) {
@@ -354,6 +393,7 @@
             };
 
             tableauFilter.onchange = () => {
+                console.log('[Hazards] Changement tableau:', tableauFilter.value);
                 clearTimeout(filterDebounceTimeout);
                 filterDebounceTimeout = setTimeout(() => {
                     filterData(buildingFilter.value);
@@ -362,13 +402,16 @@
         }
 
         function showNoBuildingMessage() {
+            console.log('[Hazards] Affichage message aucun bâtiment sélectionné');
             document.getElementById('no-building-selected').classList.remove('hidden');
             document.getElementById('no-tableaux-alert').classList.add('hidden');
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('missing-data-alert').classList.add('hidden');
+            document.getElementById('fallback-message').classList.add('hidden');
         }
 
         async function filterData(building) {
+            console.log('[Hazards] Filtrage données pour bâtiment:', building);
             if (!building) {
                 tableauxData = [];
                 checklistsData = [];
@@ -390,6 +433,7 @@
             }
 
             if (filteredData.length === 0) {
+                console.log('[Hazards] Aucun tableau trouvé pour les critères');
                 document.getElementById('no-building-selected').classList.add('hidden');
                 document.getElementById('no-tableaux-alert').classList.remove('hidden');
                 document.getElementById('data-section').classList.add('hidden');
@@ -406,23 +450,31 @@
                     .map(d => ({ tableauId: t.id, disjoncteurId: d.id }))
             );
 
+            console.log('[Hazards] Données filtrées:', filteredData.length, 'tableaux,', missingData.length, 'données manquantes');
             document.getElementById('no-building-selected').classList.add('hidden');
             document.getElementById('no-tableaux-alert').classList.add('hidden');
             document.getElementById('data-section').classList.remove('hidden');
-            await loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js');
-            await loadScript('https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js');
+            try {
+                await loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js').catch(() => console.warn('[Hazards] Échec chargement Chart.js'));
+                await loadScript('https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js').catch(() => console.warn('[Hazards] Échec chargement GSAP'));
+            } catch (error) {
+                console.error('[Hazards] Erreur chargement scripts:', error);
+            }
             renderHazardsTable(filteredData);
             renderHazardsChart(filteredData);
             updateMissingDataAlert();
         }
 
         function resetFilters() {
+            console.log('[Hazards] Réinitialisation filtres');
             localStorage.removeItem('selectedBuilding');
             const buildingFilter = document.getElementById('building-filter');
             const tableauFilter = document.getElementById('tableau-filter');
-            buildingFilter.value = '';
-            tableauFilter.value = '';
-            tableauFilter.disabled = true;
+            if (buildingFilter && tableauFilter) {
+                buildingFilter.value = '';
+                tableauFilter.value = '';
+                tableauFilter.disabled = true;
+            }
             tableauxData = [];
             checklistsData = [];
             missingData = [];
@@ -433,6 +485,7 @@
         }
 
         function exportToCSV() {
+            console.log('[Hazards] Exportation CSV');
             if (!tableauxData.length) {
                 showPopup('Aucune donnée à exporter. Veuillez sélectionner un bâtiment.');
                 return;
@@ -486,6 +539,7 @@
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
+            console.log('[Hazards] CSV exporté');
         }
 
         function isObsolete(disjoncteur) {
@@ -543,7 +597,12 @@
         }
 
         function renderHazardsTable(data) {
+            console.log('[Hazards] Rendu tableau des risques:', data.length, 'tableaux');
             const tbody = document.getElementById('hazards-table-body');
+            if (!tbody) {
+                console.error('[Hazards] Tableau body non trouvé');
+                return;
+            }
             tbody.innerHTML = '';
             const fragment = document.createDocumentFragment();
             data.forEach(tableau => {
@@ -578,6 +637,7 @@
                 btn.addEventListener('click', () => {
                     const tableauId = decodeURIComponent(btn.dataset.tableauId);
                     const disjoncteurId = decodeURIComponent(btn.dataset.disjoncteurId);
+                    console.log('[Hazards] Clic action:', { tableauId, disjoncteurId });
                     openModal(tableauId, disjoncteurId);
                 });
             });
@@ -587,11 +647,16 @@
         }
 
         function renderHazardsChart(data) {
+            console.log('[Hazards] Rendu graphique des risques');
             const canvas = document.getElementById('hazards-chart');
-            if (!canvas) return;
+            if (!canvas) {
+                console.error('[Hazards] Canvas hazards-chart non trouvé');
+                return;
+            }
 
             if (chartInstance) {
                 chartInstance.destroy();
+                console.log('[Hazards] Ancien graphique détruit');
             }
 
             const counts = { arc: { faible: 0, moyen: 0, élevé: 0 }, choc: { faible: 0, moyen: 0, élevé: 0 }, surchauffe: { faible: 0, moyen: 0, élevé: 0 } };
@@ -605,6 +670,7 @@
             });
 
             if (Object.values(counts).every(type => Object.values(type).every(v => v === 0))) {
+                console.log('[Hazards] Aucune donnée pour le graphique');
                 const parent = canvas.parentElement;
                 const existingError = parent.querySelector('.error-message');
                 if (!existingError) {
@@ -620,39 +686,49 @@
             if (existingError) existingError.remove();
 
             if (typeof Chart !== 'undefined') {
-                chartInstance = new Chart(canvas.getContext('2d'), {
-                    type: 'bar',
-                    data: {
-                        labels: ['Arc Électrique', 'Choc Électrique', 'Surchauffe'],
-                        datasets: [
-                            { label: 'Faible', data: [counts.arc.faible, counts.choc.faible, counts.surchauffe.faible], backgroundColor: '#22c55e' },
-                            { label: 'Moyen', data: [counts.arc.moyen, counts.choc.moyen, counts.surchauffe.moyen], backgroundColor: '#f4b400' },
-                            { label: 'Élevé', data: [counts.arc.élevé, counts.choc.élevé, counts.surchauffe.élevé], backgroundColor: '#dc2626' }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: { beginAtZero: true, title: { display: true, text: 'Nombre de Disjoncteurs', color: '#FFF' }, ticks: { color: '#FFF' }, grid: { color: '#4B5563' } },
-                            x: { title: { display: true, text: 'Type de Risque', color: '#FFF' }, ticks: { color: '#FFF' }, grid: { display: false } }
+                try {
+                    chartInstance = new Chart(canvas.getContext('2d'), {
+                        type: 'bar',
+                        data: {
+                            labels: ['Arc Électrique', 'Choc Électrique', 'Surchauffe'],
+                            datasets: [
+                                { label: 'Faible', data: [counts.arc.faible, counts.choc.faible, counts.surchauffe.faible], backgroundColor: '#22c55e' },
+                                { label: 'Moyen', data: [counts.arc.moyen, counts.choc.moyen, counts.surchauffe.moyen], backgroundColor: '#f4b400' },
+                                { label: 'Élevé', data: [counts.arc.élevé, counts.choc.élevé, counts.surchauffe.élevé], backgroundColor: '#dc2626' }
+                            ]
                         },
-                        plugins: { legend: { labels: { color: '#FFF' } } }
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: { beginAtZero: true, title: { display: true, text: 'Nombre de Disjoncteurs', color: '#FFF' }, ticks: { color: '#FFF' }, grid: { color: '#4B5563' } },
+                                x: { title: { display: true, text: 'Type de Risque', color: '#FFF' }, ticks: { color: '#FFF' }, grid: { display: false } }
+                            },
+                            plugins: { legend: { labels: { color: '#FFF' } } }
+                        }
+                    });
+                    console.log('[Hazards] Graphique rendu');
+                    if (typeof gsap !== 'undefined') {
+                        gsap.from('#hazards-chart', { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
                     }
-                });
-                if (typeof gsap !== 'undefined') {
-                    gsap.from('#hazards-chart', { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+                } catch (error) {
+                    console.error('[Hazards] Erreur rendu graphique:', error);
+                    showPopup('Erreur lors du rendu du graphique.');
                 }
+            } else {
+                console.warn('[Hazards] Chart.js non disponible');
             }
         }
 
         function updateMissingDataAlert() {
+            console.log('[Hazards] Mise à jour alerte données manquantes:', missingData.length);
             const alert = document.getElementById('missing-data-alert');
             const link = document.getElementById('missing-data-link');
             if (missingData.length > 0) {
                 alert.classList.remove('hidden');
                 link.onclick = () => {
                     const { tableauId, disjoncteurId } = missingData[0];
+                    console.log('[Hazards] Clic lien données manquantes:', { tableauId, disjoncteurId });
                     openModal(tableauId, disjoncteurId);
                 };
             } else {
@@ -661,14 +737,22 @@
         }
 
         function openModal(tableauId, disjoncteurId) {
+            console.log('[Hazards] Ouverture modal:', { tableauId, disjoncteurId });
             const modal = document.getElementById('modal-details');
+            if (!modal) {
+                console.error('[Hazards] Modal non trouvé');
+                showPopup('Erreur: Modal non trouvé.');
+                return;
+            }
             const tableau = tableauxData.find(t => t.id === tableauId);
             if (!tableau) {
+                console.error('[Hazards] Tableau non trouvé:', tableauId);
                 showPopup('Erreur: Tableau non trouvé.');
                 return;
             }
             const disjoncteur = tableau.disjoncteurs.find(d => d.id === disjoncteurId);
             if (!disjoncteur) {
+                console.error('[Hazards] Disjoncteur non trouvé:', disjoncteurId);
                 showPopup('Erreur: Disjoncteur non trouvé.');
                 return;
             }
@@ -723,6 +807,7 @@
             modal.classList.remove('hidden');
 
             document.getElementById('save-disjoncteur').onclick = async () => {
+                console.log('[Hazards] Enregistrement données disjoncteur:', { tableauId, disjoncteurId });
                 const ip = document.getElementById('ip-input').value.trim();
                 const temp = document.getElementById('temp-input').value.trim();
                 const ue = document.getElementById('ue-input').value.trim();
@@ -769,7 +854,7 @@
 
                 try {
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 3000);
+                    const timeoutId = setTimeout(() => controller.abort(), 2000);
                     const response = await fetch(`/api/disjoncteur/${encodeURIComponent(tableauId)}/${encodeURIComponent(disjoncteurId)}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
@@ -788,6 +873,7 @@
                         const responseData = await response.json().catch(() => ({}));
                         throw new Error(responseData.error || `Erreur HTTP: ${response.status}`);
                     }
+                    console.log('[Hazards] Données disjoncteur mises à jour');
                     document.getElementById('modal-error').classList.add('hidden');
                     document.getElementById('modal-success').classList.remove('hidden');
                     document.getElementById('modal-success').textContent = 'Données mises à jour avec succès !';
@@ -804,6 +890,7 @@
                         modal.classList.add('hidden');
                     }
                 } catch (error) {
+                    console.error('[Hazards] Erreur mise à jour disjoncteur:', error);
                     document.getElementById('modal-error').classList.remove('hidden');
                     document.getElementById('modal-error').textContent = 'Erreur : ' + error.message;
                     document.getElementById('modal-success').classList.add('hidden');
@@ -811,6 +898,7 @@
             };
 
             document.getElementById('close-modal').onclick = () => {
+                console.log('[Hazards] Fermeture modal');
                 if (typeof gsap !== 'undefined') {
                     gsap.to('#modal-details', {
                         opacity: 0,
@@ -826,21 +914,36 @@
         }
 
         window.onload = async () => {
-            if (window.location.protocol === 'file:') {
-                showPopup('Erreur : Veuillez exécuter cette page via un serveur web.');
-                return;
-            }
-            const modal = document.getElementById('modal-details');
-            const popup = document.getElementById('popup');
-            if (modal) modal.classList.add('hidden');
-            if (popup) popup.classList.add('hidden');
-            document.getElementById('data-section').classList.add('hidden');
-            const buildings = await loadBuildings();
-            if (buildings.length) {
-                populateFilters(buildings);
-            } else {
-                showPopup('Aucun bâtiment disponible.');
-                showNoBuildingMessage();
+            console.log('[Hazards] Initialisation page hazards_assessment');
+            try {
+                if (window.location.protocol === 'file:') {
+                    console.error('[Hazards] Page exécutée en mode fichier');
+                    showPopup('Erreur : Veuillez exécuter cette page via un serveur web.');
+                    document.getElementById('fallback-message').classList.remove('hidden');
+                    return;
+                }
+
+                const modal = document.getElementById('modal-details');
+                const popup = document.getElementById('popup');
+                if (modal) modal.classList.add('hidden');
+                if (popup) popup.classList.add('hidden');
+                document.getElementById('data-section').classList.add('hidden');
+                document.getElementById('fallback-message').classList.add('hidden');
+
+                const buildings = await loadBuildings();
+                if (buildings.length) {
+                    console.log('[Hazards] Bâtiments disponibles:', buildings.length);
+                    populateFilters(buildings);
+                } else {
+                    console.warn('[Hazards] Aucun bâtiment disponible');
+                    showPopup('Aucun bâtiment disponible.');
+                    showNoBuildingMessage();
+                    document.getElementById('fallback-message').classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('[Hazards] Erreur initialisation:', error);
+                showPopup('Erreur lors de l’initialisation de la page: ' + error.message);
+                document.getElementById('fallback-message').classList.remove('hidden');
             }
         };
     </script>
