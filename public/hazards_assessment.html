@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Évaluation des Risques Électriques - Autonomix Elec</title>
+    <title>Évaluation des Risques Électriques - Autonomes Elec</h2>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" media="print" onload="this.media='all'">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" media="print" onload="this.media='all'">
     <style>
@@ -101,6 +101,10 @@
 
         <div id="missing-data-alert" class="hidden bg-red-900 text-red-200 p-3 rounded mb-4 sm:mb-6 flex items-center animate-slide-up">
             <p class="text-sm sm:text-base"><i class="fas fa-exclamation-triangle mr-2"></i>Données manquantes pour certains disjoncteurs (ex. IP, température, tension, section). <a href="#" id="missing-data-link" class="underline">Modifier</a></p>
+        </div>
+
+        <div id="no-tableaux-alert" class="hidden bg-gray-800 p-4 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up">
+            <p class="text-gray-300 text-sm sm:text-base">Aucun tableau trouvé pour les critères sélectionnés.</p>
         </div>
 
         <div id="data-section" class="hidden">
@@ -222,14 +226,17 @@
             }
         }
 
-        async function loadTableaux(building) {
+        async function loadTableaux(building, tableauId = null) {
             if (!building) return [];
             document.getElementById('loading-spinner').classList.remove('hidden');
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 3000);
+                const url = tableauId 
+                    ? `/api/fault-level?building=${encodeURIComponent(building)}&tableauId=${encodeURIComponent(tableauId)}`
+                    : `/api/fault-level?building=${encodeURIComponent(building)}`;
                 const [faultLevelResponse, checklistsResponse] = await Promise.all([
-                    fetch(`/api/fault-level?building=${encodeURIComponent(building)}`, {
+                    fetch(url, {
                         method: 'GET',
                         headers: { 'Content-Type': 'application/json' },
                         signal: controller.signal
@@ -315,14 +322,14 @@
                 tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
                 const filteredTableaux = selectedBuilding
                     ? tableauxData.filter(t => t.building === selectedBuilding)
-                    : tableauxData;
+                    : [];
                 filteredTableaux.forEach(t => {
                     const option = document.createElement('option');
                     option.value = t.id;
                     option.textContent = t.id;
                     tableauFilter.appendChild(option);
                 });
-                tableauFilter.disabled = !selectedBuilding;
+                tableauFilter.disabled = !selectedBuilding || filteredTableaux.length === 0;
             }
 
             const savedBuilding = localStorage.getItem('selectedBuilding');
@@ -356,6 +363,7 @@
 
         function showNoBuildingMessage() {
             document.getElementById('no-building-selected').classList.remove('hidden');
+            document.getElementById('no-tableaux-alert').classList.add('hidden');
             document.getElementById('data-section').classList.add('hidden');
             document.getElementById('missing-data-alert').classList.add('hidden');
         }
@@ -366,21 +374,40 @@
                 checklistsData = [];
                 missingData = [];
                 showNoBuildingMessage();
-                renderHazardsTable();
-                renderHazardsChart();
+                renderHazardsTable([]);
+                renderHazardsChart([]);
                 updateMissingDataAlert();
                 return;
             }
 
-            tableauxData = await loadTableaux(building);
             const tableauFilter = document.getElementById('tableau-filter');
-            const tableau = tableauFilter.value;
-            const filteredData = tableauxData.filter(t => !tableau || t.id === tableau);
+            const tableauId = tableauFilter.value;
+            tableauxData = await loadTableaux(building, tableauId);
+
+            let filteredData = tableauxData.filter(t => t.building === building);
+            if (tableauId) {
+                filteredData = filteredData.filter(t => t.id === tableauId);
+            }
+
+            if (filteredData.length === 0) {
+                document.getElementById('no-building-selected').classList.add('hidden');
+                document.getElementById('no-tableaux-alert').classList.remove('hidden');
+                document.getElementById('data-section').classList.add('hidden');
+                document.getElementById('missing-data-alert').classList.add('hidden');
+                renderHazardsTable([]);
+                renderHazardsChart([]);
+                updateMissingDataAlert();
+                showPopup('Aucun tableau trouvé pour les critères sélectionnés.');
+                return;
+            }
+
             missingData = filteredData.flatMap(t =>
                 t.disjoncteurs.filter(d => !d.ip || d.temp === null || d.ue === null || d.section === null)
                     .map(d => ({ tableauId: t.id, disjoncteurId: d.id }))
             );
+
             document.getElementById('no-building-selected').classList.add('hidden');
+            document.getElementById('no-tableaux-alert').classList.add('hidden');
             document.getElementById('data-section').classList.remove('hidden');
             await loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js');
             await loadScript('https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js');
@@ -400,8 +427,8 @@
             checklistsData = [];
             missingData = [];
             showNoBuildingMessage();
-            renderHazardsTable();
-            renderHazardsChart();
+            renderHazardsTable([]);
+            renderHazardsChart([]);
             updateMissingDataAlert();
         }
 
@@ -515,7 +542,7 @@
             };
         }
 
-        function renderHazardsTable(data = tableauxData) {
+        function renderHazardsTable(data) {
             const tbody = document.getElementById('hazards-table-body');
             tbody.innerHTML = '';
             const fragment = document.createDocumentFragment();
@@ -559,7 +586,7 @@
             }
         }
 
-        function renderHazardsChart(data = tableauxData) {
+        function renderHazardsChart(data) {
             const canvas = document.getElementById('hazards-chart');
             if (!canvas) return;
 
@@ -749,7 +776,7 @@
                         body: JSON.stringify({
                             ip: ip || null,
                             temp: temp ? parseFloat(temp) : null,
-                            ue: ue ? parseFloat(ue) : null,
+                            ue: ue || null,
                             section: section ? parseFloat(section) : null,
                             humidite: humidite ? parseFloat(humidite) : null,
                             temp_ambiante: temp_ambiante ? parseFloat(temp_ambiante) : null
@@ -770,7 +797,7 @@
                             opacity: 0,
                             scale: 0.8,
                             duration: 0.5,
-                            ease: 'power2.in',
+                            ease: 'power2.out',
                             onComplete: () => modal.classList.add('hidden')
                         });
                     } else {
@@ -789,7 +816,7 @@
                         opacity: 0,
                         scale: 0.8,
                         duration: 0.5,
-                        ease: 'power2.in',
+                        ease: 'power2.out',
                         onComplete: () => modal.classList.add('hidden')
                     });
                 } else {
@@ -809,7 +836,7 @@
             if (popup) popup.classList.add('hidden');
             document.getElementById('data-section').classList.add('hidden');
             const buildings = await loadBuildings();
-            if (buildings.length > 0) {
+            if (buildings.length) {
                 populateFilters(buildings);
             } else {
                 showPopup('Aucun bâtiment disponible.');
