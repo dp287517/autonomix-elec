@@ -19,6 +19,14 @@
         #building-filter, #tableau-filter { font-size: 0.875rem; }
         .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #hazards-chart-container { max-width: 800px; margin: 0 auto; }
+        #hazards-chart { max-height: 400px; width: 100%; }
+        @media (max-width: 640px) {
+            table th, table td { font-size: 0.75rem; padding: 0.25rem; }
+            .error-message, #building-filter, #tableau-filter { font-size: 0.75rem; }
+            #hazards-chart-container { max-width: 100%; }
+            #hazards-chart { max-height: 300px; }
+        }
         @media (min-width: 640px) {
             table th, table td { font-size: 1rem; }
             .error-message, #building-filter, #tableau-filter { font-size: 1rem; }
@@ -133,9 +141,9 @@
                 </div>
             </div>
 
-            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up">
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up" id="hazards-chart-container">
                 <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-chart-bar mr-2"></i>Répartition des Risques</h2>
-                <canvas id="hazards-chart" class="w-full h-96"></canvas>
+                <canvas id="hazards-chart"></canvas>
             </div>
         </div>
 
@@ -649,8 +657,10 @@
         function renderHazardsChart(data) {
             console.log('[Hazards] Rendu graphique des risques');
             const canvas = document.getElementById('hazards-chart');
-            if (!canvas) {
-                console.error('[Hazards] Canvas hazards-chart non trouvé');
+            const container = document.getElementById('hazards-chart-container');
+            if (!canvas || !container) {
+                console.error('[Hazards] Canvas ou conteneur hazards-chart non trouvé');
+                showPopup('Erreur: Élément de graphique non trouvé.');
                 return;
             }
 
@@ -671,18 +681,17 @@
 
             if (Object.values(counts).every(type => Object.values(type).every(v => v === 0))) {
                 console.log('[Hazards] Aucune donnée pour le graphique');
-                const parent = canvas.parentElement;
-                const existingError = parent.querySelector('.error-message');
+                const existingError = container.querySelector('.error-message');
                 if (!existingError) {
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'text-red-600 mt-2 error-message';
                     errorDiv.textContent = 'Aucune donnée valide pour afficher le graphique.';
-                    parent.appendChild(errorDiv);
+                    container.appendChild(errorDiv);
                 }
                 return;
             }
 
-            const existingError = canvas.parentElement.querySelector('.error-message');
+            const existingError = container.querySelector('.error-message');
             if (existingError) existingError.remove();
 
             if (typeof Chart !== 'undefined') {
@@ -699,17 +708,38 @@
                         },
                         options: {
                             responsive: true,
-                            maintainAspectRatio: false,
-                            scales: {
-                                y: { beginAtZero: true, title: { display: true, text: 'Nombre de Disjoncteurs', color: '#FFF' }, ticks: { color: '#FFF' }, grid: { color: '#4B5563' } },
-                                x: { title: { display: true, text: 'Type de Risque', color: '#FFF' }, ticks: { color: '#FFF' }, grid: { display: false } }
+                            maintainAspectRatio: true,
+                            animation: {
+                                duration: 1500,
+                                easing: 'easeOutBounce'
                             },
-                            plugins: { legend: { labels: { color: '#FFF' } } }
+                            scales: {
+                                y: { 
+                                    beginAtZero: true, 
+                                    title: { display: true, text: 'Nombre de Disjoncteurs', color: '#FFF', font: { size: 12 } }, 
+                                    ticks: { color: '#FFF', font: { size: 10 } },
+                                    grid: { color: '#4B5563' }
+                                },
+                                x: { 
+                                    title: { display: true, text: 'Type de Risque', color: '#FFF', font: { size: 12 } }, 
+                                    ticks: { color: '#FFF', font: { size: 10 } },
+                                    grid: { display: false }
+                                }
+                            },
+                            plugins: { 
+                                legend: { position: 'top', labels: { color: '#FFF', font: { size: 12 } } },
+                                tooltip: { 
+                                    backgroundColor: '#1F2937', 
+                                    titleColor: '#FFF', 
+                                    bodyColor: '#FFF',
+                                    callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}` }
+                                }
+                            }
                         }
                     });
                     console.log('[Hazards] Graphique rendu');
                     if (typeof gsap !== 'undefined') {
-                        gsap.from('#hazards-chart', { scale: 0.8, opacity: 0, duration: 1.5, ease: 'elastic.out(1, 0.5)' });
+                        gsap.from('#hazards-chart-container', { opacity: 0, y: 20, duration: 1, ease: 'power2.out' });
                     }
                 } catch (error) {
                     console.error('[Hazards] Erreur rendu graphique:', error);
@@ -717,6 +747,7 @@
                 }
             } else {
                 console.warn('[Hazards] Chart.js non disponible');
+                showPopup('Erreur: Chart.js non chargé.');
             }
         }
 
@@ -914,7 +945,7 @@
         }
 
         window.onload = async () => {
-            console.log('[Hazards] Initialisation page hazards_assessment');
+            console.log('[Hazards] Initialisation page hazards_assessment à', new Date().toLocaleString('fr-FR'));
             try {
                 if (window.location.protocol === 'file:') {
                     console.error('[Hazards] Page exécutée en mode fichier');
