@@ -214,10 +214,10 @@
             try {
                 const response = await fetch(`/api/safety-actions?building=${encodeURIComponent(building)}&tableau=${encodeURIComponent(tableau)}`);
                 if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
-                const { data } = await response.json();
+                const actions = await response.json();
                 const tbody = document.getElementById('actions-table-body');
                 tbody.innerHTML = '';
-                data.forEach(action => {
+                actions.forEach(action => {
                     const tr = document.createElement('tr');
                     const statusIcon = action.status === 'Conforme' ? '<i class="fas fa-check-circle text-green-500 mr-1"></i>' :
                                       action.status === 'Non conforme' ? '<i class="fas fa-times-circle text-red-500 mr-1"></i>' :
@@ -236,7 +236,7 @@
                     `;
                     tbody.appendChild(tr);
                 });
-                updateChart(data);
+                updateChart(actions);
                 gsap.from('.action-table tr', { opacity: 0, y: 20, duration: 0.8, stagger: 0.1, ease: 'power2.out' });
             } catch (error) {
                 console.error('Erreur chargement actions:', error);
@@ -328,13 +328,13 @@
                 if (actionId) {
                     const actionResponse = await fetch(`/api/safety-actions/${actionId}`);
                     if (!actionResponse.ok) throw new Error(`Erreur HTTP ${actionResponse.status}`);
-                    const { data } = await actionResponse.json();
-                    document.getElementById('action-type').value = data.type;
-                    document.getElementById('action-description').value = data.description;
-                    document.getElementById('action-building').value = data.building;
-                    document.getElementById('action-tableau').value = data.tableau || '';
-                    document.getElementById('action-status').value = data.status;
-                    document.getElementById('action-date').value = data.date || '';
+                    const action = await actionResponse.json();
+                    document.getElementById('action-type').value = action.type || '';
+                    document.getElementById('action-description').value = action.description || '';
+                    document.getElementById('action-building').value = action.building || '';
+                    document.getElementById('action-tableau').value = action.tableau || '';
+                    document.getElementById('action-status').value = action.status || '';
+                    document.getElementById('action-date').value = action.date || '';
                     form.dataset.actionId = actionId;
                 } else {
                     form.reset();
@@ -343,7 +343,7 @@
                 }
                 modal.classList.remove('hidden');
             } catch (error) {
-                console.error('Erreur ouverture modal:', error);
+                console.error('Erreur ouverture du modal:', error);
                 showError('Impossible d’ouvrir le formulaire.');
             }
         }
