@@ -38,7 +38,7 @@
             <li><a href="obsolescence.html" class="hover:text-yellow-300 transition"><i class="fas fa-clock mr-2"></i>Obsolescence</a></li>
             <li><a href="fault_level_assessment.html" class="hover:text-yellow-300 transition"><i class="fas fa-bolt mr-2"></i>Évaluation du Niveau de Défaut</a></li>
             <li><a href="hazards_assessment.html" class="text-yellow-300"><i class="fas fa-exclamation-triangle mr-2"></i>Évaluation des Risques</a></li>
-            <li><a href=" maintenance_org.html" class="hover:text-yellow-300 transition"><i class="fas fa-sitemap mr-2"></i>Organigramme Maintenance</a></li>
+            <li><a href="maintenance_org.html" class="hover:text-yellow-300 transition"><i class="fas fa-sitemap mr-2"></i>Organigramme Maintenance</a></li>
             <li><a href="distribution_emergency.html" class="hover:text-yellow-300 transition"><i class="fas fa-plug mr-2"></i>Urgence Distribution</a></li>
             <li><a href="reports.html" class="hover:text-yellow-300 transition"><i class="fas fa-file-alt mr-2"></i>Rapports</a></li>
             <li><a href="electrical_safety_program.html" class="hover:text-yellow-300 transition"><i class="fas fa-hard-hat mr-2"></i>Programme de Sécurité Électrique</a></li>
@@ -200,15 +200,21 @@
         }
 
         async function loadBuildings() {
-            console.log('[Hazards] Chargement de la liste des bâtiments');
+            console.log('[Hazards] Chargement de la liste des bâtiments via /api/fault-level');
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000);
-                const response = await fetch('/api/buildings', { method: 'GET', signal: controller.signal });
+                const response = await fetch('/api/fault-level', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: controller.signal
+                });
                 clearTimeout(timeoutId);
                 if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
-                const buildings = await response.json();
-                console.log('[Hazards] Bâtiments reçus:', buildings.length);
+                const data = await response.json();
+                console.log('[Hazards] Données reçues:', data.data.length, 'tableaux');
+                const buildings = [...new Set(data.data.map(tableau => tableau.building))].sort();
+                console.log('[Hazards] Bâtiments extraits:', buildings);
                 return buildings;
             } catch (error) {
                 console.error('[Hazards] Erreur chargement bâtiments:', error);
@@ -225,17 +231,6 @@
             console.log('[Hazards] Chargement des données pour bâtiment:', building);
             document.getElementById('loading-spinner').classList.remove('hidden');
             try {
-                const cacheKey = `hazards_data_${building}`;
-                const cachedData = localStorage.getItem(cacheKey);
-                if (cachedData) {
-                    const parsed = JSON.parse(cachedData);
-                    if (parsed.timestamp && Date.now() - parsed.timestamp < 15 * 60 * 1000) { // Cache valide 15 min
-                        console.log('[Hazards] Utilisation des données en cache pour:', building);
-                        document.getElementById('loading-spinner').classList.add('hidden');
-                        return parsed.data;
-                    }
-                }
-
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000);
                 const [faultLevelResponse, checklistsResponse] = await Promise.all([
@@ -280,7 +275,6 @@
                     }))
                 }));
 
-                localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data }));
                 console.log('[Hazards] Données chargées:', { tableaux: data.length, checklists: checklistsData.length });
                 document.getElementById('loading-spinner').classList.add('hidden');
                 document.getElementById('api-error').classList.add('hidden');
@@ -830,7 +824,6 @@
                     document.getElementById('modal-error').classList.add('hidden');
                     document.getElementById('modal-success').classList.remove('hidden');
                     document.getElementById('modal-success').textContent = 'Données mises à jour avec succès !';
-                    localStorage.removeItem(`hazards_data_${tableau.building}`); // Invalider le cache
                     await filterData(document.getElementById('building-filter').value);
                     gsap.to('#modal-details', {
                         opacity: 0,
@@ -875,7 +868,7 @@
             if (buildings.length > 0) {
                 populateFilters(buildings);
             } else {
-                showPopup('Aucun bâtiment disponible.', '', () => {});
+                showPopup('Aucun bâtiment disponible. Vérifiez que des tableaux sont configurés dans la base de données.', '', () => {});
                 showNoBuildingMessage();
             }
         };
