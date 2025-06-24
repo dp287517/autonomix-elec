@@ -2009,6 +2009,30 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: 'Erreur serveur: ' + err.message });
 });
 
+// Configuration DeepL
+const deepl = require('deepl-node');
+const translator = new deepl.Translator(process.env.DEEPL_API_KEY);
+
+// Endpoint pour traduire le contenu
+app.post('/api/translate', async (req, res) => {
+    const { text, targetLang } = req.body;
+    console.log('[Server] POST /api/translate - Requête reçue:', { text, targetLang });
+    try {
+        if (!text || !targetLang) {
+            throw new Error('Texte et langue cible sont requis');
+        }
+        const result = await translator.translateText(text, null, targetLang);
+        console.log('[Server] Traduction réussie:', result.text);
+        res.json({ translatedText: result.text });
+    } catch (error) {
+        console.error('[Server] Erreur POST /api/translate:', {
+            message: error.message,
+            stack: error.stack
+        });
+        res.status(500).json({ error: 'Erreur lors de la traduction: ' + error.message });
+    }
+});
+
 // Démarrage du serveur
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
