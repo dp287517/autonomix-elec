@@ -411,6 +411,15 @@
         </div>
 
         <script>
+            function normalizeNumericValue(value) {
+                if (!value) return '';
+                const match = value.match(/[\d.]+/);
+                if (!match) return '';
+                const number = parseFloat(match[0]);
+                if (isNaN(number) || number <= 0) return '';
+                const unit = value.match(/[a-zA-Z]+$/i) || [''];
+                return `${number} ${unit[0].toLowerCase() === 'a' ? 'kA' : unit[0] || 'kA'}`;
+            }
             let equipements = [];
             let equipementsExistants = [];
             let tableaux = [];
@@ -461,25 +470,63 @@
             }
 
             function collectHTAData() {
-                if (!document.getElementById('tableau-isHTA').checked) return null;
-                const transformerPower = parseFloat(document.getElementById('hta-transformerPower').value);
-                const voltage = parseFloat(document.getElementById('hta-voltage').value);
-                const inCurrent = parseFloat(document.getElementById('hta-in').value);
-                const irCurrent = parseFloat(document.getElementById('hta-ir').value);
-                const triptime = parseFloat(document.getElementById('hta-triptime').value);
-                const icn = parseFloat(document.getElementById('hta-icn').value);
-                console.log('[Create] Collecte données HTA:', { transformerPower, voltage, inCurrent, irCurrent, triptime, icn });
-                if ([transformerPower, voltage, inCurrent, irCurrent, triptime, icn].some(v => isNaN(v) || v <= 0)) {
-                    showPopup('Tous les champs HTA doivent être des valeurs numériques positives.', '', () => {});
+                if (!document.getElementById('tableau-isHTA').checked) {
+                    console.log('[Create] HTA non sélectionné, retour null');
                     return null;
                 }
+
+                // Collecter les valeurs des champs
+                let transformerPower = document.getElementById('hta-transformerPower').value.trim();
+                let voltage = document.getElementById('hta-voltage').value.trim();
+                let inCurrent = document.getElementById('hta-in').value.trim();
+                let irCurrent = document.getElementById('hta-ir').value.trim();
+                let triptime = document.getElementById('hta-triptime').value.trim();
+                let icn = document.getElementById('hta-icn').value.trim();
+
+                // Normaliser les valeurs avec normalizeNumericValue
+                transformerPower = normalizeNumericValue(transformerPower).replace(/kA$/, 'kVA');
+                voltage = normalizeNumericValue(voltage).replace(/kA$/, 'kV');
+                inCurrent = normalizeNumericValue(inCurrent).replace(/kA$/, 'A');
+                irCurrent = normalizeNumericValue(irCurrent).replace(/kA$/, 'A');
+                triptime = normalizeNumericValue(triptime).replace(/kA$/, 's');
+                icn = normalizeNumericValue(icn); // icn reste en kA
+
+                console.log('[Create] Collecte données HTA:', { transformerPower, voltage, inCurrent, irCurrent, triptime, icn });
+
+                // Validation des champs
+                const errors = [];
+                if (!transformerPower || !transformerPower.match(/^\d+(\.?\d+)?\s*kVA$/)) {
+                    errors.push('Puissance du transformateur (ex. 1600 kVA)');
+                }
+                if (!voltage || !voltage.match(/^\d+(\.?\d+)?\s*kV$/)) {
+                    errors.push('Tension HTA (ex. 20 kV)');
+                }
+                if (!inCurrent || !inCurrent.match(/^\d+(\.?\d+)?\s*A$/)) {
+                    errors.push('Courant nominal (ex. 50 A)');
+                }
+                if (!irCurrent || !irCurrent.match(/^\d+(\.?\d+)?\s*A$/)) {
+                    errors.push('Courant réglable (ex. 40 A)');
+                }
+                if (!triptime || !triptime.match(/^\d+(\.?\d+)?\s*s$/)) {
+                    errors.push('Temps de déclenchement (ex. 0.2 s)');
+                }
+                if (!icn || !icn.match(/^\d+(\.?\d+)?\s*kA$/)) {
+                    errors.push('Pouvoir de coupure (ex. 16 kA)');
+                }
+
+                if (errors.length > 0) {
+                    console.log('[Create] Erreur: Données HTA invalides', errors);
+                    showPopup(`Veuillez remplir correctement les champs HTA suivants : ${errors.join(', ')}.`, '', () => {});
+                    return null;
+                }
+
                 return {
-                    transformerPower: `${transformerPower} kVA`,
-                    voltage: `${voltage} kV`,
-                    in: `${inCurrent} A`,
-                    ir: `${irCurrent} A`,
-                    triptime: `${triptime} s`,
-                    icn: `${icn} kA`
+                    transformerPower,
+                    voltage,
+                    in: inCurrent,
+                    ir: irCurrent,
+                    triptime,
+                    icn
                 };
             }
 
@@ -754,16 +801,16 @@
                         ui: document.getElementById('disjoncteur-ui').value.trim(),
                         uimp: document.getElementById('disjoncteur-uimp').value.trim(),
                         frequence: document.getElementById('disjoncteur-frequence').value.trim(),
-                        in: document.getElementById('disjoncteur-in').value.trim(),
-                        ir: document.getElementById('disjoncteur-ir').value.trim(),
+                        in: normalizeNumericValue(document.getElementById('disjoncteur-in').value.trim()),
+                        ir: normalizeNumericValue(document.getElementById('disjoncteur-ir').value.trim()),
                         courbe: document.getElementById('disjoncteur-courbe').value.trim(),
-                        triptime: document.getElementById('disjoncteur-triptime').value.trim(),
-                        icn: document.getElementById('disjoncteur-icn').value.trim(),
-                        ics: document.getElementById('disjoncteur-ics').value.trim(),
+                        triptime: normalizeNumericValue(document.getElementById('disjoncteur-triptime').value.trim()),
+                        icn: normalizeNumericValue(document.getElementById('disjoncteur-icn').value.trim()),
+                        ics: normalizeNumericValue(document.getElementById('disjoncteur-ics').value.trim()),
                         ip: document.getElementById('disjoncteur-ip').value.trim(),
                         temp: document.getElementById('disjoncteur-temp').value.trim(),
                         dimensions: document.getElementById('disjoncteur-dimensions').value.trim(),
-                        section: document.getElementById('disjoncteur-section').value.trim(),
+                        section: normalizeNumericValue(document.getElementById('disjoncteur-section').value.trim()).replace(/kA$/, 'mm²'),
                         date: document.getElementById('disjoncteur-date').value.trim(),
                         tension: document.getElementById('disjoncteur-tension').value.trim(),
                         selectivite: document.getElementById('disjoncteur-selectivite').value.trim(),
@@ -776,27 +823,43 @@
                         showPopup('La courbe doit être B, C ou D.', '', () => {});
                         return;
                     }
-                    if (equipement.ir && !/^\d+(\.?\d+)?(\s*A)?$/.test(equipement.ir)) {
+                    if (equipement.ir && !equipement.ir.match(/^\d+(\.?\d+)?(\s*(A|kA))?$/)) {
                         console.log('[Create] Erreur: Ir invalide', equipement.ir);
                         showPopup('Ir doit être une valeur numérique, ex. 60 ou 60 A.', '', () => {});
                         return;
                     }
-                    if (equipement.icn && !/^\d+(\.?\d+)?(\s*kA)?$/.test(equipement.icn)) {
-                        console.log('[Create] Erreur: Icn invalide', equipement.icn);
-                        showPopup('Icn doit être une valeur numérique, ex. 6 ou 6 kA.', '', () => {});
-                        return;
+                    if (equipement.icn) {
+                        let icnValue = equipement.icn.trim();
+                        const numberMatch = icnValue.match(/[\d.]+/);
+                        if (!numberMatch) {
+                            console.log('[Create] Erreur: Icn invalide', icnValue);
+                            showPopup('Icn doit être une valeur numérique, ex. 6 ou 6 kA.', '', () => {});
+                            return;
+                        }
+                        const number = parseFloat(numberMatch[0]);
+                        if (isNaN(number) || number <= 0) {
+                            console.log('[Create] Erreur: Icn doit être positif', icnValue);
+                            showPopup('Icn doit être une valeur numérique positive, ex. 6 ou 6 kA.', '', () => {});
+                            return;
+                        }
+                        equipement.icn = normalizeNumericValue(icnValue);
+                        if (!equipement.icn.match(/^\d+(\.?\d+)?(\s*kA)?$/)) {
+                            console.log('[Create] Erreur: Icn invalide après normalisation', equipement.icn);
+                            showPopup('Icn doit être une valeur numérique, ex. 6 ou 6 kA.', '', () => {});
+                            return;
+                        }
                     }
-                    if (equipement.ics && !/^\d+(\.?\d+)?(\s*kA)?$/.test(equipement.ics)) {
+                    if (equipement.ics && !equipement.ics.match(/^\d+(\.?\d+)?(\s*kA)?$/)) {
                         console.log('[Create] Erreur: Ics invalide', equipement.ics);
                         showPopup('Ics doit être une valeur numérique, ex. 4.5 ou 4.5 kA.', '', () => {});
                         return;
                     }
-                    if (equipement.in && !/^\d+(\.?\d+)?(\s*A)?$/.test(equipement.in)) {
+                    if (equipement.in && !equipement.in.match(/^\d+(\.?\d+)?(\s*(A|kA))?$/)) {
                         console.log('[Create] Erreur: In invalide', equipement.in);
                         showPopup('In doit être une valeur numérique, ex. 16 ou 16 A.', '', () => {});
                         return;
                     }
-                    if (equipement.triptime && !/^\d+(\.?\d+)?(\s*s)?$/.test(equipement.triptime)) {
+                    if (equipement.triptime && !equipement.triptime.match(/^\d+(\.?\d+)?(\s*s)?$/)) {
                         console.log('[Create] Erreur: TripTime invalide', equipement.triptime);
                         showPopup('TripTime doit être une valeur numérique, ex. 0.1 ou 0.1 s.', '', () => {});
                         return;
@@ -811,14 +874,14 @@
                     equipement = {
                         ...equipement,
                         id: document.getElementById('transformateur-id').value.trim(),
-                        puissance: document.getElementById('transformateur-puissance').value.trim(),
-                        tension_primaire: document.getElementById('transformateur-tension-primaire').value.trim(),
-                        tension_secondaire: document.getElementById('transformateur-tension-secondaire').value.trim(),
+                        puissance: normalizeNumericValue(document.getElementById('transformateur-puissance').value.trim()),
+                        tension_primaire: normalizeNumericValue(document.getElementById('transformateur-tension-primaire').value.trim()),
+                        tension_secondaire: normalizeNumericValue(document.getElementById('transformateur-tension-secondaire').value.trim()),
                         frequence: document.getElementById('transformateur-frequence').value.trim(),
                         date: document.getElementById('transformateur-date').value.trim()
                     };
                     requiredFields = ['id'];
-                    if (equipement.puissance && !/^\d+(\.?\d+)?(\s*kVA)?$/.test(equipement.puissance)) {
+                    if (equipement.puissance && !equipement.puissance.match(/^\d+(\.?\d+)?(\s*kVA)?$/)) {
                         console.log('[Create] Erreur: Puissance invalide', equipement.puissance);
                         showPopup('La puissance doit être une valeur numérique, ex. 1600 ou 1600 kVA.', '', () => {});
                         return;
@@ -828,19 +891,19 @@
                     equipement = {
                         ...equipement,
                         id: document.getElementById('cellule_mt-id').value.trim(),
-                        tension: document.getElementById('cellule_mt-tension').value.trim(),
-                        courant: document.getElementById('cellule_mt-courant').value.trim(),
-                        pouvoir_coupure: document.getElementById('cellule_mt-pouvoir_coupure').value.trim(),
+                        tension: normalizeNumericValue(document.getElementById('cellule_mt-tension').value.trim()),
+                        courant: normalizeNumericValue(document.getElementById('cellule_mt-courant').value.trim()),
+                        pouvoir_coupure: normalizeNumericValue(document.getElementById('cellule_mt-pouvoir_coupure').value.trim()),
                         frequence: document.getElementById('cellule_mt-frequence').value.trim(),
                         date: document.getElementById('cellule_mt-date').value.trim()
                     };
                     requiredFields = ['id'];
-                    if (equipement.courant && !/^\d+(\.?\d+)?(\s*A)?$/.test(equipement.courant)) {
+                    if (equipement.courant && !equipement.courant.match(/^\d+(\.?\d+)?(\s*A)?$/)) {
                         console.log('[Create] Erreur: Courant invalide', equipement.courant);
                         showPopup('Le courant doit être une valeur numérique, ex. 630 ou 630 A.', '', () => {});
                         return;
                     }
-                    if (equipement.pouvoir_coupure && !/^\d+(\.?\d+)?(\s*kA)?$/.test(equipement.pouvoir_coupure)) {
+                    if (equipement.pouvoir_coupure && !equipement.pouvoir_coupure.match(/^\d+(\.?\d+)?(\s*kA)?$/)) {
                         console.log('[Create] Erreur: Pouvoir de coupure invalide', equipement.pouvoir_coupure);
                         showPopup('Le pouvoir de coupure doit être une valeur numérique, ex. 25 ou 25 kA.', '', () => {});
                         return;
@@ -851,23 +914,23 @@
                         ...equipement,
                         id: document.getElementById('cable_gaine-id').value.trim(),
                         type_cable: document.getElementById('cable_gaine-type').value,
-                        section: document.getElementById('cable_gaine-section').value.trim(),
-                        longueur: document.getElementById('cable_gaine-longueur').value.trim(),
-                        courant_admissible: document.getElementById('cable_gaine-courant').value.trim(),
+                        section: normalizeNumericValue(document.getElementById('cable_gaine-section').value.trim()),
+                        longueur: normalizeNumericValue(document.getElementById('cable_gaine-longueur').value.trim()),
+                        courant_admissible: normalizeNumericValue(document.getElementById('cable_gaine-courant').value.trim()),
                         date: document.getElementById('cable_gaine-date').value.trim()
                     };
                     requiredFields = ['id'];
-                    if (equipement.section && !/^\d+(\.?\d+)?(\s*mm²)?$/.test(equipement.section)) {
+                    if (equipement.section && !equipement.section.match(/^\d+(\.?\d+)?(\s*mm²)?$/)) {
                         console.log('[Create] Erreur: Section invalide', equipement.section);
                         showPopup('La section doit être une valeur numérique, ex. 240 ou 240 mm².', '', () => {});
                         return;
                     }
-                    if (equipement.longueur && !/^\d+(\.?\d+)?(\s*m)?$/.test(equipement.longueur)) {
+                    if (equipement.longueur && !equipement.longueur.match(/^\d+(\.?\d+)?(\s*m)?$/)) {
                         console.log('[Create] Erreur: Longueur invalide', equipement.longueur);
                         showPopup('La longueur doit être une valeur numérique, ex. 50 ou 50 m.', '', () => {});
                         return;
                     }
-                    if (equipement.courant_admissible && !/^\d+(\.?\d+)?(\s*A)?$/.test(equipement.courant_admissible)) {
+                    if (equipement.courant_admissible && !equipement.courant_admissible.match(/^\d+(\.?\d+)?(\s*A)?$/)) {
                         console.log('[Create] Erreur: Courant admissible invalide', equipement.courant_admissible);
                         showPopup('Le courant admissible doit être une valeur numérique, ex. 400 ou 400 A.', '', () => {});
                         return;
