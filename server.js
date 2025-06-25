@@ -2346,8 +2346,8 @@ app.use((err, req, res, next) => {
 });
 
 // Configuration DeepL
-const deepl = require('deepl-node');
-const translator = new deepl.Translator(process.env.DEEPL_API_KEY);
+// const deepl = require('deepl-node');
+// const translator = new deepl.Translator(process.env.DEEPL_API_KEY);
 
 // Endpoint pour traduire le contenu
 app.post('/api/translate', async (req, res) => {
