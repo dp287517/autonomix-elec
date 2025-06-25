@@ -157,8 +157,14 @@ function validateHTAData(data) {
     if (isNaN(parseValue(data.triptime)) || parseValue(data.triptime) <= 0) {
         errors.push('Le temps de déclenchement HTA doit être une valeur numérique positive (ex. 0.2).');
     }
-    if (isNaN(parseValue(data.icn)) || parseValue(data.icn) <= 0) {
-        errors.push('Le pouvoir de coupure HTA (Icn) doit être une valeur numérique positive (ex. 16).');
+    if (data.icn) {
+        const icnMatch = data.icn.match(/[\d.]+/);
+        const icnValue = icnMatch ? parseFloat(icnMatch[0]) : NaN;
+        if (isNaN(icnValue) || icnValue <= 0) {
+            errors.push('Le pouvoir de coupure HTA (Icn) doit être une valeur numérique positive (ex. 16 ou 16 kA).');
+        } else {
+            data.icn = data.icn.match(/\s*A$/i) ? `${icnValue} kA` : normalizeIcn(data.icn);
+        }
     }
     console.log('[Server] Résultat validation HTA:', { errors });
     return errors;
@@ -419,11 +425,15 @@ initDb().catch(err => {
 
 // Fonction pour normaliser icn (pouvoir de coupure)
 function normalizeIcn(icn) {
-    if (icn == null) return null;
-    if (typeof icn === 'number' && !isNaN(icn)) return icn;
+    if (!icn) return null;
+    if (typeof icn === 'number' && !isNaN(icn) && icn > 0) return `${icn} kA`;
     if (typeof icn === 'string') {
         const match = icn.match(/[\d.]+/);
-        return match ? parseFloat(match[0]) : null;
+        if (!match) return null;
+        const number = parseFloat(match[0]);
+        if (isNaN(number) || number <= 0) return null;
+        const unit = icn.match(/[a-zA-Z]+$/i) || [''];
+        return `${number} ${unit[0].toLowerCase() === 'a' ? 'kA' : unit[0] || 'kA'}`;
     }
     return null;
 }
