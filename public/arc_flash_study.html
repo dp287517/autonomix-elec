@@ -265,7 +265,29 @@
         function calculateIncidentEnergy(disjoncteur, tableau) {
             const ue = normalizeCurrent(disjoncteur.ue) || 400; // Tension nominale
             const inValue = normalizeCurrent(disjoncteur.in) || 100; // Courant nominal
-            const triptime = parseFloat(disjoncteur.triptime) || 0.1; // Temps de déclenchement
+            let triptime = parseFloat(disjoncteur.triptime);
+            if (isNaN(triptime)) {
+                const courbe = disjoncteur.courbe ? disjoncteur.courbe.toUpperCase() : 'C'; // Par défaut C si inconnu
+                switch (courbe) {
+                    case 'B':
+                        triptime = 0.01; // 10 ms pour courbe B
+                        break;
+                    case 'C':
+                        triptime = 0.02; // 20 ms pour courbe C
+                        break;
+                    case 'D':
+                        triptime = 0.03; // 30 ms pour courbe D
+                        break;
+                    case 'K':
+                        triptime = 0.015; // 15 ms pour courbe K
+                        break;
+                    case 'Z':
+                        triptime = 0.005; // 5 ms pour courbe Z
+                        break;
+                    default:
+                        triptime = 0.02; // Valeur par défaut conservatrice
+                }
+            }
             const cableLength = parseFloat(disjoncteur.cableLength) || 20; // Longueur câble
             const section = disjoncteur.section ? parseFloat(disjoncteur.section.match(/[\d.]+/)[0]) : 2.5; // Section câble
 
