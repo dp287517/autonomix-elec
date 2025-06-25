@@ -1037,10 +1037,26 @@
                     showPopup('Ir doit être une valeur numérique, ex. 60 ou 60 A.', '', () => {});
                     return;
                 }
-                if (disjoncteur.icn && !disjoncteur.icn.match(/^\d+(\.?\d+)?(\s*kA)?$/)) {
-                    console.log('[Edit] Erreur: Icn invalide', disjoncteur.icn);
-                    showPopup('Icn doit être une valeur numérique, ex. 6 ou 6 kA.', '', () => {});
-                    return;
+                if (disjoncteur.icn) {
+                    let icnValue = disjoncteur.icn.trim();
+                    const numberMatch = icnValue.match(/[\d.]+/);
+                    if (!numberMatch) {
+                        console.log('[Edit] Erreur: Icn invalide', icnValue);
+                        showPopup('Icn doit être une valeur numérique, ex. 6 ou 6 kA.', '', () => {});
+                        return;
+                    }
+                    const number = parseFloat(numberMatch[0]);
+                    if (isNaN(number) || number <= 0) {
+                        console.log('[Edit] Erreur: Icn doit être positif', icnValue);
+                        showPopup('Icn doit être une valeur numérique positive, ex. 6 ou 6 kA.', '', () => {});
+                        return;
+                    }
+                    disjoncteur.icn = icnValue.match(/\s*A$/i) ? `${number} kA` : normalizeNumericValue(icnValue);
+                    if (!disjoncteur.icn.match(/^\d+(\.?\d+)?(\s*kA)?$/)) {
+                        console.log('[Edit] Erreur: Icn invalide après normalisation', disjoncteur.icn);
+                        showPopup('Icn doit être une valeur numérique, ex. 6 ou 6 kA.', '', () => {});
+                        return;
+                    }
                 }
                 if (disjoncteur.ics && !disjoncteur.ics.match(/^\d+(\.?\d+)?(\s*kA)?$/)) {
                     console.log('[Edit] Erreur: Ics invalide', disjoncteur.ics);
@@ -1275,6 +1291,7 @@
                     console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, 'avec:', {
                         id: newTableauId,
                         disjoncteurs: normalizedDisjoncteurs.length,
+                        autresEquipements: 0,
                         issitemain,
                         isHTA: isHTAChecked,
                         htaData
@@ -1284,7 +1301,7 @@
                     const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: newTableauId, disjoncteurs: normalizedDisjoncteurs, issitemain, isHTA: isHTAChecked, htaData }),
+                        body: JSON.stringify({ id: newTableauId, disjoncteurs: normalizedDisjoncteurs, autresEquipements: [], issitemain, isHTA: isHTAChecked, htaData }),
                         signal: controller.signal
                     });
                     clearTimeout(timeoutId);
