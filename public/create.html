@@ -19,6 +19,9 @@
         }
         .disjoncteur-principal { background-color: #fefcbf; }
         .conflict { color: #dc2626; font-weight: bold; }
+        select[multiple] { height: 120px; }
+        #equipement-form .form-section { display: none; }
+        #equipement-form .form-section.active { display: block; }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
@@ -48,14 +51,14 @@
                 <li>Entrez l'identifiant du tableau (unique, ex. 40-8-G pour BT, HTA-01 pour HTA).</li>
                 <li>Indiquez si le tableau est HTA ou BT, et remplissez les champs HTA si applicable.</li>
                 <li>Indiquez si le tableau est le général principal du site (enregistré automatiquement).</li>
-                <li>Ajoutez des disjoncteurs en :
+                <li>Ajoutez des équipements (disjoncteurs, transformateurs, cellules MT, câbles) en :
                     <ul class="list-disc list-inside ml-6">
-                        <li>Recherchant via OpenAI (marque et référence).</li>
-                        <li>Sélectionnant un disjoncteur existant (marque et référence).</li>
+                        <li>Recherchant via OpenAI (marque et référence pour disjoncteurs).</li>
+                        <li>Sélectionnant un équipement existant (marque et référence).</li>
                         <li>Entrant les données manuellement.</li>
                     </ul>
                 </li>
-                <li>Complétez les champs, en suivant les instructions (ex. ID obligatoire, courbe = B, C ou D).</li>
+                <li>Complétez les champs, en suivant les instructions (ex. ID obligatoire, courbe = B, C ou D pour disjoncteurs).</li>
                 <li>Désignez un disjoncteur comme principal si nécessaire.</li>
                 <li>Lier un disjoncteur non principal à un tableau aval si applicable (BT uniquement).</li>
                 <li>Enregistrez le tableau en cliquant sur "Enregistrer".</li>
@@ -110,162 +113,283 @@
                 <div id="issitemain-message" class="hidden mt-2 p-2 rounded text-sm"></div>
             </div>
 
-            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-cogs mr-2"></i>Ajouter un disjoncteur</h2>
+            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-cogs mr-2"></i>Ajouter un équipement</h2>
+            <div class="mb-4">
+                <label for="equipement-type" class="block text-sm font-medium">Type d'équipement</label>
+                <select id="equipement-type" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" onchange="toggleEquipementForm()">
+                    <option value="disjoncteur">Disjoncteur</option>
+                    <option value="transformateur">Transformateur</option>
+                    <option value="cellule_mt">Cellule Moyenne Tension</option>
+                    <option value="cable_gaine">Câble ou Gaine à Barre</option>
+                </select>
+            </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
-                    <label for="disjoncteur-marque" class="block text-sm font-medium">Marque</label>
-                    <input id="disjoncteur-marque" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. Schneider Electric">
+                    <label for="equipement-marque" class="block text-sm font-medium">Marque</label>
+                    <input id="equipement-marque" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. Schneider Electric">
                 </div>
                 <div>
-                    <label for="disjoncteur-ref" class="block text-sm font-medium">Référence</label>
-                    <input id="disjoncteur-ref" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. C60N">
+                    <label for="equipement-ref" class="block text-sm font-medium">Référence</label>
+                    <input id="equipement-ref" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. C60N">
                 </div>
             </div>
             <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
-                <button onclick="rechercherDisjoncteur()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 touch-friendly"><i class="fas fa-search mr-2"></i>Rechercher via OpenAI</button>
+                <button onclick="rechercherEquipement()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 touch-friendly"><i class="fas fa-search mr-2"></i>Rechercher via OpenAI</button>
                 <button onclick="ajouterManuel()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 touch-friendly"><i class="fas fa-plus mr-2"></i>Ajouter manuellement</button>
             </div>
             <div class="mb-4">
-                <label for="disjoncteur-existant" class="block text-sm font-medium">Sélectionner un disjoncteur existant</label>
-                <select id="disjoncteur-existant" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base">
-                    <option value="">-- Choisir un disjoncteur --</option>
+                <label for="equipement-existant" class="block text-sm font-medium">Sélectionner un équipement existant</label>
+                <select id="equipement-existant" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base">
+                    <option value="">-- Choisir un équipement --</option>
                 </select>
-                <button onclick="ajouterDisjoncteurExistant()" class="bg-green-600 text-white px-4 py-2 rounded mt-2 hover:bg-green-700 touch-friendly"><i class="fas fa-plus-circle mr-2"></i>Ajouter</button>
+                <button onclick="ajouterEquipementExistant()" class="bg-green-600 text-white px-4 py-2 rounded mt-2 hover:bg-green-700 touch-friendly"><i class="fas fa-plus-circle mr-2"></i>Ajouter</button>
             </div>
 
-            <div id="disjoncteur-form" class="mt-4 hidden">
-                <h3 class="text-lg font-semibold mb-2 flex items-center"><i class="fas fa-cog mr-2"></i>Caractéristiques du disjoncteur</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                        <label for="disjoncteur-id" class="block text-sm font-medium">ID <span class="text-red-600">*</span></label>
-                        <input id="disjoncteur-id" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 11F1 Compresseur">
-                        <p class="text-xs text-gray-500">Obligatoire, unique dans ce tableau, ex. 11F1 Compresseur</p>
+            <div id="equipement-form" class="mt-4 hidden">
+                <h3 class="text-lg font-semibold mb-2 flex items-center"><i class="fas fa-cog mr-2"></i>Caractéristiques de l'équipement</h3>
+                <!-- Formulaire pour Disjoncteur -->
+                <div id="disjoncteur-form" class="form-section active">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label for="disjoncteur-id" class="block text-sm font-medium">ID <span class="text-red-600">*</span></label>
+                            <input id="disjoncteur-id" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 11F1 Compresseur">
+                            <p class="text-xs text-gray-500">Obligatoire, unique dans ce tableau, ex. 11F1 Compresseur</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-type" class="block text-sm font-medium">Type</label>
+                            <input id="disjoncteur-type" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. disjoncteur">
+                            <p class="text-xs text-gray-500">Type d'appareil, ex. disjoncteur</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-poles" class="block text-sm font-medium">Pôles</label>
+                            <input id="disjoncteur-poles" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 2P">
+                            <p class="text-xs text-gray-500">Ex. 1P, 2P, 3P ou 4P</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-montage" class="block text-sm font-medium">Montage</label>
+                            <input id="disjoncteur-montage" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. rail DIN">
+                            <p class="text-xs text-gray-500">Type de montage, ex. rail DIN</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-ue" class="block text-sm font-medium">Ue</label>
+                            <input id="disjoncteur-ue" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 230/400 V AC">
+                            <p class="text-xs text-gray-500">Tension nominale, ex. 230/400 V AC</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-ui" class="block text-sm font-medium">Ui</label>
+                            <input id="disjoncteur-ui" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 500 V">
+                            <p class="text-xs text-gray-500">Tension d'isolation, ex. 500 V</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-uimp" class="block text-sm font-medium">Uimp</label>
+                            <input id="disjoncteur-uimp" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 6 kV">
+                            <p class="text-xs text-gray-500">Tension de choc, ex. 6 kV</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-frequence" class="block text-sm font-medium">Fréquence</label>
+                            <input id="disjoncteur-frequence" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 50/60 Hz">
+                            <p class="text-xs text-gray-500">Ex. 50/60 Hz</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-in" class="block text-sm font-medium">In</label>
+                            <input id="disjoncteur-in" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 16 A">
+                            <p class="text-xs text-gray-500">Courant nominal, ex. 16 A</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-ir" class="block text-sm font-medium">Ir</label>
+                            <input id="disjoncteur-ir" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 63 A">
+                            <p class="text-xs text-gray-500">Courant réglable, ex. 63 A</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-courbe" class="block text-sm font-medium">Courbe</label>
+                            <input id="disjoncteur-courbe" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. C">
+                            <p class="text-xs text-gray-500">Une valeur : B, C ou D</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-triptime" class="block text-sm font-medium">TripTime</label>
+                            <input id="disjoncteur-triptime" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 0.1 s">
+                            <p class="text-xs text-gray-500">Temps de déclenchement, ex. 0.1 s</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-icn" class="block text-sm font-medium">Icn</label>
+                            <input id="disjoncteur-icn" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 6 kA">
+                            <p class="text-xs text-gray-500">Pouvoir de coupure, ex. 6 kA</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-ics" class="block text-sm font-medium">Ics</label>
+                            <input id="disjoncteur-ics" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 4.5 kA">
+                            <p class="text-xs text-gray-500">Pouvoir de coupure de service, ex. 4.5 kA</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-ip" class="block text-sm font-medium">IP</label>
+                            <input id="disjoncteur-ip" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. IP20">
+                            <p class="text-xs text-gray-500">Indice de protection, ex. IP20</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-temp" class="block text-sm font-medium">Température</label>
+                            <input id="disjoncteur-temp" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. -25°C à +70°C">
+                            <p class="text-xs text-gray-500">Plage de température, ex. -25°C à +70°C</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-dimensions" class="block text-sm font-medium">Dimensions</label>
+                            <input id="disjoncteur-dimensions" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 18 x 85 x 70 mm">
+                            <p class="text-xs text-gray-500">L x H x P, ex. 18 x 85 x 70 mm</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-section" class="block text-sm font-medium">Section</label>
+                            <input id="disjoncteur-section" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 2.5 mm²">
+                            <p class="text-xs text-gray-500">Section de câble, ex. 2.5 mm²</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-date" class="block text-sm font-medium">Date de fabrication</label>
+                            <input id="disjoncteur-date" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 2023-01">
+                            <p class="text-xs text-gray-500">Année ou mois/année, ex. 2023-01</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-tension" class="block text-sm font-medium">Type de tension</label>
+                            <input id="disjoncteur-tension" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. AC">
+                            <p class="text-xs text-gray-500">Ex. AC ou DC</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-selectivite" class="block text-sm font-medium">Sélectivité</label>
+                            <input id="disjoncteur-selectivite" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. sélectif">
+                            <p class="text-xs text-gray-500">Type de sélectivité, ex. sélectif</p>
+                        </div>
+                        <div>
+                            <label for="disjoncteur-linked-tableaux" class="block text-sm font-medium">Tableaux avals</label>
+                            <select id="disjoncteur-linked-tableaux" multiple class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base">
+                                <option value="">-- Aucun tableau aval --</option>
+                            </select>
+                            <p class="text-xs text-gray-500">Sélectionnez un ou plusieurs tableaux BT avals (non principal uniquement). Utilisez Ctrl/Cmd pour sélection multiple.</p>
+                        </div>
                     </div>
-                    <div>
-                        <label for="disjoncteur-type" class="block text-sm font-medium">Type</label>
-                        <input id="disjoncteur-type" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. disjoncteur">
-                        <p class="text-xs text-gray-500">Type d'appareil, ex. disjoncteur</p>
+                </div>
+                <!-- Formulaire pour Transformateur -->
+                <div id="transformateur-form" class="form-section">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label for="transformateur-id" class="block text-sm font-medium">ID <span class="text-red-600">*</span></label>
+                            <input id="transformateur-id" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. TR1-1600">
+                            <p class="text-xs text-gray-500">Obligatoire, unique dans ce tableau, ex. TR1-1600</p>
+                        </div>
+                        <div>
+                            <label for="transformateur-puissance" class="block text-sm font-medium">Puissance (kVA)</label>
+                            <input id="transformateur-puissance" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 1600 kVA">
+                            <p class="text-xs text-gray-500">Puissance nominale, ex. 1600 kVA</p>
+                        </div>
+                        <div>
+                            <label for="transformateur-tension-primaire" class="block text-sm font-medium">Tension primaire (kV)</label>
+                            <input id="transformateur-tension-primaire" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 20 kV">
+                            <p class="text-xs text-gray-500">Tension côté primaire, ex. 20 kV</p>
+                        </div>
+                        <div>
+                            <label for="transformateur-tension-secondaire" class="block text-sm font-medium">Tension secondaire (V)</label>
+                            <input id="transformateur-tension-secondaire" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 400 V">
+                            <p class="text-xs text-gray-500">Tension côté secondaire, ex. 400 V</p>
+                        </div>
+                        <div>
+                            <label for="transformateur-frequence" class="block text-sm font-medium">Fréquence</label>
+                            <input id="transformateur-frequence" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 50 Hz">
+                            <p class="text-xs text-gray-500">Fréquence nominale, ex. 50 Hz</p>
+                        </div>
+                        <div>
+                            <label for="transformateur-date" class="block text-sm font-medium">Date de fabrication</label>
+                            <input id="transformateur-date" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 2023-01">
+                            <p class="text-xs text-gray-500">Année ou mois/année, ex. 2023-01</p>
+                        </div>
                     </div>
-                    <div>
-                        <label for="disjoncteur-poles" class="block text-sm font-medium">Pôles</label>
-                        <input id="disjoncteur-poles" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 2P">
-                        <p class="text-xs text-gray-500">Ex. 1P, 2P, 3P ou 4P</p>
+                </div>
+                <!-- Formulaire pour Cellule Moyenne Tension -->
+                <div id="cellule_mt-form" class="form-section">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label for="cellule_mt-id" class="block text-sm font-medium">ID <span class="text-red-600">*</span></label>
+                            <input id="cellule_mt-id" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. CM1-01">
+                            <p class="text-xs text-gray-500">Obligatoire, unique dans ce tableau, ex. CM1-01</p>
+                        </div>
+                        <div>
+                            <label for="cellule_mt-tension" class="block text-sm font-medium">Tension nominale (kV)</label>
+                            <input id="cellule_mt-tension" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 20 kV">
+                            <p class="text-xs text-gray-500">Tension nominale, ex. 20 kV</p>
+                        </div>
+                        <div>
+                            <label for="cellule_mt-courant" class="block text-sm font-medium">Courant nominal (A)</label>
+                            <input id="cellule_mt-courant" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 630 A">
+                            <p class="text-xs text-gray-500">Courant nominal, ex. 630 A</p>
+                        </div>
+                        <div>
+                            <label for="cellule_mt-pouvoir_coupure" class="block text-sm font-medium">Pouvoir de coupure (kA)</label>
+                            <input id="cellule_mt-pouvoir_coupure" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 25 kA">
+                            <p class="text-xs text-gray-500">Pouvoir de coupure, ex. 25 kA</p>
+                        </div>
+                        <div>
+                            <label for="cellule_mt-frequence" class="block text-sm font-medium">Fréquence</label>
+                            <input id="cellule_mt-frequence" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 50 Hz">
+                            <p class="text-xs text-gray-500">Fréquence nominale, ex. 50 Hz</p>
+                        </div>
+                        <div>
+                            <label for="cellule_mt-date" class="block text-sm font-medium">Date de fabrication</label>
+                            <input id="cellule_mt-date" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 2023-01">
+                            <p class="text-xs text-gray-500">Année ou mois/année, ex. 2023-01</p>
+                        </div>
                     </div>
-                    <div>
-                        <label for="disjoncteur-montage" class="block text-sm font-medium">Montage</label>
-                        <input id="disjoncteur-montage" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. rail DIN">
-                        <p class="text-xs text-gray-500">Type de montage, ex. rail DIN</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-ue" class="block text-sm font-medium">Ue</label>
-                        <input id="disjoncteur-ue" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 230/400 V AC">
-                        <p class="text-xs text-gray-500">Tension nominale, ex. 230/400 V AC</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-ui" class="block text-sm font-medium">Ui</label>
-                        <input id="disjoncteur-ui" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 500 V">
-                        <p class="text-xs text-gray-500">Tension d'isolation, ex. 500 V</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-uimp" class="block text-sm font-medium">Uimp</label>
-                        <input id="disjoncteur-uimp" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 6 kV">
-                        <p class="text-xs text-gray-500">Tension de choc, ex. 6 kV</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-frequence" class="block text-sm font-medium">Fréquence</label>
-                        <input id="disjoncteur-frequence" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 50/60 Hz">
-                        <p class="text-xs text-gray-500">Ex. 50/60 Hz</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-in" class="block text-sm font-medium">In</label>
-                        <input id="disjoncteur-in" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 16 A">
-                        <p class="text-xs text-gray-500">Courant nominal, ex. 16 A</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-ir" class="block text-sm font-medium">Ir</label>
-                        <input id="disjoncteur-ir" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 63 A">
-                        <p class="text-xs text-gray-500">Courant réglable, ex. 63 A</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-courbe" class="block text-sm font-medium">Courbe</label>
-                        <input id="disjoncteur-courbe" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. C">
-                        <p class="text-xs text-gray-500">Une valeur : B, C ou D</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-triptime" class="block text-sm font-medium">TripTime</label>
-                        <input id="disjoncteur-triptime" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 0.1 s">
-                        <p class="text-xs text-gray-500">Temps de déclenchement, ex. 0.1 s</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-icn" class="block text-sm font-medium">Icn</label>
-                        <input id="disjoncteur-icn" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 6 kA">
-                        <p class="text-xs text-gray-500">Pouvoir de coupure, ex. 6 kA</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-ics" class="block text-sm font-medium">Ics</label>
-                        <input id="disjoncteur-ics" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 4.5 kA">
-                        <p class="text-xs text-gray-500">Pouvoir de coupure de service, ex. 4.5 kA</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-ip" class="block text-sm font-medium">IP</label>
-                        <input id="disjoncteur-ip" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. IP20">
-                        <p class="text-xs text-gray-500">Indice de protection, ex. IP20</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-temp" class="block text-sm font-medium">Température</label>
-                        <input id="disjoncteur-temp" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. -25°C à +70°C">
-                        <p class="text-xs text-gray-500">Plage de température, ex. -25°C à +70°C</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-dimensions" class="block text-sm font-medium">Dimensions</label>
-                        <input id="disjoncteur-dimensions" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 18 x 85 x 70 mm">
-                        <p class="text-xs text-gray-500">L x H x P, ex. 18 x 85 x 70 mm</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-section" class="block text-sm font-medium">Section</label>
-                        <input id="disjoncteur-section" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 2.5 mm²">
-                        <p class="text-xs text-gray-500">Section de câble, ex. 2.5 mm²</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-date" class="block text-sm font-medium">Date de fabrication</label>
-                        <input id="disjoncteur-date" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 2023-01">
-                        <p class="text-xs text-gray-500">Année ou mois/année, ex. 2023-01</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-tension" class="block text-sm font-medium">Type de tension</label>
-                        <input id="disjoncteur-tension" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. AC">
-                        <p class="text-xs text-gray-500">Ex. AC ou DC</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-selectivite" class="block text-sm font-medium">Sélectivité</label>
-                        <input id="disjoncteur-selectivite" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. sélectif">
-                        <p class="text-xs text-gray-500">Type de sélectivité, ex. sélectif</p>
-                    </div>
-                    <div>
-                        <label for="disjoncteur-linked-tableau" class="block text-sm font-medium">Tableau aval</label>
-                        <select id="disjoncteur-linked-tableau" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" disabled>
-                            <option value="">-- Aucun tableau aval --</option>
-                        </select>
-                        <p class="text-xs text-gray-500">Sélectionnez un tableau aval (non principal uniquement)</p>
+                </div>
+                <!-- Formulaire pour Câble ou Gaine à Barre -->
+                <div id="cable_gaine-form" class="form-section">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label for="cable_gaine-id" class="block text-sm font-medium">ID <span class="text-red-600">*</span></label>
+                            <input id="cable_gaine-id" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. CB1-01">
+                            <p class="text-xs text-gray-500">Obligatoire, unique dans ce tableau, ex. CB1-01</p>
+                        </div>
+                        <div>
+                            <label for="cable_gaine-type" class="block text-sm font-medium">Type</label>
+                            <select id="cable_gaine-type" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base">
+                                <option value="cable">Câble</option>
+                                <option value="gaine_barre">Gaine à barre</option>
+                            </select>
+                            <p class="text-xs text-gray-500">Type d'équipement, câble ou gaine à barre</p>
+                        </div>
+                        <div>
+                            <label for="cable_gaine-section" class="block text-sm font-medium">Section (mm²)</label>
+                            <input id="cable_gaine-section" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 240 mm²">
+                            <p class="text-xs text-gray-500">Section du conducteur, ex. 240 mm²</p>
+                        </div>
+                        <div>
+                            <label for="cable_gaine-longueur" class="block text-sm font-medium">Longueur (m)</label>
+                            <input id="cable_gaine-longueur" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 50 m">
+                            <p class="text-xs text-gray-500">Longueur du câble ou de la gaine, ex. 50 m</p>
+                        </div>
+                        <div>
+                            <label for="cable_gaine-courant" class="block text-sm font-medium">Courant admissible (A)</label>
+                            <input id="cable_gaine-courant" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 400 A">
+                            <p class="text-xs text-gray-500">Courant admissible, ex. 400 A</p>
+                        </div>
+                        <div>
+                            <label for="cable_gaine-date" class="block text-sm font-medium">Date de fabrication</label>
+                            <input id="cable_gaine-date" type="text" class="mt-1 w-full p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="Ex. 2023-01">
+                            <p class="text-xs text-gray-500">Année ou mois/année, ex. 2023-01</p>
+                        </div>
                     </div>
                 </div>
                 <div class="flex space-x-4 mt-4">
-                    <button onclick="ajouterDisjoncteur()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 touch-friendly"><i class="fas fa-save mr-2"></i>Ajouter au tableau</button>
+                    <button id="equipement-action" onclick="ajouterEquipement()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 touch-friendly"><i class="fas fa-save mr-2"></i>Ajouter au tableau</button>
                 </div>
             </div>
         </div>
 
         <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-md mt-4 sm:mt-6">
-            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-list mr-2"></i>Disjoncteurs ajoutés</h2>
+            <h2 class="text-lg sm:text-xl font-semibold mb-4 flex items-center"><i class="fas fa-list mr-2"></i>Équipements ajoutés</h2>
             <div class="overflow-x-auto">
-                <table id="disjoncteurs-table" class="w-full text-sm sm:text-base">
+                <table id="equipements-table" class="w-full text-sm sm:text-base">
                     <thead>
                         <tr class="bg-gray-700">
                             <th class="p-2">ID</th>
+                            <th class="p-2">Type</th>
                             <th class="p-2">Marque</th>
                             <th class="p-2">Référence</th>
                             <th class="p-2">Principal</th>
-                            <th class="p-2">Liaison</th>
+                            <th class="p-2">Liaisons</th>
                             <th class="p-2">Actions</th>
                         </tr>
                     </thead>
@@ -287,14 +411,14 @@
         </div>
 
         <script>
-            let disjoncteurs = [];
-            let disjoncteursExistants = [];
+            let equipements = [];
+            let equipementsExistants = [];
             let tableaux = [];
             let disjoncteurPrincipalIndex = null;
             let issitemain = false;
             let isHTA = false;
 
-            function validateDisjoncteurId(id) {
+            function validateEquipementId(id) {
                 const validIdRegex = /^[\p{L}0-9\s\-_:]+$/u;
                 return validIdRegex.test(id);
             }
@@ -322,11 +446,11 @@
             }
 
             function toggleHTAFields() {
-                const isHTAChecked = document.getElementById('tableau-isHTA').checked;
+                isHTA = document.getElementById('tableau-isHTA').checked;
                 const htaFields = document.getElementById('hta-fields');
-                console.log('[Create] Bascule champs HTA:', isHTAChecked);
-                htaFields.classList.toggle('hidden', !isHTAChecked);
-                if (!isHTAChecked) {
+                console.log('[Create] Bascule champs HTA:', isHTA);
+                htaFields.classList.toggle('hidden', !isHTA);
+                if (!isHTA) {
                     document.getElementById('hta-transformerPower').value = '';
                     document.getElementById('hta-voltage').value = '';
                     document.getElementById('hta-in').value = '';
@@ -379,27 +503,28 @@
                 }
             }
 
-            async function chargerDisjoncteursExistants() {
-                console.log('[Create] Chargement disjoncteurs existants');
+            async function chargerEquipementsExistants() {
+                console.log('[Create] Chargement équipements existants');
                 try {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 5000);
-                    const response = await fetch('/api/disjoncteurs', { signal: controller.signal });
+                    const response = await fetch('/api/equipements', { signal: controller.signal });
                     clearTimeout(timeoutId);
                     if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
-                    disjoncteursExistants = await response.json();
+                    equipementsExistants = await response.json();
+                    const disjoncteursExistants = equipementsExistants.filter(e => e.equipmentType === 'disjoncteur');
                     console.log('[Create] Disjoncteurs existants reçus:', disjoncteursExistants.length);
-                    const select = document.getElementById('disjoncteur-existant');
-                    select.innerHTML = '<option value="">-- Choisir un disjoncteur --</option>';
-                    disjoncteursExistants.forEach(d => {
+                    const select = document.getElementById('equipement-existant');
+                    select.innerHTML = '<option value="">-- Choisir un équipement --</option>';
+                    disjoncteursExistants.forEach(e => {
                         const option = document.createElement('option');
-                        option.value = JSON.stringify(d);
-                        option.textContent = `${d.marque} ${d.ref}`;
+                        option.value = JSON.stringify({ ...e, equipmentType: 'disjoncteur' });
+                        option.textContent = `${e.marque} ${e.ref} (Disjoncteur)`;
                         select.appendChild(option);
                     });
                 } catch (error) {
-                    console.error('[Create] Erreur chargement disjoncteurs existants:', error);
-                    showPopup('Erreur lors du chargement des disjoncteurs existants: ' + error.message, '', () => {});
+                    console.error('[Create] Erreur chargement équipements existants:', error);
+                    showPopup('Erreur lors du chargement des équipements existants: ' + error.message, '', () => {});
                 }
             }
 
@@ -408,29 +533,50 @@
                 try {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 5000);
-                    const response = await fetch('/api/tableaux/ids', { signal: controller.signal });
+                    const response = await fetch('/api/tableaux', { signal: controller.signal });
                     clearTimeout(timeoutId);
                     if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
                     tableaux = await response.json();
-                    console.log('[Create] Tableaux chargés:', tableaux);
-                    const select = document.getElementById('disjoncteur-linked-tableau');
+                    console.log('[Create] Tableaux chargés:', tableaux.length);
+                    const select = document.getElementById('disjoncteur-linked-tableaux');
                     select.innerHTML = '<option value="">-- Aucun tableau aval --</option>';
-                    tableaux.forEach(t => {
-                        const option = document.createElement('option');
-                        option.value = t;
-                        option.textContent = t;
-                        select.appendChild(option);
-                    });
+                    tableaux
+                        .filter(t => !t.isHTA)
+                        .forEach(t => {
+                            const option = document.createElement('option');
+                            option.value = t.id;
+                            option.textContent = t.id + (t.issitemain ? ' (Principal)' : '');
+                            select.appendChild(option);
+                        });
                 } catch (error) {
                     console.error('[Create] Erreur chargement tableaux:', error);
                     showPopup('Erreur lors du chargement des tableaux: ' + error.message, '', () => {});
                 }
             }
 
-            async function rechercherDisjoncteur() {
+            function toggleEquipementForm() {
+                const type = document.getElementById('equipement-type').value;
+                console.log('[Create] Bascule formulaire équipement:', type);
+                const forms = document.querySelectorAll('#equipement-form .form-section');
+                forms.forEach(form => form.classList.remove('active'));
+                document.getElementById(`${type}-form`).classList.add('active');
+                document.getElementById('equipement-form').classList.add('hidden');
+                if (type !== 'disjoncteur') {
+                    document.getElementById('equipement-marque').value = '';
+                    document.getElementById('equipement-ref').value = '';
+                }
+            }
+
+            async function rechercherEquipement() {
                 console.log('[Create] Bouton Rechercher via OpenAI cliqué');
-                const marque = document.getElementById('disjoncteur-marque').value.trim();
-                const ref = document.getElementById('disjoncteur-ref').value.trim();
+                const type = document.getElementById('equipement-type').value;
+                if (type !== 'disjoncteur') {
+                    console.log('[Create] Recherche OpenAI non supportée pour:', type);
+                    showPopup('La recherche via OpenAI est uniquement disponible pour les disjoncteurs.', '', () => {});
+                    return;
+                }
+                const marque = document.getElementById('equipement-marque').value.trim();
+                const ref = document.getElementById('equipement-ref').value.trim();
                 if (!marque || !ref) {
                     console.log('[Create] Erreur: Marque ou référence vide');
                     showPopup('Veuillez entrer la marque et la référence.', '', () => {});
@@ -450,7 +596,7 @@
                     const data = await response.json();
                     console.log('[Create] Données OpenAI reçues:', data);
                     if (response.ok && data && Object.keys(data).length > 0) {
-                        document.getElementById('disjoncteur-form').classList.remove('hidden');
+                        document.getElementById('equipement-form').classList.remove('hidden');
                         document.getElementById('disjoncteur-id').value = '';
                         document.getElementById('disjoncteur-type').value = data.type || '';
                         document.getElementById('disjoncteur-poles').value = data.poles || '';
@@ -472,10 +618,10 @@
                         document.getElementById('disjoncteur-date').value = data.date || '';
                         document.getElementById('disjoncteur-tension').value = data.tension || '';
                         document.getElementById('disjoncteur-selectivite').value = data.selectivite || '';
-                        document.getElementById('disjoncteur-marque').value = marque;
-                        document.getElementById('disjoncteur-ref').value = ref;
-                        document.getElementById('disjoncteur-linked-tableau').value = '';
-                        document.getElementById('disjoncteur-linked-tableau').disabled = false;
+                        document.getElementById('equipement-marque').value = marque;
+                        document.getElementById('equipement-ref').value = ref;
+                        const linkedSelect = document.getElementById('disjoncteur-linked-tableaux');
+                        Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
                     } else {
                         console.log('[Create] Aucune donnée OpenAI reçue');
                         showPopup('Aucune donnée trouvée pour ce disjoncteur. Essayez manuellement ou vérifiez la marque/référence.', '', () => {});
@@ -488,228 +634,370 @@
 
             function ajouterManuel() {
                 console.log('[Create] Bouton Ajouter manuellement cliqué');
-                document.getElementById('disjoncteur-form').classList.remove('hidden');
-                document.getElementById('disjoncteur-id').value = '';
-                document.getElementById('disjoncteur-type').value = '';
-                document.getElementById('disjoncteur-poles').value = '';
-                document.getElementById('disjoncteur-montage').value = '';
-                document.getElementById('disjoncteur-ue').value = '';
-                document.getElementById('disjoncteur-ui').value = '';
-                document.getElementById('disjoncteur-uimp').value = '';
-                document.getElementById('disjoncteur-frequence').value = '';
-                document.getElementById('disjoncteur-in').value = '';
-                document.getElementById('disjoncteur-ir').value = '';
-                document.getElementById('disjoncteur-courbe').value = '';
-                document.getElementById('disjoncteur-triptime').value = '';
-                document.getElementById('disjoncteur-icn').value = '';
-                document.getElementById('disjoncteur-ics').value = '';
-                document.getElementById('disjoncteur-ip').value = '';
-                document.getElementById('disjoncteur-temp').value = '';
-                document.getElementById('disjoncteur-dimensions').value = '';
-                document.getElementById('disjoncteur-section').value = '';
-                document.getElementById('disjoncteur-date').value = '';
-                document.getElementById('disjoncteur-tension').value = '';
-                document.getElementById('disjoncteur-selectivite').value = '';
-                document.getElementById('disjoncteur-marque').value = '';
-                document.getElementById('disjoncteur-ref').value = '';
-                document.getElementById('disjoncteur-linked-tableau').value = '';
-                document.getElementById('disjoncteur-linked-tableau').disabled = false;
+                const type = document.getElementById('equipement-type').value;
+                document.getElementById('equipement-form').classList.remove('hidden');
+                if (type === 'disjoncteur') {
+                    document.getElementById('disjoncteur-id').value = '';
+                    document.getElementById('disjoncteur-type').value = '';
+                    document.getElementById('disjoncteur-poles').value = '';
+                    document.getElementById('disjoncteur-montage').value = '';
+                    document.getElementById('disjoncteur-ue').value = '';
+                    document.getElementById('disjoncteur-ui').value = '';
+                    document.getElementById('disjoncteur-uimp').value = '';
+                    document.getElementById('disjoncteur-frequence').value = '';
+                    document.getElementById('disjoncteur-in').value = '';
+                    document.getElementById('disjoncteur-ir').value = '';
+                    document.getElementById('disjoncteur-courbe').value = '';
+                    document.getElementById('disjoncteur-triptime').value = '';
+                    document.getElementById('disjoncteur-icn').value = '';
+                    document.getElementById('disjoncteur-ics').value = '';
+                    document.getElementById('disjoncteur-ip').value = '';
+                    document.getElementById('disjoncteur-temp').value = '';
+                    document.getElementById('disjoncteur-dimensions').value = '';
+                    document.getElementById('disjoncteur-section').value = '';
+                    document.getElementById('disjoncteur-date').value = '';
+                    document.getElementById('disjoncteur-tension').value = '';
+                    document.getElementById('disjoncteur-selectivite').value = '';
+                    const linkedSelect = document.getElementById('disjoncteur-linked-tableaux');
+                    Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
+                } else if (type === 'transformateur') {
+                    document.getElementById('transformateur-id').value = '';
+                    document.getElementById('transformateur-puissance').value = '';
+                    document.getElementById('transformateur-tension-primaire').value = '';
+                    document.getElementById('transformateur-tension-secondaire').value = '';
+                    document.getElementById('transformateur-frequence').value = '';
+                    document.getElementById('transformateur-date').value = '';
+                } else if (type === 'cellule_mt') {
+                    document.getElementById('cellule_mt-id').value = '';
+                    document.getElementById('cellule_mt-tension').value = '';
+                    document.getElementById('cellule_mt-courant').value = '';
+                    document.getElementById('cellule_mt-pouvoir_coupure').value = '';
+                    document.getElementById('cellule_mt-frequence').value = '';
+                    document.getElementById('cellule_mt-date').value = '';
+                } else if (type === 'cable_gaine') {
+                    document.getElementById('cable_gaine-id').value = '';
+                    document.getElementById('cable_gaine-type').value = 'cable';
+                    document.getElementById('cable_gaine-section').value = '';
+                    document.getElementById('cable_gaine-longueur').value = '';
+                    document.getElementById('cable_gaine-courant').value = '';
+                    document.getElementById('cable_gaine-date').value = '';
+                }
+                document.getElementById('equipement-marque').value = '';
+                document.getElementById('equipement-ref').value = '';
             }
 
-            async function ajouterDisjoncteurExistant() {
+            async function ajouterEquipementExistant() {
                 console.log('[Create] Bouton Ajouter (liste déroulante) cliqué');
-                const select = document.getElementById('disjoncteur-existant');
+                const select = document.getElementById('equipement-existant');
                 const selected = select.value;
                 if (!selected) {
-                    console.log('[Create] Erreur: Aucun disjoncteur sélectionné');
-                    showPopup('Veuillez sélectionner un disjoncteur.', '', () => {});
+                    console.log('[Create] Erreur: Aucun équipement sélectionné');
+                    showPopup('Veuillez sélectionner un équipement.', '', () => {});
                     return;
                 }
                 try {
-                    const disjoncteurBase = JSON.parse(selected);
-                    console.log('[Create] Disjoncteur sélectionné:', disjoncteurBase);
-                    document.getElementById('disjoncteur-form').classList.remove('hidden');
-                    document.getElementById('disjoncteur-id').value = '';
-                    document.getElementById('disjoncteur-marque').value = disjoncteurBase.marque || '';
-                    document.getElementById('disjoncteur-ref').value = disjoncteurBase.ref || '';
-                    document.getElementById('disjoncteur-type').value = disjoncteurBase.type || '';
-                    document.getElementById('disjoncteur-poles').value = disjoncteurBase.poles || '';
-                    document.getElementById('disjoncteur-montage').value = disjoncteurBase.montage || '';
-                    document.getElementById('disjoncteur-ue').value = disjoncteurBase.ue || '';
-                    document.getElementById('disjoncteur-ui').value = disjoncteurBase.ui || '';
-                    document.getElementById('disjoncteur-uimp').value = disjoncteurBase.uimp || '';
-                    document.getElementById('disjoncteur-frequence').value = disjoncteurBase.frequence || '';
-                    document.getElementById('disjoncteur-in').value = disjoncteurBase.in || '';
-                    document.getElementById('disjoncteur-ir').value = disjoncteurBase.ir || '';
-                    document.getElementById('disjoncteur-courbe').value = disjoncteurBase.courbe || '';
-                    document.getElementById('disjoncteur-triptime').value = disjoncteurBase.triptime || '';
-                    document.getElementById('disjoncteur-icn').value = disjoncteurBase.icn || '';
-                    document.getElementById('disjoncteur-ics').value = disjoncteurBase.ics || '';
-                    document.getElementById('disjoncteur-ip').value = disjoncteurBase.ip || '';
-                    document.getElementById('disjoncteur-temp').value = disjoncteurBase.temp || '';
-                    document.getElementById('disjoncteur-dimensions').value = disjoncteurBase.dimensions || '';
-                    document.getElementById('disjoncteur-section').value = disjoncteurBase.section || '';
-                    document.getElementById('disjoncteur-date').value = disjoncteurBase.date || '';
-                    document.getElementById('disjoncteur-tension').value = disjoncteurBase.tension || '';
-                    document.getElementById('disjoncteur-selectivite').value = disjoncteurBase.selectivite || '';
-                    document.getElementById('disjoncteur-linked-tableau').value = '';
-                    document.getElementById('disjoncteur-linked-tableau').disabled = false;
+                    const equipementBase = JSON.parse(selected);
+                    console.log('[Create] Équipement sélectionné:', equipementBase);
+                    document.getElementById('equipement-form').classList.remove('hidden');
+                    if (equipementBase.equipmentType === 'disjoncteur') {
+                        document.getElementById('equipement-type').value = 'disjoncteur';
+                        toggleEquipementForm();
+                        document.getElementById('disjoncteur-id').value = '';
+                        document.getElementById('disjoncteur-marque').value = equipementBase.marque || '';
+                        document.getElementById('disjoncteur-ref').value = equipementBase.ref || '';
+                        document.getElementById('disjoncteur-type').value = equipementBase.type || '';
+                        document.getElementById('disjoncteur-poles').value = equipementBase.poles || '';
+                        document.getElementById('disjoncteur-montage').value = equipementBase.montage || '';
+                        document.getElementById('disjoncteur-ue').value = equipementBase.ue || '';
+                        document.getElementById('disjoncteur-ui').value = equipementBase.ui || '';
+                        document.getElementById('disjoncteur-uimp').value = equipementBase.uimp || '';
+                        document.getElementById('disjoncteur-frequence').value = equipementBase.frequence || '';
+                        document.getElementById('disjoncteur-in').value = equipementBase.in || '';
+                        document.getElementById('disjoncteur-ir').value = equipementBase.ir || '';
+                        document.getElementById('disjoncteur-courbe').value = equipementBase.courbe || '';
+                        document.getElementById('disjoncteur-triptime').value = equipementBase.triptime || '';
+                        document.getElementById('disjoncteur-icn').value = equipementBase.icn || '';
+                        document.getElementById('disjoncteur-ics').value = equipementBase.ics || '';
+                        document.getElementById('disjoncteur-ip').value = equipementBase.ip || '';
+                        document.getElementById('disjoncteur-temp').value = equipementBase.temp || '';
+                        document.getElementById('disjoncteur-dimensions').value = equipementBase.dimensions || '';
+                        document.getElementById('disjoncteur-section').value = equipementBase.section || '';
+                        document.getElementById('disjoncteur-date').value = equipementBase.date || '';
+                        document.getElementById('disjoncteur-tension').value = equipementBase.tension || '';
+                        document.getElementById('disjoncteur-selectivite').value = equipementBase.selectivite || '';
+                        const linkedSelect = document.getElementById('disjoncteur-linked-tableaux');
+                        Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
+                    }
                 } catch (error) {
-                    console.error('[Create] Erreur parsing disjoncteur:', error);
-                    showPopup('Erreur lors de la sélection du disjoncteur: ' + error.message, '', () => {});
+                    console.error('[Create] Erreur parsing équipement:', error);
+                    showPopup('Erreur lors de la sélection de l\'équipement: ' + error.message, '', () => {});
                 }
             }
 
-            async function ajouterDisjoncteur() {
+            async function ajouterEquipement() {
                 console.log('[Create] Bouton Ajouter au tableau cliqué');
-                const disjoncteur = {
-                    id: document.getElementById('disjoncteur-id').value.trim(),
-                    marque: document.getElementById('disjoncteur-marque').value.trim(),
-                    ref: document.getElementById('disjoncteur-ref').value.trim(),
-                    type: document.getElementById('disjoncteur-type').value.trim(),
-                    poles: document.getElementById('disjoncteur-poles').value.trim(),
-                    montage: document.getElementById('disjoncteur-montage').value.trim(),
-                    ue: document.getElementById('disjoncteur-ue').value.trim(),
-                    ui: document.getElementById('disjoncteur-ui').value.trim(),
-                    uimp: document.getElementById('disjoncteur-uimp').value.trim(),
-                    frequence: document.getElementById('disjoncteur-frequence').value.trim(),
-                    in: document.getElementById('disjoncteur-in').value.trim(),
-                    ir: document.getElementById('disjoncteur-ir').value.trim(),
-                    courbe: document.getElementById('disjoncteur-courbe').value.trim(),
-                    triptime: document.getElementById('disjoncteur-triptime').value.trim(),
-                    icn: document.getElementById('disjoncteur-icn').value.trim(),
-                    ics: document.getElementById('disjoncteur-ics').value.trim(),
-                    ip: document.getElementById('disjoncteur-ip').value.trim(),
-                    temp: document.getElementById('disjoncteur-temp').value.trim(),
-                    dimensions: document.getElementById('disjoncteur-dimensions').value.trim(),
-                    section: document.getElementById('disjoncteur-section').value.trim(),
-                    date: document.getElementById('disjoncteur-date').value.trim(),
-                    tension: document.getElementById('disjoncteur-tension').value.trim(),
-                    selectivite: document.getElementById('disjoncteur-selectivite').value.trim(),
-                    isPrincipal: false,
-                    linkedTableauId: document.getElementById('disjoncteur-linked-tableau').value.trim()
-                };
-                console.log('[Create] Disjoncteur à ajouter:', disjoncteur);
-                if (!disjoncteur.id) {
+                const type = document.getElementById('equipement-type').value;
+                const marque = document.getElementById('equipement-marque').value.trim();
+                const ref = document.getElementById('equipement-ref').value.trim();
+                let equipement = { equipmentType: type, marque, ref };
+                let idField, requiredFields = [];
+
+                if (type === 'disjoncteur') {
+                    idField = 'disjoncteur-id';
+                    equipement = {
+                        ...equipement,
+                        id: document.getElementById('disjoncteur-id').value.trim(),
+                        type: document.getElementById('disjoncteur-type').value.trim(),
+                        poles: document.getElementById('disjoncteur-poles').value.trim(),
+                        montage: document.getElementById('disjoncteur-montage').value.trim(),
+                        ue: document.getElementById('disjoncteur-ue').value.trim(),
+                        ui: document.getElementById('disjoncteur-ui').value.trim(),
+                        uimp: document.getElementById('disjoncteur-uimp').value.trim(),
+                        frequence: document.getElementById('disjoncteur-frequence').value.trim(),
+                        in: document.getElementById('disjoncteur-in').value.trim(),
+                        ir: document.getElementById('disjoncteur-ir').value.trim(),
+                        courbe: document.getElementById('disjoncteur-courbe').value.trim(),
+                        triptime: document.getElementById('disjoncteur-triptime').value.trim(),
+                        icn: document.getElementById('disjoncteur-icn').value.trim(),
+                        ics: document.getElementById('disjoncteur-ics').value.trim(),
+                        ip: document.getElementById('disjoncteur-ip').value.trim(),
+                        temp: document.getElementById('disjoncteur-temp').value.trim(),
+                        dimensions: document.getElementById('disjoncteur-dimensions').value.trim(),
+                        section: document.getElementById('disjoncteur-section').value.trim(),
+                        date: document.getElementById('disjoncteur-date').value.trim(),
+                        tension: document.getElementById('disjoncteur-tension').value.trim(),
+                        selectivite: document.getElementById('disjoncteur-selectivite').value.trim(),
+                        isPrincipal: false,
+                        linkedTableauIds: Array.from(document.getElementById('disjoncteur-linked-tableaux').selectedOptions).map(opt => opt.value).filter(Boolean)
+                    };
+                    requiredFields = ['id', 'marque', 'ref'];
+                    if (equipement.courbe && !['B', 'C', 'D'].includes(equipement.courbe)) {
+                        console.log('[Create] Erreur: Courbe invalide', equipement.courbe);
+                        showPopup('La courbe doit être B, C ou D.', '', () => {});
+                        return;
+                    }
+                    if (equipement.ir && !/^\d+(\.?\d+)?(\s*A)?$/.test(equipement.ir)) {
+                        console.log('[Create] Erreur: Ir invalide', equipement.ir);
+                        showPopup('Ir doit être une valeur numérique, ex. 60 ou 60 A.', '', () => {});
+                        return;
+                    }
+                    if (equipement.icn && !/^\d+(\.?\d+)?(\s*kA)?$/.test(equipement.icn)) {
+                        console.log('[Create] Erreur: Icn invalide', equipement.icn);
+                        showPopup('Icn doit être une valeur numérique, ex. 6 ou 6 kA.', '', () => {});
+                        return;
+                    }
+                    if (equipement.ics && !/^\d+(\.?\d+)?(\s*kA)?$/.test(equipement.ics)) {
+                        console.log('[Create] Erreur: Ics invalide', equipement.ics);
+                        showPopup('Ics doit être une valeur numérique, ex. 4.5 ou 4.5 kA.', '', () => {});
+                        return;
+                    }
+                    if (equipement.in && !/^\d+(\.?\d+)?(\s*A)?$/.test(equipement.in)) {
+                        console.log('[Create] Erreur: In invalide', equipement.in);
+                        showPopup('In doit être une valeur numérique, ex. 16 ou 16 A.', '', () => {});
+                        return;
+                    }
+                    if (equipement.triptime && !/^\d+(\.?\d+)?(\s*s)?$/.test(equipement.triptime)) {
+                        console.log('[Create] Erreur: TripTime invalide', equipement.triptime);
+                        showPopup('TripTime doit être une valeur numérique, ex. 0.1 ou 0.1 s.', '', () => {});
+                        return;
+                    }
+                    if (equipement.linkedTableauIds.some(id => tableaux.find(t => t.id === id)?.isHTA)) {
+                        console.log('[Create] Erreur: Liaison à un tableau HTA détectée', equipement.linkedTableauIds);
+                        showPopup('Un disjoncteur ne peut être lié qu’à des tableaux BT.', '', () => {});
+                        return;
+                    }
+                } else if (type === 'transformateur') {
+                    idField = 'transformateur-id';
+                    equipement = {
+                        ...equipement,
+                        id: document.getElementById('transformateur-id').value.trim(),
+                        puissance: document.getElementById('transformateur-puissance').value.trim(),
+                        tension_primaire: document.getElementById('transformateur-tension-primaire').value.trim(),
+                        tension_secondaire: document.getElementById('transformateur-tension-secondaire').value.trim(),
+                        frequence: document.getElementById('transformateur-frequence').value.trim(),
+                        date: document.getElementById('transformateur-date').value.trim()
+                    };
+                    requiredFields = ['id'];
+                    if (equipement.puissance && !/^\d+(\.?\d+)?(\s*kVA)?$/.test(equipement.puissance)) {
+                        console.log('[Create] Erreur: Puissance invalide', equipement.puissance);
+                        showPopup('La puissance doit être une valeur numérique, ex. 1600 ou 1600 kVA.', '', () => {});
+                        return;
+                    }
+                } else if (type === 'cellule_mt') {
+                    idField = 'cellule_mt-id';
+                    equipement = {
+                        ...equipement,
+                        id: document.getElementById('cellule_mt-id').value.trim(),
+                        tension: document.getElementById('cellule_mt-tension').value.trim(),
+                        courant: document.getElementById('cellule_mt-courant').value.trim(),
+                        pouvoir_coupure: document.getElementById('cellule_mt-pouvoir_coupure').value.trim(),
+                        frequence: document.getElementById('cellule_mt-frequence').value.trim(),
+                        date: document.getElementById('cellule_mt-date').value.trim()
+                    };
+                    requiredFields = ['id'];
+                    if (equipement.courant && !/^\d+(\.?\d+)?(\s*A)?$/.test(equipement.courant)) {
+                        console.log('[Create] Erreur: Courant invalide', equipement.courant);
+                        showPopup('Le courant doit être une valeur numérique, ex. 630 ou 630 A.', '', () => {});
+                        return;
+                    }
+                    if (equipement.pouvoir_coupure && !/^\d+(\.?\d+)?(\s*kA)?$/.test(equipement.pouvoir_coupure)) {
+                        console.log('[Create] Erreur: Pouvoir de coupure invalide', equipement.pouvoir_coupure);
+                        showPopup('Le pouvoir de coupure doit être une valeur numérique, ex. 25 ou 25 kA.', '', () => {});
+                        return;
+                    }
+                } else if (type === 'cable_gaine') {
+                    idField = 'cable_gaine-id';
+                    equipement = {
+                        ...equipement,
+                        id: document.getElementById('cable_gaine-id').value.trim(),
+                        type_cable: document.getElementById('cable_gaine-type').value,
+                        section: document.getElementById('cable_gaine-section').value.trim(),
+                        longueur: document.getElementById('cable_gaine-longueur').value.trim(),
+                        courant_admissible: document.getElementById('cable_gaine-courant').value.trim(),
+                        date: document.getElementById('cable_gaine-date').value.trim()
+                    };
+                    requiredFields = ['id'];
+                    if (equipement.section && !/^\d+(\.?\d+)?(\s*mm²)?$/.test(equipement.section)) {
+                        console.log('[Create] Erreur: Section invalide', equipement.section);
+                        showPopup('La section doit être une valeur numérique, ex. 240 ou 240 mm².', '', () => {});
+                        return;
+                    }
+                    if (equipement.longueur && !/^\d+(\.?\d+)?(\s*m)?$/.test(equipement.longueur)) {
+                        console.log('[Create] Erreur: Longueur invalide', equipement.longueur);
+                        showPopup('La longueur doit être une valeur numérique, ex. 50 ou 50 m.', '', () => {});
+                        return;
+                    }
+                    if (equipement.courant_admissible && !/^\d+(\.?\d+)?(\s*A)?$/.test(equipement.courant_admissible)) {
+                        console.log('[Create] Erreur: Courant admissible invalide', equipement.courant_admissible);
+                        showPopup('Le courant admissible doit être une valeur numérique, ex. 400 ou 400 A.', '', () => {});
+                        return;
+                    }
+                }
+
+                console.log('[Create] Équipement à ajouter:', equipement);
+                if (!equipement.id) {
                     console.log('[Create] Erreur: ID vide');
-                    showPopup('L\'ID du disjoncteur est obligatoire (ex. 11F1 Compresseur).', '', () => {});
+                    showPopup(`L\'ID de l\'équipement est obligatoire (ex. ${type === 'disjoncteur' ? '11F1 Compresseur' : type === 'transformateur' ? 'TR1-1600' : type === 'cellule_mt' ? 'CM1-01' : 'CB1-01'}).`, '', () => {});
                     return;
                 }
-                if (!validateDisjoncteurId(disjoncteur.id)) {
-                    console.log('[Create] Erreur: ID invalide', disjoncteur.id);
-                    showPopup('L\'ID du disjoncteur contient des caractères non autorisés. Utilisez lettres (y compris accentuées), chiffres, espaces, tirets, underscores ou deux-points.', '', () => {});
+                if (!validateEquipementId(equipement.id)) {
+                    console.log('[Create] Erreur: ID invalide', equipement.id);
+                    showPopup('L\'ID de l\'équipement contient des caractères non autorisés. Utilisez lettres (y compris accentuées), chiffres, espaces, tirets, underscores ou deux-points.', '', () => {});
                     return;
                 }
-                if (!disjoncteur.marque || !disjoncteur.ref) {
-                    console.log('[Create] Erreur: Marque ou référence vide');
-                    showPopup('Veuillez entrer la marque et la référence.', '', () => {});
-                    return;
+                for (const field of requiredFields) {
+                    if (!equipement[field]) {
+                        console.log('[Create] Erreur: Champ requis vide', field);
+                        showPopup(`Le champ ${field} est requis.`, '', () => {});
+                        return;
+                    }
                 }
-                if (disjoncteur.courbe && !['B', 'C', 'D'].includes(disjoncteur.courbe)) {
-                    console.log('[Create] Erreur: Courbe invalide', disjoncteur.courbe);
-                    showPopup('La courbe doit être B, C ou D.', '', () => {});
-                    return;
-                }
-                if (disjoncteur.ir && !/^\d+(\s*A)?$/.test(disjoncteur.ir)) {
-                    console.log('[Create] Erreur: Ir invalide', disjoncteur.ir);
-                    showPopup('Ir doit être une valeur numérique, ex. 60 ou 60 A.', '', () => {});
-                    return;
-                }
-                if (disjoncteurs.some(d => d.id === disjoncteur.id)) {
-                    console.log('[Create] Erreur: ID déjà utilisé dans le tableau local', disjoncteur.id);
+                if (equipements.some(e => e.id === equipement.id)) {
+                    console.log('[Create] Erreur: ID déjà utilisé dans le tableau local', equipement.id);
                     showPopup('Cet ID est déjà utilisé dans ce tableau. Choisissez un ID unique.', '', () => {});
                     return;
                 }
-                disjoncteurs.push(disjoncteur);
-                console.log('[Create] Disjoncteur ajouté:', disjoncteur.id);
-                const select = document.getElementById('disjoncteur-existant');
-                const existingOptions = Array.from(select.options).map(opt => opt.value);
-                if (!existingOptions.includes(JSON.stringify(disjoncteur))) {
-                    const option = document.createElement('option');
-                    option.value = JSON.stringify(disjoncteur);
-                    option.textContent = `${disjoncteur.marque} ${disjoncteur.ref}`;
-                    select.appendChild(option);
-                    console.log('[Create] Disjoncteur ajouté à la liste déroulante:', `${disjoncteur.marque} ${disjoncteur.ref}`);
+                equipements.push(equipement);
+                console.log('[Create] Équipement ajouté:', equipement.id);
+                if (type === 'disjoncteur') {
+                    const select = document.getElementById('equipement-existant');
+                    const existingOptions = Array.from(select.options).map(opt => opt.value);
+                    if (!existingOptions.includes(JSON.stringify({ ...equipement, equipmentType: 'disjoncteur' }))) {
+                        const option = document.createElement('option');
+                        option.value = JSON.stringify({ ...equipement, equipmentType: 'disjoncteur' });
+                        option.textContent = `${equipement.marque} ${equipement.ref} (Disjoncteur)`;
+                        select.appendChild(option);
+                        console.log('[Create] Disjoncteur ajouté à la liste déroulante:', `${equipement.marque} ${equipement.ref}`);
+                    }
                 }
-                afficherDisjoncteurs();
-                document.getElementById('disjoncteur-form').classList.add('hidden');
-                document.getElementById('disjoncteur-marque').value = '';
-                document.getElementById('disjoncteur-ref').value = '';
+                afficherEquipements();
+                document.getElementById('equipement-form').classList.add('hidden');
+                document.getElementById('equipement-marque').value = '';
+                document.getElementById('equipement-ref').value = '';
             }
 
             function designerPrincipal(index) {
                 console.log('[Create] Bouton Principal cliqué, index:', index);
-                const disjoncteur = disjoncteurs[index];
-                if (!disjoncteur) {
-                    console.error('[Create] Disjoncteur non trouvé à l\'index:', index);
-                    showPopup('Erreur: Disjoncteur non trouvé.', '', () => {});
+                const equipement = equipements[index];
+                if (!equipement || equipement.equipmentType !== 'disjoncteur') {
+                    console.error('[Create] Équipement non trouvé ou non disjoncteur à l\'index:', index);
+                    showPopup('Seul un disjoncteur peut être désigné comme principal.', '', () => {});
                     return;
                 }
-                showPopup(`Voulez-vous désigner le disjoncteur ${disjoncteur.id} comme principal ?`, '', () => {
+                showPopup(`Voulez-vous désigner le disjoncteur ${equipement.id} comme principal ?`, '', () => {
                     console.log('[Create] Confirmation principal pour index:', index);
-                    disjoncteurs.forEach(d => d.isPrincipal = false);
-                    disjoncteurs[index].isPrincipal = true;
-                    disjoncteurs[index].linkedTableauId = '';
+                    equipements.forEach(e => { if (e.equipmentType === 'disjoncteur') e.isPrincipal = false; });
+                    equipements[index].isPrincipal = true;
+                    equipements[index].linkedTableauIds = [];
                     disjoncteurPrincipalIndex = index;
-                    disjoncteurs.forEach((d, i) => {
-                        console.log('[Create] Disjoncteur', d.id, 'isPrincipal:', d.isPrincipal);
+                    equipements.forEach((e, i) => {
+                        if (e.equipmentType === 'disjoncteur') {
+                            console.log('[Create] Disjoncteur', e.id, 'isPrincipal:', e.isPrincipal);
+                        }
                     });
-                    afficherDisjoncteurs();
+                    afficherEquipements();
                     hidePopup();
-                    console.log('[Create] Disjoncteur principal mis à jour, index:', disjoncteurPrincipalIndex, 'ID:', disjoncteur.id);
+                    console.log('[Create] Disjoncteur principal mis à jour, index:', disjoncteurPrincipalIndex, 'ID:', equipement.id);
                 });
             }
 
-            function supprimerDisjoncteur(index) {
+            function supprimerEquipement(index) {
                 console.log('[Create] Bouton Supprimer cliqué, index:', index);
-                const disjoncteur = disjoncteurs[index];
-                if (!disjoncteur) {
-                    console.error('[Create] Disjoncteur non trouvé à l\'index:', index);
-                    showPopup('Erreur: Disjoncteur non trouvé.', '', () => {});
+                const equipement = equipements[index];
+                if (!equipement) {
+                    console.error('[Create] Équipement non trouvé à l\'index:', index);
+                    showPopup('Erreur: Équipement non trouvé.', '', () => {});
                     return;
                 }
-                showPopup(`Voulez-vous supprimer le disjoncteur ${disjoncteur.id} ?`, '', () => {
-                    console.log('[Create] Confirmation suppression disjoncteur:', disjoncteur.id);
-                    disjoncteurs.splice(index, 1);
-                    if (index === disjoncteurPrincipalIndex) {
+                showPopup(`Voulez-vous supprimer l\'équipement ${equipement.id} ?`, '', () => {
+                    console.log('[Create] Confirmation suppression équipement:', equipement.id);
+                    equipements.splice(index, 1);
+                    if (equipement.equipmentType === 'disjoncteur' && index === disjoncteurPrincipalIndex) {
                         disjoncteurPrincipalIndex = null;
                         console.log('[Create] Disjoncteur principal supprimé, réinitialisation index');
-                    } else if (disjoncteurPrincipalIndex > index) {
+                    } else if (equipement.equipmentType === 'disjoncteur' && disjoncteurPrincipalIndex > index) {
                         disjoncteurPrincipalIndex--;
                         console.log('[Create] Ajustement disjoncteurPrincipalIndex:', disjoncteurPrincipalIndex);
                     }
-                    afficherDisjoncteurs();
+                    afficherEquipements();
                     hidePopup();
-                    console.log('[Create] Disjoncteur supprimé:', disjoncteur.id);
+                    console.log('[Create] Équipement supprimé:', equipement.id);
                 });
             }
 
-            function afficherDisjoncteurs() {
-                console.log('[Create] Affichage disjoncteurs, total:', disjoncteurs.length, 'principal index:', disjoncteurPrincipalIndex);
-                const tbody = document.querySelector('#disjoncteurs-table tbody');
+            function afficherEquipements() {
+                console.log('[Create] Affichage équipements, total:', equipements.length, 'principal index:', disjoncteurPrincipalIndex);
+                const tbody = document.querySelector('#equipements-table tbody');
                 tbody.innerHTML = '';
                 const idCounts = {};
-                disjoncteurs.forEach(d => {
-                    idCounts[d.id] = (idCounts[d.id] || 0) + 1;
+                equipements.forEach(e => {
+                    idCounts[e.id] = (idCounts[e.id] || 0) + 1;
                 });
-                disjoncteurs.sort((a, b) => a.id.localeCompare(b.id));
-                disjoncteurs.forEach((d, index) => {
-                    const isPrincipal = d.isPrincipal || false;
-                    console.log('[Create] Disjoncteur', d.id, 'index:', index, 'isPrincipal:', isPrincipal);
-                    const hasConflict = idCounts[d.id] > 1;
+                equipements.sort((a, b) => a.id.localeCompare(b.id));
+                equipements.forEach((e, index) => {
+                    const isPrincipal = e.equipmentType === 'disjoncteur' && e.isPrincipal || false;
+                    console.log('[Create] Équipement', e.id, 'index:', index, 'type:', e.equipmentType, 'isPrincipal:', isPrincipal);
+                    const hasConflict = idCounts[e.id] > 1;
                     const row = document.createElement('tr');
                     if (isPrincipal) row.className = 'disjoncteur-principal';
                     const idCell = document.createElement('td');
                     idCell.className = `p-2 ${hasConflict ? 'conflict' : ''}`;
-                    idCell.textContent = `${d.id}${hasConflict ? ' (Conflit)' : ''}`;
+                    idCell.textContent = `${e.id}${hasConflict ? ' (Conflit)' : ''}`;
                     row.appendChild(idCell);
+                    const typeCell = document.createElement('td');
+                    typeCell.className = 'p-2';
+                    typeCell.textContent = e.equipmentType === 'disjoncteur' ? 'Disjoncteur' :
+                                           e.equipmentType === 'transformateur' ? 'Transformateur' :
+                                           e.equipmentType === 'cellule_mt' ? 'Cellule MT' :
+                                           e.equipmentType === 'cable_gaine' ? (e.type_cable === 'cable' ? 'Câble' : 'Gaine à Barre') : 'Inconnu';
+                    row.appendChild(typeCell);
                     const marqueCell = document.createElement('td');
                     marqueCell.className = 'p-2';
-                    marqueCell.textContent = d.marque;
+                    marqueCell.textContent = e.marque || 'N/A';
                     row.appendChild(marqueCell);
                     const refCell = document.createElement('td');
                     refCell.className = 'p-2';
-                    refCell.textContent = d.ref;
+                    refCell.textContent = e.ref || 'N/A';
                     row.appendChild(refCell);
                     const principalCell = document.createElement('td');
                     principalCell.className = 'p-2 text-center';
@@ -717,16 +1005,18 @@
                     row.appendChild(principalCell);
                     const liaisonCell = document.createElement('td');
                     liaisonCell.className = 'p-2';
-                    liaisonCell.textContent = isPrincipal ? 'Lié à tous les avals' : (d.linkedTableauId ? `Lié à ${d.linkedTableauId}` : 'Non lié');
+                    liaisonCell.textContent = isPrincipal ? 'Lié à tous les avals' :
+                                              e.equipmentType === 'disjoncteur' && e.linkedTableauIds?.length > 0 ? `Lié à ${e.linkedTableauIds.join(', ')}` :
+                                              'Non lié';
                     row.appendChild(liaisonCell);
                     const actionsCell = document.createElement('td');
                     actionsCell.className = 'p-2 flex space-x-2';
                     const supprimerBtn = document.createElement('button');
                     supprimerBtn.className = 'bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 touch-friendly';
                     supprimerBtn.innerHTML = '<i class="fas fa-trash"></i>';
-                    supprimerBtn.onclick = () => supprimerDisjoncteur(index);
+                    supprimerBtn.onclick = () => supprimerEquipement(index);
                     actionsCell.appendChild(supprimerBtn);
-                    if (!isPrincipal) {
+                    if (e.equipmentType === 'disjoncteur' && !isPrincipal) {
                         const principalBtn = document.createElement('button');
                         principalBtn.className = 'bg-yellow-600 text-white px-2 py-1 rounded hover:bg-yellow-700 touch-friendly';
                         principalBtn.innerHTML = '<i class="fas fa-star"></i>';
@@ -736,6 +1026,11 @@
                     row.appendChild(actionsCell);
                     tbody.appendChild(row);
                 });
+                if (equipements.length === 0) {
+                    const emptyRow = document.createElement('tr');
+                    emptyRow.innerHTML = '<td colspan="7" class="p-2 text-center text-gray-500">Aucun équipement à afficher</td>';
+                    tbody.appendChild(emptyRow);
+                }
             }
 
             async function enregistrerTableau() {
@@ -744,13 +1039,13 @@
                 const currentIsSiteMain = document.getElementById('tableau-issitemain').checked;
                 isHTA = document.getElementById('tableau-isHTA').checked;
                 const htaData = collectHTAData();
-                console.log('[Create] Tableau ID:', tableauId, 'Disjoncteurs:', disjoncteurs.length, 'issitemain:', currentIsSiteMain, 'isHTA:', isHTA, 'htaData:', htaData);
+                console.log('[Create] Tableau ID:', tableauId, 'Équipements:', equipements.length, 'issitemain:', currentIsSiteMain, 'isHTA:', isHTA, 'htaData:', htaData);
                 if (!tableauId) {
                     console.log('[Create] Erreur: ID tableau vide');
                     showPopup('Veuillez entrer un identifiant pour le tableau.', '', () => {});
                     return;
                 }
-                if (!validateDisjoncteurId(tableauId)) {
+                if (!validateEquipementId(tableauId)) {
                     console.log('[Create] Erreur: ID tableau invalide', tableauId);
                     showPopup('L\'ID du tableau contient des caractères non autorisés. Utilisez lettres (y compris accentuées), chiffres, espaces, tirets, underscores ou deux-points.', '', () => {});
                     return;
@@ -759,19 +1054,22 @@
                     console.log('[Create] Erreur: Données HTA invalides');
                     return;
                 }
-                if (disjoncteurs.length === 0) {
-                    console.log('[Create] Erreur: Aucun disjoncteur');
-                    showPopup('Veuillez ajouter au moins un disjoncteur.', '', () => {});
+                if (equipements.length === 0) {
+                    console.log('[Create] Erreur: Aucun équipement');
+                    showPopup('Veuillez ajouter au moins un équipement.', '', () => {});
                     return;
                 }
                 try {
-                    console.log('[Create] Envoi requête POST /api/tableaux', { id: tableauId, disjoncteurs, issitemain: currentIsSiteMain, isHTA, htaData });
+                    // Séparer les disjoncteurs des autres équipements
+                    const disjoncteurs = equipements.filter(e => e.equipmentType === 'disjoncteur');
+                    const autresEquipements = equipements.filter(e => e.equipmentType !== 'disjoncteur');
+                    console.log('[Create] Envoi requête POST /api/tableaux', { id: tableauId, disjoncteurs: disjoncteurs.length, issitemain: currentIsSiteMain, isHTA, htaData });
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 5000);
                     const response = await fetch('/api/tableaux', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: tableauId, disjoncteurs, issitemain: currentIsSiteMain, isHTA, htaData }),
+                        body: JSON.stringify({ id: tableauId, disjoncteurs, issitemain: currentIsSiteMain, isHTA, htaData, autresEquipements }),
                         signal: controller.signal
                     });
                     clearTimeout(timeoutId);
@@ -804,8 +1102,9 @@
                 toggleHTAFields();
                 issitemain = false;
                 isHTA = false;
-                chargerDisjoncteursExistants();
+                chargerEquipementsExistants();
                 chargerTableaux();
+                toggleEquipementForm(); // Initialiser le formulaire au chargement
             };
         </script>
     </body>
