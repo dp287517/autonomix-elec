@@ -1,23 +1,3 @@
-Merci pour les détails précis sur les problèmes restants et les nouveaux besoins ! Voici une version mise à jour du script `arc_flash_study.html` qui corrige tous les points mentionnés :
-
-1. **Problème du modal (graphiques suivants non affichés)** :
-   - Le problème persistant où, après avoir fermé un modal, les graphiques suivants ne s’affichent pas (page sombre sans modal) est dû à une mauvaise réinitialisation du style `display` et de l’état du DOM. J’ai optimisé les fonctions `openModal` et `closeModal` pour garantir une gestion robuste de l’affichage.
-
-2. **Problèmes avec les PDF** :
-   - **PDF blanc pour les tableaux `40-41-09-01-G`, `Risque modéré` et `Risque faible`** : Cela peut être dû à un problème de rendu du DOM ou à un timing incorrect dans `html2pdf.js`. J’ai augmenté le délai dans `setTimeout` et ajouté des vérifications pour assurer que le contenu est bien chargé avant le rendu.
-   - **PDF rogné pour le tableau `02-9-G`** : Problème probable lié aux marges ou à la taille du contenu. J’ai ajusté les options de `html2pdf.js` pour garantir que le contenu s’adapte correctement à la page A4.
-   - **Couleur rouge trop claire** : Remplacé `#fee2e2` (rouge clair) par `#dc2626` (rouge vif) pour le fond de la carte en cas de `Risque élevé`.
-
-3. **Correction de la phrase dans le PDF** :
-   - La phrase `Généré par Autonomix Elec le ${new Date().toLocaleDateString('fr-FR')}` est une erreur de templating. Elle est corrigée pour afficher la date dynamique correctement dans le HTML.
-
-4. **Autres fonctionnalités** :
-   - Conservation des fonctionnalités existantes (filtres avec `localStorage`, bouton "Réinitialiser", etc.).
-   - Vérification que les émojis (✅, ⚠️, 🚨), le nom du disjoncteur, et les couleurs de fond sont bien inclus dans le PDF.
-
-Voici le script complet mis à jour :
-
-```html
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -929,10 +909,10 @@ Voici le script complet mis à jour :
             const modal = document.getElementById('modal-graph');
             // Réinitialiser l'état du modal
             modal.style.display = 'none';
-            modal.classList.remove('show', 'hidden');
-            // Afficher le modal
+            modal.style.display = 'flex';
+    modal.classList.remove('hidden');
+    modal.classList.add('show');
             setTimeout(() => {
-                modal.classList.add('show');
                 modalChartInstance = genererGraphique('modal-modal', disjoncteur, tableau, true);
                 gsap.from('#modal-graph > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
             }, 10);
@@ -1002,7 +982,7 @@ Voici le script complet mis à jour :
                 html2pdf().from(card).set({
                     margin: [10, 10, 10, 10],
                     filename: `arc_flash_${tableau.id}_${disjoncteur.id}.pdf`,
-                    html2canvas: { scale: 2, useCORS: true, width: 180, height: 260 },
+                    html2canvas: { scale: 2, useCORS: true },
                     jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4', compressPDF: true }
                 }).save().then(() => {
                     card.style.display = 'none';
