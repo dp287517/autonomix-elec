@@ -1326,6 +1326,78 @@
                 chargerDisjoncteursExistants();
                 chargerTableaux();
             };
+
+        // Fonction pour pré-remplir triptime en fonction de la courbe
+        function updateTriptime() {
+            const courbeInput = document.getElementById('disjoncteur-courbe');
+            const triptimeInput = document.getElementById('disjoncteur-triptime');
+            if (!courbeInput || !triptimeInput) {
+                console.warn('[Edit] Champs courbe ou triptime non trouvés');
+                return;
+            }
+
+            const courbe = courbeInput.value ? courbeInput.value.toUpperCase() : '';
+            let defaultTriptime;
+
+            switch (courbe) {
+                case 'B':
+                    defaultTriptime = 0.01; // 10 ms pour courbe B
+                    break;
+                case 'C':
+                    defaultTriptime = 0.02; // 20 ms pour courbe C
+                    break;
+                case 'D':
+                    defaultTriptime = 0.03; // 30 ms pour courbe D
+                    break;
+                case 'K':
+                    defaultTriptime = 0.015; // 15 ms pour courbe K
+                    break;
+                case 'Z':
+                    defaultTriptime = 0.005; // 5 ms pour courbe Z
+                    break;
+                default:
+                    defaultTriptime = 0.02; // Valeur par défaut si courbe non reconnue
+            }
+
+            // Ne remplace pas si triptime est déjà défini
+            if (!triptimeInput.value.trim()) {
+                triptimeInput.value = defaultTriptime.toFixed(3) + ' s';
+                console.log('[Edit] Triptime pré-rempli:', defaultTriptime, 'pour courbe:', courbe);
+            }
+        }
+
+        // Ajouter un écouteur sur le champ courbe
+        document.getElementById('disjoncteur-courbe')?.addEventListener('input', updateTriptime);
+
+        // Pré-remplir triptime lors de l'affichage du formulaire
+        function initializeDisjoncteurForm() {
+            updateTriptime();
+        }
+
+        // Appeler initializeDisjoncteurForm lors de l'ouverture du formulaire
+        const originalAjouterManuel = ajouterManuel;
+        ajouterManuel = function() {
+            originalAjouterManuel();
+            initializeDisjoncteurForm();
+        };
+
+        const originalRechercherDisjoncteur = rechercherDisjoncteur;
+        rechercherDisjoncteur = async function() {
+            await originalRechercherDisjoncteur();
+            initializeDisjoncteurForm();
+        };
+
+        const originalAjouterDisjoncteurExistant = ajouterDisjoncteurExistant;
+        ajouterDisjoncteurExistant = async function() {
+            await originalAjouterDisjoncteurExistant();
+            initializeDisjoncteurForm();
+        };
+
+        const originalModifierDisjoncteur = modifierDisjoncteur;
+        modifierDisjoncteur = function(index) {
+            originalModifierDisjoncteur(index);
+            initializeDisjoncteurForm();
+        };    
         </script>
     </body>
 </html>
