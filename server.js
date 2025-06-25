@@ -87,6 +87,9 @@ function validateDisjoncteurData(data) {
     if (data.section && (isNaN(parseFloat(data.section.match(/[\d.]+/)?.[0])) || parseFloat(data.section.match(/[\d.]+/)?.[0]) < 0)) {
         errors.push('La section du câble doit être une valeur numérique positive (ex. 2.5).');
     }
+    if (data.cableLength && (isNaN(parseFloat(data.cableLength)) || parseFloat(data.cableLength) < 0)) {
+        errors.push('La longueur du câble doit être une valeur numérique positive (ex. 20).');
+    }
     if (data.humidite && (isNaN(parseFloat(data.humidite)) || parseFloat(data.humidite) < 0 || parseFloat(data.humidite) > 100)) {
         errors.push('L’humidité doit être une valeur numérique entre 0 et 100 (ex. 60).');
     }
@@ -333,9 +336,9 @@ async function initDb() {
                         return {
                             ...d,
                             id: d.id || `unknown-${Math.random().toString(36).substring(2, 9)}`,
-                            cableLength: isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 5 : 20) : parseFloat(d.cableLength),
+                            cableLength: isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 0 : 20) : parseFloat(d.cableLength),
                             impedance: d.impedance || null,
-                            ue: d.ue || null,
+                            ue: d.ue || '400 V',
                             section: d.section || `${getRecommendedSection(d.in)} mm²`,
                             icn: normalizeIcn(d.icn),
                             replacementDate: d.replacementDate || null,
@@ -669,6 +672,37 @@ app.get('/api/selectivity', async (req, res) => {
     }
 });
 
+// Route pour /api/arc-flash
+app.get('/api/arc-flash', async (req, res) => {
+    console.log('[Server] GET /api/arc-flash');
+    let client;
+    try {
+        client = await pool.connect();
+        await client.query('SELECT 1');
+        const result = await client.query('SELECT id, disjoncteurs, issitemain, ishta, htadata FROM tableaux');
+        const tableaux = result.rows.map(row => ({
+            id: row.id,
+            disjoncteurs: Array.isArray(row.disjoncteurs) ? row.disjoncteurs : [],
+            building: row.id.split('-')[0] || 'Inconnu',
+            isSiteMain: !!row.issitemain,
+            isHTA: !!row.ishta,
+            htaData: row.htadata || null
+        }));
+        console.log('[Server] Tableaux pour arc flash:', tableaux.length);
+        res.json(tableaux);
+    } catch (error) {
+        console.error('[Server] Erreur GET /api/arc-flash:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            detail: error.detail
+        });
+        res.status(500).json({ error: 'Erreur lors de la récupération des données d’arc flash: ' + error.message });
+    } finally {
+        if (client) client.release();
+    }
+});
+
 // Route pour créer un nouveau tableau
 app.post('/api/tableaux', async (req, res) => {
     const { id, disjoncteurs, autresEquipements, isSiteMain, isHTA, htaData } = req.body;
@@ -735,19 +769,25 @@ app.post('/api/tableaux', async (req, res) => {
             }
         }
         // Normalisation des disjoncteurs
-        const normalizedDisjoncteurs = disjoncteurs.map(d => ({
-            ...d,
-            icn: normalizeIcn(d.icn),
-            cableLength: isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 0 : 20) : parseFloat(d.cableLength),
-            section: d.section || `${getRecommendedSection(d.in)} mm²`,
-            humidite: d.humidite || 50,
-            temp_ambiante: d.temp_ambiante || 25,
-            charge: d.charge || 80,
-            linkedTableauIds: Array.isArray(d.linkedTableauIds) ? d.linkedTableauIds : d.linkedTableauId ? [d.linkedTableauId] : [],
-            isPrincipal: !!d.isPrincipal,
-            isHTAFeeder: !!d.isHTAFeeder,
-            equipmentType: 'disjoncteur'
-        }));
+        const normalizedDisjoncteurs = disjoncteurs.map(d => {
+            const validationErrors = validateDisjoncteurData(d);
+            if (validationErrors.length > 0) {
+                throw new Error(`Données invalides pour disjoncteur ${d.id}: ${validationErrors.join('; ')}`);
+            }
+            return {
+                ...d,
+                icn: normalizeIcn(d.icn),
+                cableLength: isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 0 : 20) : parseFloat(d.cableLength),
+                section: d.section || `${getRecommendedSection(d.in)} mm²`,
+                ue: d.ue || '400 V',
+                humidite: d.humidite || 50,
+                temp_ambiante: d.temp_ambiante || 25,
+                charge: d.charge || 80,
+                linkedTableauIds: Array.isArray(d.linkedTableauIds) ? d.linkedTableauIds : d.linkedTableauId ? [d.linkedTableauId] : [],
+                isPrincipal: !!d.isPrincipal,
+                isHTAFeeder: !!d.isHTAFeeder
+            };
+        });
         // Insérer le tableau
         await client.query(
             'INSERT INTO tableaux (id, disjoncteurs, issitemain, ishta, htadata) VALUES ($1, $2::jsonb, $3, $4, $5::jsonb)',
