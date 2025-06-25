@@ -774,12 +774,23 @@ app.post('/api/tableaux', async (req, res) => {
             if (validationErrors.length > 0) {
                 throw new Error(`Données invalides pour disjoncteur ${d.id}: ${validationErrors.join('; ')}`);
             }
+            const courbe = d.courbe ? d.courbe.toUpperCase() : 'C';
+            let defaultTriptime;
+            switch (courbe) {
+                case 'B': defaultTriptime = 0.01; break;
+                case 'C': defaultTriptime = 0.02; break;
+                case 'D': defaultTriptime = 0.03; break;
+                case 'K': defaultTriptime = 0.015; break;
+                case 'Z': defaultTriptime = 0.005; break;
+                default: defaultTriptime = 0.02;
+            }
             return {
                 ...d,
                 icn: normalizeIcn(d.icn),
                 cableLength: isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 0 : 20) : parseFloat(d.cableLength),
                 section: d.section || `${getRecommendedSection(d.in)} mm²`,
                 ue: d.ue || '400 V',
+                triptime: d.triptime || defaultTriptime, // Ajout de triptime
                 humidite: d.humidite || 50,
                 temp_ambiante: d.temp_ambiante || 25,
                 charge: d.charge || 80,
