@@ -411,15 +411,42 @@
         </div>
 
         <script>
-            function normalizeNumericValue(value) {
-                if (!value) return '';
-                const match = value.match(/[\d.]+/);
+            function normalizeNumericValue(value, field = '') {
+                if (value == null || value === '') return '';
+                const stringValue = String(value).trim();
+                const match = stringValue.match(/[\d.]+/);
                 if (!match) return '';
                 const number = parseFloat(match[0]);
                 if (isNaN(number) || number <= 0) return '';
-                const unit = value.match(/[a-zA-Z]+$/i) || [''];
-                return `${number} ${unit[0].toLowerCase() === 'a' ? 'kA' : unit[0] || 'kA'}`;
+                
+                let defaultUnit = 'kA';
+                if (field === 'triptime') defaultUnit = 's';
+                else if (field === 'section' || field === 'cable_section') defaultUnit = 'mm²';
+                else if (field === 'in' || field === 'ir' || field === 'courant' || field === 'courant_admissible') defaultUnit = 'A';
+                else if (field === 'icn' || field === 'ics' || field === 'pouvoir_coupure') defaultUnit = 'kA';
+                else if (field === 'transformerPower') defaultUnit = 'kVA';
+                else if (field === 'voltage' || field === 'tension' || field === 'tension_primaire') defaultUnit = 'kV';
+                else if (field === 'tension_secondaire') defaultUnit = 'V';
+                else if (field === 'longueur') defaultUnit = 'm';
+                
+                const unitMatch = stringValue.match(/[a-zA-Z²]+$/i);
+                const unit = unitMatch ? unitMatch[0].toLowerCase() : '';
+                
+                if (unit) {
+                    if (field === 'triptime' && unit !== 's') return '';
+                    if ((field === 'section' || field === 'cable_section') && unit !== 'mm²' && unit !== 'mm2') return '';
+                    if ((field === 'in' || field === 'ir' || field === 'courant' || field === 'courant_admissible') && unit !== 'a') return '';
+                    if ((field === 'icn' || field === 'ics' || field === 'pouvoir_coupure') && unit !== 'ka') return '';
+                    if (field === 'transformerPower' && unit !== 'kva') return '';
+                    if ((field === 'voltage' || field === 'tension' || field === 'tension_primaire') && unit !== 'kv') return '';
+                    if (field === 'tension_secondaire' && unit !== 'v') return '';
+                    if (field === 'longueur' && unit !== 'm') return '';
+                    return `${number} ${unitMatch[0]}`;
+                }
+                
+                return `${number} ${defaultUnit}`;
             }
+
             let equipements = [];
             let equipementsExistants = [];
             let tableaux = [];
@@ -475,7 +502,6 @@
                     return null;
                 }
 
-                // Collecter les valeurs des champs
                 let transformerPower = document.getElementById('hta-transformerPower').value.trim();
                 let voltage = document.getElementById('hta-voltage').value.trim();
                 let inCurrent = document.getElementById('hta-in').value.trim();
@@ -483,39 +509,25 @@
                 let triptime = document.getElementById('hta-triptime').value.trim();
                 let icn = document.getElementById('hta-icn').value.trim();
 
-                // Normaliser les valeurs avec normalizeNumericValue
-                transformerPower = normalizeNumericValue(transformerPower).replace(/kA$/, 'kVA');
-                voltage = normalizeNumericValue(voltage).replace(/kA$/, 'kV');
-                inCurrent = normalizeNumericValue(inCurrent).replace(/kA$/, 'A');
-                irCurrent = normalizeNumericValue(irCurrent).replace(/kA$/, 'A');
-                triptime = normalizeNumericValue(triptime).replace(/kA$/, 's');
-                icn = normalizeNumericValue(icn); // icn reste en kA
+                transformerPower = normalizeNumericValue(transformerPower, 'transformerPower');
+                voltage = normalizeNumericValue(voltage, 'voltage');
+                inCurrent = normalizeNumericValue(inCurrent, 'in');
+                irCurrent = normalizeNumericValue(irCurrent, 'ir');
+                triptime = normalizeNumericValue(triptime, 'triptime');
+                icn = normalizeNumericValue(icn, 'icn');
 
                 console.log('[Create] Collecte données HTA:', { transformerPower, voltage, inCurrent, irCurrent, triptime, icn });
 
-                // Validation des champs
                 const errors = [];
-                if (!transformerPower || !transformerPower.match(/^\d+(\.?\d+)?\s*kVA$/)) {
-                    errors.push('Puissance du transformateur (ex. 1600 kVA)');
-                }
-                if (!voltage || !voltage.match(/^\d+(\.?\d+)?\s*kV$/)) {
-                    errors.push('Tension HTA (ex. 20 kV)');
-                }
-                if (!inCurrent || !inCurrent.match(/^\d+(\.?\d+)?\s*A$/)) {
-                    errors.push('Courant nominal (ex. 50 A)');
-                }
-                if (!irCurrent || !irCurrent.match(/^\d+(\.?\d+)?\s*A$/)) {
-                    errors.push('Courant réglable (ex. 40 A)');
-                }
-                if (!triptime || !triptime.match(/^\d+(\.?\d+)?\s*s$/)) {
-                    errors.push('Temps de déclenchement (ex. 0.2 s)');
-                }
-                if (!icn || !icn.match(/^\d+(\.?\d+)?\s*kA$/)) {
-                    errors.push('Pouvoir de coupure (ex. 16 kA)');
-                }
+                if (!transformerPower || !transformerPower.match(/^\d+(\.?\d+)?\s*kVA$/)) errors.push('Puissance du transformateur (ex. 1600 kVA)');
+                if (!voltage || !voltage.match(/^\d+(\.?\d+)?\s*kV$/)) errors.push('Tension HTA (ex. 20 kV)');
+                if (!inCurrent || !inCurrent.match(/^\d+(\.?\d+)?\s*A$/)) errors.push('Courant nominal (ex. 50 A)');
+                if (!irCurrent || !irCurrent.match(/^\d+(\.?\d+)?\s*A$/)) errors.push('Courant réglable (ex. 40 A)');
+                if (!triptime || !triptime.match(/^\d+(\.?\d+)?\s*s$/)) errors.push('Temps de déclenchement (ex. 0.2 s)');
+                if (!icn || !icn.match(/^\d+(\.?\d+)?\s*kA$/)) errors.push('Pouvoir de coupure (ex. 16 kA)');
 
                 if (errors.length > 0) {
-                    console.log('[Create] Erreur: Données HTA invalides', errors);
+                    console.log('[Create] Erreurs validation HTA:', errors);
                     showPopup(`Veuillez remplir correctement les champs HTA suivants : ${errors.join(', ')}.`, '', () => {});
                     return null;
                 }
@@ -564,8 +576,17 @@
                     const select = document.getElementById('equipement-existant');
                     select.innerHTML = '<option value="">-- Choisir un équipement --</option>';
                     disjoncteursExistants.forEach(e => {
+                        const normalizedDisjoncteur = {
+                            ...e,
+                            icn: normalizeNumericValue(e.icn, 'icn'),
+                            ics: normalizeNumericValue(e.ics, 'ics'),
+                            in: normalizeNumericValue(e.in, 'in'),
+                            ir: normalizeNumericValue(e.ir, 'ir'),
+                            triptime: normalizeNumericValue(e.triptime, 'triptime'),
+                            section: normalizeNumericValue(e.section, 'section')
+                        };
                         const option = document.createElement('option');
-                        option.value = JSON.stringify({ ...e, equipmentType: 'disjoncteur' });
+                        option.value = JSON.stringify(normalizedDisjoncteur);
                         option.textContent = `${e.marque} ${e.ref} (Disjoncteur)`;
                         select.appendChild(option);
                     });
@@ -652,16 +673,16 @@
                         document.getElementById('disjoncteur-ui').value = data.ui || '';
                         document.getElementById('disjoncteur-uimp').value = data.uimp || '';
                         document.getElementById('disjoncteur-frequence').value = data.frequence || '';
-                        document.getElementById('disjoncteur-in').value = data.in || '';
-                        document.getElementById('disjoncteur-ir').value = data.ir || '';
+                        document.getElementById('disjoncteur-in').value = normalizeNumericValue(data.in, 'in') || '';
+                        document.getElementById('disjoncteur-ir').value = normalizeNumericValue(data.ir, 'ir') || '';
                         document.getElementById('disjoncteur-courbe').value = data.courbe || '';
-                        document.getElementById('disjoncteur-triptime').value = data.triptime || '';
-                        document.getElementById('disjoncteur-icn').value = data.icn || '';
-                        document.getElementById('disjoncteur-ics').value = data.ics || '';
+                        document.getElementById('disjoncteur-triptime').value = normalizeNumericValue(data.triptime, 'triptime') || '';
+                        document.getElementById('disjoncteur-icn').value = normalizeNumericValue(data.icn, 'icn') || '';
+                        document.getElementById('disjoncteur-ics').value = normalizeNumericValue(data.ics, 'ics') || '';
                         document.getElementById('disjoncteur-ip').value = data.ip || '';
                         document.getElementById('disjoncteur-temp').value = data.temp || '';
                         document.getElementById('disjoncteur-dimensions').value = data.dimensions || '';
-                        document.getElementById('disjoncteur-section').value = data.section || '';
+                        document.getElementById('disjoncteur-section').value = normalizeNumericValue(data.section, 'section') || '';
                         document.getElementById('disjoncteur-date').value = data.date || '';
                         document.getElementById('disjoncteur-tension').value = data.tension || '';
                         document.getElementById('disjoncteur-selectivite').value = data.selectivite || '';
@@ -669,6 +690,7 @@
                         document.getElementById('equipement-ref').value = ref;
                         const linkedSelect = document.getElementById('disjoncteur-linked-tableaux');
                         Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
+                        initializeDisjoncteurForm();
                     } else {
                         console.log('[Create] Aucune donnée OpenAI reçue');
                         showPopup('Aucune donnée trouvée pour ce disjoncteur. Essayez manuellement ou vérifiez la marque/référence.', '', () => {});
@@ -707,6 +729,7 @@
                     document.getElementById('disjoncteur-selectivite').value = '';
                     const linkedSelect = document.getElementById('disjoncteur-linked-tableaux');
                     Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
+                    initializeDisjoncteurForm();
                 } else if (type === 'transformateur') {
                     document.getElementById('transformateur-id').value = '';
                     document.getElementById('transformateur-puissance').value = '';
@@ -759,27 +782,71 @@
                         document.getElementById('disjoncteur-ui').value = equipementBase.ui || '';
                         document.getElementById('disjoncteur-uimp').value = equipementBase.uimp || '';
                         document.getElementById('disjoncteur-frequence').value = equipementBase.frequence || '';
-                        document.getElementById('disjoncteur-in').value = equipementBase.in || '';
-                        document.getElementById('disjoncteur-ir').value = equipementBase.ir || '';
+                        document.getElementById('disjoncteur-in').value = normalizeNumericValue(equipementBase.in, 'in') || '';
+                        document.getElementById('disjoncteur-ir').value = normalizeNumericValue(equipementBase.ir, 'ir') || '';
                         document.getElementById('disjoncteur-courbe').value = equipementBase.courbe || '';
-                        document.getElementById('disjoncteur-triptime').value = equipementBase.triptime || '';
-                        document.getElementById('disjoncteur-icn').value = equipementBase.icn || '';
-                        document.getElementById('disjoncteur-ics').value = equipementBase.ics || '';
+                        document.getElementById('disjoncteur-triptime').value = normalizeNumericValue(equipementBase.triptime, 'triptime') || '';
+                        document.getElementById('disjoncteur-icn').value = normalizeNumericValue(equipementBase.icn, 'icn') || '';
+                        document.getElementById('disjoncteur-ics').value = normalizeNumericValue(equipementBase.ics, 'ics') || '';
                         document.getElementById('disjoncteur-ip').value = equipementBase.ip || '';
                         document.getElementById('disjoncteur-temp').value = equipementBase.temp || '';
                         document.getElementById('disjoncteur-dimensions').value = equipementBase.dimensions || '';
-                        document.getElementById('disjoncteur-section').value = equipementBase.section || '';
+                        document.getElementById('disjoncteur-section').value = normalizeNumericValue(equipementBase.section, 'section') || '';
                         document.getElementById('disjoncteur-date').value = equipementBase.date || '';
                         document.getElementById('disjoncteur-tension').value = equipementBase.tension || '';
                         document.getElementById('disjoncteur-selectivite').value = equipementBase.selectivite || '';
                         const linkedSelect = document.getElementById('disjoncteur-linked-tableaux');
                         Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
+                        initializeDisjoncteurForm();
                     }
                 } catch (error) {
                     console.error('[Create] Erreur parsing équipement:', error);
                     showPopup('Erreur lors de la sélection de l\'équipement: ' + error.message, '', () => {});
                 }
             }
+
+            function updateTriptime() {
+                const courbeInput = document.getElementById('disjoncteur-courbe');
+                const triptimeInput = document.getElementById('disjoncteur-triptime');
+                if (!courbeInput || !triptimeInput) {
+                    console.warn('[Create] Champs courbe ou triptime non trouvés');
+                    return;
+                }
+
+                const courbe = courbeInput.value ? courbeInput.value.toUpperCase() : '';
+                let defaultTriptime;
+
+                switch (courbe) {
+                    case 'B':
+                        defaultTriptime = 0.01; // 10 ms pour courbe B
+                        break;
+                    case 'C':
+                        defaultTriptime = 0.02; // 20 ms pour courbe C
+                        break;
+                    case 'D':
+                        defaultTriptime = 0.03; // 30 ms pour courbe D
+                        break;
+                    case 'K':
+                        defaultTriptime = 0.015; // 15 ms pour courbe K
+                        break;
+                    case 'Z':
+                        defaultTriptime = 0.005; // 5 ms pour courbe Z
+                        break;
+                    default:
+                        defaultTriptime = 0.02; // Valeur par défaut si courbe non reconnue
+                }
+
+                if (!triptimeInput.value.trim()) {
+                    triptimeInput.value = defaultTriptime.toFixed(3) + ' s';
+                    console.log('[Create] Triptime pré-rempli:', defaultTriptime, 'pour courbe:', courbe);
+                }
+            }
+
+            function initializeDisjoncteurForm() {
+                updateTriptime();
+            }
+
+            document.getElementById('disjoncteur-courbe')?.addEventListener('input', updateTriptime);
 
             async function ajouterEquipement() {
                 console.log('[Create] Bouton Ajouter au tableau cliqué');
@@ -801,16 +868,16 @@
                         ui: document.getElementById('disjoncteur-ui').value.trim(),
                         uimp: document.getElementById('disjoncteur-uimp').value.trim(),
                         frequence: document.getElementById('disjoncteur-frequence').value.trim(),
-                        in: normalizeNumericValue(document.getElementById('disjoncteur-in').value.trim()),
-                        ir: normalizeNumericValue(document.getElementById('disjoncteur-ir').value.trim()),
+                        in: normalizeNumericValue(document.getElementById('disjoncteur-in').value.trim(), 'in'),
+                        ir: normalizeNumericValue(document.getElementById('disjoncteur-ir').value.trim(), 'ir'),
                         courbe: document.getElementById('disjoncteur-courbe').value.trim(),
-                        triptime: normalizeNumericValue(document.getElementById('disjoncteur-triptime').value.trim()),
-                        icn: normalizeNumericValue(document.getElementById('disjoncteur-icn').value.trim()),
-                        ics: normalizeNumericValue(document.getElementById('disjoncteur-ics').value.trim()),
+                        triptime: normalizeNumericValue(document.getElementById('disjoncteur-triptime').value.trim(), 'triptime'),
+                        icn: normalizeNumericValue(document.getElementById('disjoncteur-icn').value.trim(), 'icn'),
+                        ics: normalizeNumericValue(document.getElementById('disjoncteur-ics').value.trim(), 'ics'),
                         ip: document.getElementById('disjoncteur-ip').value.trim(),
                         temp: document.getElementById('disjoncteur-temp').value.trim(),
                         dimensions: document.getElementById('disjoncteur-dimensions').value.trim(),
-                        section: normalizeNumericValue(document.getElementById('disjoncteur-section').value.trim()).replace(/kA$/, 'mm²'),
+                        section: normalizeNumericValue(document.getElementById('disjoncteur-section').value.trim(), 'section'),
                         date: document.getElementById('disjoncteur-date').value.trim(),
                         tension: document.getElementById('disjoncteur-tension').value.trim(),
                         selectivite: document.getElementById('disjoncteur-selectivite').value.trim(),
@@ -823,45 +890,34 @@
                         showPopup('La courbe doit être B, C ou D.', '', () => {});
                         return;
                     }
-                    if (equipement.ir && !equipement.ir.match(/^\d+(\.?\d+)?(\s*(A|kA))?$/)) {
+                    if (equipement.ir && !equipement.ir.match(/^\d+(\.?\d+)?\s*A$/)) {
                         console.log('[Create] Erreur: Ir invalide', equipement.ir);
                         showPopup('Ir doit être une valeur numérique, ex. 60 ou 60 A.', '', () => {});
                         return;
                     }
-                    if (equipement.icn) {
-                        let icnValue = equipement.icn.trim();
-                        const numberMatch = icnValue.match(/[\d.]+/);
-                        if (!numberMatch) {
-                            console.log('[Create] Erreur: Icn invalide', icnValue);
-                            showPopup('Icn doit être une valeur numérique, ex. 6 ou 6 kA.', '', () => {});
-                            return;
-                        }
-                        const number = parseFloat(numberMatch[0]);
-                        if (isNaN(number) || number <= 0) {
-                            console.log('[Create] Erreur: Icn doit être positif', icnValue);
-                            showPopup('Icn doit être une valeur numérique positive, ex. 6 ou 6 kA.', '', () => {});
-                            return;
-                        }
-                        equipement.icn = normalizeNumericValue(icnValue);
-                        if (!equipement.icn.match(/^\d+(\.?\d+)?(\s*kA)?$/)) {
-                            console.log('[Create] Erreur: Icn invalide après normalisation', equipement.icn);
-                            showPopup('Icn doit être une valeur numérique, ex. 6 ou 6 kA.', '', () => {});
-                            return;
-                        }
+                    if (equipement.icn && !equipement.icn.match(/^\d+(\.?\d+)?\s*kA$/)) {
+                        console.log('[Create] Erreur: Icn invalide', equipement.icn);
+                        showPopup('Icn doit être une valeur numérique, ex. 6 ou 6 kA.', '', () => {});
+                        return;
                     }
-                    if (equipement.ics && !equipement.ics.match(/^\d+(\.?\d+)?(\s*kA)?$/)) {
+                    if (equipement.ics && !equipement.ics.match(/^\d+(\.?\d+)?\s*kA$/)) {
                         console.log('[Create] Erreur: Ics invalide', equipement.ics);
                         showPopup('Ics doit être une valeur numérique, ex. 4.5 ou 4.5 kA.', '', () => {});
                         return;
                     }
-                    if (equipement.in && !equipement.in.match(/^\d+(\.?\d+)?(\s*(A|kA))?$/)) {
+                    if (equipement.in && !equipement.in.match(/^\d+(\.?\d+)?\s*A$/)) {
                         console.log('[Create] Erreur: In invalide', equipement.in);
                         showPopup('In doit être une valeur numérique, ex. 16 ou 16 A.', '', () => {});
                         return;
                     }
-                    if (equipement.triptime && !equipement.triptime.match(/^\d+(\.?\d+)?(\s*s)?$/)) {
+                    if (equipement.triptime && !equipement.triptime.match(/^\d+(\.?\d+)?\s*s$/)) {
                         console.log('[Create] Erreur: TripTime invalide', equipement.triptime);
                         showPopup('TripTime doit être une valeur numérique, ex. 0.1 ou 0.1 s.', '', () => {});
+                        return;
+                    }
+                    if (equipement.section && !equipement.section.match(/^\d+(\.?\d+)?\s*mm²$/)) {
+                        console.log('[Create] Erreur: Section invalide', equipement.section);
+                        showPopup('La section doit être une valeur numérique, ex. 2.5 ou 2.5 mm².', '', () => {});
                         return;
                     }
                     if (equipement.linkedTableauIds.some(id => tableaux.find(t => t.id === id)?.isHTA)) {
@@ -874,16 +930,26 @@
                     equipement = {
                         ...equipement,
                         id: document.getElementById('transformateur-id').value.trim(),
-                        puissance: normalizeNumericValue(document.getElementById('transformateur-puissance').value.trim()),
-                        tension_primaire: normalizeNumericValue(document.getElementById('transformateur-tension-primaire').value.trim()),
-                        tension_secondaire: normalizeNumericValue(document.getElementById('transformateur-tension-secondaire').value.trim()),
+                        puissance: normalizeNumericValue(document.getElementById('transformateur-puissance').value.trim(), 'transformerPower'),
+                        tension_primaire: normalizeNumericValue(document.getElementById('transformateur-tension-primaire').value.trim(), 'tension_primaire'),
+                        tension_secondaire: normalizeNumericValue(document.getElementById('transformateur-tension-secondaire').value.trim(), 'tension_secondaire'),
                         frequence: document.getElementById('transformateur-frequence').value.trim(),
                         date: document.getElementById('transformateur-date').value.trim()
                     };
                     requiredFields = ['id'];
-                    if (equipement.puissance && !equipement.puissance.match(/^\d+(\.?\d+)?(\s*kVA)?$/)) {
+                    if (equipement.puissance && !equipement.puissance.match(/^\d+(\.?\d+)?\s*kVA$/)) {
                         console.log('[Create] Erreur: Puissance invalide', equipement.puissance);
                         showPopup('La puissance doit être une valeur numérique, ex. 1600 ou 1600 kVA.', '', () => {});
+                        return;
+                    }
+                    if (equipement.tension_primaire && !equipement.tension_primaire.match(/^\d+(\.?\d+)?\s*kV$/)) {
+                        console.log('[Create] Erreur: Tension primaire invalide', equipement.tension_primaire);
+                        showPopup('La tension primaire doit être une valeur numérique, ex. 20 ou 20 kV.', '', () => {});
+                        return;
+                    }
+                    if (equipement.tension_secondaire && !equipement.tension_secondaire.match(/^\d+(\.?\d+)?\s*V$/)) {
+                        console.log('[Create] Erreur: Tension secondaire invalide', equipement.tension_secondaire);
+                        showPopup('La tension secondaire doit être une valeur numérique, ex. 400 ou 400 V.', '', () => {});
                         return;
                     }
                 } else if (type === 'cellule_mt') {
@@ -891,21 +957,26 @@
                     equipement = {
                         ...equipement,
                         id: document.getElementById('cellule_mt-id').value.trim(),
-                        tension: normalizeNumericValue(document.getElementById('cellule_mt-tension').value.trim()),
-                        courant: normalizeNumericValue(document.getElementById('cellule_mt-courant').value.trim()),
-                        pouvoir_coupure: normalizeNumericValue(document.getElementById('cellule_mt-pouvoir_coupure').value.trim()),
+                        tension: normalizeNumericValue(document.getElementById('cellule_mt-tension').value.trim(), 'tension'),
+                        courant: normalizeNumericValue(document.getElementById('cellule_mt-courant').value.trim(), 'courant'),
+                        pouvoir_coupure: normalizeNumericValue(document.getElementById('cellule_mt-pouvoir_coupure').value.trim(), 'pouvoir_coupure'),
                         frequence: document.getElementById('cellule_mt-frequence').value.trim(),
                         date: document.getElementById('cellule_mt-date').value.trim()
                     };
                     requiredFields = ['id'];
-                    if (equipement.courant && !equipement.courant.match(/^\d+(\.?\d+)?(\s*A)?$/)) {
+                    if (equipement.courant && !equipement.courant.match(/^\d+(\.?\d+)?\s*A$/)) {
                         console.log('[Create] Erreur: Courant invalide', equipement.courant);
                         showPopup('Le courant doit être une valeur numérique, ex. 630 ou 630 A.', '', () => {});
                         return;
                     }
-                    if (equipement.pouvoir_coupure && !equipement.pouvoir_coupure.match(/^\d+(\.?\d+)?(\s*kA)?$/)) {
+                    if (equipement.pouvoir_coupure && !equipement.pouvoir_coupure.match(/^\d+(\.?\d+)?\s*kA$/)) {
                         console.log('[Create] Erreur: Pouvoir de coupure invalide', equipement.pouvoir_coupure);
                         showPopup('Le pouvoir de coupure doit être une valeur numérique, ex. 25 ou 25 kA.', '', () => {});
+                        return;
+                    }
+                    if (equipement.tension && !equipement.tension.match(/^\d+(\.?\d+)?\s*kV$/)) {
+                        console.log('[Create] Erreur: Tension invalide', equipement.tension);
+                        showPopup('La tension doit être une valeur numérique, ex. 20 ou 20 kV.', '', () => {});
                         return;
                     }
                 } else if (type === 'cable_gaine') {
@@ -914,23 +985,23 @@
                         ...equipement,
                         id: document.getElementById('cable_gaine-id').value.trim(),
                         type_cable: document.getElementById('cable_gaine-type').value,
-                        section: normalizeNumericValue(document.getElementById('cable_gaine-section').value.trim()),
-                        longueur: normalizeNumericValue(document.getElementById('cable_gaine-longueur').value.trim()),
-                        courant_admissible: normalizeNumericValue(document.getElementById('cable_gaine-courant').value.trim()),
+                        section: normalizeNumericValue(document.getElementById('cable_gaine-section').value.trim(), 'cable_section'),
+                        longueur: normalizeNumericValue(document.getElementById('cable_gaine-longueur').value.trim(), 'longueur'),
+                        courant_admissible: normalizeNumericValue(document.getElementById('cable_gaine-courant').value.trim(), 'courant_admissible'),
                         date: document.getElementById('cable_gaine-date').value.trim()
                     };
                     requiredFields = ['id'];
-                    if (equipement.section && !equipement.section.match(/^\d+(\.?\d+)?(\s*mm²)?$/)) {
+                    if (equipement.section && !equipement.section.match(/^\d+(\.?\d+)?\s*mm²$/)) {
                         console.log('[Create] Erreur: Section invalide', equipement.section);
                         showPopup('La section doit être une valeur numérique, ex. 240 ou 240 mm².', '', () => {});
                         return;
                     }
-                    if (equipement.longueur && !equipement.longueur.match(/^\d+(\.?\d+)?(\s*m)?$/)) {
+                    if (equipement.longueur && !equipement.longueur.match(/^\d+(\.?\d+)?\s*m$/)) {
                         console.log('[Create] Erreur: Longueur invalide', equipement.longueur);
                         showPopup('La longueur doit être une valeur numérique, ex. 50 ou 50 m.', '', () => {});
                         return;
                     }
-                    if (equipement.courant_admissible && !equipement.courant_admissible.match(/^\d+(\.?\d+)?(\s*A)?$/)) {
+                    if (equipement.courant_admissible && !equipement.courant_admissible.match(/^\d+(\.?\d+)?\s*A$/)) {
                         console.log('[Create] Erreur: Courant admissible invalide', equipement.courant_admissible);
                         showPopup('Le courant admissible doit être une valeur numérique, ex. 400 ou 400 A.', '', () => {});
                         return;
@@ -951,7 +1022,7 @@
                 for (const field of requiredFields) {
                     if (!equipement[field]) {
                         console.log('[Create] Erreur: Champ requis vide', field);
-                        showPopup(`Le champ ${field} est requis.`, '', () => {});
+                        showPopup(`Le champ ${field === 'id' ? 'ID' : field === 'marque' ? 'Marque' : 'Référence'} est requis.`, '', () => {});
                         return;
                     }
                 }
@@ -1123,10 +1194,28 @@
                     return;
                 }
                 try {
-                    // Séparer les disjoncteurs des autres équipements
-                    const disjoncteurs = equipements.filter(e => e.equipmentType === 'disjoncteur');
-                    const autresEquipements = equipements.filter(e => e.equipmentType !== 'disjoncteur');
-                    console.log('[Create] Envoi requête POST /api/tableaux', { id: tableauId, disjoncteurs: disjoncteurs.length, issitemain: currentIsSiteMain, isHTA, htaData });
+                    const disjoncteurs = equipements.filter(e => e.equipmentType === 'disjoncteur').map(d => ({
+                        ...d,
+                        icn: normalizeNumericValue(d.icn, 'icn'),
+                        ics: normalizeNumericValue(d.ics, 'ics'),
+                        in: normalizeNumericValue(d.in, 'in'),
+                        ir: normalizeNumericValue(d.ir, 'ir'),
+                        triptime: normalizeNumericValue(d.triptime, 'triptime'),
+                        section: normalizeNumericValue(d.section, 'section')
+                    }));
+                    const autresEquipements = equipements.filter(e => e.equipmentType !== 'disjoncteur').map(e => ({
+                        ...e,
+                        puissance: e.equipmentType === 'transformateur' ? normalizeNumericValue(e.puissance, 'transformerPower') : e.puissance,
+                        tension: e.equipmentType === 'cellule_mt' ? normalizeNumericValue(e.tension, 'tension') : e.tension,
+                        tension_primaire: e.equipmentType === 'transformateur' ? normalizeNumericValue(e.tension_primaire, 'tension_primaire') : e.tension_primaire,
+                        tension_secondaire: e.equipmentType === 'transformateur' ? normalizeNumericValue(e.tension_secondaire, 'tension_secondaire') : e.tension_secondaire,
+                        courant: e.equipmentType === 'cellule_mt' ? normalizeNumericValue(e.courant, 'courant') : e.courant,
+                        pouvoir_coupure: e.equipmentType === 'cellule_mt' ? normalizeNumericValue(e.pouvoir_coupure, 'pouvoir_coupure') : e.pouvoir_coupure,
+                        section: e.equipmentType === 'cable_gaine' ? normalizeNumericValue(e.section, 'cable_section') : e.section,
+                        longueur: e.equipmentType === 'cable_gaine' ? normalizeNumericValue(e.longueur, 'longueur') : e.longueur,
+                        courant_admissible: e.equipmentType === 'cable_gaine' ? normalizeNumericValue(e.courant_admissible, 'courant_admissible') : e.courant_admissible
+                    }));
+                    console.log('[Create] Envoi requête POST /api/tableaux', { id: tableauId, disjoncteurs: disjoncteurs.length, autresEquipements: autresEquipements.length, issitemain: currentIsSiteMain, isHTA, htaData });
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 5000);
                     const response = await fetch('/api/tableaux', {
@@ -1167,7 +1256,7 @@
                 isHTA = false;
                 chargerEquipementsExistants();
                 chargerTableaux();
-                toggleEquipementForm(); // Initialiser le formulaire au chargement
+                toggleEquipementForm();
             };
         </script>
     </body>
