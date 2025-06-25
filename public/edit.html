@@ -324,8 +324,9 @@
 
         <script>
             function normalizeNumericValue(value, field = '') {
-                if (!value) return '';
-                const match = value.match(/[\d.]+/);
+                if (value == null || value === '') return '';
+                const stringValue = String(value).trim();
+                const match = stringValue.match(/[\d.]+/);
                 if (!match) return '';
                 const number = parseFloat(match[0]);
                 if (isNaN(number) || number <= 0) return '';
@@ -338,7 +339,7 @@
                 else if (field === 'transformerPower') defaultUnit = 'kVA';
                 else if (field === 'voltage') defaultUnit = 'kV';
                 
-                const unitMatch = value.match(/[a-zA-Z²]+$/i);
+                const unitMatch = stringValue.match(/[a-zA-Z²]+$/i);
                 const unit = unitMatch ? unitMatch[0].toLowerCase() : '';
                 
                 if (unit) {
@@ -418,11 +419,11 @@
                 let triptime = document.getElementById('hta-triptime').value.trim();
                 let icn = document.getElementById('hta-icn').value.trim();
 
-                transformerPower = normalizeNumericValue(transformerPower, 'transformerPower').replace(/kA$/, 'kVA');
-                voltage = normalizeNumericValue(voltage, 'voltage').replace(/kA$/, 'kV');
-                inCurrent = normalizeNumericValue(inCurrent, 'in').replace(/kA$/, 'A');
-                irCurrent = normalizeNumericValue(irCurrent, 'ir').replace(/kA$/, 'A');
-                triptime = normalizeNumericValue(triptime, 'triptime').replace(/kA$/, 's');
+                transformerPower = normalizeNumericValue(transformerPower, 'transformerPower');
+                voltage = normalizeNumericValue(voltage, 'voltage');
+                inCurrent = normalizeNumericValue(inCurrent, 'in');
+                irCurrent = normalizeNumericValue(irCurrent, 'ir');
+                triptime = normalizeNumericValue(triptime, 'triptime');
                 icn = normalizeNumericValue(icn, 'icn');
 
                 console.log('[Edit] Collecte données HTA:', { transformerPower, voltage, inCurrent, irCurrent, triptime, icn });
@@ -490,7 +491,7 @@
                         console.log('[Edit] Remplissage champs HTA:', tableau.htaData);
                         const parseValue = (value) => {
                             if (!value) return '';
-                            const match = value.match(/[\d.]+/);
+                            const match = String(value).match(/[\d.]+/);
                             return match ? parseFloat(match[0]) : '';
                         };
                         document.getElementById('hta-transformerPower').value = parseValue(tableau.htaData.transformerPower);
@@ -787,6 +788,7 @@
                         Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
                         linkedSelect.disabled = false;
                         editIndex = null;
+                        initializeDisjoncteurForm();
                     } else {
                         console.log('[Edit] Aucune donnée OpenAI reçue');
                         showPopup('Aucune donnée trouvée pour ce disjoncteur. Essayez manuellement ou vérifiez la marque/référence.', '', () => {});
@@ -828,6 +830,7 @@
                 Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
                 linkedSelect.disabled = false;
                 editIndex = null;
+                initializeDisjoncteurForm();
             }
 
             async function ajouterDisjoncteurExistant() {
@@ -871,6 +874,7 @@
                     Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
                     linkedSelect.disabled = false;
                     editIndex = null;
+                    initializeDisjoncteurForm();
                 } catch (error) {
                     console.error('[Edit] Erreur parsing disjoncteur:', error);
                     showPopup('Erreur lors de la sélection du disjoncteur: ' + error.message, '', () => {});
@@ -917,6 +921,7 @@
                 });
                 linkedSelect.disabled = disjoncteur.isPrincipal;
                 editIndex = index;
+                initializeDisjoncteurForm();
             }
 
             function transfererDisjoncteur(index) {
@@ -1337,30 +1342,6 @@
                 }
             }
 
-            window.onload = () => {
-                console.log('[Edit] Initialisation page edit à', new Date().toLocaleString('fr-FR'));
-                if (window.location.protocol === 'file:') {
-                    showPopup('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/edit.html) pour accéder à l\'API.', '', () => {});
-                    return;
-                }
-                if (!tableauId) {
-                    console.log('[Edit] Aucun ID de tableau fourni dans l\'URL');
-                    showPopup('Aucun tableau spécifié. Veuillez sélectionner un tableau depuis la page de visualisation.', '', () => {
-                        window.location.href = 'view.html';
-                    });
-                    return;
-                }
-                document.getElementById('tableau-id').value = '';
-                document.getElementById('tableau-issitemain').checked = false;
-                document.getElementById('tableau-isHTA').checked = false;
-                toggleHTAFields();
-                issitemain = false;
-                isHTA = false;
-                chargerTableau();
-                chargerDisjoncteursExistants();
-                chargerTableaux();
-            };
-
             // Fonction pour pré-remplir triptime en fonction de la courbe
             function updateTriptime() {
                 const courbeInput = document.getElementById('disjoncteur-courbe');
@@ -1426,12 +1407,36 @@
                 await originalAjouterDisjoncteurExistant();
                 initializeDisjoncteurForm();
             };
-i
+
             const originalModifierDisjoncteur = modifierDisjoncteur;
             modifierDisjoncteur = function(index) {
                 originalModifierDisjoncteur(index);
-                nitializeDisjoncteurForm();
-            };    
+                initializeDisjoncteurForm();
+            };
+
+            window.onload = () => {
+                console.log('[Edit] Initialisation page edit à', new Date().toLocaleString('fr-FR'));
+                if (window.location.protocol === 'file:') {
+                    showPopup('Erreur : Veuillez exécuter cette page via un serveur web (ex. http://localhost:3000/edit.html) pour accéder à l\'API.', '', () => {});
+                    return;
+                }
+                if (!tableauId) {
+                    console.log('[Edit] Aucun ID de tableau fourni dans l\'URL');
+                    showPopup('Aucun tableau spécifié. Veuillez sélectionner un tableau depuis la page de visualisation.', '', () => {
+                        window.location.href = 'view.html';
+                    });
+                    return;
+                }
+                document.getElementById('tableau-id').value = '';
+                document.getElementById('tableau-issitemain').checked = false;
+                document.getElementById('tableau-isHTA').checked = false;
+                toggleHTAFields();
+                issitemain = false;
+                isHTA = false;
+                chargerTableau();
+                chargerDisjoncteursExistants();
+                chargerTableaux();
+            };
         </script>
     </body>
 </html>
