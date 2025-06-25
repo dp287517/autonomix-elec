@@ -904,18 +904,33 @@
                 showPopup('Erreur: Disjoncteur non trouvé.');
                 return;
             }
+
             currentTableauId = tableauId;
             currentDisjoncteurId = disjoncteurId;
+
             const modal = document.getElementById('modal-graph');
-            // Réinitialiser l'état du modal
-            modal.style.display = 'none';
+            const canvas = document.getElementById('modal-modal');
+
+            if (modalChartInstance) {
+                modalChartInstance.destroy();
+                modalChartInstance = null;
+            }
+
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
             modal.style.display = 'flex';
-    modal.classList.remove('hidden');
-    modal.classList.add('show');
-            setTimeout(() => {
-                modalChartInstance = genererGraphique('modal-modal', disjoncteur, tableau, true);
-                gsap.from('#modal-graph > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
-            }, 10);
+            modal.classList.remove('hidden');
+            modal.classList.add('show');
+
+            modalChartInstance = genererGraphique('modal-modal', disjoncteur, tableau, true);
+
+            gsap.from('#modal-graph > div', {
+                opacity: 0,
+                scale: 0.8,
+                duration: 0.5,
+                ease: 'power2.out'
+            });
         }
 
         function closeModal() {
