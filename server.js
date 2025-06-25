@@ -117,8 +117,14 @@ function validateDisjoncteurData(data) {
     if (data.triptime && (isNaN(parseFloat(data.triptime)) || parseFloat(data.triptime) <= 0)) {
         errors.push('Le temps de déclenchement (triptime) doit être une valeur numérique positive (ex. 0.1).');
     }
-    if (data.icn && (isNaN(parseFloat(data.icn.match(/[\d.]+/)?.[0])) || parseFloat(data.icn.match(/[\d.]+/)?.[0]) <= 0)) {
-        errors.push('Le pouvoir de coupure (Icn) doit être une valeur numérique positive (ex. 66).');
+    if (data.icn) {
+        const icnMatch = data.icn.match(/[\d.]+/);
+        const icnValue = icnMatch ? parseFloat(icnMatch[0]) : NaN;
+        if (isNaN(icnValue) || icnValue <= 0) {
+            errors.push('Le pouvoir de coupure (Icn) doit être une valeur numérique positive (ex. 6 ou 6 kA).');
+        } else {
+            data.icn = data.icn.match(/\s*A$/i) ? `${icnValue} kA` : normalizeIcn(data.icn);
+        }
     }
     if (data.linkedTableauIds && (!Array.isArray(data.linkedTableauIds) || data.linkedTableauIds.some(id => !id || !/^[\p{L}0-9\s\-_:]+$/u.test(id)))) {
         errors.push('Les IDs des tableaux liés doivent être un tableau de chaînes valides non vides.');
