@@ -169,10 +169,12 @@
             border: 2px solid #000000;
             max-width: 180mm;
             min-height: 100mm;
+            height: auto;
             margin: 10mm auto;
             font-family: Arial, sans-serif;
             box-sizing: border-box;
             color: #000000;
+            overflow: visible;
         }
         #arc-flash-card.low-risk {
             background-color: #d1fae5 !important;
@@ -907,15 +909,16 @@
             currentTableauId = tableauId;
             currentDisjoncteurId = disjoncteurId;
             const modal = document.getElementById('modal-graph');
-            modal.style.display = 'flex';
             modal.classList.remove('hidden');
             modal.classList.add('show');
             if (modalChartInstance) {
                 modalChartInstance.destroy();
                 modalChartInstance = null;
             }
-            modalChartInstance = genererGraphique('modal-modal', disjoncteur, tableau, true);
-            gsap.from('#modal-graph > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+            setTimeout(() => {
+                modalChartInstance = genererGraphique('modal-modal', disjoncteur, tableau, true);
+                gsap.from('#modal-graph > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+            }, 10);
         }
 
         function closeModal() {
@@ -950,6 +953,20 @@
             }
             const arcFlash = calculateIncidentEnergy(disjoncteur, tableau);
             const card = document.getElementById('arc-flash-card');
+            console.log('[ArcFlash] Préparation carte:', tableau.id, disjoncteur.id, arcFlash.status);
+
+            // Réinitialiser le contenu
+            card.innerHTML = `
+                <h2 id="card-title" class="text-xl font-bold mb-4"></h2>
+                <p id="card-icon" class="card-icon"></p>
+                <p id="card-breaker" class="card-breaker"></p>
+                <p id="card-energy" class="mb-2"></p>
+                <p id="card-distance" class="mb-2"></p>
+                <p id="card-ppe" class="mb-2"></p>
+                <p id="card-status" class="mb-2"></p>
+                <p id="card-recommendation" class="mb-4"></p>
+                <p id="card-footer" class="text-sm italic"></p>
+            `;
             card.classList.remove('low-risk', 'medium-risk', 'high-risk');
             let riskClass = '';
             let icon = '';
@@ -978,13 +995,21 @@
             document.getElementById('card-recommendation').textContent = `Recommandation : ${getRecommendation(arcFlash)}`;
             document.getElementById('card-footer').textContent = `Généré par Autonomix Elec le ${new Date().toLocaleDateString('fr-FR')}`;
             card.style.display = 'block';
+
+            // Forcer le recalcul des styles
+            window.getComputedStyle(card).height;
+            console.log('[ArcFlash] Carte affichée, attente rendu DOM');
+
             setTimeout(() => {
+                console.log('[ArcFlash] Lancement génération PDF');
                 html2pdf().from(card).set({
                     margin: [10, 10, 10, 10],
                     filename: `arc_flash_${tableau.id}_${disjoncteur.id}.pdf`,
                     html2canvas: { scale: 2, useCORS: true },
-                    jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4', compressPDF: true }
+                    jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4', compressPDF: true },
+                    pagebreak: { mode: 'avoid-all' }
                 }).save().then(() => {
+                    console.log('[ArcFlash] PDF généré avec succès');
                     card.style.display = 'none';
                     card.classList.add('hidden');
                 }).catch(err => {
@@ -993,7 +1018,7 @@
                     card.style.display = 'none';
                     card.classList.add('hidden');
                 });
-            }, 200);
+            }, 500);
         }
 
         function getRecommendation(arcFlash) {
@@ -1298,8 +1323,8 @@
                 group.on('dragmove', () => {
                     if (group.tooltip) {
                         const boxRect = box.getClientRect();
-                        group.tooltip.style.left = `${boxRect.x + boxRect.width + 10}px`;
-                        group.tooltip.style.top = `${boxRect.y}px`;
+                        tooltip.style.left = `${boxRect.x + boxRect.width + 10}px`;
+                        tooltip.style.top = `${boxRect.y}px`;
                     }
                     nodePositions[node.id] = { x: group.x(), y: group.y() };
                     layer.batchDraw();
