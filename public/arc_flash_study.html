@@ -11,24 +11,24 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
     <script src="https://unpkg.com/konva@9.3.6/konva.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
-        /* Styles pour le modal et les graphiques */
         #modal-graph {
-            background-color: rgba(0, 0, 0, 0.7) !important; /* Fond semi-transparent sombre */
+            background-color: rgba(0, 0, 0, 0.7) !important;
             overflow-y: auto !important;
             z-index: 2000 !important;
         }
         #modal-graph > div {
-            background-color: #1f2937 !important; /* Fond gris foncé cohérent avec le thème */
+            background-color: #1f2937 !important;
             max-height: 90vh !important;
             width: 90vw !important;
-            max-width: 900px !important; /* Taille augmentée pour le modal */
+            max-width: 900px !important;
             padding: 1.5rem !important;
             border-radius: 0.5rem !important;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5) !important;
         }
         #modal-modal {
-            max-height: 600px !important; /* Taille augmentée pour le graphique */
+            max-height: 600px !important;
             width: 100% !important;
             height: auto !important;
         }
@@ -40,7 +40,7 @@
             width: 100% !important;
             height: 800px !important;
             min-height: 800px;
-            background-color: #ffffff !important; /* Fond blanc pour le schéma Konva */
+            background-color: #ffffff !important;
         }
         #building-filter, #tableau-filter {
             appearance: auto !important;
@@ -66,7 +66,7 @@
             pointer-events: auto !important;
             z-index: 100 !important;
         }
-        .container, .container * {
+        .container, .container {
             z-index: 60 !important;
             pointer-events: auto !important;
         }
@@ -143,13 +143,29 @@
         .node {
             cursor: move;
         }
-        /* Styles pour les graphiques globaux */
         .global-chart-container {
             margin-bottom: 2rem;
         }
         .global-chart-container canvas {
             width: 100% !important;
             max-height: 400px !important;
+        }
+        #arc-flash-card {
+            display: none;
+            background-color: #ffffff;
+            color: #000000;
+            padding: 20px;
+            border: 1px solid #000000;
+            max-width: 600px;
+            margin: 20px auto;
+        }
+        @media print {
+            #arc-flash-card {
+                display: block !important;
+            }
+            #modal-graph, nav, .container > *:not(#arc-flash-card) {
+                display: none !important;
+            }
         }
     </style>
 </head>
@@ -195,22 +211,28 @@
             <div>
                 <label for="tableau-filter" class="block text-sm font-medium mb-1">Tableau</label>
                 <select id="tableau-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" onchange="filterData()" aria-label="Filtrer par tableau">
-                    <option value="">Tous les tableaux</option>
+                    <option value="">Sélectionner un tableau</option>
                 </select>
+            </div>
+            <div class="flex items-end">
+                <button onclick="resetFilters()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 flex items-center touch-friendly">
+                    <i class="fas fa-undo mr-2"></i>Réinitialiser
+                </button>
             </div>
         </div>
 
         <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up">
             <h2 class="text-lg sm:text-xl font-bold mb-4 flex items-center"><i class="fas fa-info-circle mr-2"></i>Comment utiliser cette page</h2>
             <ul class="list-disc pl-6 text-gray-300 text-sm sm:text-base">
-                <li>Utilisez les filtres pour sélectionner un bâtiment ou un tableau spécifique.</li>
-                <li>Consultez le tableau ci-dessous pour voir les résultats de l’analyse d’arc flash pour chaque disjoncteur.</li>
-                <li>Chaque ligne affiche l’énergie incidente, la distance de protection, et le niveau de PPE requis.</li>
+                <li>Sélectionnez un bâtiment et un tableau pour afficher les résultats d’arc flash.</li>
+                <li>Les filtres sont enregistrés automatiquement pour votre prochaine visite.</li>
+                <li>Consultez le tableau pour voir l’énergie incidente, la distance de protection, et le niveau de PPE requis.</li>
                 <li>Pour les données manquantes, cliquez sur la loupe pour identifier les disjoncteurs concernés.</li>
-                <li>Cliquez sur l’icône <i class="fas fa-chart-bar"></i> ou "Agrandir" pour voir un graphique détaillé.</li>
-                <li>Le schéma interactif montre les relations entre tableaux et disjoncteurs. Déplacez les nœuds ou double-cliquez pour éditer.</li>
-                <li>Les lignes rouges signalent un risque élevé (énergie incidente > 8 cal/cm²).</li>
-                <li>Consultez les graphiques globaux par bâtiment et tableau en bas de la page.</li>
+                <li>Cliquez sur l’icône <i class="fas fa-chart-bar"></i> ou "Agrandir" pour voir un graphique détaillé avec des recommandations.</li>
+                <li>Imprimez une carte d’arc flash via le bouton dans le modal du graphique.</li>
+                <li>Le schéma interactif montre les relations entre tableaux et disjoncteurs.</li>
+                <li>Les lignes rouges signalent un risque élevé (énergie > 8 cal/cm²).</li>
+                <li>Consultez les graphiques globaux par bâtiment en bas de la page.</li>
                 <li>Cliquez sur "Exporter en CSV" pour télécharger les données.</li>
             </ul>
         </div>
@@ -250,11 +272,24 @@
             <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg w-[90vw] max-w-[900px] flex flex-col relative z-[2000]">
                 <div class="sticky top-0 flex items-center justify-between mb-4">
                     <h3 class="text-lg sm:text-xl font-bold text-white flex items-center" id="modal-title"><i class="fas fa-chart-bar mr-2"></i>Analyse d'Arc Flash</h3>
-                    <button onclick="closeModal()" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 touch-friendly" aria-label="Fermer le modal"><i class="fas fa-times"></i> Fermer</button>
+                    <div class="flex space-x-2">
+                        <button onclick="printArcFlashCard()" class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 touch-friendly" aria-label="Imprimer la carte"><i class="fas fa-print mr-2"></i>Imprimer</button>
+                        <button onclick="closeModal()" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 touch-friendly" aria-label="Fermer le modal"><i class="fas fa-times"></i> Fermer</button>
+                    </div>
                 </div>
                 <canvas id="modal-modal" class="w-full h-auto"></canvas>
                 <div id="arc-flash-explanation" class="mt-4 text-sm sm:text-base text-gray-300"></div>
             </div>
+        </div>
+
+        <div id="arc-flash-card" class="hidden">
+            <h2 id="card-title" class="text-xl font-bold mb-4"></h2>
+            <p id="card-energy" class="mb-2"></p>
+            <p id="card-distance" class="mb-2"></p>
+            <p id="card-ppe" class="mb-2"></p>
+            <p id="card-status" class="mb-2"></p>
+            <p id="card-recommendation" class="mb-4"></p>
+            <p class="text-sm italic">Généré par Autonomix Elec le ${new Date().toLocaleDateString('fr-FR')}</p>
         </div>
 
         <div id="mini-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-[2000]" role="dialog" aria-labelledby="mini-modal-title">
@@ -338,6 +373,8 @@
         let modalChartInstance = null;
         let missingDataSortDirection = 'asc';
         let globalChartInstances = [];
+        let currentTableauId = null;
+        let currentDisjoncteurId = null;
 
         function showPopup(message, content = '', confirmCallback = () => {}) {
             console.log('[ArcFlash] Affichage pop-up:', message);
@@ -382,7 +419,6 @@
                     default: triptime = 0.02;
                 }
             }
-            // Limiter triptime pour éviter des valeurs aberrantes
             if (triptime > 1) {
                 console.warn('[ArcFlash] Triptime aberrant détecté:', triptime, 'pour disjoncteur:', disjoncteur.id, 'Utilisation de 0.02 s');
                 triptime = 0.02;
@@ -436,8 +472,7 @@
                     htaData: tableau.htaData || null
                 }));
                 populateFilters();
-                afficherTableauxEtSchema(tableauxData);
-                genererGraphiquesGlobaux();
+                loadUserFilters();
             } catch (error) {
                 console.error('[ArcFlash] Erreur chargement:', error);
                 showPopup('Erreur lors du chargement des données: ' + error.message);
@@ -450,7 +485,7 @@
             const tableauFilter = document.getElementById('tableau-filter');
             const linkedTableauSelect = document.getElementById('node-linked-tableau');
             buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
-            tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
+            tableauFilter.innerHTML = '<option value="">Sélectionner un tableau</option>';
             linkedTableauSelect.innerHTML = '<option value="">Aucun tableau lié</option>';
             const buildings = [...new Set(tableauxData.map(t => t.building).filter(b => b))].sort();
             buildings.forEach(b => {
@@ -471,7 +506,7 @@
         function updateTableauFilter() {
             const building = document.getElementById('building-filter').value;
             const tableauFilter = document.getElementById('tableau-filter');
-            tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
+            tableauFilter.innerHTML = '<option value="">Sélectionner un tableau</option>';
             const filteredTableaux = building
                 ? tableauxData.filter(t => t.building === building)
                 : tableauxData;
@@ -481,6 +516,39 @@
                 option.textContent = t.id;
                 tableauFilter.appendChild(option);
             });
+        }
+
+        function saveUserFilters() {
+            const building = document.getElementById('building-filter').value;
+            const tableau = document.getElementById('tableau-filter').value;
+            const userId = 'default_user'; // Remplacer par un ID utilisateur réel si authentification
+            localStorage.setItem(`arc_flash_filters_${userId}`, JSON.stringify({ building, tableau }));
+            console.log('[ArcFlash] Filtres enregistrés:', { building, tableau });
+        }
+
+        function loadUserFilters() {
+            const userId = 'default_user';
+            const savedFilters = localStorage.getItem(`arc_flash_filters_${userId}`);
+            if (savedFilters) {
+                const { building, tableau } = JSON.parse(savedFilters);
+                document.getElementById('building-filter').value = building || '';
+                updateTableauFilter();
+                document.getElementById('tableau-filter').value = tableau || '';
+                console.log('[ArcFlash] Filtres chargés:', { building, tableau });
+                filterData();
+            } else {
+                afficherTableauxEtSchema([]);
+                genererGraphiquesGlobaux();
+            }
+        }
+
+        function resetFilters() {
+            console.log('[ArcFlash] Réinitialisation des filtres');
+            document.getElementById('building-filter').value = '';
+            updateTableauFilter();
+            document.getElementById('tableau-filter').value = '';
+            saveUserFilters();
+            filterData();
         }
 
         function filterData() {
@@ -493,7 +561,10 @@
             }
             if (tableau) {
                 filteredData = filteredData.filter(t => t.id === tableau);
+            } else {
+                filteredData = []; // Pas de disjoncteurs sans tableau sélectionné
             }
+            saveUserFilters();
             afficherTableauxEtSchema(filteredData);
             genererGraphiquesGlobaux();
         }
@@ -554,6 +625,10 @@
             console.log('[ArcFlash] Affichage tableaux');
             const tableBody = document.getElementById('arc-flash-table');
             tableBody.innerHTML = '';
+            if (!tableaux.length) {
+                tableBody.innerHTML = `<tr><td colspan="7" class="p-2 text-center text-gray-500">Veuillez sélectionner un tableau pour afficher les disjoncteurs.</td></tr>`;
+                return;
+            }
             tableaux.forEach((tableau, tableauIndex) => {
                 tableau.disjoncteurs.forEach((disjoncteur, disjIndex) => {
                     const arcFlash = calculateIncidentEnergy(disjoncteur, tableau);
@@ -786,8 +861,11 @@
                 showPopup('Erreur: Disjoncteur non trouvé.');
                 return;
             }
+            currentTableauId = tableauId;
+            currentDisjoncteurId = disjoncteurId;
             const modal = document.getElementById('modal-graph');
             modal.classList.remove('hidden');
+            modal.style.display = 'flex';
             modalChartInstance = genererGraphique('modal-modal', disjoncteur, tableau, true);
             gsap.from('#modal-graph > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
         }
@@ -802,12 +880,51 @@
                 ease: 'power2.in',
                 onComplete: () => {
                     modal.classList.add('hidden');
+                    modal.style.display = 'none';
                     if (modalChartInstance) {
                         modalChartInstance.destroy();
                         modalChartInstance = null;
                     }
+                    document.getElementById('arc-flash-card').classList.add('hidden');
                 }
             });
+        }
+
+        function printArcFlashCard() {
+            console.log('[ArcFlash] Impression carte arc flash');
+            const tableau = tableauxData.find(t => t.id === currentTableauId);
+            const disjoncteur = tableau.disjoncteurs.find(d => d.id === currentDisjoncteurId);
+            const arcFlash = calculateIncidentEnergy(disjoncteur, tableau);
+            const card = document.getElementById('arc-flash-card');
+            document.getElementById('card-title').textContent = `Arc Flash - ${tableau.id} (${disjoncteur.id})`;
+            document.getElementById('card-energy').textContent = `Énergie incidente : ${arcFlash.incidentEnergy} cal/cm²`;
+            document.getElementById('card-distance').textContent = `Distance de protection : ${arcFlash.boundaryDistance} m`;
+            document.getElementById('card-ppe').textContent = `Niveau PPE : ${arcFlash.ppeLevel}`;
+            document.getElementById('card-status').textContent = `Statut : ${arcFlash.status}`;
+            document.getElementById('card-recommendation').textContent = `Recommandation : ${getRecommendation(arcFlash)}`;
+            card.classList.remove('hidden');
+            html2pdf().from(card).set({
+                margin: 10,
+                filename: `arc_flash_${tableau.id}_${disjoncteur.id}.pdf`,
+                html2canvas: { scale: 2 },
+                jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4', compressPDF: true }
+            }).save().then(() => {
+                card.classList.add('hidden');
+            });
+        }
+
+        function getRecommendation(arcFlash) {
+            const E = parseFloat(arcFlash.incidentEnergy);
+            switch (arcFlash.status) {
+                case 'Risque faible':
+                    return 'Aucun risque significatif. Continuez les inspections régulières et assurez-vous que les PPE de niveau 0 sont disponibles pour les interventions.';
+                case 'Risque modéré':
+                    return 'Risque modéré détecté. Portez des PPE de niveau ' + arcFlash.ppeLevel + ' (gants isolants, lunettes de sécurité, vêtements ignifugés). Vérifiez les paramètres du disjoncteur (courbe, triptime) et envisagez une maintenance préventive pour réduire l’énergie incidente.';
+                case 'Risque élevé':
+                    return 'Risque élevé détecté ! Arrêtez immédiatement les travaux à proximité sauf si absolument nécessaire. Utilisez des PPE de niveau ' + arcFlash.ppeLevel + ' (combinaison complète ignifugée, écran facial, gants haute tension). Révisez la conception électrique (ex. : ajuster le triptime, augmenter la section des câbles) et planifiez une intervention avec un ingénieur qualifié.';
+                default:
+                    return 'Surveiller les paramètres électriques et effectuer une maintenance régulière.';
+            }
         }
 
         function genererGraphique(canvasId, disjoncteur, tableau, isModal) {
@@ -868,7 +985,7 @@
                     <p><strong>Distance de protection :</strong> ${arcFlash.boundaryDistance} m</p>
                     <p><strong>Niveau PPE :</strong> ${arcFlash.ppeLevel}</p>
                     <p><strong>Statut :</strong> ${arcFlash.status}</p>
-                    <p><strong>Recommandation :</strong> ${arcFlash.incidentEnergy > 8 ? 'Action immédiate requise.' : 'Surveiller.'}</p>
+                    <p><strong>Recommandation :</strong> ${getRecommendation(arcFlash)}</p>
                 `;
                 document.getElementById('modal-title').textContent = `Arc Flash - ${tableau.id} (${disjoncteur.id})`;
             }
@@ -1206,6 +1323,7 @@
             document.getElementById('missing-data-modal').classList.add('hidden');
             document.getElementById('add-node-modal').classList.add('hidden');
             document.getElementById('modal-graph').classList.add('hidden');
+            document.getElementById('modal-graph').style.display = 'none';
             chargerTableaux();
         };
     </script>
