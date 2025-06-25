@@ -325,6 +325,15 @@
         </div>
 
         <script>
+            function normalizeNumericValue(value) {
+                if (!value) return '';
+                const match = value.match(/[\d.]+/);
+                if (!match) return '';
+                const number = parseFloat(match[0]);
+                if (isNaN(number) || number <= 0) return '';
+                const unit = value.match(/[a-zA-Z]+$/i) || [''];
+                return `${number} ${unit[0].toLowerCase() === 'a' ? 'kA' : unit[0] || 'kA'}`;
+            }
             let disjoncteurs = [];
             let disjoncteurPrincipalIndex = null;
             let tableauId = new URLSearchParams(window.location.search).get('id');
@@ -1002,7 +1011,7 @@
                     ip: document.getElementById('disjoncteur-ip').value.trim(),
                     temp: document.getElementById('disjoncteur-temp').value.trim(),
                     dimensions: document.getElementById('disjoncteur-dimensions').value.trim(),
-                    section: document.getElementById('disjoncteur-section').value.trim(),
+                    section: normalizeNumericValue(document.getElementById('disjoncteur-section').value.trim()).replace(/kA$/, 'mm²'),
                     date: document.getElementById('disjoncteur-date').value.trim(),
                     tension: document.getElementById('disjoncteur-tension').value.trim(),
                     selectivite: document.getElementById('disjoncteur-selectivite').value.trim(),
@@ -1071,6 +1080,11 @@
                 if (disjoncteur.triptime && !disjoncteur.triptime.match(/^\d+(\.?\d+)?(\s*s)?$/)) {
                     console.log('[Edit] Erreur: TripTime invalide', disjoncteur.triptime);
                     showPopup('TripTime doit être une valeur numérique, ex. 0.1 ou 0.1 s.', '', () => {});
+                    return;
+                }
+                if (disjoncteur.section && !disjoncteur.section.match(/^\d+(\.?\d+)?(\s*mm²)?$/)) {
+                    console.log('[Edit] Erreur: Section invalide', disjoncteur.section);
+                    showPopup('La section doit être une valeur numérique, ex. 2.5 ou 2.5 mm².', '', () => {});
                     return;
                 }
                 if (disjoncteur.linkedTableauIds.includes(tableauId)) {
