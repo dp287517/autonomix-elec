@@ -748,7 +748,7 @@
                 try {
                     console.log('[Edit] Envoi requête OpenAI pour', { marque, ref });
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    const timeoutId = setTimeout(() => controller.abort(), 10000); // Timeout augmenté à 10s
                     const response = await fetch('/api/disjoncteur', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -795,7 +795,7 @@
                     }
                 } catch (error) {
                     console.error('[Edit] Erreur recherche OpenAI:', error);
-                    showPopup('Erreur lors de la recherche OpenAI: ' + error.message, '', () => {});
+                    showPopup('Erreur lors de la recherche OpenAI: ' + error.message + '. Veuillez vérifier votre connexion ou réessayer plus tard.', '', () => {});
                 }
             }
 
@@ -1111,7 +1111,7 @@
                 try {
                     const htaData = collectHTAData();
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    const timeoutId = setTimeout(() => controller.abort(), 10000); // Timeout augmenté à 10s
                     if (editIndex !== null) {
                         const oldId = disjoncteurs[editIndex].id;
                         console.log('[Edit] Envoi requête PUT /api/disjoncteur/', tableauId, '/', oldId, 'avec nouvel ID:', disjoncteur.id);
@@ -1132,11 +1132,15 @@
                         showPopup('Disjoncteur modifié avec succès.', '', () => {});
                     } else {
                         console.log('[Edit] Tentative d\'ajout disjoncteur:', disjoncteur.id);
+                        // Récupérer les équipements existants pour inclure autresEquipements
+                        const tableauResponse = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, { signal: controller.signal });
+                        const tableauData = await tableauResponse.json();
+                        const autresEquipements = tableauData.autresEquipements || [];
                         const tempDisjoncteurs = [...disjoncteurs, disjoncteur];
                         const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: tableauId, disjoncteurs: tempDisjoncteurs, issitemain, isHTA, htaData }),
+                            body: JSON.stringify({ id: tableauId, disjoncteurs: tempDisjoncteurs, issitemain, isHTA, htaData, autresEquipements }),
                             signal: controller.signal
                         });
                         clearTimeout(timeoutId);
