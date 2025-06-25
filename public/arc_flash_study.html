@@ -12,45 +12,145 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
     <script src="https://unpkg.com/konva@9.3.6/konva.min.js"></script>
     <style>
-        /* Réutilisation des styles de selectivity.html */
-        #modal-graph { background-color: #ffffff !important; overflow-y: auto !important; }
-        #modal-graph > div { overflow: visible !important; max-height: none !important; }
-        #mini-modal, #missing-data-modal, #add-node-modal { z-index: 2000 !important; }
-        #global-graph { position: relative; width: 100% !important; height: 800px !important; min-height: 800px; }
+        /* Styles pour le modal et les graphiques */
+        #modal-graph {
+            background-color: rgba(0, 0, 0, 0.7) !important; /* Fond semi-transparent sombre */
+            overflow-y: auto !important;
+            z-index: 2000 !important;
+        }
+        #modal-graph > div {
+            background-color: #1f2937 !important; /* Fond gris foncé cohérent avec le thème */
+            max-height: 90vh !important;
+            width: 90vw !important;
+            max-width: 900px !important; /* Taille augmentée pour le modal */
+            padding: 1.5rem !important;
+            border-radius: 0.5rem !important;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5) !important;
+        }
+        #modal-modal {
+            max-height: 600px !important; /* Taille augmentée pour le graphique */
+            width: 100% !important;
+            height: auto !important;
+        }
+        #mini-modal, #missing-data-modal, #add-node-modal {
+            z-index: 2000 !important;
+        }
+        #global-graph {
+            position: relative;
+            width: 100% !important;
+            height: 800px !important;
+            min-height: 800px;
+            background-color: #ffffff !important; /* Fond blanc pour le schéma Konva */
+        }
         #building-filter, #tableau-filter {
-            appearance: auto !important; cursor: pointer !important; pointer-events: auto !important;
-            z-index: 1000 !important; user-select: auto !important; position: relative !important;
-            background-color: #374151 !important; color: #ffffff !important; border: 1px solid #4B5563 !important;
-            padding: 8px !important; border-radius: 4px !important; width: 200px !important; height: 40px !important;
+            appearance: auto !important;
+            cursor: pointer !important;
+            pointer-events: auto !important;
+            z-index: 1000 !important;
+            user-select: auto !important;
+            position: relative !important;
+            background-color: #374151 !important;
+            color: #ffffff !important;
+            border: 1px solid #4b5563 !important;
+            padding: 8px !important;
+            border-radius: 4px !important;
+            width: 200px !important;
+            height: 40px !important;
             font-size: 0.875rem !important;
         }
-        #building-filter:disabled, #tableau-filter:disabled { cursor: not-allowed !important; opacity: 0.5 !important; }
-        .bg-gray-800, .bg-gray-800 * { pointer-events: auto !important; z-index: 100 !important; }
-        .container, .container * { z-index: 60 !important; pointer-events: auto !important; }
-        .badge {
-            background-color: #eab308; color: #ffffff; padding: 2px 6px; border-radius: 9999px; font-size: 0.75rem; margin-left: 4px;
+        #building-filter:disabled, #tableau-filter:disabled {
+            cursor: not-allowed !important;
+            opacity: 0.5 !important;
         }
-        .badge-critical { background-color: #dc2626; }
-        .touch-friendly { min-height: 44px; padding: 0.5rem 1rem; }
-        .animate-slide-up { animation: slideUp 0.8s ease-out; }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .bg-gray-800, .bg-gray-800 * {
+            pointer-events: auto !important;
+            z-index: 100 !important;
+        }
+        .container, .container * {
+            z-index: 60 !important;
+            pointer-events: auto !important;
+        }
+        .badge {
+            background-color: #eab308;
+            color: #ffffff;
+            padding: 2px 6px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            margin-left: 4px;
+        }
+        .badge-critical {
+            background-color: #dc2626;
+        }
+        .touch-friendly {
+            min-height: 44px;
+            padding: 0.5rem 1rem;
+        }
+        .animate-slide-up {
+            animation: slideUp 0.8s ease-out;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
         @media (max-width: 640px) {
-            #missing-data-modal > div, #add-node-modal > div { padding: 1rem; max-width: 95vw; }
-            .missing-data-table th, .missing-data-table td { font-size: 0.75rem; padding: 0.5rem; }
-            #building-filter, #tableau-filter { width: 100% !important; font-size: 0.875rem !important; }
+            #missing-data-modal > div, #add-node-modal > div {
+                padding: 1rem;
+                max-width: 95vw;
+            }
+            .missing-data-table th, .missing-data-table td {
+                font-size: 0.75rem;
+                padding: 0.5rem;
+            }
+            #building-filter, #tableau-filter {
+                width: 100% !important;
+                font-size: 0.875rem !important;
+            }
+            #modal-graph > div {
+                width: 95vw !important;
+                max-width: 95vw !important;
+            }
+            #modal-modal {
+                max-height: 400px !important;
+            }
         }
         @media (min-width: 640px) {
-            .missing-data-table th, .missing-data-table td { font-size: 1rem; }
-            #building-filter, #tableau-filter { font-size: 1rem !important; }
+            .missing-data-table th, .missing-data-table td {
+                font-size: 1rem;
+            }
+            #building-filter, #tableau-filter {
+                font-size: 1rem !important;
+            }
         }
-        .sortable:hover { cursor: pointer; text-decoration: underline; }
+        .sortable:hover {
+            cursor: pointer;
+            text-decoration: underline;
+        }
         .tooltip {
-            position: absolute; background-color: #2D3748; color: #ffffff; padding: 8px;
-            border: 2px solid #10B981; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
-            font-size: 0.875rem; z-index: 1000; max-width: 300px; white-space: normal; overflow-y: auto; max-height: 200px;
+            position: absolute;
+            background-color: #2d3748;
+            color: #ffffff;
+            padding: 8px;
+            border: 2px solid #10b981;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+            font-size: 0.875rem;
+            z-index: 1000;
+            max-width: 300px;
+            white-space: normal;
+            overflow-y: auto;
+            max-height: 200px;
         }
-        .node { cursor: move; }
-        #modal-modal { max-height: 500px; margin: 0 auto; }
+        .node {
+            cursor: move;
+        }
+        /* Styles pour les graphiques globaux */
+        .global-chart-container {
+            margin-bottom: 2rem;
+        }
+        .global-chart-container canvas {
+            width: 100% !important;
+            max-height: 400px !important;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
@@ -88,7 +188,7 @@
         <div class="bg-gray-800 p-4 rounded-lg mb-4 sm:mb-6 shadow-lg flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0 animate-slide-up">
             <div>
                 <label for="building-filter" class="block text-sm font-medium mb-1">Filtrer par bâtiment</label>
-                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" onchange="filterData()" aria-label="Filtrer par bâtiment">
+                <select id="building-filter" class="mt-1 p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" onchange="updateTableauFilter(); filterData();" aria-label="Filtrer par bâtiment">
                     <option value="">Tous les bâtiments</option>
                 </select>
             </div>
@@ -110,6 +210,7 @@
                 <li>Cliquez sur l’icône <i class="fas fa-chart-bar"></i> ou "Agrandir" pour voir un graphique détaillé.</li>
                 <li>Le schéma interactif montre les relations entre tableaux et disjoncteurs. Déplacez les nœuds ou double-cliquez pour éditer.</li>
                 <li>Les lignes rouges signalent un risque élevé (énergie incidente > 8 cal/cm²).</li>
+                <li>Consultez les graphiques globaux par bâtiment et tableau en bas de la page.</li>
                 <li>Cliquez sur "Exporter en CSV" pour télécharger les données.</li>
             </ul>
         </div>
@@ -135,18 +236,23 @@
         </div>
 
         <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up">
+            <h2 class="text-lg sm:text-xl font-bold mb-4 flex items-center"><i class="fas fa-chart-bar mr-2"></i>Graphiques globaux par bâtiment</h2>
+            <div id="global-charts" class="flex flex-col space-y-6"></div>
+        </div>
+
+        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-4 sm:mb-6 animate-slide-up">
             <h2 class="text-lg sm:text-xl font-bold mb-4 flex items-center"><i class="fas fa-sitemap mr-2"></i>Schéma global</h2>
             <div id="global-graph" class="w-full h-[800px] bg-white rounded-lg border-2 border-green-600 relative z-10"></div>
             <div id="global-text" class="mt-4 text-gray-300 text-sm sm:text-base"></div>
         </div>
 
-        <div id="modal-graph" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-start justify-center pt-4 pb-4 z-[2000]" role="dialog" aria-labelledby="modal-title">
-            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg w-[90vw] max-w-[750px] flex flex-col relative z-[2000]">
+        <div id="modal-graph" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center z-[2000]" role="dialog" aria-labelledby="modal-title">
+            <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg w-[90vw] max-w-[900px] flex flex-col relative z-[2000]">
                 <div class="sticky top-0 flex items-center justify-between mb-4">
                     <h3 class="text-lg sm:text-xl font-bold text-white flex items-center" id="modal-title"><i class="fas fa-chart-bar mr-2"></i>Analyse d'Arc Flash</h3>
                     <button onclick="closeModal()" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 touch-friendly" aria-label="Fermer le modal"><i class="fas fa-times"></i> Fermer</button>
                 </div>
-                <canvas id="modal-modal" width="700" height="500" class="w-full h-auto"></canvas>
+                <canvas id="modal-modal" class="w-full h-auto"></canvas>
                 <div id="arc-flash-explanation" class="mt-4 text-sm sm:text-base text-gray-300"></div>
             </div>
         </div>
@@ -186,7 +292,7 @@
             <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg w-[90vw] max-w-[400px]">
                 <div class="flex items-center justify-between mb-4">
                     <h4 class="text-lg sm:text-xl font-bold text-white flex items-center" id="add-node-modal-title"><i class="fas fa-plus-circle mr-2"></i>Ajouter un élément</h4>
-                    <button onclick="closeAddNodeModal()" class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 touch-friendly" aria-label="Fermer le modal"><i class="fas fa-times"></i></button>
+                    <button onclick="closeAddNodeModal()" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 touch-friendly" aria-label="Fermer le modal"><i class="fas fa-times"></i></button>
                 </div>
                 <div class="flex flex-col space-y-4">
                     <input type="text" id="node-id" class="p-2 rounded bg-gray-700 text-white border-gray-600 text-sm sm:text-base" placeholder="ID de l'élément" aria-label="ID de l'élément">
@@ -231,7 +337,7 @@
         let tableauxData = [];
         let modalChartInstance = null;
         let missingDataSortDirection = 'asc';
-        let expandedNodes = new Set();
+        let globalChartInstances = [];
 
         function showPopup(message, content = '', confirmCallback = () => {}) {
             console.log('[ArcFlash] Affichage pop-up:', message);
@@ -261,54 +367,38 @@
             return null;
         }
 
-        // Calcul simplifié de l'énergie incidente (basé sur IEEE 1584)
         function calculateIncidentEnergy(disjoncteur, tableau) {
-            const ue = normalizeCurrent(disjoncteur.ue) || 400; // Tension nominale
-            const inValue = normalizeCurrent(disjoncteur.in) || 100; // Courant nominal
+            const ue = normalizeCurrent(disjoncteur.ue) || 400;
+            const inValue = normalizeCurrent(disjoncteur.in) || 16;
             let triptime = parseFloat(disjoncteur.triptime);
             if (isNaN(triptime)) {
-                const courbe = disjoncteur.courbe ? disjoncteur.courbe.toUpperCase() : 'C'; // Par défaut C si inconnu
+                const courbe = disjoncteur.courbe ? disjoncteur.courbe.toUpperCase() : 'C';
                 switch (courbe) {
-                    case 'B':
-                        triptime = 0.01; // 10 ms pour courbe B
-                        break;
-                    case 'C':
-                        triptime = 0.02; // 20 ms pour courbe C
-                        break;
-                    case 'D':
-                        triptime = 0.03; // 30 ms pour courbe D
-                        break;
-                    case 'K':
-                        triptime = 0.015; // 15 ms pour courbe K
-                        break;
-                    case 'Z':
-                        triptime = 0.005; // 5 ms pour courbe Z
-                        break;
-                    default:
-                        triptime = 0.02; // Valeur par défaut conservatrice
+                    case 'B': triptime = 0.01; break;
+                    case 'C': triptime = 0.02; break;
+                    case 'D': triptime = 0.03; break;
+                    case 'K': triptime = 0.015; break;
+                    case 'Z': triptime = 0.005; break;
+                    default: triptime = 0.02;
                 }
             }
-            const cableLength = parseFloat(disjoncteur.cableLength) || 20; // Longueur câble
-            const section = disjoncteur.section ? parseFloat(disjoncteur.section.match(/[\d.]+/)[0]) : 2.5; // Section câble
-
-            // Calcul du courant d'arc (approximation)
-            const k = 0.6; // Constante pour basse tension
+            // Limiter triptime pour éviter des valeurs aberrantes
+            if (triptime > 1) {
+                console.warn('[ArcFlash] Triptime aberrant détecté:', triptime, 'pour disjoncteur:', disjoncteur.id, 'Utilisation de 0.02 s');
+                triptime = 0.02;
+            }
+            const cableLength = parseFloat(disjoncteur.cableLength) || 20;
+            const section = disjoncteur.section ? parseFloat(disjoncteur.section.match(/[\d.]+/)[0]) : 2.5;
+            const k = 0.6;
             const I_arc = k * inValue;
-
-            // Calcul de l'énergie incidente (cal/cm²)
-            const D = 0.61; // Distance de travail standard (61 cm)
-            const E = (4.184 * I_arc * triptime) / (D * D); // Simplifié
-
-            // Distance de protection (boundary distance)
-            const boundary = Math.sqrt((4.184 * I_arc * triptime) / 1.2); // 1.2 cal/cm² pour la limite
-
-            // Niveau PPE (simplifié)
+            const D = 0.61;
+            const E = (4.184 * I_arc * triptime) / (D * D);
+            const boundary = Math.sqrt((4.184 * I_arc * triptime) / 1.2);
             let ppeLevel = '0';
             if (E > 40) ppeLevel = '4';
             else if (E > 25) ppeLevel = '3';
             else if (E > 8) ppeLevel = '2';
             else if (E > 1.2) ppeLevel = '1';
-
             return {
                 incidentEnergy: E.toFixed(2),
                 boundaryDistance: boundary.toFixed(2),
@@ -325,15 +415,18 @@
                     headers: { 'Content-Type': 'application/json' }
                 });
                 if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
-                const data = await response.json();
-                tableauxData = data.map(tableau => ({
+                tableauxData = await response.json();
+                console.log('[ArcFlash] Données reçues:', tableauxData.length, 'tableaux');
+                tableauxData = tableauxData.map(tableau => ({
                     ...tableau,
+                    building: tableau.building || 'Inconnu',
                     disjoncteurs: (tableau.disjoncteurs || []).map(d => ({
                         ...d,
-                        id: d.id || d.disjoncteur_id,
+                        id: d.id || d.disjoncteur_id || `unknown-${Math.random().toString(36).substring(2, 9)}`,
                         inValue: normalizeCurrent(d.in),
                         irValue: normalizeCurrent(d.ir),
                         ue: normalizeCurrent(d.ue),
+                        triptime: normalizeCurrent(d.triptime),
                         linkedTableauIds: d.linkedTableauIds || [],
                         isPrincipal: !!d.isPrincipal,
                         isHTAFeeder: !!d.isHTAFeeder
@@ -344,6 +437,7 @@
                 }));
                 populateFilters();
                 afficherTableauxEtSchema(tableauxData);
+                genererGraphiquesGlobaux();
             } catch (error) {
                 console.error('[ArcFlash] Erreur chargement:', error);
                 showPopup('Erreur lors du chargement des données: ' + error.message);
@@ -358,7 +452,7 @@
             buildingFilter.innerHTML = '<option value="">Tous les bâtiments</option>';
             tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
             linkedTableauSelect.innerHTML = '<option value="">Aucun tableau lié</option>';
-            const buildings = [...new Set(tableauxData.map(t => t.building))].sort();
+            const buildings = [...new Set(tableauxData.map(t => t.building).filter(b => b))].sort();
             buildings.forEach(b => {
                 const option = document.createElement('option');
                 option.value = b;
@@ -374,14 +468,34 @@
             });
         }
 
+        function updateTableauFilter() {
+            const building = document.getElementById('building-filter').value;
+            const tableauFilter = document.getElementById('tableau-filter');
+            tableauFilter.innerHTML = '<option value="">Tous les tableaux</option>';
+            const filteredTableaux = building
+                ? tableauxData.filter(t => t.building === building)
+                : tableauxData;
+            filteredTableaux.forEach(t => {
+                const option = document.createElement('option');
+                option.value = t.id;
+                option.textContent = t.id;
+                tableauFilter.appendChild(option);
+            });
+        }
+
         function filterData() {
             console.log('[ArcFlash] Filtrage des données');
             const building = document.getElementById('building-filter').value;
             const tableau = document.getElementById('tableau-filter').value;
-            let filteredData = tableauxData;
-            if (building) filteredData = filteredData.filter(t => t.building === building);
-            if (tableau) filteredData = filteredData.filter(t => t.id === tableau || t.disjoncteurs.some(d => d.linkedTableauIds?.includes(tableau)));
+            let filteredData = [...tableauxData];
+            if (building) {
+                filteredData = filteredData.filter(t => t.building === building);
+            }
+            if (tableau) {
+                filteredData = filteredData.filter(t => t.id === tableau);
+            }
             afficherTableauxEtSchema(filteredData);
+            genererGraphiquesGlobaux();
         }
 
         function exportToCSV() {
@@ -440,7 +554,7 @@
             console.log('[ArcFlash] Affichage tableaux');
             const tableBody = document.getElementById('arc-flash-table');
             tableBody.innerHTML = '';
-            tableaux.forEach((tableau, index) => {
+            tableaux.forEach((tableau, tableauIndex) => {
                 tableau.disjoncteurs.forEach((disjoncteur, disjIndex) => {
                     const arcFlash = calculateIncidentEnergy(disjoncteur, tableau);
                     const missingData = checkMissingData([disjoncteur]);
@@ -457,8 +571,8 @@
                                 : 'Aucune'}
                         </td>
                         <td class="p-2 flex items-center space-x-2">
-                            <i class="fas fa-chart-bar text-blue-600 text-xl cursor-pointer hover:text-blue-800" onclick="openModal(${index}, ${disjIndex})" aria-label="Voir le graphique"></i>
-                            <button onclick="openModal(${index}, ${disjIndex})" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 touch-friendly">Agrandir</button>
+                            <i class="fas fa-chart-bar text-blue-600 text-xl cursor-pointer hover:text-blue-800" onclick="openModal('${encodeURIComponent(tableau.id)}', '${encodeURIComponent(disjoncteur.id)}')" aria-label="Voir le graphique"></i>
+                            <button onclick="openModal('${encodeURIComponent(tableau.id)}', '${encodeURIComponent(disjoncteur.id)}')" class="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 touch-friendly">Agrandir</button>
                         </td>
                     `;
                     tableBody.appendChild(row);
@@ -505,7 +619,7 @@
         function sortMissingDataTable(column) {
             console.log('[ArcFlash] Tri tableau données manquantes:', column);
             const tableauId = document.getElementById('missing-data-modal-title').textContent.split(' - ')[1].split(' (')[0];
-            const disjoncteurId = document.getElementById('missing-data-modal-title').textContent.match(/\((\w+)\)/)[1];
+            const disjoncteurId = document.getElementById('missing-data-modal-title').textContent.match(/\(.*?\)/)[0].slice(1, -1);
             const tableau = tableauxData.find(t => t.id === tableauId);
             const disjoncteur = tableau.disjoncteurs.find(d => d.id === disjoncteurId);
             const missingData = checkMissingData([disjoncteur]);
@@ -617,7 +731,9 @@
                     });
                     if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
                     tableauxData.push(newTableau);
-                    renderArcFlashSchema(tableauxData);
+                    populateFilters();
+                    afficherTableauxEtSchema(tableauxData);
+                    genererGraphiquesGlobaux();
                     closeAddNodeModal();
                     showPopup('Tableau ajouté avec succès.');
                 } else {
@@ -636,7 +752,7 @@
                         isHTAFeeder: false,
                         linkedTableauIds: linkedTableau ? [linkedTableau] : []
                     };
-                    const tableau = tableauxData[0] || { id: 'TEMP', disjoncteurs: [] };
+                    const tableau = tableauxData.find(t => t.id === linkedTableau) || tableauxData[0] || { id: 'TEMP', disjoncteurs: [] };
                     const response = await fetch(`/api/disjoncteur/${encodeURIComponent(tableau.id)}/${encodeURIComponent(id)}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
@@ -644,7 +760,9 @@
                     });
                     if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
                     tableau.disjoncteurs.push(disjoncteur);
-                    renderArcFlashSchema(tableauxData);
+                    populateFilters();
+                    afficherTableauxEtSchema(tableauxData);
+                    genererGraphiquesGlobaux();
                     closeAddNodeModal();
                     showPopup('Disjoncteur ajouté avec succès.');
                 }
@@ -654,24 +772,30 @@
             }
         }
 
-        function openModal(tableauIndex, disjIndex) {
-            console.log('[ArcFlash] Ouverture modal graphique');
-            const tableau = tableauxData[tableauIndex];
-            const disjoncteur = tableau.disjoncteurs[disjIndex];
-            if (!tableau || !disjoncteur) {
-                showPopup('Erreur: Données non trouvées.');
+        function openModal(encodedTableauId, encodedDisjoncteurId) {
+            console.log('[ArcFlash] Ouverture modal graphique:', encodedTableauId, encodedDisjoncteurId);
+            const tableauId = decodeURIComponent(encodedTableauId);
+            const disjoncteurId = decodeURIComponent(encodedDisjoncteurId);
+            const tableau = tableauxData.find(t => t.id === tableauId);
+            if (!tableau) {
+                showPopup('Erreur: Tableau non trouvé.');
+                return;
+            }
+            const disjoncteur = tableau.disjoncteurs.find(d => d.id === disjoncteurId);
+            if (!disjoncteur) {
+                showPopup('Erreur: Disjoncteur non trouvé.');
                 return;
             }
             const modal = document.getElementById('modal-graph');
             modal.classList.remove('hidden');
             modalChartInstance = genererGraphique('modal-modal', disjoncteur, tableau, true);
-            gsap.from('#modal-graph', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+            gsap.from('#modal-graph > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
         }
 
         function closeModal() {
             console.log('[ArcFlash] Fermeture modal');
             const modal = document.getElementById('modal-graph');
-            gsap.to('#modal-graph', {
+            gsap.to('#modal-graph > div', {
                 opacity: 0,
                 scale: 0.8,
                 duration: 0.5,
@@ -687,7 +811,7 @@
         }
 
         function genererGraphique(canvasId, disjoncteur, tableau, isModal) {
-            console.log('[ArcFlash] Génération graphique');
+            console.log('[ArcFlash] Génération graphique pour', disjoncteur.id);
             const ctx = document.getElementById(canvasId)?.getContext('2d');
             if (!ctx) {
                 showPopup('Erreur: Élément graphique non trouvé.');
@@ -698,10 +822,10 @@
                 label: `Énergie incidente (${disjoncteur.id})`,
                 data: [{ x: 1, y: arcFlash.incidentEnergy }],
                 backgroundColor: arcFlash.incidentEnergy > 8 ? '#dc2626' : arcFlash.incidentEnergy > 1.2 ? '#eab308' : '#22c55e',
-                pointRadius: 10
+                pointRadius: isModal ? 15 : 10
             }];
 
-            if (modalChartInstance) {
+            if (modalChartInstance && isModal) {
                 modalChartInstance.destroy();
                 modalChartInstance = null;
             }
@@ -711,15 +835,27 @@
                 data: { datasets },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: true,
                     scales: {
-                        x: { title: { display: true, text: 'Index', color: '#ffffff' }, min: 0, max: 2 },
-                        y: { title: { display: true, text: 'Énergie incidente (cal/cm²)', color: '#ffffff' }, min: 0, max: Math.max(10, arcFlash.incidentEnergy * 1.2) }
+                        x: {
+                            title: { display: true, text: 'Index', color: '#ffffff' },
+                            min: 0,
+                            max: 2,
+                            ticks: { color: '#ffffff' }
+                        },
+                        y: {
+                            title: { display: true, text: 'Énergie incidente (cal/cm²)', color: '#ffffff' },
+                            min: 0,
+                            max: Math.max(10, arcFlash.incidentEnergy * 1.2),
+                            ticks: { color: '#ffffff' }
+                        }
                     },
                     plugins: {
                         title: {
                             display: true,
                             text: `Arc Flash - ${tableau.id} (${disjoncteur.id})`,
-                            color: '#ffffff'
+                            color: '#ffffff',
+                            font: { size: isModal ? 18 : 14 }
                         },
                         legend: { labels: { color: '#ffffff' } }
                     }
@@ -740,10 +876,86 @@
             return chart;
         }
 
+        function genererGraphiquesGlobaux() {
+            console.log('[ArcFlash] Génération graphiques globaux');
+            const chartsContainer = document.getElementById('global-charts');
+            chartsContainer.innerHTML = '';
+            globalChartInstances.forEach(chart => chart.destroy());
+            globalChartInstances = [];
+
+            const building = document.getElementById('building-filter').value;
+            const tableau = document.getElementById('tableau-filter').value;
+            let filteredData = [...tableauxData];
+            if (building) {
+                filteredData = filteredData.filter(t => t.building === building);
+            }
+            if (tableau) {
+                filteredData = filteredData.filter(t => t.id === tableau);
+            }
+
+            const buildings = [...new Set(filteredData.map(t => t.building).filter(b => b))].sort();
+            buildings.forEach(b => {
+                const buildingData = filteredData.filter(t => t.building === b);
+                const container = document.createElement('div');
+                container.className = 'global-chart-container';
+                const canvas = document.createElement('canvas');
+                canvas.id = `chart-building-${b.replace(/\s/g, '-')}`;
+                container.appendChild(canvas);
+                chartsContainer.appendChild(container);
+
+                const datasets = [];
+                buildingData.forEach(tableau => {
+                    const energies = tableau.disjoncteurs.map(d => {
+                        const arcFlash = calculateIncidentEnergy(d, tableau);
+                        return arcFlash.incidentEnergy;
+                    });
+                    datasets.push({
+                        label: tableau.id,
+                        data: energies,
+                        backgroundColor: energies.map(e => e > 8 ? '#dc2626' : e > 1.2 ? '#eab308' : '#22c55e'),
+                        pointRadius: 8
+                    });
+                });
+
+                const ctx = canvas.getContext('2d');
+                const chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: buildingData[0]?.disjoncteurs.map((_, i) => `Disj ${i + 1}`) || [],
+                        datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        scales: {
+                            x: {
+                                title: { display: true, text: 'Disjoncteurs', color: '#ffffff' },
+                                ticks: { color: '#ffffff' }
+                            },
+                            y: {
+                                title: { display: true, text: 'Énergie incidente (cal/cm²)', color: '#ffffff' },
+                                min: 0,
+                                ticks: { color: '#ffffff' }
+                            }
+                        },
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `Énergie incidente par tableau - Bâtiment ${b}`,
+                                color: '#ffffff',
+                                font: { size: 16 }
+                            },
+                            legend: { labels: { color: '#ffffff' } }
+                        }
+                    }
+                });
+                globalChartInstances.push(chart);
+            });
+        }
+
         function renderArcFlashSchema(data, focusedTableauId = null) {
             console.log('[ArcFlash] Rendu schéma Konva.js');
             const graphContainer = document.getElementById('global-graph');
-            const textDiv = document.getElementById('global-text');
             graphContainer.innerHTML = '';
 
             const stage = new Konva.Stage({
@@ -794,7 +1006,7 @@
                 });
             });
 
-            textDiv.innerHTML = `
+            document.getElementById('global-text').innerHTML = `
                 <p class="text-xl sm:text-2xl font-bold ${globalStatus === 'OK' ? 'text-green-600' : 'text-red-600'}"><i class="fas ${globalStatus === 'OK' ? 'fa-check-circle' : 'fa-exclamation-circle'} mr-2"></i>Statut global : ${globalStatus}</p>
                 ${errors.length > 0 ? `<ul class="list-disc ml-6 mt-4 text-red-600">${errors.map(e => `<li>${e}</li>`).join('')}</ul>` : ''}
             `;
