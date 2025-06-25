@@ -570,10 +570,11 @@
                 try {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 5000);
-                    const response = await fetch('/api/disjoncteurs', { signal: controller.signal });
+                    const response = await fetch('/api/equipements', { signal: controller.signal });
                     clearTimeout(timeoutId);
                     if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
-                    const disjoncteursExistants = await response.json();
+                    const equipementsExistants = await response.json();
+                    const disjoncteursExistants = equipementsExistants.filter(e => e.equipmentType === 'disjoncteur');
                     console.log('[Edit] Disjoncteurs existants reçus:', disjoncteursExistants.length);
                     const select = document.getElementById('disjoncteur-existant');
                     select.innerHTML = '<option value="">-- Choisir un disjoncteur --</option>';
