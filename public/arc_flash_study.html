@@ -904,38 +904,18 @@
                 showPopup('Erreur: Disjoncteur non trouvé.');
                 return;
             }
-
             currentTableauId = tableauId;
             currentDisjoncteurId = disjoncteurId;
-
             const modal = document.getElementById('modal-graph');
-            const canvasContainer = document.getElementById('modal-modal');
-
-            // ✅ Supprimer l’ancien graphique s’il existe
-            if (modalChartInstance) {
-                modalChartInstance.destroy();
-                modalChartInstance = null;
-            }
-
-            // ✅ Réinitialiser le canvas
-            const newCanvas = document.createElement('canvas');
-            newCanvas.id = 'modal-modal';
-            canvasContainer.parentNode.replaceChild(newCanvas, canvasContainer);
-
-            // ✅ Afficher correctement le modal
+            // Réinitialiser l'état du modal
+            modal.style.display = 'none';
             modal.style.display = 'flex';
-            modal.classList.remove('hidden');
-            modal.classList.add('show');
-
-            // ✅ Générer le nouveau graphique
-            modalChartInstance = genererGraphique('modal-modal', disjoncteur, tableau, true);
-
-            gsap.from('#modal-graph > div', {
-                opacity: 0,
-                scale: 0.8,
-                duration: 0.5,
-                ease: 'power2.out'
-            });
+    modal.classList.remove('hidden');
+    modal.classList.add('show');
+            setTimeout(() => {
+                modalChartInstance = genererGraphique('modal-modal', disjoncteur, tableau, true);
+                gsap.from('#modal-graph > div', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+            }, 10);
         }
 
         function closeModal() {
