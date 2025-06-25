@@ -322,62 +322,89 @@ async function initDb() {
         }
 
         // Normaliser les disjoncteurs existants
-        const result = await client.query('SELECT id, disjoncteurs FROM tableaux');
-        console.log('[Server] Tableaux à normaliser:', result.rows.length);
-        for (const row of result.rows) {
-            try {
-                if (!Array.isArray(row.disjoncteurs)) {
-                    console.warn('[Server] Disjoncteurs non valides pour tableau:', row.id, 'Initialisation à []');
-                    await client.query('UPDATE tableaux SET disjoncteurs = $1::jsonb WHERE id = $2', ['[]', row.id]);
-                    continue;
-                }
-                const normalizedDisjoncteurs = row.disjoncteurs.map(d => {
-                    try {
-                        return {
-                            ...d,
-                            id: d.id || `unknown-${Math.random().toString(36).substring(2, 9)}`,
-                            cableLength: isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 0 : 20) : parseFloat(d.cableLength),
-                            impedance: d.impedance || null,
-                            ue: d.ue || '400 V',
-                            section: d.section || `${getRecommendedSection(d.in)} mm²`,
-                            icn: normalizeIcn(d.icn),
-                            replacementDate: d.replacementDate || null,
-                            humidite: d.humidite || 50,
-                            temp_ambiante: d.temp_ambiante || 25,
-                            charge: d.charge || 80,
-                            linkedTableauIds: Array.isArray(d.linkedTableauIds) ? d.linkedTableauIds : d.linkedTableauId ? [d.linkedTableauId] : [],
-                            isPrincipal: !!d.isPrincipal,
-                            isHTAFeeder: !!d.isHTAFeeder
-                        };
-                    } catch (err) {
-                        console.warn('[Server] Erreur normalisation disjoncteur dans tableau:', row.id, 'Disjoncteur:', d, 'Erreur:', err.message);
-                        return null;
-                    }
-                }).filter(d => d !== null);
-                if (normalizedDisjoncteurs.length !== row.disjoncteurs.length) {
-                    console.warn('[Server] Certains disjoncteurs ignorés pour tableau:', row.id, 'Orig:', row.disjoncteurs.length, 'Normalisés:', normalizedDisjoncteurs.length);
-                }
-                await client.query('UPDATE tableaux SET disjoncteurs = $1::jsonb WHERE id = $2', [JSON.stringify(normalizedDisjoncteurs), row.id]);
-                console.log('[Server] Tableau normalisé:', row.id, 'Disjoncteurs:', normalizedDisjoncteurs.length);
-            } catch (err) {
-                console.error('[Server] Erreur normalisation tableau:', row.id, 'Erreur:', {
-                    message: err.message,
-                    stack: err.stack
-                });
-            }
+const result = await client.query('SELECT id, disjoncteurs FROM tableaux');
+console.log('[Server] Tableaux à normaliser:', result.rows.length);
+for (const row of result.rows) {
+    try {
+        // Vérifier si les disjoncteurs sont un tableau valide
+        if (!Array.isArray(row.disjoncteurs)) {
+            console.warn('[Server] Disjoncteurs non valides pour tableau:', row.id, 'Initialisation à []');
+            await client.query('UPDATE tableaux SET disjoncteurs = $1::jsonb WHERE id = $2', ['[]', row.id]);
+            continue;
         }
-        console.log('[Server] Base de données initialisée avec succès');
-    } catch (error) {
-        console.error('[Server] Erreur lors de l\'initialisation de la DB:', {
-            message: error.message,
-            stack: error.stack,
-            code: error.code,
-            detail: error.detail
+        // Normaliser chaque disjoncteur
+        const normalizedDisjoncteurs = row.disjoncteurs.map(d => {
+            try {
+                // Définir triptime par défaut basé sur la courbe
+                const courbe = d.courbe ? d.courbe.toUpperCase() : 'C'; // Par défaut C si non spécifié
+                let defaultTriptime;
+                switch (courbe) {
+                    case 'B':
+                        defaultTriptime = 0.01; // 10 ms pour courbe B (éclairage, charges résistives)
+                        break;
+                    case 'C':
+                        defaultTriptime = 0.02; // 20 ms pour courbe C (moteurs, charges courantes)
+                        break;
+                    case 'D':
+                        defaultTriptime = 0.03; // 30 ms pour courbe D (forts courants d'appel)
+                        break;
+                    case 'K':
+                        defaultTriptime = 0.015; // 15 ms pour courbe K (moteurs spécifiques)
+                        break;
+                    case 'Z':
+                        defaultTriptime = 0.005; // 5 ms pour courbe Z (électronique sensible)
+                        break;
+                    default:
+                        defaultTriptime = 0.02; // Valeur par défaut conservatrice
+                }
+                return {
+                    ...d, // Conserver toutes les propriétés existantes
+                    id: d.id || `unknown-${Math.random().toString(36).substring(2, 9)}`, // ID unique si manquant
+                    cableLength: isNaN(parseFloat(d.cableLength)) ? (d.isPrincipal ? 0 : 20) : parseFloat(d.cableLength), // Longueur câble: 0 pour principal, 20m sinon
+                    impedance: d.impedance || null, // Impédance nulle si non spécifiée
+                    ue: d.ue || '400 V', // Tension nominale par défaut
+                    section: d.section || `${getRecommendedSection(d.in)} mm²`, // Section basée sur In
+                    icn: normalizeIcn(d.icn), // Normalisation du pouvoir de coupure
+                    replacementDate: d.replacementDate || null, // Date de remplacement nulle si non spécifiée
+                    humidite: d.humidite || 50, // Humidité par défaut
+                    temp_ambiante: d.temp_ambiante || 25, // Température ambiante par défaut
+                    charge: d.charge || 80, // Charge par défaut
+                    linkedTableauIds: Array.isArray(d.linkedTableauIds) ? d.linkedTableauIds : d.linkedTableauId ? [d.linkedTableauId] : [], // Normalisation des IDs liés
+                    isPrincipal: !!d.isPrincipal, // Booléen pour principal
+                    isHTAFeeder: !!d.isHTAFeeder, // Booléen pour HTA
+                    triptime: d.triptime || defaultTriptime // Ajout de triptime par défaut
+                };
+            } catch (err) {
+                console.warn('[Server] Erreur normalisation disjoncteur dans tableau:', row.id, 'Disjoncteur:', d, 'Erreur:', err.message);
+                return null;
+            }
+        }).filter(d => d !== null); // Filtrer les disjoncteurs invalides
+        // Vérifier si des disjoncteurs ont été ignorés
+        if (normalizedDisjoncteurs.length !== row.disjoncteurs.length) {
+            console.warn('[Server] Certains disjoncteurs ignorés pour tableau:', row.id, 'Orig:', row.disjoncteurs.length, 'Normalisés:', normalizedDisjoncteurs.length);
+        }
+        // Mettre à jour le tableau dans la base de données
+        await client.query('UPDATE tableaux SET disjoncteurs = $1::jsonb WHERE id = $2', [JSON.stringify(normalizedDisjoncteurs), row.id]);
+        console.log('[Server] Tableau normalisé:', row.id, 'Disjoncteurs:', normalizedDisjoncteurs.length);
+    } catch (err) {
+        console.error('[Server] Erreur normalisation tableau:', row.id, 'Erreur:', {
+            message: err.message,
+            stack: err.stack
         });
-        throw error;
-    } finally {
-        if (client) client.release();
     }
+}
+console.log('[Server] Base de données initialisée avec succès');
+} catch (error) {
+    console.error('[Server] Erreur lors de l\'initialisation de la DB:', {
+        message: error.message,
+        stack: error.stack,
+        code: error.code,
+        detail: error.detail
+    });
+    throw error;
+} finally {
+    if (client) client.release();
+}
 }
 initDb().catch(err => {
     console.error('[Server] Échec initialisation DB, arrêt serveur:', err);
