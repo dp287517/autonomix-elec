@@ -560,11 +560,14 @@
                         section: normalizeNumericValue(d.section, 'section')
                     }));
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+                    const tableauResponse = await fetch(`/api/tablesaux/${encodeURIComponent(tableauId)}`, { signal: controller.signal });
+                    const tableauData = await tableauResponse.json();
+                    const autresEquipements = tableauData.autresEquipements || [];
                     const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: tableauId, disjoncteurs: normalizedDisjoncteurs, issitemain: newIsSiteMain, isHTA, htaData }),
+                        body: JSON.stringify({ id: tableauId, disjoncteurs: normalizedDisjoncteurs, issitemain: newIsSiteMain, isHTA, htaData, autresEquipements }),
                         signal: controller.signal
                     });
                     clearTimeout(timeoutId);
@@ -979,25 +982,30 @@
                                 section: normalizeNumericValue(d.section, 'section')
                             }));
                             const controller = new AbortController();
-                            const timeoutId = setTimeout(() => controller.abort(), 5000);
+                            const timeoutId = setTimeout(() => controller.abort(), 10000);
+                            // Récupérer autresEquipements pour le tableau source
+                            const sourceTableauResponse = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, { signal: controller.signal });
+                            const sourceTableauData = await sourceTableauResponse.json();
+                            const sourceAutresEquipements = sourceTableauData.autresEquipements || [];
                             await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ id: tableauId, disjoncteurs: normalizedDisjoncteurs, issitemain, isHTA, htaData }),
+                                body: JSON.stringify({ id: tableauId, disjoncteurs: normalizedDisjoncteurs, issitemain, isHTA, htaData, autresEquipements: sourceAutresEquipements }),
                                 signal: controller.signal
                             });
-                            clearTimeout(timeoutId);
-                            console.log('[Edit] Tableau', tableauId, 'mis à jour après suppression');
-                            const response = await fetch(`/api/tableaux/${encodeURIComponent(targetId)}`, { signal: controller.signal });
-                            const targetTableau = await response.json();
+                            // Récupérer autresEquipements pour le tableau cible
+                            const targetTableauResponse = await fetch(`/api/tableaux/${encodeURIComponent(targetId)}`, { signal: controller.signal });
+                            const targetTableau = await targetTableauResponse.json();
                             const targetDisjoncteurs = targetTableau.disjoncteurs || [];
+                            const targetAutresEquipements = targetTableau.autresEquipements || [];
                             targetDisjoncteurs.push(normalizedDisjoncteur);
                             await fetch(`/api/tableaux/${encodeURIComponent(targetId)}`, {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ id: targetId, disjoncteurs: targetDisjoncteurs, issitemain: targetTableau.issitemain, isHTA: targetTableau.isHTA, htaData: targetTableau.htaData }),
+                                body: JSON.stringify({ id: targetId, disjoncteurs: targetDisjoncteurs, issitemain: targetTableau.issitemain, isHTA: targetTableau.isHTA, htaData: targetTableau.htaData, autresEquipements: targetAutresEquipements }),
                                 signal: controller.signal
                             });
+                            clearTimeout(timeoutId);
                             console.log('[Edit] Disjoncteur', disjoncteur.id, 'transféré vers', targetId);
                             await chargerTableau();
                             hidePopup();
@@ -1205,11 +1213,14 @@
                             section: normalizeNumericValue(d.section, 'section')
                         }));
                         const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 5000);
+                        const timeoutId = setTimeout(() => controller.abort(), 10000);
+                        const tableauResponse = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, { signal: controller.signal });
+                        const tableauData = await tableauResponse.json();
+                        const autresEquipements = tableauData.autresEquipements || [];
                         await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: tableauId, disjoncteurs: normalizedDisjoncteurs, issitemain, isHTA, htaData }),
+                            body: JSON.stringify({ id: tableauId, disjoncteurs: normalizedDisjoncteurs, issitemain, isHTA, htaData, autresEquipements }),
                             signal: controller.signal
                         });
                         clearTimeout(timeoutId);
@@ -1224,7 +1235,7 @@
                 });
             }
 
-            function supprimerDisjoncteur(index) {
+            async function supprimerDisjoncteur(index) {
                 console.log('[Edit] Bouton Supprimer cliqué, index:', index);
                 const disjoncteur = disjoncteurs[index];
                 if (!disjoncteur) {
@@ -1253,12 +1264,16 @@
                             triptime: normalizeNumericValue(d.triptime, 'triptime'),
                             section: normalizeNumericValue(d.section, 'section')
                         }));
+                        // Récupérer les autresEquipements existants
                         const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 5000);
+                        const timeoutId = setTimeout(() => controller.abort(), 10000);
+                        const tableauResponse = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, { signal: controller.signal });
+                        const tableauData = await tableauResponse.json();
+                        const autresEquipements = tableauData.autresEquipements || [];
                         const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ id: tableauId, disjoncteurs: normalizedDisjoncteurs, issitemain, isHTA, htaData }),
+                            body: JSON.stringify({ id: tableauId, disjoncteurs: normalizedDisjoncteurs, issitemain, isHTA, htaData, autresEquipements }),
                             signal: controller.signal
                         });
                         clearTimeout(timeoutId);
@@ -1313,20 +1328,23 @@
                         triptime: normalizeNumericValue(d.triptime, 'triptime'),
                         section: normalizeNumericValue(d.section, 'section')
                     }));
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+                    const tableauResponse = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, { signal: controller.signal });
+                    const tableauData = await tableauResponse.json();
+                    const autresEquipements = tableauData.autresEquipements || [];
                     console.log('[Edit] Envoi requête PUT /api/tableaux/', tableauId, 'avec:', {
                         id: newTableauId,
                         disjoncteurs: normalizedDisjoncteurs.length,
-                        autresEquipements: 0,
+                        autresEquipements: autresEquipements.length,
                         issitemain,
                         isHTA: isHTAChecked,
                         htaData
                     });
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000);
                     const response = await fetch(`/api/tableaux/${encodeURIComponent(tableauId)}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: newTableauId, disjoncteurs: normalizedDisjoncteurs, autresEquipements: [], issitemain, isHTA: isHTAChecked, htaData }),
+                        body: JSON.stringify({ id: newTableauId, disjoncteurs: normalizedDisjoncteurs, autresEquipements, issitemain, isHTA: isHTAChecked, htaData }),
                         signal: controller.signal
                     });
                     clearTimeout(timeoutId);
