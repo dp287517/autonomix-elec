@@ -124,7 +124,7 @@
             console.log('[Client] Suppression tableau:', id);
             showPopup(`Voulez-vous supprimer le tableau ${id} ?`, async () => {
                 try {
-                    const response = await fetch(`/api/tableaux/${id}`, {
+                    const response = await fetch(`/api/tableaux/${encodeURIComponent(id)}`, {
                         method: 'DELETE'
                     });
                     if (response.ok) {
@@ -138,7 +138,7 @@
                     }
                 } catch (error) {
                     console.error('[Client] Erreur suppression:', error);
-                    showPopup('Erreur réseau lors de la suppression. Vérifiez votre connexion.', () => hidePopup());
+                    showPopup(`Erreur lors de la suppression : ${error.message}`, () => hidePopup());
                 }
             });
         }
