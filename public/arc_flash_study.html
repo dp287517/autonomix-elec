@@ -23,17 +23,17 @@
             left: 0;
             width: 100%;
             height: 100%;
-            align-items: start;
+            align-items: center;
             justify-content: center;
-            padding-top: 1rem;
-            padding-bottom: 1rem;
         }
+
         #modal-graph.show {
             display: flex !important;
+            opacity: 1 !important;
         }
         #modal-graph > div {
             background-color: #1f2937 !important;
-            max-height: none !important;
+            max-height: 90vh !important;
             width: 90vw !important;
             max-width: 900px !important;
             padding: 1.5rem !important;
@@ -169,21 +169,25 @@
             display: none;
             padding: 20px;
             border: 2px solid #000000;
-            max-width: 180mm;
-            min-height: 100mm;
-            height: auto;
+            width: 180mm !important;
+            min-height: 100mm !important;
+            max-height: 297mm !important; /* A4 height */
             margin: 10mm auto;
             font-family: Arial, sans-serif;
             box-sizing: border-box;
             color: #000000;
-            overflow: visible;
+            background-color: #ffffff !important; /* Fond blanc par défaut */
+            overflow: hidden; /* Éviter le débordement */
         }
+
         #arc-flash-card.low-risk {
             background-color: #d1fae5 !important;
         }
+
         #arc-flash-card.medium-risk {
             background-color: #fef3c7 !important;
         }
+
         #arc-flash-card.high-risk {
             background-color: #dc2626 !important;
             color: #ffffff !important;
@@ -313,7 +317,7 @@
             <div id="global-text" class="mt-4 text-gray-300 text-sm sm:text-base"></div>
         </div>
 
-        <div id="modal-graph" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-start justify-center pt-4 pb-4 z-[2000]" role="dialog" aria-labelledby="modal-title">
+        <div id="modal-graph" class="fixed inset-0 bg-black bg-opacity-70 hidden z-[2000]" role="dialog" aria-labelledby="modal-title">
             <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg w-[90vw] max-w-[900px] flex flex-col relative z-[2001]">
                 <div class="sticky top-0 flex items-center justify-between mb-4">
                     <h3 class="text-lg sm:text-xl font-bold text-white flex items-center" id="modal-title"><i class="fas fa-chart-bar mr-2"></i>Analyse d'Arc Flash</h3>
@@ -416,6 +420,7 @@
     </div>
 
     <script>
+        let pdfGenerationInProgress = false;
         let tableauxData = [];
         let modalChartInstance = null;
         let missingDataSortDirection = 'asc';
@@ -908,60 +913,84 @@
                 showPopup('Erreur: Disjoncteur non trouvé.');
                 return;
             }
+
             currentTableauId = tableauId;
             currentDisjoncteurId = disjoncteurId;
+
             const modal = document.getElementById('modal-graph');
             const canvas = document.getElementById('modal-modal');
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Réinitialiser l'état du modal
+            modal.classList.remove('hidden', 'show');
+            modal.style.display = 'flex';
+            modal.style.opacity = '0'; // Préparer pour l'animation d'entrée
+
+            // Nettoyer le canvas
             if (modalChartInstance) {
-                console.log('[ArcFlash] Destruction de l’ancien graphique du modal');
                 modalChartInstance.destroy();
                 modalChartInstance = null;
             }
-            modal.classList.remove('hidden');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Générer le graphique
             modalChartInstance = genererGraphique('modal-modal', disjoncteur, tableau, true);
-            gsap.from('#modal-graph', { opacity: 0, scale: 0.8, duration: 0.5, ease: 'power2.out' });
+
+            // Animer l'ouverture
+            modal.classList.add('show');
+            gsap.fromTo('#modal-graph > div', 
+                { opacity: 0, scale: 0.8 }, 
+                { opacity: 1, scale: 1, duration: 0.5, ease: 'power2.out' }
+            );
         }
 
         function closeModal() {
             console.log('[ArcFlash] Fermeture modal');
             const modal = document.getElementById('modal-graph');
-            gsap.to('#modal-graph', {
+
+            // Animer la fermeture
+            gsap.to('#modal-graph > div', {
                 opacity: 0,
                 scale: 0.8,
                 duration: 0.5,
                 ease: 'power2.in',
                 onComplete: () => {
+                    modal.classList.remove('show');
                     modal.classList.add('hidden');
                     modal.style.display = 'none';
-                    const canvas = document.getElementById('modal-modal');
-                    const ctx = canvas.getContext('2d');
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
                     if (modalChartInstance) {
-                        console.log('[ArcFlash] Destruction du graphique du modal');
                         modalChartInstance.destroy();
                         modalChartInstance = null;
                     }
                     document.getElementById('arc-flash-card').classList.add('hidden');
                     document.getElementById('arc-flash-card').style.display = 'none';
+                    modal.style.opacity = ''; // Réinitialiser pour la prochaine ouverture
                 }
             });
         }
 
         function printArcFlashCard() {
+            if (pdfGenerationInProgress) {
+                showPopup('Une génération de PDF est en cours. Veuillez attendre.');
+                return;
+            }
+            pdfGenerationInProgress = true;
+
             console.log('[ArcFlash] Impression carte arc flash');
             const tableau = tableauxData.find(t => t.id === currentTableauId);
             const disjoncteur = tableau?.disjoncteurs.find(d => d.id === currentDisjoncteurId);
             if (!tableau || !disjoncteur) {
                 showPopup('Erreur: Données du tableau ou disjoncteur non trouvées.');
+                pdfGenerationInProgress = false;
                 return;
             }
+
             const arcFlash = calculateIncidentEnergy(disjoncteur, tableau);
             const card = document.getElementById('arc-flash-card');
-            console.log('[ArcFlash] Préparation carte:', tableau.id, disjoncteur.id, arcFlash.status);
 
-            // Réinitialiser le contenu
+            // Réinitialiser le contenu et les classes
+            card.classList.remove('low-risk', 'medium-risk', 'high-risk', 'hidden');
+            card.style.display = 'block';
             card.innerHTML = `
                 <h2 id="card-title" class="text-xl font-bold mb-4"></h2>
                 <p id="card-icon" class="card-icon"></p>
@@ -973,7 +1002,8 @@
                 <p id="card-recommendation" class="mb-4"></p>
                 <p id="card-footer" class="text-sm italic"></p>
             `;
-            card.classList.remove('low-risk', 'medium-risk', 'high-risk');
+
+            // Appliquer les données
             let riskClass = '';
             let icon = '';
             switch (arcFlash.status) {
@@ -1000,30 +1030,41 @@
             document.getElementById('card-status').textContent = `Statut : ${arcFlash.status}`;
             document.getElementById('card-recommendation').textContent = `Recommandation : ${getRecommendation(arcFlash)}`;
             document.getElementById('card-footer').textContent = `Généré par Autonomix Elec le ${new Date().toLocaleDateString('fr-FR')}`;
-            card.style.display = 'block';
 
-            // Forcer le recalcul des styles
-            window.getComputedStyle(card).height;
-            console.log('[ArcFlash] Carte affichée, attente rendu DOM');
-
+            // Attendre que le rendu soit complet
             setTimeout(() => {
-                console.log('[ArcFlash] Lancement génération PDF');
-                html2pdf().from(card).set({
-                    margin: [10, 10, 10, 10],
-                    filename: `arc_flash_${tableau.id}_${disjoncteur.id}.pdf`,
-                    html2canvas: { scale: 2, useCORS: true },
-                    jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4', compressPDF: true },
-                    pagebreak: { mode: 'avoid-all' }
-                }).save().then(() => {
-                    console.log('[ArcFlash] PDF généré avec succès');
-                    card.style.display = 'none';
-                    card.classList.add('hidden');
-                }).catch(err => {
-                    console.error('[ArcFlash] Erreur génération PDF:', err);
-                    showPopup('Erreur lors de la génération du PDF: ' + err.message);
-                    card.style.display = 'none';
-                    card.classList.add('hidden');
-                });
+                html2pdf()
+                    .from(card)
+                    .set({
+                        margin: [10, 10, 10, 10],
+                        filename: `arc_flash_${tableau.id}_${disjoncteur.id}.pdf`,
+                        html2canvas: { 
+                            scale: 2, 
+                            useCORS: true, 
+                            windowWidth: 794, 
+                            windowHeight: 1123 
+                        },
+                        jsPDF: { 
+                            orientation: 'portrait', 
+                            unit: 'mm', 
+                            format: 'a4', 
+                            compressPDF: true 
+                        }
+                    })
+                    .save()
+                    .then(() => {
+                        card.style.display = 'none';
+                        card.classList.add('hidden');
+                        pdfGenerationInProgress = false;
+                        console.log('[ArcFlash] PDF généré avec succès');
+                    })
+                    .catch(err => {
+                        console.error('[ArcFlash] Erreur génération PDF:', err);
+                        showPopup('Erreur lors de la génération du PDF: ' + err.message);
+                        card.style.display = 'none';
+                        card.classList.add('hidden');
+                        pdfGenerationInProgress = false;
+                    });
             }, 500);
         }
 
