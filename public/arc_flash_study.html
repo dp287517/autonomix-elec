@@ -969,7 +969,7 @@
             });
         }
 
-        function printArcFlashCard() {
+        async function printArcFlashCard() {
             if (pdfGenerationInProgress) {
                 showPopup('Une génération de PDF est en cours. Veuillez attendre.');
                 return;
@@ -977,6 +977,7 @@
             pdfGenerationInProgress = true;
 
             console.log('[ArcFlash] Impression carte arc flash');
+
             const tableau = tableauxData.find(t => t.id === currentTableauId);
             const disjoncteur = tableau?.disjoncteurs.find(d => d.id === currentDisjoncteurId);
             if (!tableau || !disjoncteur) {
@@ -988,7 +989,7 @@
             const arcFlash = calculateIncidentEnergy(disjoncteur, tableau);
             const card = document.getElementById('arc-flash-card');
 
-            // Réinitialiser le contenu et les classes
+            // Réinitialiser la carte
             card.classList.remove('low-risk', 'medium-risk', 'high-risk', 'hidden');
             card.style.display = 'block';
             card.innerHTML = `
@@ -1007,18 +1008,9 @@
             let riskClass = '';
             let icon = '';
             switch (arcFlash.status) {
-                case 'Risque faible':
-                    riskClass = 'low-risk';
-                    icon = '✅';
-                    break;
-                case 'Risque modéré':
-                    riskClass = 'medium-risk';
-                    icon = '⚠️';
-                    break;
-                case 'Risque élevé':
-                    riskClass = 'high-risk';
-                    icon = '🚨';
-                    break;
+                case 'Risque faible': riskClass = 'low-risk'; icon = '✅'; break;
+                case 'Risque modéré': riskClass = 'medium-risk'; icon = '⚠️'; break;
+                case 'Risque élevé': riskClass = 'high-risk'; icon = '🚨'; break;
             }
             card.classList.add(riskClass);
             document.getElementById('card-title').textContent = `Arc Flash - ${tableau.id}`;
@@ -1031,55 +1023,42 @@
             document.getElementById('card-recommendation').textContent = `Recommandation : ${getRecommendation(arcFlash)}`;
             document.getElementById('card-footer').textContent = `Généré par Autonomix Elec le ${new Date().toLocaleDateString('fr-FR')}`;
 
-            // Débogage : afficher le contenu HTML du card
-            console.log('[ArcFlash] Contenu du #arc-flash-card avant génération PDF :', card.innerHTML);
+            // Attendre que l’élément soit visible dans le DOM
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
-            // Augmenter le délai pour garantir le rendu
-            setTimeout(() => {
-                // Débogage : vérifier si l'élément est visible dans le DOM
-                const rect = card.getBoundingClientRect();
-                console.log('[ArcFlash] Position et taille du #arc-flash-card :', {
-                    top: rect.top,
-                    left: rect.left,
-                    width: rect.width,
-                    height: rect.height,
-                    display: window.getComputedStyle(card).display
+            // Lancer la génération PDF
+            html2pdf()
+                .from(card)
+                .set({
+                    margin: [10, 10, 10, 10],
+                    filename: `arc_flash_${tableau.id}_${disjoncteur.id}.pdf`,
+                    html2canvas: {
+                        scale: 2,
+                        useCORS: true,
+                        windowWidth: 794,
+                        windowHeight: 1123,
+                        logging: true
+                    },
+                    jsPDF: {
+                        orientation: 'portrait',
+                        unit: 'mm',
+                        format: 'a4',
+                        compressPDF: true
+                    }
+                })
+                .save()
+                .then(() => {
+                    console.log('[ArcFlash] PDF généré avec succès');
+                })
+                .catch(err => {
+                    console.error('[ArcFlash] Erreur génération PDF:', err);
+                    showPopup('Erreur lors de la génération du PDF: ' + err.message);
+                })
+                .finally(() => {
+                    card.style.display = 'none';
+                    card.classList.add('hidden');
+                    pdfGenerationInProgress = false;
                 });
-
-                html2pdf()
-                    .from(card)
-                    .set({
-                        margin: [10, 10, 10, 10],
-                        filename: `arc_flash_${tableau.id}_${disjoncteur.id}.pdf`,
-                        html2canvas: { 
-                            scale: 2, 
-                            useCORS: true, 
-                            windowWidth: 794, 
-                            windowHeight: 1123,
-                            logging: true // Activer les logs de html2canvas pour débogage
-                        },
-                        jsPDF: { 
-                            orientation: 'portrait', 
-                            unit: 'mm', 
-                            format: 'a4', 
-                            compressPDF: true 
-                        }
-                    })
-                    .save()
-                    .then(() => {
-                        card.style.display = 'none';
-                        card.classList.add('hidden');
-                        pdfGenerationInProgress = false;
-                        console.log('[ArcFlash] PDF généré avec succès');
-                    })
-                    .catch(err => {
-                        console.error('[ArcFlash] Erreur génération PDF:', err);
-                        showPopup('Erreur lors de la génération du PDF: ' + err.message);
-                        card.style.display = 'none';
-                        card.classList.add('hidden');
-                        pdfGenerationInProgress = false;
-                    });
-            }, 5000); // Augmenter le délai à 1000ms
         }
 
         function getRecommendation(arcFlash) {
