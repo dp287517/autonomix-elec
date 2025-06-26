@@ -458,7 +458,7 @@
 
         function calculateIncidentEnergy(disjoncteur, tableau) {
             const ue = normalizeCurrent(disjoncteur.ue) || 400;
-            const inValue = normalizeCurrent(disjoncteur.in) || 16;
+            const irValue = normalizeCurrent(disjoncteur.ir) || normalizeCurrent(disjoncteur.in) || 16; // Priorité à Ir
             let triptime = parseFloat(disjoncteur.triptime);
             if (isNaN(triptime)) {
                 const courbe = disjoncteur.courbe ? disjoncteur.courbe.toUpperCase() : 'C';
@@ -478,7 +478,9 @@
             const cableLength = parseFloat(disjoncteur.cableLength) || 20;
             const section = disjoncteur.section ? parseFloat(disjoncteur.section.match(/[\d.]+/)[0]) : 2.5;
             const k = 0.6;
-            const I_arc = k * inValue;
+            const I_arc_base = k * irValue;
+            const I_cs = normalizeCurrent(disjoncteur.ics) * 1000 || normalizeCurrent(disjoncteur.icn) * 1000 || 10000; // Ics ou Icn en A
+            const I_arc = Math.min(I_arc_base, I_cs); // Limiter par le courant de court-circuit
             const D = 0.61;
             const E = (4.184 * I_arc * triptime) / (D * D);
             const boundary = Math.sqrt((4.184 * I_arc * triptime) / 1.2);
