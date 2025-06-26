@@ -1031,8 +1031,21 @@
             document.getElementById('card-recommendation').textContent = `Recommandation : ${getRecommendation(arcFlash)}`;
             document.getElementById('card-footer').textContent = `Généré par Autonomix Elec le ${new Date().toLocaleDateString('fr-FR')}`;
 
-            // Attendre que le rendu soit complet
+            // Débogage : afficher le contenu HTML du card
+            console.log('[ArcFlash] Contenu du #arc-flash-card avant génération PDF :', card.innerHTML);
+
+            // Augmenter le délai pour garantir le rendu
             setTimeout(() => {
+                // Débogage : vérifier si l'élément est visible dans le DOM
+                const rect = card.getBoundingClientRect();
+                console.log('[ArcFlash] Position et taille du #arc-flash-card :', {
+                    top: rect.top,
+                    left: rect.left,
+                    width: rect.width,
+                    height: rect.height,
+                    display: window.getComputedStyle(card).display
+                });
+
                 html2pdf()
                     .from(card)
                     .set({
@@ -1042,7 +1055,8 @@
                             scale: 2, 
                             useCORS: true, 
                             windowWidth: 794, 
-                            windowHeight: 1123 
+                            windowHeight: 1123,
+                            logging: true // Activer les logs de html2canvas pour débogage
                         },
                         jsPDF: { 
                             orientation: 'portrait', 
@@ -1065,7 +1079,7 @@
                         card.classList.add('hidden');
                         pdfGenerationInProgress = false;
                     });
-            }, 500);
+            }, 5000); // Augmenter le délai à 1000ms
         }
 
         function getRecommendation(arcFlash) {
