@@ -768,37 +768,63 @@
                 try {
                     const equipementBase = JSON.parse(selected);
                     console.log('[Create] Équipement sélectionné:', equipementBase);
-                    document.getElementById('equipement-form').classList.remove('hidden');
-                    if (equipementBase.equipmentType === 'disjoncteur') {
-                        document.getElementById('equipement-type').value = 'disjoncteur';
-                        toggleEquipementForm();
-                        document.getElementById('disjoncteur-id').value = '';
-                        document.getElementById('disjoncteur-marque').value = equipementBase.marque || '';
-                        document.getElementById('disjoncteur-ref').value = equipementBase.ref || '';
-                        document.getElementById('disjoncteur-type').value = equipementBase.type || '';
-                        document.getElementById('disjoncteur-poles').value = equipementBase.poles || '';
-                        document.getElementById('disjoncteur-montage').value = equipementBase.montage || '';
-                        document.getElementById('disjoncteur-ue').value = equipementBase.ue || '';
-                        document.getElementById('disjoncteur-ui').value = equipementBase.ui || '';
-                        document.getElementById('disjoncteur-uimp').value = equipementBase.uimp || '';
-                        document.getElementById('disjoncteur-frequence').value = equipementBase.frequence || '';
-                        document.getElementById('disjoncteur-in').value = normalizeNumericValue(equipementBase.in, 'in') || '';
-                        document.getElementById('disjoncteur-ir').value = normalizeNumericValue(equipementBase.ir, 'ir') || '';
-                        document.getElementById('disjoncteur-courbe').value = equipementBase.courbe || '';
-                        document.getElementById('disjoncteur-triptime').value = normalizeNumericValue(equipementBase.triptime, 'triptime') || '';
-                        document.getElementById('disjoncteur-icn').value = normalizeNumericValue(equipementBase.icn, 'icn') || '';
-                        document.getElementById('disjoncteur-ics').value = normalizeNumericValue(equipementBase.ics, 'ics') || '';
-                        document.getElementById('disjoncteur-ip').value = equipementBase.ip || '';
-                        document.getElementById('disjoncteur-temp').value = equipementBase.temp || '';
-                        document.getElementById('disjoncteur-dimensions').value = equipementBase.dimensions || '';
-                        document.getElementById('disjoncteur-section').value = normalizeNumericValue(equipementBase.section, 'section') || '';
-                        document.getElementById('disjoncteur-date').value = equipementBase.date || '';
-                        document.getElementById('disjoncteur-tension').value = equipementBase.tension || '';
-                        document.getElementById('disjoncteur-selectivite').value = equipementBase.selectivite || '';
-                        const linkedSelect = document.getElementById('disjoncteur-linked-tableaux');
-                        Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
-                        initializeDisjoncteurForm();
+                    if (equipementBase.equipmentType !== 'disjoncteur') {
+                        console.log('[Create] Erreur: Seuls les disjoncteurs peuvent être ajoutés via la liste existante');
+                        showPopup('Seuls les disjoncteurs peuvent être sélectionnés dans la liste existante.', '', () => {});
+                        return;
                     }
+                    // Vérifier que le formulaire disjoncteur est actif
+                    document.getElementById('equipement-type').value = 'disjoncteur';
+                    toggleEquipementForm();
+                    document.getElementById('equipement-form').classList.remove('hidden');
+
+                    // Vérifier l'existence des champs avant de définir leurs valeurs
+                    const fields = {
+                        'disjoncteur-id': '',
+                        'equipement-marque': equipementBase.marque || '',
+                        'equipement-ref': equipementBase.ref || '',
+                        'disjoncteur-type': equipementBase.type || '',
+                        'disjoncteur-poles': equipementBase.poles || '',
+                        'disjoncteur-montage': equipementBase.montage || '',
+                        'disjoncteur-ue': equipementBase.ue || '',
+                        'disjoncteur-ui': equipementBase.ui || '',
+                        'disjoncteur-uimp': equipementBase.uimp || '',
+                        'disjoncteur-frequence': equipementBase.frequence || '',
+                        'disjoncteur-in': normalizeNumericValue(equipementBase.in, 'in') || '',
+                        'disjoncteur-ir': normalizeNumericValue(equipementBase.ir, 'ir') || '',
+                        'disjoncteur-courbe': equipementBase.courbe || '',
+                        'disjoncteur-triptime': normalizeNumericValue(equipementBase.triptime, 'triptime') || '',
+                        'disjoncteur-icn': normalizeNumericValue(equipementBase.icn, 'icn') || '',
+                        'disjoncteur-ics': normalizeNumericValue(equipementBase.ics, 'ics') || '',
+                        'disjoncteur-ip': equipementBase.ip || '',
+                        'disjoncteur-temp': equipementBase.temp || '',
+                        'disjoncteur-dimensions': equipementBase.dimensions || '',
+                        'disjoncteur-section': normalizeNumericValue(equipementBase.section, 'section') || '',
+                        'disjoncteur-date': equipementBase.date || '',
+                        'disjoncteur-tension': equipementBase.tension || '',
+                        'disjoncteur-selectivite': equipementBase.selectivite || ''
+                    };
+
+                    for (const [id, value] of Object.entries(fields)) {
+                        const element = document.getElementById(id);
+                        if (!element) {
+                            console.error('[Create] Champ introuvable:', id);
+                            showPopup(`Erreur: Le champ ${id} est introuvable dans le formulaire.`, '', () => {});
+                            return;
+                        }
+                        element.value = value;
+                    }
+
+                    const linkedSelect = document.getElementById('disjoncteur-linked-tableaux');
+                    if (linkedSelect) {
+                        Array.from(linkedSelect.options).forEach(opt => opt.selected = false);
+                    } else {
+                        console.error('[Create] Champ disjoncteur-linked-tableaux introuvable');
+                        showPopup('Erreur: Le champ des tableaux liés est introuvable.', '', () => {});
+                        return;
+                    }
+
+                    initializeDisjoncteurForm();
                 } catch (error) {
                     console.error('[Create] Erreur parsing équipement:', error);
                     showPopup('Erreur lors de la sélection de l\'équipement: ' + error.message, '', () => {});
