@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tableau de Bord Autonomix</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Avertissement : Pour production, installe Tailwind localement via https://tailwindcss.com/docs/installation -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         .chart-container { position: relative; margin: auto; height: 300px; width: 300px; }
@@ -48,19 +49,19 @@
                 <p>Paire: {{ proposal.pair }}, Type: {{ proposal.type }}</p>
                 <div class="flex items-center gap-2 mb-2">
                     <label>Entrée:</label>
-                    <input type="number" id="entry_{{ loop.index }}" value="{{ proposal.entry_price|default(0) }}" class="p-1 bg-gray-700 rounded" required>
+                    <input type="number" id="entry_{{ loop.index }}" value="{{ proposal.entry_price|float|default(0) }}" class="p-1 bg-gray-700 rounded" required step="0.01">
                 </div>
                 <div class="flex items-center gap-2 mb-2">
                     <label>TP:</label>
-                    <input type="number" id="tp_{{ loop.index }}" value="{{ proposal.tp_price|default(0) }}" class="p-1 bg-gray-700 rounded" required>
+                    <input type="number" id="tp_{{ loop.index }}" value="{{ proposal.tp_price|float|default(0) }}" class="p-1 bg-gray-700 rounded" required step="0.01">
                 </div>
                 <div class="flex items-center gap-2 mb-2">
                     <label>SL:</label>
-                    <input type="number" id="sl_{{ loop.index }}" value="{{ proposal.sl_price|default(0) }}" class="p-1 bg-gray-700 rounded" required>
+                    <input type="number" id="sl_{{ loop.index }}" value="{{ proposal.sl_price|float|default(0) }}" class="p-1 bg-gray-700 rounded" required step="0.01">
                 </div>
                 <div class="flex items-center gap-2 mb-2">
                     <label>Montant:</label>
-                    <input type="number" id="amount_{{ loop.index }}" value="{{ proposal.amount|default(0) }}" class="p-1 bg-gray-700 rounded" required>
+                    <input type="number" id="amount_{{ loop.index }}" value="{{ proposal.amount|float|default(0) }}" class="p-1 bg-gray-700 rounded" required step="0.01">
                 </div>
                 <input type="checkbox" id="trade_{{ loop.index }}" name="trade_{{ loop.index }}" 
                        data-index="{{ loop.index }}" 
