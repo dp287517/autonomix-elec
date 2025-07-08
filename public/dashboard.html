@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tableau de Bord Autonomix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .chart-container { position: relative; margin: auto; height: 300px; width: 300px; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white font-sans">
+    <div class="container mx-auto p-4">
+        <h1 class="text-3xl font-bold text-center mb-6">Tableau de Bord Autonomix</h1>
+
+        <!-- Portefeuille -->
+        <div class="bg-gray-800 p-4 rounded-lg shadow-lg mb-6">
+            <h2 class="text-xl font-semibold">Portefeuille</h2>
+            <p class="text-2xl">Capital actuel : {{ capital }} $</p>
+            <p class="text-2xl">Solde Kraken : {{ balance }} $</p>
+        </div>
+
+        <!-- Graphiques -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <!-- Doughnut Chart - Répartition des actifs -->
+            <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-2">Répartition des Actifs</h2>
+                <div class="chart-container">
+                    <canvas id="assetDistributionChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Line Chart - Suivi vs Gain Réel -->
+            <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
+                <h2 class="text-xl font-semibold mb-2">Suivi vs Gain Réel</h2>
+                <div class="chart-container">
+                    <canvas id="performanceChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Propositions de Trades -->
+        <div class="bg-gray-800 p-4 rounded-lg shadow-lg mb-6">
+            <h2 class="text-xl font-semibold">Propositions de Trades</h2>
+            {% for proposal in proposals %}
+            <div class="border p-2 mb-2">
+                <p>Paire: {{ proposal.pair }}, Type: {{ proposal.type }}</p>
+                <div class="flex items-center gap-2 mb-2">
+                    <label>Entrée:</label>
+                    <input type="number" id="entry_{{ loop.index }}" value="{{ proposal.entry_price|default(0) }}" class="p-1 bg-gray-700 rounded" required>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                    <label>TP:</label>
+                    <input type="number" id="tp_{{ loop.index }}" value="{{ proposal.tp_price|default(0) }}" class="p-1 bg-gray-700 rounded" required>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                    <label>SL:</label>
+                    <input type="number" id="sl_{{ loop.index }}" value="{{ proposal.sl_price|default(0) }}" class="p-1 bg-gray-700 rounded" required>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                    <label>Montant:</label>
+                    <input type="number" id="amount_{{ loop.index }}" value="{{ proposal.amount|default(0) }}" class="p-1 bg-gray-700 rounded" required>
+                </div>
+                <input type="checkbox" id="trade_{{ loop.index }}" name="trade_{{ loop.index }}" 
+                       data-index="{{ loop.index }}" 
+                       data-trade-id="{{ proposal.id|default('null') }}"
+                       onchange="confirmTrade(this)">
+                <label for="trade_{{ loop.index }}">Confirmer</label>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Historique des Trades -->
+        <div class="bg-gray-800 p-4 rounded-lg shadow-lg">
+            <h2 class="text-xl font-semibold">Historique des Trades</h2>
+            <table class="w-full text-left">
+                <thead>
+                    <tr class="bg-gray-700">
+                        <th class="p-2">Paire</th>
+                        <th class="p-2">Type</th>
+                        <th class="p-2">Entrée</th>
+                        <th class="p-2">TP</th>
+                        <th class="p-2">SL</th>
+                        <th class="p-2">Sortie</th>
+                        <th class="p-2">Profit</th>
+                        <th class="p-2">Statut</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for trade in trades %}
+                    <tr class="bg-gray-600 hover:bg-gray-500">
+                        <td class="p-2">{{ trade['pair'] }}</td>
+                        <td class="p-2">{{ trade['type'] }}</td>
+                        <td class="p-2">{{ trade['entry_price'] }}</td>
+                        <td class="p-2">{{ trade['tp_price'] }}</td>
+                        <td class="p-2">{{ trade['sl_price'] }}</td>
+                        <td class="p-2">{{ trade['exit_price'] if trade['exit_price'] else 'En cours' }}</td>
+                        <td class="p-2">{{ trade['profit'] if trade['profit'] else 'N/A' }}</td>
+                        <td class="p-2">{{ trade['status'] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function confirmTrade(checkbox) {
+            const index = checkbox.getAttribute('data-index');
+            const tradeId = checkbox.getAttribute('data-trade-id');
+            if (checkbox.checked && tradeId !== 'null') {
+                const entry = document.getElementById(`entry_${index}`).value;
+                const tp = document.getElementById(`tp_${index}`).value;
+                const sl = document.getElementById(`sl_${index}`).value;
+                const amount = document.getElementById(`amount_${index}`).value;
+                fetch('/confirm_trade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: tradeId, entry_price: entry, tp_price: tp, sl_price: sl, amount: amount })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Trade confirmé !');
+                        location.reload();
+                    } else {
+                        alert('Erreur : ' + data.message);
+                        checkbox.checked = false;
+                    }
+                })
+                .catch(error => {
+                    console.error('Erreur:', error);
+                    checkbox.checked = false;
+                });
+            } else if (!checkbox.checked && tradeId !== 'null') {
+                fetch('/confirm_trade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: tradeId, status: 'proposed' })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        location.reload();
+                    }
+                })
+                .catch(error => console.error('Erreur:', error));
+            }
+        }
+
+        // Données fictives pour les graphiques (à remplacer dynamiquement si besoin)
+        const assetData = {
+            labels: ['BTC', 'ETH', 'XRP', 'SOL'],
+            datasets: [{
+                data: [30, 30, 20, 20],
+                backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
+            }]
+        };
+
+        const performanceData = {
+            labels: ['J-6', 'J-5', 'J-4', 'J-3', 'J-2', 'J-1', 'Aujourd’hui'],
+            datasets: [{
+                label: 'Suivi',
+                data: [0, 5, 10, 15, 12, 18, 20],
+                borderColor: '#36A2EB',
+                fill: false
+            }, {
+                label: 'Gain Réel',
+                data: [0, 3, 8, 12, 10, 15, 18],
+                borderColor: '#FF6384',
+                fill: false
+            }]
+        };
+
+        // Initialisation des graphiques
+        new Chart(document.getElementById('assetDistributionChart'), {
+            type: 'doughnut',
+            data: assetData,
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        new Chart(document.getElementById('performanceChart'), {
+            type: 'line',
+            data: performanceData,
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+        });
+
+        // Rafraîchissement automatique
+        setInterval(() => location.reload(), 60000); // Toutes les minutes
+    </script>
+</body>
+</html>
