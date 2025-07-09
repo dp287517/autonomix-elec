@@ -46,12 +46,12 @@
             to { opacity: 1; transform: translateY(0); }
         }
         .btn-primary {
-            background: #ffffff;
+            background: #60a5fa;
             color: #0a0a0a;
             transition: all 0.3s ease;
         }
         .btn-primary:hover {
-            background: #d1d5db;
+            background: #3b82f6;
             transform: scale(1.05);
         }
         .btn-danger {
@@ -62,12 +62,21 @@
             background: #374151;
             transform: scale(1.05);
         }
+        .btn-analyze {
+            background: #a855f7;
+            color: #ffffff;
+            transition: all 0.3s ease;
+        }
+        .btn-analyze:hover {
+            background: #9333ea;
+            transform: scale(1.05);
+        }
         canvas {
             background: rgba(255, 255, 255, 0.05);
             border-radius: 8px;
         }
         .progress-bar {
-            background: linear-gradient(90deg, #ffffff 0%, #4b5563 100%);
+            background: linear-gradient(90deg, #60a5fa 0%, #a855f7 100%);
             height: 20px;
             border-radius: 10px;
             overflow: hidden;
@@ -76,6 +85,19 @@
             background: #ffffff;
             height: 100%;
             transition: width 1s ease;
+        }
+        .loading-spinner {
+            border: 4px solid #ffffff;
+            border-top: 4px solid #60a5fa;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -97,6 +119,30 @@
     </div>
     <div class="container mx-auto p-6">
         <h1 class="text-5xl font-extrabold mb-8 text-center">AutonomiX - De 10$ à 1M$</h1>
+
+        <!-- Analyse Crypto -->
+        <div class="card p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">Analyse Crypto</h2>
+            <button id="analyzeButton" class="btn-analyze p-3 rounded-lg font-semibold flex items-center">
+                <span>Lancer Analyse Crypto</span>
+                <div id="loadingSpinner" class="loading-spinner ml-2"></div>
+            </button>
+            <div id="signalResult" class="mt-4 hidden">
+                <h3 class="text-xl font-semibold mb-2">Meilleur Trade Recommandé</h3>
+                <p><strong>Actif :</strong> <span id="signalPair"></span></p>
+                <p><strong>Signal :</strong> <span id="signalType"></span></p>
+                <p><strong>Prix d'entrée :</strong> <span id="signalPrice"></span> USD</p>
+                <p><strong>Cible :</strong> <span id="signalTarget"></span> USD</p>
+                <p><strong>Stop-loss :</strong> <span id="signalStopLoss"></span> USD</p>
+                <p><strong>RSI (1h) :</strong> <span id="signalRsi"></span></p>
+                <p><strong>Volatilité (ATR) :</strong> <span id="signalAtr"></span></p>
+                <p><strong>Support :</strong> <span id="signalSupport"></span></p>
+                <p><strong>Résistance :</strong> <span id="signalResistance"></span></p>
+                <p><strong>Confiance :</strong> <span id="signalConfidence"></span></p>
+                <p><strong>Score :</strong> <span id="signalScore"></span>/100</p>
+                <p><strong>Raison :</strong> <span id="signalReason"></span></p>
+            </div>
+        </div>
 
         <!-- Progression vers 1M$ -->
         <div class="card p-6 mb-8">
@@ -206,7 +252,7 @@
                 // Mettre à jour le tableau
                 trades.forEach(trade => {
                     const row = document.createElement('tr');
-                    row.className = trade.profit_loss >= 0 ? 'bg-green-900' : 'bg-red-900';
+                    row.className = trade.profit_loss >= 0 ? 'bg-blue-900' : 'bg-purple-900';
                     row.innerHTML = `
                         <td class="border border-gray-700 p-3">${trade.trade_date}</td>
                         <td class="border border-gray-700 p-3">${parseFloat(trade.investment || 0).toFixed(2)}</td>
@@ -241,7 +287,7 @@
                 if (totalTrades && totalProfit > 0) {
                     const avgProfitPerTrade = totalProfit / trades.filter(trade => trade.profit_loss > 0).length;
                     const tradesNeeded = Math.ceil((1000000 - latestCapital) / avgProfitPerTrade);
-                    const monthsNeeded = Math.ceil(tradesNeeded / (totalTrades / (trades.length / 30))); // Estimation basée sur la fréquence des trades
+                    const monthsNeeded = Math.ceil(tradesNeeded / (totalTrades / (trades.length / 30)));
                     const estimatedDate = new Date();
                     estimatedDate.setMonth(estimatedDate.getMonth() + monthsNeeded);
                     document.getElementById('forecastText').textContent = `Estimation : ${estimatedDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}`;
@@ -255,6 +301,36 @@
                 console.error('Erreur lors du chargement des trades:', error);
             }
         }
+
+        // Lancer l’analyse crypto
+        document.getElementById('analyzeButton').addEventListener('click', async () => {
+            try {
+                document.getElementById('loadingSpinner').style.display = 'inline-block';
+                document.getElementById('signalResult').classList.add('hidden');
+                const response = await fetch('https://autonomix-elec.onrender.com/api/crypto-analysis');
+                if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
+                const signal = await response.json();
+                document.getElementById('signalPair').textContent = signal.pair || 'N/A';
+                document.getElementById('signalType').textContent = signal.signal || 'N/A';
+                document.getElementById('signalPrice').textContent = signal.price ? signal.price.toFixed(2) : 'N/A';
+                document.getElementById('signalTarget').textContent = signal.target ? signal.target.toFixed(2) : 'N/A';
+                document.getElementById('signalStopLoss').textContent = signal.stop_loss ? signal.stop_loss.toFixed(2) : 'N/A';
+                document.getElementById('signalRsi').textContent = signal.rsi ? signal.rsi.toFixed(2) : 'N/A';
+                document.getElementById('signalAtr').textContent = signal.atr ? signal.atr.toFixed(2) : 'N/A';
+                document.getElementById('signalSupport').textContent = signal.support ? signal.support.toFixed(2) : 'N/A';
+                document.getElementById('signalResistance').textContent = signal.resistance ? signal.resistance.toFixed(2) : 'N/A';
+                document.getElementById('signalConfidence').textContent = signal.confidence || 'N/A';
+                document.getElementById('signalScore').textContent = signal.score ? signal.score.toFixed(1) : 'N/A';
+                document.getElementById('signalReason').textContent = signal.reason || 'N/A';
+                document.getElementById('signalResult').classList.remove('hidden');
+            } catch (error) {
+                console.error('Erreur lors de l\'analyse crypto:', error);
+                document.getElementById('signalResult').innerHTML = `<p class="text-red-500">Erreur : ${error.message}</p>`;
+                document.getElementById('signalResult').classList.remove('hidden');
+            } finally {
+                document.getElementById('loadingSpinner').style.display = 'none';
+            }
+        });
 
         // Ajouter un trade
         document.getElementById('tradeForm').addEventListener('submit', async (e) => {
@@ -302,8 +378,8 @@
                     datasets: [{
                         label: 'Capital ($)',
                         data: trades.map(trade => parseFloat(trade.current_capital || 0)),
-                        borderColor: '#ffffff',
-                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        borderColor: '#60a5fa',
+                        backgroundColor: 'rgba(96, 165, 250, 0.2)',
                         fill: true,
                         tension: 0.4
                     }]
@@ -330,7 +406,7 @@
                     datasets: [{
                         label: 'Gain/Perte ($)',
                         data: trades.map(trade => parseFloat(trade.profit_loss || 0)),
-                        backgroundColor: trades.map(trade => trade.profit_loss >= 0 ? 'rgba(255, 255, 255, 0.7)' : 'rgba(107, 114, 128, 0.7)')
+                        backgroundColor: trades.map(trade => trade.profit_loss >= 0 ? 'rgba(96, 165, 250, 0.7)' : 'rgba(168, 85, 247, 0.7)')
                     }]
                 },
                 options: {
@@ -360,7 +436,7 @@
                     datasets: [{
                         label: 'Performance Mensuelle ($)',
                         data: Object.values(monthlyData),
-                        backgroundColor: Object.values(monthlyData).map(value => value >= 0 ? 'rgba(255, 255, 255, 0.7)' : 'rgba(107, 114, 128, 0.7)')
+                        backgroundColor: Object.values(monthlyData).map(value => value >= 0 ? 'rgba(96, 165, 250, 0.7)' : 'rgba(168, 85, 247, 0.7)')
                     }]
                 },
                 options: {
@@ -387,7 +463,7 @@
                             trades.reduce((sum, trade) => trade.profit_loss > 0 ? sum + parseFloat(trade.profit_loss || 0) : sum, 0),
                             trades.reduce((sum, trade) => trade.profit_loss < 0 ? sum + Math.abs(parseFloat(trade.profit_loss || 0)) : sum, 0)
                         ],
-                        backgroundColor: ['rgba(255, 255, 255, 0.7)', 'rgba(107, 114, 128, 0.7)']
+                        backgroundColor: ['rgba(96, 165, 250, 0.7)', 'rgba(168, 85, 247, 0.7)']
                     }]
                 },
                 options: {
