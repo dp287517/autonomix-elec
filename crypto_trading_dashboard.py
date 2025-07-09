@@ -13,7 +13,7 @@ warnings.filterwarnings("ignore")
 kraken = ccxt.kraken({
     'apiKey': os.getenv('KRAKEN_API_KEY'),
     'secret': os.getenv('KRAKEN_SECRET'),
-    'enableRateLimit': True  # Activer la limitation de taux
+    'enableRateLimit': True
 })
 
 # Paires confirmées
@@ -35,6 +35,7 @@ ATR_PERIOD = 14
 MOMENTUM_PERIOD = 10
 LEVERAGE = 50
 TARGET_MOVE = 0.02
+MIN_ATR_MULTIPLIER = 2.0  # Multiplicateur minimum pour stop-loss
 
 # Calcul des indicateurs
 def calculate_indicators(df):
@@ -79,16 +80,28 @@ def calculate_indicators(df):
         df['fib_0.618'] = high - 0.618 * diff
         df['fib_0.764'] = high - 0.764 * diff
         
-        # Supports et résistances sur 1d
+        # Supports et résistances améliorés
         supports = []
         resistances = []
+        current_price = df['close'].iloc[-1]
         for i in range(2, len(df) - 2):
-            if df['low'].iloc[i] < df['low'].iloc[i-1] and df['low'].iloc[i] < df['low'].iloc[i+1]:
+            if df['low'].iloc[i] < df['low'].iloc[i-1] and df['low'].iloc[i] < df['low'].iloc[i+1] and df['low'].iloc[i] < current_price:
                 supports.append(df['low'].iloc[i])
-            if df['high'].iloc[i] > df['high'].iloc[i-1] and df['high'].iloc[i] > df['high'].iloc[i+1]:
+            if df['high'].iloc[i] > df['high'].iloc[i-1] and df['high'].iloc[i] > df['high'].iloc[i+1] and df['high'].iloc[i] > current_price:
                 resistances.append(df['high'].iloc[i])
-        df['supports'] = [min(supports, default=np.nan, key=lambda x: abs(x - df['close'].iloc[-1]))] * len(df) if supports else [np.nan] * len(df)
-        df['resistances'] = [min(resistances, default=np.nan, key=lambda x: abs(x - df['close'].iloc[-1]))] * len(df) if resistances else [np.nan] * len(df)
+        
+        # Choisir le support le plus proche inférieur au prix actuel
+        support = min(supports, default=np.nan, key=lambda x: abs(x - current_price)) if supports else np.nan
+        # Choisir la résistance la plus proche supérieure au prix actuel
+        resistance = min(resistances, default=np.nan, key=lambda x: abs(x - current_price)) if resistances else np.nan
+        
+        # Éviter support = résistance
+        if not np.isnan(support) and not np.isnan(resistance) and abs(support - resistance) < current_price * 0.001:
+            support = np.nan if resistance < current_price else support
+            resistance = np.nan if support > current_price else resistance
+        
+        df['supports'] = [support] * len(df)
+        df['resistances'] = [resistance] * len(df)
         
         return df
     except Exception as e:
@@ -258,10 +271,17 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
     )
     
     atr = last_row_1h['atr'] if not np.isnan(last_row_1h['atr']) else last_row_1h['close'] * 0.005
+    atr = max(atr, last_row_1h['close'] * 0.005) * MIN_ATR_MULTIPLIER  # Assurer un stop-loss minimum
     target_buy = price * (1 + TARGET_MOVE)
     target_sell = price * (1 - TARGET_MOVE)
-    stop_loss_buy = price - atr * 1.5
-    stop_loss_sell = price + atr * 1.5
+    stop_loss_buy = price - atr
+    stop_loss_sell = price + atr
+    
+    # Validation : éviter cible/stop-loss trop proches des supports/résistances
+    if not np.isnan(last_row_1d['supports']) and abs(target_buy - last_row_1d['supports']) / price < 0.005:
+        target_buy = last_row_1d['supports'] * 0.98
+    if not np.isnan(last_row_1d['resistances']) and abs(target_sell - last_row_1d['resistances']) / price < 0.005:
+        target_sell = last_row_1d['resistances'] * 1.02
     
     higher_timeframes = [
         {'rsi': df_4h.iloc[-1]['rsi'], 'ema_fast': df_4h.iloc[-1]['ema_fast'], 
@@ -361,6 +381,7 @@ def analyze_trade(pair, entry_price, signal_type, df_1h, df_4h, df_1d):
         last_row_1d = df_1d.iloc[-1]
         current_price = last_row_1h['close']
         atr = last_row_1h['atr'] if not np.isnan(last_row_1h['atr']) else last_row_1h['close'] * 0.005
+        atr = max(atr, last_row_1h['close'] * 0.005) * MIN_ATR_MULTIPLIER
         
         higher_timeframes = [
             {'rsi': df_4h.iloc[-1]['rsi'], 'ema_fast': df_4h.iloc[-1]['ema_fast'], 
@@ -392,7 +413,7 @@ def analyze_trade(pair, entry_price, signal_type, df_1h, df_4h, df_1d):
                 score += 5
                 reason.append('RSI indique une zone de survente')
             # Proximité du stop-loss
-            stop_loss = entry_price - atr * 1.5
+            stop_loss = entry_price - atr
             if current_price < stop_loss:
                 recommendation = 'Vendre'
                 reason.append('Prix sous le stop-loss recommandé')
@@ -419,7 +440,7 @@ def analyze_trade(pair, entry_price, signal_type, df_1h, df_4h, df_1d):
                 score += 5
                 reason.append('RSI indique une zone de surachat')
             # Proximité du stop-loss
-            stop_loss = entry_price + atr * 1.5
+            stop_loss = entry_price + atr
             if current_price > stop_loss:
                 recommendation = 'Acheter (couvrir)'
                 reason.append('Prix au-dessus du stop-loss recommandé')
@@ -460,6 +481,15 @@ def force_trade(fallback_data):
     if not valid_fallbacks:
         return None
     
+    # Filtrer les fallback avec support/résistance valides et score > 60
+    valid_fallbacks = [
+        (f, df1, df2, df3) for f, df1, df2, df3 in valid_fallbacks
+        if f['score'] > 60 and not np.isnan(df3.iloc[-1]['supports']) and not np.isnan(df3.iloc[-1]['resistances'])
+        and abs(df3.iloc[-1]['supports'] - df3.iloc[-1]['resistances']) / f['price'] > 0.01
+    ]
+    if not valid_fallbacks:
+        return None
+    
     best_fallback = max(valid_fallbacks, key=lambda x: x[0]['score'])
     pair = best_fallback[0]['pair']
     df_1h, df_4h, df_1d = best_fallback[1], best_fallback[2], best_fallback[3]
@@ -497,10 +527,17 @@ def force_trade(fallback_data):
     )
     
     atr = last_row_1h['atr'] if not np.isnan(last_row_1h['atr']) else last_row_1h['close'] * 0.005
+    atr = max(atr, last_row_1h['close'] * 0.005) * MIN_ATR_MULTIPLIER
     target_buy = price * (1 + TARGET_MOVE)
     target_sell = price * (1 - TARGET_MOVE)
-    stop_loss_buy = price - atr * 1.5
-    stop_loss_sell = price + atr * 1.5
+    stop_loss_buy = price - atr
+    stop_loss_sell = price + atr
+    
+    # Validation : éviter cible/stop-loss trop proches des supports/résistances
+    if not np.isnan(last_row_1d['supports']) and abs(target_buy - last_row_1d['supports']) / price < 0.005:
+        target_buy = last_row_1d['supports'] * 0.98
+    if not np.isnan(last_row_1d['resistances']) and abs(target_sell - last_row_1d['resistances']) / price < 0.005:
+        target_sell = last_row_1d['resistances'] * 1.02
     
     higher_timeframes = [
         {'rsi': df_4h.iloc[-1]['rsi'], 'ema_fast': df_4h.iloc[-1]['ema_fast'], 
@@ -553,17 +590,7 @@ def force_trade(fallback_data):
         })
         return signal_data
     
-    score = calculate_score(last_row_1h, 'ACHAT' if last_row_1h['rsi'] < 50 else 'VENTE', higher_timeframes) * 0.5 + \
-            (calculate_score(df_4h.iloc[-1], 'ACHAT' if last_row_1h['rsi'] < 50 else 'VENTE', None) * 0.3 if len(df_4h) > 0 else 0) + \
-            (calculate_score(df_1d.iloc[-1], 'ACHAT' if last_row_1h['rsi'] < 50 else 'VENTE', None) * 0.2 if len(df_1d) > 0 else 0)
-    signal_data.update({
-        'signal': 'ACHAT' if last_row_1h['rsi'] < 50 else 'VENTE',
-        'target': round(target_buy, 2) if last_row_1h['rsi'] < 50 else round(target_sell, 2),
-        'stop_loss': round(stop_loss_buy, 2) if last_row_1h['rsi'] < 50 else round(stop_loss_sell, 2),
-        'reason': 'Trade forcé (meilleur score global basé sur tous les indicateurs, partiellement confirmé 4h/1d)',
-        'score': round(score, 1)
-    })
-    return signal_data
+    return None  # Pas de signal forcé si score < 60 ou données incohérentes
 
 # Main
 def main():
@@ -623,7 +650,7 @@ def main():
                     print(f"Données insuffisantes pour {pair} ({tf})")
                     break
                 dfs[tf] = df
-                time.sleep(0.2)  # Réduire le délai pour respecter les limites Kraken
+                time.sleep(0.2)
             else:
                 signals, fallback = generate_signals(dfs['1h'], dfs['4h'], dfs['1d'], pair)
                 all_signals.extend(signals)
