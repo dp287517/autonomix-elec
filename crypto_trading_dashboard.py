@@ -13,6 +13,7 @@ warnings.filterwarnings("ignore")
 kraken = ccxt.kraken({
     'apiKey': os.getenv('KRAKEN_API_KEY'),
     'secret': os.getenv('KRAKEN_SECRET'),
+    'enableRateLimit': True  # Activer la limitation de taux
 })
 
 # Paires confirmées
@@ -40,55 +41,59 @@ def calculate_indicators(df):
     if df.empty or len(df) < max(BB_PERIOD, RSI_PERIOD, EMA_SLOW, MOMENTUM_PERIOD):
         return None
     
-    df['sma'] = df['close'].rolling(window=BB_PERIOD).mean()
-    df['std'] = df['close'].rolling(window=BB_PERIOD).std()
-    df['upper_bb'] = df['sma'] + BB_STD * df['std']
-    df['lower_bb'] = df['sma'] - BB_STD * df['std']
-    
-    delta = df['close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=RSI_PERIOD).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=RSI_PERIOD).mean()
-    rs = gain / loss.replace(0, np.nan)
-    df['rsi'] = 100 - (100 / (1 + rs))
-    
-    df['ema_fast'] = df['close'].ewm(span=EMA_FAST, adjust=False).mean()
-    df['ema_slow'] = df['close'].ewm(span=EMA_SLOW, adjust=False).mean()
-    
-    df['macd'] = df['ema_fast'] - df['ema_slow']
-    df['macd_signal'] = df['macd'].ewm(span=MACD_SIGNAL, adjust=False).mean()
-    
-    df['tr'] = np.maximum(
-        df['high'] - df['low'],
-        np.maximum(
-            abs(df['high'] - df['close'].shift()),
-            abs(df['low'] - df['close'].shift())
+    try:
+        df['sma'] = df['close'].rolling(window=BB_PERIOD).mean()
+        df['std'] = df['close'].rolling(window=BB_PERIOD).std()
+        df['upper_bb'] = df['sma'] + BB_STD * df['std']
+        df['lower_bb'] = df['sma'] - BB_STD * df['std']
+        
+        delta = df['close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=RSI_PERIOD).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=RSI_PERIOD).mean()
+        rs = gain / loss.replace(0, np.nan)
+        df['rsi'] = 100 - (100 / (1 + rs))
+        
+        df['ema_fast'] = df['close'].ewm(span=EMA_FAST, adjust=False).mean()
+        df['ema_slow'] = df['close'].ewm(span=EMA_SLOW, adjust=False).mean()
+        
+        df['macd'] = df['ema_fast'] - df['ema_slow']
+        df['macd_signal'] = df['macd'].ewm(span=MACD_SIGNAL, adjust=False).mean()
+        
+        df['tr'] = np.maximum(
+            df['high'] - df['low'],
+            np.maximum(
+                abs(df['high'] - df['close'].shift()),
+                abs(df['low'] - df['close'].shift())
+            )
         )
-    )
-    df['atr'] = df['tr'].rolling(window=ATR_PERIOD).mean()
-    
-    df['momentum'] = df['close'] - df['close'].shift(MOMENTUM_PERIOD)
-    
-    high = df['high'].rolling(window=50).max()
-    low = df['low'].rolling(window=50).min()
-    diff = high - low
-    df['fib_0.236'] = high - 0.236 * diff
-    df['fib_0.382'] = high - 0.382 * diff
-    df['fib_0.5'] = high - 0.5 * diff
-    df['fib_0.618'] = high - 0.618 * diff
-    df['fib_0.764'] = high - 0.764 * diff
-    
-    # Supports et résistances sur 1d
-    supports = []
-    resistances = []
-    for i in range(2, len(df) - 2):
-        if df['low'].iloc[i] < df['low'].iloc[i-1] and df['low'].iloc[i] < df['low'].iloc[i+1]:
-            supports.append(df['low'].iloc[i])
-        if df['high'].iloc[i] > df['high'].iloc[i-1] and df['high'].iloc[i] > df['high'].iloc[i+1]:
-            resistances.append(df['high'].iloc[i])
-    df['supports'] = [min(supports, default=np.nan, key=lambda x: abs(x - df['close'].iloc[-1]))] * len(df) if supports else [np.nan] * len(df)
-    df['resistances'] = [min(resistances, default=np.nan, key=lambda x: abs(x - df['close'].iloc[-1]))] * len(df) if resistances else [np.nan] * len(df)
-    
-    return df
+        df['atr'] = df['tr'].rolling(window=ATR_PERIOD).mean()
+        
+        df['momentum'] = df['close'] - df['close'].shift(MOMENTUM_PERIOD)
+        
+        high = df['high'].rolling(window=50).max()
+        low = df['low'].rolling(window=50).min()
+        diff = high - low
+        df['fib_0.236'] = high - 0.236 * diff
+        df['fib_0.382'] = high - 0.382 * diff
+        df['fib_0.5'] = high - 0.5 * diff
+        df['fib_0.618'] = high - 0.618 * diff
+        df['fib_0.764'] = high - 0.764 * diff
+        
+        # Supports et résistances sur 1d
+        supports = []
+        resistances = []
+        for i in range(2, len(df) - 2):
+            if df['low'].iloc[i] < df['low'].iloc[i-1] and df['low'].iloc[i] < df['low'].iloc[i+1]:
+                supports.append(df['low'].iloc[i])
+            if df['high'].iloc[i] > df['high'].iloc[i-1] and df['high'].iloc[i] > df['high'].iloc[i+1]:
+                resistances.append(df['high'].iloc[i])
+        df['supports'] = [min(supports, default=np.nan, key=lambda x: abs(x - df['close'].iloc[-1]))] * len(df) if supports else [np.nan] * len(df)
+        df['resistances'] = [min(resistances, default=np.nan, key=lambda x: abs(x - df['close'].iloc[-1]))] * len(df) if resistances else [np.nan] * len(df)
+        
+        return df
+    except Exception as e:
+        print(f"Erreur calcul indicateurs: {str(e)}")
+        return None
 
 # Calcul du score
 def calculate_score(last_row, signal_type, higher_timeframes=None):
@@ -98,94 +103,104 @@ def calculate_score(last_row, signal_type, higher_timeframes=None):
     score = 0
     price = last_row['close']
     
-    # RSI (15%)
-    rsi = last_row['rsi']
-    if signal_type == 'ACHAT':
-        if rsi < 30:
+    try:
+        # RSI (15%)
+        rsi = last_row['rsi']
+        if not np.isnan(rsi):
+            if signal_type == 'ACHAT':
+                if rsi < 30:
+                    score += 15
+                elif rsi < 35:
+                    score += 8
+            else:
+                if rsi > 70:
+                    score += 15
+                elif rsi > 65:
+                    score += 8
+        
+        # Bollinger (15%)
+        if not np.isnan(last_row['lower_bb']) and not np.isnan(last_row['upper_bb']):
+            if signal_type == 'ACHAT':
+                if price <= last_row['lower_bb']:
+                    score += 15
+                elif price <= last_row['sma']:
+                    score += 8
+            else:
+                if price >= last_row['upper_bb']:
+                    score += 15
+                elif price >= last_row['sma']:
+                    score += 8
+        
+        # EMA (15%)
+        if not np.isnan(last_row['ema_fast']) and not np.isnan(last_row['ema_slow']):
+            if signal_type == 'ACHAT':
+                if last_row['ema_fast'] > last_row['ema_slow']:
+                    score += 15
+                elif last_row['ema_fast'] >= last_row['ema_slow'] * 0.995:
+                    score += 8
+            else:
+                if last_row['ema_fast'] < last_row['ema_slow']:
+                    score += 15
+                elif last_row['ema_fast'] <= last_row['ema_slow'] * 1.005:
+                    score += 8
+        
+        # Fibonacci (15%)
+        fib_levels = ['fib_0.236', 'fib_0.382', 'fib_0.5', 'fib_0.618', 'fib_0.764']
+        fib_proximities = [abs(price - last_row[level]) / price for level in fib_levels if not np.isnan(last_row[level])]
+        fib_proximity = min(fib_proximities, default=np.inf)
+        if fib_proximity < 0.02:
             score += 15
-        elif rsi < 35:
+        elif fib_proximity < 0.05:
             score += 8
-    else:
-        if rsi > 70:
-            score += 15
-        elif rsi > 65:
-            score += 8
-    
-    # Bollinger (15%)
-    if signal_type == 'ACHAT':
-        if price <= last_row['lower_bb']:
-            score += 15
-        elif price <= last_row['sma']:
-            score += 8
-    else:
-        if price >= last_row['upper_bb']:
-            score += 15
-        elif price >= last_row['sma']:
-            score += 8
-    
-    # EMA (15%)
-    if signal_type == 'ACHAT':
-        if last_row['ema_fast'] > last_row['ema_slow']:
-            score += 15
-        elif last_row['ema_fast'] >= last_row['ema_slow'] * 0.995:
-            score += 8
-    else:
-        if last_row['ema_fast'] < last_row['ema_slow']:
-            score += 15
-        elif last_row['ema_fast'] <= last_row['ema_slow'] * 1.005:
-            score += 8
-    
-    # Fibonacci (15%)
-    fib_levels = ['fib_0.236', 'fib_0.382', 'fib_0.5', 'fib_0.618', 'fib_0.764']
-    fib_proximities = [abs(price - last_row[level]) / price for level in fib_levels if not np.isnan(last_row[level])]
-    fib_proximity = min(fib_proximities, default=np.inf)
-    if fib_proximity < 0.02:
-        score += 15
-    elif fib_proximity < 0.05:
-        score += 8
-    
-    # ATR (15%)
-    atr = last_row['atr']
-    if atr > last_row['close'] * 0.01:
-        score += 15
-    elif atr > last_row['close'] * 0.005:
-        score += 8
-    
-    # Support/Résistance (15%)
-    if signal_type == 'ACHAT' and not np.isnan(last_row['supports']):
-        if abs(price - last_row['supports']) / price < 0.01:
-            score += 15
-    elif signal_type == 'VENTE' and not np.isnan(last_row['resistances']):
-        if abs(price - last_row['resistances']) / price < 0.01:
-            score += 15
-    
-    # MACD (10%)
-    if signal_type == 'ACHAT' and last_row['macd'] > last_row['macd_signal']:
-        score += 10
-    elif signal_type == 'VENTE' and last_row['macd'] < last_row['macd_signal']:
-        score += 10
-    elif signal_type == 'ACHAT' and last_row['macd'] > 0:
-        score += 5
-    elif signal_type == 'VENTE' and last_row['macd'] < 0:
-        score += 5
-    
-    # Momentum (5%)
-    if signal_type == 'ACHAT' and last_row['momentum'] > 0:
-        score += 5
-    elif signal_type == 'VENTE' and last_row['momentum'] < 0:
-        score += 5
-    
-    # Multi-timeframe (bonus +10)
-    confirmation_count = 0
-    for tf_data in higher_timeframes:
-        if signal_type == 'ACHAT' and tf_data['rsi'] < 35 and tf_data['ema_fast'] > tf_data['ema_slow'] and tf_data['macd'] > tf_data['macd_signal']:
-            confirmation_count += 1
-        elif signal_type == 'VENTE' and tf_data['rsi'] > 65 and tf_data['ema_fast'] < tf_data['ema_slow'] and tf_data['macd'] < tf_data['macd_signal']:
-            confirmation_count += 1
-    if confirmation_count >= 2:
-        score += 10
-    
-    return min(score, 100)
+        
+        # ATR (15%)
+        atr = last_row['atr']
+        if not np.isnan(atr):
+            if atr > last_row['close'] * 0.01:
+                score += 15
+            elif atr > last_row['close'] * 0.005:
+                score += 8
+        
+        # Support/Résistance (15%)
+        if signal_type == 'ACHAT' and not np.isnan(last_row['supports']):
+            if abs(price - last_row['supports']) / price < 0.01:
+                score += 15
+        elif signal_type == 'VENTE' and not np.isnan(last_row['resistances']):
+            if abs(price - last_row['resistances']) / price < 0.01:
+                score += 15
+        
+        # MACD (10%)
+        if not np.isnan(last_row['macd']) and not np.isnan(last_row['macd_signal']):
+            if signal_type == 'ACHAT' and last_row['macd'] > last_row['macd_signal']:
+                score += 10
+            elif signal_type == 'VENTE' and last_row['macd'] < last_row['macd_signal']:
+                score += 10
+            elif signal_type == 'ACHAT' and last_row['macd'] > 0:
+                score += 5
+            elif signal_type == 'VENTE' and last_row['macd'] < 0:
+                score += 5
+        
+        # Momentum (5%)
+        if not np.isnan(last_row['momentum']):
+            if signal_type == 'ACHAT' and last_row['momentum'] > 0:
+                score += 5
+            elif signal_type == 'VENTE' and last_row['momentum'] < 0:
+                score += 5
+        
+        # Multi-timeframe (bonus +10)
+        confirmation_count = 0
+        for tf_data in higher_timeframes:
+            if signal_type == 'ACHAT' and tf_data['rsi'] < 35 and tf_data['ema_fast'] > tf_data['ema_slow'] and tf_data['macd'] > tf_data['macd_signal']:
+                confirmation_count += 1
+            elif signal_type == 'VENTE' and tf_data['rsi'] > 65 and tf_data['ema_fast'] < tf_data['ema_slow'] and tf_data['macd'] < tf_data['macd_signal']:
+                confirmation_count += 1
+        if confirmation_count >= 2:
+            score += 10
+        
+        return min(score, 100)
+    except Exception as e:
+        print(f"Erreur calcul score: {str(e)}")
+        return 0
 
 # Générer des signaux
 def generate_signals(df_1h, df_4h, df_1d, pair):
@@ -260,17 +275,18 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
     
     signal_data = {
         'pair': pair,
-        'price': price,
+        'price': round(price, 2),
         'target': None,
         'stop_loss': None,
-        'rsi': last_row_1h['rsi'],
-        'atr': atr,
-        'support': last_row_1d['supports'] if not np.isnan(last_row_1d['supports']) else None,
-        'resistance': last_row_1d['resistances'] if not np.isnan(last_row_1d['resistances']) else None,
-        'momentum': last_row_1h['momentum'],
+        'rsi': round(last_row_1h['rsi'], 2) if not np.isnan(last_row_1h['rsi']) else None,
+        'atr': round(atr, 2) if not np.isnan(atr) else None,
+        'support': round(last_row_1d['supports'], 2) if not np.isnan(last_row_1d['supports']) else None,
+        'resistance': round(last_row_1d['resistances'], 2) if not np.isnan(last_row_1d['resistances']) else None,
+        'momentum': round(last_row_1h['momentum'], 2) if not np.isnan(last_row_1h['momentum']) else None,
         'confidence': None,
         'reason': None,
-        'score': 0
+        'score': 0,
+        'price_history': df_1h[['timestamp', 'close']].tail(50).to_dict(orient='records')
     }
     
     if buy_strict:
@@ -280,11 +296,11 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
         signals.append({
             **signal_data,
             'signal': 'ACHAT',
-            'target': target_buy,
-            'stop_loss': stop_loss_buy,
+            'target': round(target_buy, 2),
+            'stop_loss': round(stop_loss_buy, 2),
             'confidence': 'Élevé',
             'reason': 'Conditions strictes (Bollinger bas, RSI < 30, EMA haussier, MACD haussier, Momentum positif, Fibonacci + support 1d, confirmé 4h/1d)',
-            'score': score
+            'score': round(score, 1)
         })
     elif sell_strict:
         score = calculate_score(last_row_1h, 'VENTE', higher_timeframes) * 0.5 + \
@@ -293,11 +309,11 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
         signals.append({
             **signal_data,
             'signal': 'VENTE',
-            'target': target_sell,
-            'stop_loss': stop_loss_sell,
+            'target': round(target_sell, 2),
+            'stop_loss': round(stop_loss_sell, 2),
             'confidence': 'Élevé',
             'reason': 'Conditions strictes (Bollinger haut, RSI > 70, EMA baissier, MACD baissier, Momentum négatif, Fibonacci + résistance 1d, confirmé 4h/1d)',
-            'score': score
+            'score': round(score, 1)
         })
     elif buy_medium:
         score = calculate_score(last_row_1h, 'ACHAT', higher_timeframes) * 0.5 + \
@@ -306,11 +322,11 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
         signals.append({
             **signal_data,
             'signal': 'ACHAT',
-            'target': target_buy,
-            'stop_loss': stop_loss_buy,
+            'target': round(target_buy, 2),
+            'stop_loss': round(stop_loss_buy, 2),
             'confidence': 'Moyen',
             'reason': 'Conditions moyennes (prix sous SMA, RSI < 35, EMA neutre, MACD positif, Momentum positif, Fibonacci proche, partiellement confirmé 4h/1d)',
-            'score': score
+            'score': round(score, 1)
         })
     elif sell_medium:
         score = calculate_score(last_row_1h, 'VENTE', higher_timeframes) * 0.5 + \
@@ -319,115 +335,121 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
         signals.append({
             **signal_data,
             'signal': 'VENTE',
-            'target': target_sell,
-            'stop_loss': stop_loss_sell,
+            'target': round(target_sell, 2),
+            'stop_loss': round(stop_loss_sell, 2),
             'confidence': 'Moyen',
             'reason': 'Conditions moyennes (prix sur SMA, RSI > 65, EMA neutre, MACD négatif, Momentum négatif, Fibonacci proche, partiellement confirmé 4h/1d)',
-            'score': score
+            'score': round(score, 1)
         })
     
     return signals, {
         **signal_data,
-        'score': calculate_score(last_row_1h, 'ACHAT' if last_row_1h['rsi'] < 50 else 'VENTE', higher_timeframes),
+        'score': round(calculate_score(last_row_1h, 'ACHAT' if last_row_1h['rsi'] < 50 else 'VENTE', higher_timeframes), 1),
         'ema_trend': last_row_1h['ema_fast'] > last_row_1h['ema_slow'],
-        'macd': last_row_1h['macd'],
-        'macd_signal': last_row_1h['macd_signal'],
-        'price_history': df_1h[['timestamp', 'close', 'supports', 'resistances']].tail(50).to_dict(orient='records')
+        'macd': round(last_row_1h['macd'], 2) if not np.isnan(last_row_1h['macd']) else None,
+        'macd_signal': round(last_row_1h['macd_signal'], 2) if not np.isnan(last_row_1h['macd_signal']) else None,
+        'price_history': df_1h[['timestamp', 'close']].tail(50).to_dict(orient='records')
     }
 
 # Analyser un trade soumis
 def analyze_trade(pair, entry_price, signal_type, df_1h, df_4h, df_1d):
     if df_1h is None or df_4h is None or df_1d is None:
-        return {'recommendation': 'Indécis', 'reason': 'Données insuffisantes', 'score': 0}
+        return {'type': 'error', 'message': 'Données insuffisantes pour l’analyse'}
     
-    last_row_1h = df_1h.iloc[-1]
-    last_row_1d = df_1d.iloc[-1]
-    current_price = last_row_1h['close']
-    atr = last_row_1h['atr'] if not np.isnan(last_row_1h['atr']) else last_row_1h['close'] * 0.005
-    
-    higher_timeframes = [
-        {'rsi': df_4h.iloc[-1]['rsi'], 'ema_fast': df_4h.iloc[-1]['ema_fast'], 
-         'ema_slow': df_4h.iloc[-1]['ema_slow'], 'macd': df_4h.iloc[-1]['macd'], 
-         'macd_signal': df_4h.iloc[-1]['macd_signal'], 'momentum': df_4h.iloc[-1]['momentum']} if len(df_4h) > 0 else None,
-        {'rsi': df_1d.iloc[-1]['rsi'], 'ema_fast': df_1d.iloc[-1]['ema_fast'], 
-         'ema_slow': df_1d.iloc[-1]['ema_slow'], 'macd': df_1d.iloc[-1]['macd'], 
-         'macd_signal': df_1d.iloc[-1]['macd_signal'], 'momentum': df_1d.iloc[-1]['momentum']} if len(df_1d) > 0 else None
-    ]
-    higher_timeframes = [tf for tf in higher_timeframes if tf is not None]
-    
-    score = calculate_score(last_row_1h, signal_type, higher_timeframes)
-    
-    # Évaluation du trade
-    recommendation = 'Indécis'
-    reason = []
-    
-    if signal_type == 'ACHAT':
-        # Prix proche d’un support journalier
-        if not np.isnan(last_row_1d['supports']) and abs(current_price - last_row_1d['supports']) / current_price < 0.01:
-            score += 10
-            reason.append('Prix proche d’un support journalier solide')
-        # Tendance haussière
-        if last_row_1h['ema_fast'] > last_row_1h['ema_slow'] and last_row_1h['macd'] > last_row_1h['macd_signal']:
-            score += 10
-            reason.append('Tendance haussière confirmée (EMA et MACD)')
-        # RSI favorable
-        if last_row_1h['rsi'] < 40:
-            score += 5
-            reason.append('RSI indique une zone de survente')
-        # Proximité du stop-loss
-        stop_loss = entry_price - atr * 1.5
-        if current_price < stop_loss:
-            recommendation = 'Vendre'
-            reason.append('Prix sous le stop-loss recommandé')
-        elif current_price > entry_price * 1.02:
-            recommendation = 'Garder'
-            reason.append('Prix au-dessus du seuil de profit (2%)')
-        elif score > 70:
-            recommendation = 'Garder'
-            reason.append('Conditions techniques favorables')
-        else:
-            recommendation = 'Modifier'
-            reason.append('Conditions mitigées, envisager d’ajuster le stop-loss')
-    else:  # VENTE
-        # Prix proche d’une résistance journalière
-        if not np.isnan(last_row_1d['resistances']) and abs(current_price - last_row_1d['resistances']) / current_price < 0.01:
-            score += 10
-            reason.append('Prix proche d’une résistance journalière solide')
-        # Tendance baissière
-        if last_row_1h['ema_fast'] < last_row_1h['ema_slow'] and last_row_1h['macd'] < last_row_1h['macd_signal']:
-            score += 10
-            reason.append('Tendance baissière confirmée (EMA et MACD)')
-        # RSI favorable
-        if last_row_1h['rsi'] > 60:
-            score += 5
-            reason.append('RSI indique une zone de surachat')
-        # Proximité du stop-loss
-        stop_loss = entry_price + atr * 1.5
-        if current_price > stop_loss:
-            recommendation = 'Acheter (couvrir)'
-            reason.append('Prix au-dessus du stop-loss recommandé')
-        elif current_price < entry_price * 0.98:
-            recommendation = 'Garder'
-            reason.append('Prix en dessous du seuil de profit (2%)')
-        elif score > 70:
-            recommendation = 'Garder'
-            reason.append('Conditions techniques favorables')
-        else:
-            recommendation = 'Modifier'
-            reason.append('Conditions mitigées, envisager d’ajuster le stop-loss')
-    
-    return {
-        'recommendation': recommendation,
-        'reason': '; '.join(reason),
-        'score': min(score, 100),
-        'current_price': current_price,
-        'support': last_row_1d['supports'] if not np.isnan(last_row_1d['supports']) else None,
-        'resistance': last_row_1d['resistances'] if not np.isnan(last_row_1d['resistances']) else None,
-        'rsi': last_row_1h['rsi'],
-        'atr': atr,
-        'momentum': last_row_1h['momentum'],
-        'price_history': df_1h[['timestamp', 'close', 'supports', 'resistances']].tail(50).to_dict(orient='records')
-    }
+    try:
+        last_row_1h = df_1h.iloc[-1]
+        last_row_1d = df_1d.iloc[-1]
+        current_price = last_row_1h['close']
+        atr = last_row_1h['atr'] if not np.isnan(last_row_1h['atr']) else last_row_1h['close'] * 0.005
+        
+        higher_timeframes = [
+            {'rsi': df_4h.iloc[-1]['rsi'], 'ema_fast': df_4h.iloc[-1]['ema_fast'], 
+             'ema_slow': df_4h.iloc[-1]['ema_slow'], 'macd': df_4h.iloc[-1]['macd'], 
+             'macd_signal': df_4h.iloc[-1]['macd_signal'], 'momentum': df_4h.iloc[-1]['momentum']} if len(df_4h) > 0 else None,
+            {'rsi': df_1d.iloc[-1]['rsi'], 'ema_fast': df_1d.iloc[-1]['ema_fast'], 
+             'ema_slow': df_1d.iloc[-1]['ema_slow'], 'macd': df_1d.iloc[-1]['macd'], 
+             'macd_signal': df_1d.iloc[-1]['macd_signal'], 'momentum': df_1d.iloc[-1]['momentum']} if len(df_1d) > 0 else None
+        ]
+        higher_timeframes = [tf for tf in higher_timeframes if tf is not None]
+        
+        score = calculate_score(last_row_1h, signal_type, higher_timeframes)
+        
+        # Évaluation du trade
+        recommendation = 'Indécis'
+        reason = []
+        
+        if signal_type == 'ACHAT':
+            # Prix proche d’un support journalier
+            if not np.isnan(last_row_1d['supports']) and abs(current_price - last_row_1d['supports']) / current_price < 0.01:
+                score += 10
+                reason.append('Prix proche d’un support journalier solide')
+            # Tendance haussière
+            if last_row_1h['ema_fast'] > last_row_1h['ema_slow'] and last_row_1h['macd'] > last_row_1h['macd_signal']:
+                score += 10
+                reason.append('Tendance haussière confirmée (EMA et MACD)')
+            # RSI favorable
+            if last_row_1h['rsi'] < 40:
+                score += 5
+                reason.append('RSI indique une zone de survente')
+            # Proximité du stop-loss
+            stop_loss = entry_price - atr * 1.5
+            if current_price < stop_loss:
+                recommendation = 'Vendre'
+                reason.append('Prix sous le stop-loss recommandé')
+            elif current_price > entry_price * 1.02:
+                recommendation = 'Garder'
+                reason.append('Prix au-dessus du seuil de profit (2%)')
+            elif score > 70:
+                recommendation = 'Garder'
+                reason.append('Conditions techniques favorables')
+            else:
+                recommendation = 'Modifier'
+                reason.append('Conditions mitigées, envisager d’ajuster le stop-loss')
+        else:  # VENTE
+            # Prix proche d’une résistance journalière
+            if not np.isnan(last_row_1d['resistances']) and abs(current_price - last_row_1d['resistances']) / current_price < 0.01:
+                score += 10
+                reason.append('Prix proche d’une résistance journalière solide')
+            # Tendance baissière
+            if last_row_1h['ema_fast'] < last_row_1h['ema_slow'] and last_row_1h['macd'] < last_row_1h['macd_signal']:
+                score += 10
+                reason.append('Tendance baissière confirmée (EMA et MACD)')
+            # RSI favorable
+            if last_row_1h['rsi'] > 60:
+                score += 5
+                reason.append('RSI indique une zone de surachat')
+            # Proximité du stop-loss
+            stop_loss = entry_price + atr * 1.5
+            if current_price > stop_loss:
+                recommendation = 'Acheter (couvrir)'
+                reason.append('Prix au-dessus du stop-loss recommandé')
+            elif current_price < entry_price * 0.98:
+                recommendation = 'Garder'
+                reason.append('Prix en dessous du seuil de profit (2%)')
+            elif score > 70:
+                recommendation = 'Garder'
+                reason.append('Conditions techniques favorables')
+            else:
+                recommendation = 'Modifier'
+                reason.append('Conditions mitigées, envisager d’ajuster le stop-loss')
+        
+        return {
+            'type': 'trade_analysis',
+            'result': {
+                'recommendation': recommendation,
+                'reason': '; '.join(reason),
+                'score': round(min(score, 100), 1),
+                'current_price': round(current_price, 2),
+                'support': round(last_row_1d['supports'], 2) if not np.isnan(last_row_1d['supports']) else None,
+                'resistance': round(last_row_1d['resistances'], 2) if not np.isnan(last_row_1d['resistances']) else None,
+                'rsi': round(last_row_1h['rsi'], 2) if not np.isnan(last_row_1h['rsi']) else None,
+                'atr': round(atr, 2) if not np.isnan(atr) else None,
+                'momentum': round(last_row_1h['momentum'], 2) if not np.isnan(last_row_1h['momentum']) else None,
+                'price_history': df_1h[['timestamp', 'close']].tail(50).to_dict(orient='records')
+            }
+        }
+    except Exception as e:
+        return {'type': 'error', 'message': f'Erreur lors de l’analyse du trade: {str(e)}'}
 
 # Forcer un trade
 def force_trade(fallback_data):
@@ -492,18 +514,18 @@ def force_trade(fallback_data):
     
     signal_data = {
         'pair': pair,
-        'price': price,
+        'price': round(price, 2),
         'target': None,
         'stop_loss': None,
-        'rsi': last_row_1h['rsi'],
-        'atr': atr,
-        'support': last_row_1d['supports'] if not np.isnan(last_row_1d['supports']) else None,
-        'resistance': last_row_1d['resistances'] if not np.isnan(last_row_1d['resistances']) else None,
-        'momentum': last_row_1h['momentum'],
+        'rsi': round(last_row_1h['rsi'], 2) if not np.isnan(last_row_1h['rsi']) else None,
+        'atr': round(atr, 2) if not np.isnan(atr) else None,
+        'support': round(last_row_1d['supports'], 2) if not np.isnan(last_row_1d['supports']) else None,
+        'resistance': round(last_row_1d['resistances'], 2) if not np.isnan(last_row_1d['resistances']) else None,
+        'momentum': round(last_row_1h['momentum'], 2) if not np.isnan(last_row_1h['momentum']) else None,
         'confidence': 'Faible',
         'reason': None,
         'score': 0,
-        'price_history': df_1h[['timestamp', 'close', 'supports', 'resistances']].tail(50).to_dict(orient='records')
+        'price_history': df_1h[['timestamp', 'close']].tail(50).to_dict(orient='records')
     }
     
     if buy_forced:
@@ -512,10 +534,10 @@ def force_trade(fallback_data):
                 (calculate_score(df_1d.iloc[-1], 'ACHAT', None) * 0.2 if len(df_1d) > 0 else 0)
         signal_data.update({
             'signal': 'ACHAT',
-            'target': target_buy,
-            'stop_loss': stop_loss_buy,
+            'target': round(target_buy, 2),
+            'stop_loss': round(stop_loss_buy, 2),
             'reason': 'Trade forcé (conditions assouplies: prix près de SMA, RSI < 40, EMA neutre, MACD positif, Momentum positif, Fibonacci proche, support 1d proche, volatilité suffisante)',
-            'score': score
+            'score': round(score, 1)
         })
         return signal_data
     elif sell_forced:
@@ -524,10 +546,10 @@ def force_trade(fallback_data):
                 (calculate_score(df_1d.iloc[-1], 'VENTE', None) * 0.2 if len(df_1d) > 0 else 0)
         signal_data.update({
             'signal': 'VENTE',
-            'target': target_sell,
-            'stop_loss': stop_loss_sell,
+            'target': round(target_sell, 2),
+            'stop_loss': round(stop_loss_sell, 2),
             'reason': 'Trade forcé (conditions assouplies: prix près de SMA, RSI > 60, EMA neutre, MACD négatif, Momentum négatif, Fibonacci proche, résistance 1d proche, volatilité suffisante)',
-            'score': score
+            'score': round(score, 1)
         })
         return signal_data
     
@@ -536,10 +558,10 @@ def force_trade(fallback_data):
             (calculate_score(df_1d.iloc[-1], 'ACHAT' if last_row_1h['rsi'] < 50 else 'VENTE', None) * 0.2 if len(df_1d) > 0 else 0)
     signal_data.update({
         'signal': 'ACHAT' if last_row_1h['rsi'] < 50 else 'VENTE',
-        'target': target_buy if last_row_1h['rsi'] < 50 else target_sell,
-        'stop_loss': stop_loss_buy if last_row_1h['rsi'] < 50 else stop_loss_sell,
+        'target': round(target_buy, 2) if last_row_1h['rsi'] < 50 else round(target_sell, 2),
+        'stop_loss': round(stop_loss_buy, 2) if last_row_1h['rsi'] < 50 else round(stop_loss_sell, 2),
         'reason': 'Trade forcé (meilleur score global basé sur tous les indicateurs, partiellement confirmé 4h/1d)',
-        'score': score
+        'score': round(score, 1)
     })
     return signal_data
 
@@ -549,8 +571,15 @@ def main():
     args = sys.argv[1:]
     if len(args) == 3:
         pair, entry_price, signal_type = args
-        entry_price = float(entry_price)
         try:
+            entry_price = float(entry_price)
+            signal_type = signal_type.upper()
+            if signal_type not in ['ACHAT', 'VENTE']:
+                print(json.dumps({'type': 'error', 'message': 'Type de signal invalide (doit être ACHAT ou VENTE)'}))
+                return
+            if pair not in pairs:
+                print(json.dumps({'type': 'error', 'message': f'Paire {pair} non supportée'}))
+                return
             ohlcv_1h = kraken.fetch_ohlcv(pair, timeframe='1h', limit=LIMIT)
             ohlcv_4h = kraken.fetch_ohlcv(pair, timeframe='4h', limit=LIMIT)
             ohlcv_1d = kraken.fetch_ohlcv(pair, timeframe='1d', limit=LIMIT)
@@ -560,24 +589,22 @@ def main():
             df_1h = calculate_indicators(df_1h)
             df_4h = calculate_indicators(df_4h)
             df_1d = calculate_indicators(df_1d)
-            result = analyze_trade(pair, entry_price, signal_type.upper(), df_1h, df_4h, df_1d)
-            print(json.dumps({'type': 'trade_analysis', 'result': result}))
+            if df_1h is None or df_4h is None or df_1d is None:
+                print(json.dumps({'type': 'error', 'message': 'Données insuffisantes pour l’analyse'}))
+                return
+            result = analyze_trade(pair, entry_price, signal_type, df_1h, df_4h, df_1d)
+            print(json.dumps(result))
         except Exception as e:
-            print(json.dumps({'type': 'error', 'message': str(e)}))
+            print(json.dumps({'type': 'error', 'message': f'Erreur lors de l’analyse du trade: {str(e)}'}))
         return
     
     # Analyse standard
-    print("Analyse des cryptos pour trading intraday (levier x50 sur Kraken)")
-    print(f"Date/Heure: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("-" * 80)
-    
     try:
         markets = kraken.load_markets()
         valid_pairs = [p for p in pairs if p in markets]
         if not valid_pairs:
             print(json.dumps({'type': 'error', 'message': 'Aucune paire valide disponible'}))
             return
-        print(f"Paires valides: {valid_pairs}")
     except Exception as e:
         print(json.dumps({'type': 'error', 'message': f'Erreur lors de la vérification des paires: {str(e)}'}))
         return
@@ -596,13 +623,13 @@ def main():
                     print(f"Données insuffisantes pour {pair} ({tf})")
                     break
                 dfs[tf] = df
-                time.sleep(1)
+                time.sleep(0.2)  # Réduire le délai pour respecter les limites Kraken
             else:
                 signals, fallback = generate_signals(dfs['1h'], dfs['4h'], dfs['1d'], pair)
                 all_signals.extend(signals)
                 fallback_data.append((fallback, dfs['1h'], dfs['4h'], dfs['1d']))
         except Exception as e:
-            print(f"Erreur pour {pair}: {e}")
+            print(f"Erreur pour {pair}: {str(e)}")
     
     if all_signals:
         best_signal = max(all_signals, key=lambda x: x['score'])
@@ -630,8 +657,6 @@ def main():
         }))
     else:
         print(json.dumps({'type': 'error', 'message': 'Aucun trade possible (vérifiez les données ou paires)'}))
-    
-    print("\nConseil: Relancez demain pour un nouveau trade.")
 
 if __name__ == "__main__":
     main()
