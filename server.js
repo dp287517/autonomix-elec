@@ -31,7 +31,7 @@ app.use((req, res, next) => {
 
 // Configuration de la base de données PostgreSQL
 const pool = new Pool({
-    connectionString: 'postgresql://autonomix_owner:npg_rDMoOyZ8a3Xk@ep-mute-brook-a23892dj-pooler.eu-central-1.aws.neon.tech/autonomix?sslmode=require',
+    connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
     max: 10,
     idleTimeoutMillis: 30000,
