@@ -7,9 +7,16 @@ import time
 import warnings
 import json
 import sys
+import logging
+
+# Configurer le logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 warnings.filterwarnings("ignore")
 
 # Configuration de l'API Kraken
+logger.info("Configuration de l'API Kraken")
 kraken = ccxt.kraken({
     'apiKey': os.getenv('KRAKEN_API_KEY'),
     'secret': os.getenv('KRAKEN_SECRET'),
@@ -35,11 +42,13 @@ ATR_PERIOD = 14
 MOMENTUM_PERIOD = 10
 LEVERAGE = 50
 TARGET_MOVE = 0.02
-MIN_ATR_MULTIPLIER = 2.0  # Multiplicateur minimum pour stop-loss
+MIN_ATR_MULTIPLIER = 2.0
 
 # Calcul des indicateurs
 def calculate_indicators(df):
+    logger.info("Calcul des indicateurs")
     if df.empty or len(df) < max(BB_PERIOD, RSI_PERIOD, EMA_SLOW, MOMENTUM_PERIOD):
+        logger.error("Données insuffisantes pour calculer les indicateurs")
         return None
     
     try:
@@ -80,7 +89,7 @@ def calculate_indicators(df):
         df['fib_0.618'] = high - 0.618 * diff
         df['fib_0.764'] = high - 0.764 * diff
         
-        # Supports et résistances améliorés
+        # Supports et résistances
         supports = []
         resistances = []
         current_price = df['close'].iloc[-1]
@@ -90,12 +99,9 @@ def calculate_indicators(df):
             if df['high'].iloc[i] > df['high'].iloc[i-1] and df['high'].iloc[i] > df['high'].iloc[i+1] and df['high'].iloc[i] > current_price:
                 resistances.append(df['high'].iloc[i])
         
-        # Choisir le support le plus proche inférieur au prix actuel
         support = min(supports, default=np.nan, key=lambda x: abs(x - current_price)) if supports else np.nan
-        # Choisir la résistance la plus proche supérieure au prix actuel
         resistance = min(resistances, default=np.nan, key=lambda x: abs(x - current_price)) if resistances else np.nan
         
-        # Éviter support = résistance
         if not np.isnan(support) and not np.isnan(resistance) and abs(support - resistance) < current_price * 0.001:
             support = np.nan if resistance < current_price else support
             resistance = np.nan if support > current_price else resistance
@@ -103,13 +109,15 @@ def calculate_indicators(df):
         df['supports'] = [support] * len(df)
         df['resistances'] = [resistance] * len(df)
         
+        logger.info("Indicateurs calculés avec succès")
         return df
     except Exception as e:
-        print(f"Erreur calcul indicateurs: {str(e)}")
+        logger.error(f"Erreur calcul indicateurs: {str(e)}")
         return None
 
 # Calcul du score
 def calculate_score(last_row, signal_type, higher_timeframes=None):
+    logger.info(f"Calcul du score pour signal {signal_type}")
     if higher_timeframes is None:
         higher_timeframes = []
     
@@ -117,7 +125,6 @@ def calculate_score(last_row, signal_type, higher_timeframes=None):
     price = last_row['close']
     
     try:
-        # RSI (15%)
         rsi = last_row['rsi']
         if not np.isnan(rsi):
             if signal_type == 'ACHAT':
@@ -131,7 +138,6 @@ def calculate_score(last_row, signal_type, higher_timeframes=None):
                 elif rsi > 65:
                     score += 8
         
-        # Bollinger (15%)
         if not np.isnan(last_row['lower_bb']) and not np.isnan(last_row['upper_bb']):
             if signal_type == 'ACHAT':
                 if price <= last_row['lower_bb']:
@@ -144,7 +150,6 @@ def calculate_score(last_row, signal_type, higher_timeframes=None):
                 elif price >= last_row['sma']:
                     score += 8
         
-        # EMA (15%)
         if not np.isnan(last_row['ema_fast']) and not np.isnan(last_row['ema_slow']):
             if signal_type == 'ACHAT':
                 if last_row['ema_fast'] > last_row['ema_slow']:
@@ -157,7 +162,6 @@ def calculate_score(last_row, signal_type, higher_timeframes=None):
                 elif last_row['ema_fast'] <= last_row['ema_slow'] * 1.005:
                     score += 8
         
-        # Fibonacci (15%)
         fib_levels = ['fib_0.236', 'fib_0.382', 'fib_0.5', 'fib_0.618', 'fib_0.764']
         fib_proximities = [abs(price - last_row[level]) / price for level in fib_levels if not np.isnan(last_row[level])]
         fib_proximity = min(fib_proximities, default=np.inf)
@@ -166,7 +170,6 @@ def calculate_score(last_row, signal_type, higher_timeframes=None):
         elif fib_proximity < 0.05:
             score += 8
         
-        # ATR (15%)
         atr = last_row['atr']
         if not np.isnan(atr):
             if atr > last_row['close'] * 0.01:
@@ -174,7 +177,6 @@ def calculate_score(last_row, signal_type, higher_timeframes=None):
             elif atr > last_row['close'] * 0.005:
                 score += 8
         
-        # Support/Résistance (15%)
         if signal_type == 'ACHAT' and not np.isnan(last_row['supports']):
             if abs(price - last_row['supports']) / price < 0.01:
                 score += 15
@@ -182,7 +184,6 @@ def calculate_score(last_row, signal_type, higher_timeframes=None):
             if abs(price - last_row['resistances']) / price < 0.01:
                 score += 15
         
-        # MACD (10%)
         if not np.isnan(last_row['macd']) and not np.isnan(last_row['macd_signal']):
             if signal_type == 'ACHAT' and last_row['macd'] > last_row['macd_signal']:
                 score += 10
@@ -193,14 +194,12 @@ def calculate_score(last_row, signal_type, higher_timeframes=None):
             elif signal_type == 'VENTE' and last_row['macd'] < 0:
                 score += 5
         
-        # Momentum (5%)
         if not np.isnan(last_row['momentum']):
             if signal_type == 'ACHAT' and last_row['momentum'] > 0:
                 score += 5
             elif signal_type == 'VENTE' and last_row['momentum'] < 0:
                 score += 5
         
-        # Multi-timeframe (bonus +10)
         confirmation_count = 0
         for tf_data in higher_timeframes:
             if signal_type == 'ACHAT' and tf_data['rsi'] < 35 and tf_data['ema_fast'] > tf_data['ema_slow'] and tf_data['macd'] > tf_data['macd_signal']:
@@ -210,14 +209,17 @@ def calculate_score(last_row, signal_type, higher_timeframes=None):
         if confirmation_count >= 2:
             score += 10
         
+        logger.info(f"Score calculé: {score}")
         return min(score, 100)
     except Exception as e:
-        print(f"Erreur calcul score: {str(e)}")
+        logger.error(f"Erreur calcul score: {str(e)}")
         return 0
 
 # Générer des signaux
 def generate_signals(df_1h, df_4h, df_1d, pair):
+    logger.info(f"Génération des signaux pour {pair}")
     if df_1h is None or df_4h is None or df_1d is None:
+        logger.error("Données insuffisantes pour générer des signaux")
         return [], {'pair': pair, 'score': 0}
     
     signals = []
@@ -232,7 +234,6 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
     fib_proximity_sell = min([abs(price - last_row_1h[level]) / price for level in fib_levels_sell 
                               if not np.isnan(last_row_1h[level])], default=np.inf)
     
-    # Niveau 1 : Strict (1h avec supports/résistances 1d)
     buy_strict = (
         (price <= last_row_1h['lower_bb']) and
         (last_row_1h['rsi'] < 30) and
@@ -252,7 +253,6 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
         (not np.isnan(last_row_1d['resistances']) and abs(price - last_row_1d['resistances']) / price < 0.01)
     )
     
-    # Niveau 2 : Moyen
     buy_medium = (
         (price <= last_row_1h['sma']) and
         (last_row_1h['rsi'] < 35) and
@@ -271,13 +271,12 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
     )
     
     atr = last_row_1h['atr'] if not np.isnan(last_row_1h['atr']) else last_row_1h['close'] * 0.005
-    atr = max(atr, last_row_1h['close'] * 0.005) * MIN_ATR_MULTIPLIER  # Assurer un stop-loss minimum
+    atr = max(atr, last_row_1h['close'] * 0.005) * MIN_ATR_MULTIPLIER
     target_buy = price * (1 + TARGET_MOVE)
     target_sell = price * (1 - TARGET_MOVE)
     stop_loss_buy = price - atr
     stop_loss_sell = price + atr
     
-    # Validation : éviter cible/stop-loss trop proches des supports/résistances
     if not np.isnan(last_row_1d['supports']) and abs(target_buy - last_row_1d['supports']) / price < 0.005:
         target_buy = last_row_1d['supports'] * 0.98
     if not np.isnan(last_row_1d['resistances']) and abs(target_sell - last_row_1d['resistances']) / price < 0.005:
@@ -362,6 +361,7 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
             'score': round(score, 1)
         })
     
+    logger.info(f"Signaux générés: {len(signals)}")
     return signals, {
         **signal_data,
         'score': round(calculate_score(last_row_1h, 'ACHAT' if last_row_1h['rsi'] < 50 else 'VENTE', higher_timeframes), 1),
@@ -373,7 +373,9 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
 
 # Analyser un trade soumis
 def analyze_trade(pair, entry_price, signal_type, df_1h, df_4h, df_1d):
+    logger.info(f"Analyse du trade: {pair}, {entry_price}, {signal_type}")
     if df_1h is None or df_4h is None or df_1d is None:
+        logger.error("Données insuffisantes pour l’analyse")
         return {'type': 'error', 'message': 'Données insuffisantes pour l’analyse'}
     
     try:
@@ -395,24 +397,19 @@ def analyze_trade(pair, entry_price, signal_type, df_1h, df_4h, df_1d):
         
         score = calculate_score(last_row_1h, signal_type, higher_timeframes)
         
-        # Évaluation du trade
         recommendation = 'Indécis'
         reason = []
         
         if signal_type == 'ACHAT':
-            # Prix proche d’un support journalier
             if not np.isnan(last_row_1d['supports']) and abs(current_price - last_row_1d['supports']) / current_price < 0.01:
                 score += 10
                 reason.append('Prix proche d’un support journalier solide')
-            # Tendance haussière
             if last_row_1h['ema_fast'] > last_row_1h['ema_slow'] and last_row_1h['macd'] > last_row_1h['macd_signal']:
                 score += 10
                 reason.append('Tendance haussière confirmée (EMA et MACD)')
-            # RSI favorable
             if last_row_1h['rsi'] < 40:
                 score += 5
                 reason.append('RSI indique une zone de survente')
-            # Proximité du stop-loss
             stop_loss = entry_price - atr
             if current_price < stop_loss:
                 recommendation = 'Vendre'
@@ -427,19 +424,15 @@ def analyze_trade(pair, entry_price, signal_type, df_1h, df_4h, df_1d):
                 recommendation = 'Modifier'
                 reason.append('Conditions mitigées, envisager d’ajuster le stop-loss')
         else:  # VENTE
-            # Prix proche d’une résistance journalière
             if not np.isnan(last_row_1d['resistances']) and abs(current_price - last_row_1d['resistances']) / current_price < 0.01:
                 score += 10
                 reason.append('Prix proche d’une résistance journalière solide')
-            # Tendance baissière
             if last_row_1h['ema_fast'] < last_row_1h['ema_slow'] and last_row_1h['macd'] < last_row_1h['macd_signal']:
                 score += 10
                 reason.append('Tendance baissière confirmée (EMA et MACD)')
-            # RSI favorable
             if last_row_1h['rsi'] > 60:
                 score += 5
                 reason.append('RSI indique une zone de surachat')
-            # Proximité du stop-loss
             stop_loss = entry_price + atr
             if current_price > stop_loss:
                 recommendation = 'Acheter (couvrir)'
@@ -454,6 +447,7 @@ def analyze_trade(pair, entry_price, signal_type, df_1h, df_4h, df_1d):
                 recommendation = 'Modifier'
                 reason.append('Conditions mitigées, envisager d’ajuster le stop-loss')
         
+        logger.info(f"Trade analysé: {recommendation}, score: {score}")
         return {
             'type': 'trade_analysis',
             'result': {
@@ -470,24 +464,28 @@ def analyze_trade(pair, entry_price, signal_type, df_1h, df_4h, df_1d):
             }
         }
     except Exception as e:
+        logger.error(f"Erreur lors de l’analyse du trade: {str(e)}")
         return {'type': 'error', 'message': f'Erreur lors de l’analyse du trade: {str(e)}'}
 
 # Forcer un trade
 def force_trade(fallback_data):
+    logger.info("Forçage d’un trade")
     if not fallback_data:
+        logger.error("Aucune donnée de fallback disponible")
         return None
     
     valid_fallbacks = [(f, df1, df2, df3) for f, df1, df2, df3 in fallback_data if df1 is not None and df2 is not None and df3 is not None]
     if not valid_fallbacks:
+        logger.error("Aucun fallback valide")
         return None
     
-    # Filtrer les fallback avec support/résistance valides et score > 60
     valid_fallbacks = [
         (f, df1, df2, df3) for f, df1, df2, df3 in valid_fallbacks
         if f['score'] > 60 and not np.isnan(df3.iloc[-1]['supports']) and not np.isnan(df3.iloc[-1]['resistances'])
         and abs(df3.iloc[-1]['supports'] - df3.iloc[-1]['resistances']) / f['price'] > 0.01
     ]
     if not valid_fallbacks:
+        logger.error("Aucun fallback avec score > 60 ou supports/résistances valides")
         return None
     
     best_fallback = max(valid_fallbacks, key=lambda x: x[0]['score'])
@@ -533,7 +531,6 @@ def force_trade(fallback_data):
     stop_loss_buy = price - atr
     stop_loss_sell = price + atr
     
-    # Validation : éviter cible/stop-loss trop proches des supports/résistances
     if not np.isnan(last_row_1d['supports']) and abs(target_buy - last_row_1d['supports']) / price < 0.005:
         target_buy = last_row_1d['supports'] * 0.98
     if not np.isnan(last_row_1d['resistances']) and abs(target_sell - last_row_1d['resistances']) / price < 0.005:
@@ -576,6 +573,7 @@ def force_trade(fallback_data):
             'reason': 'Trade forcé (conditions assouplies: prix près de SMA, RSI < 40, EMA neutre, MACD positif, Momentum positif, Fibonacci proche, support 1d proche, volatilité suffisante)',
             'score': round(score, 1)
         })
+        logger.info(f"Trade forcé ACHAT: {signal_data}")
         return signal_data
     elif sell_forced:
         score = calculate_score(last_row_1h, 'VENTE', higher_timeframes) * 0.5 + \
@@ -588,25 +586,31 @@ def force_trade(fallback_data):
             'reason': 'Trade forcé (conditions assouplies: prix près de SMA, RSI > 60, EMA neutre, MACD négatif, Momentum négatif, Fibonacci proche, résistance 1d proche, volatilité suffisante)',
             'score': round(score, 1)
         })
+        logger.info(f"Trade forcé VENTE: {signal_data}")
         return signal_data
     
-    return None  # Pas de signal forcé si score < 60 ou données incohérentes
+    logger.info("Aucun trade forcé généré")
+    return None
 
 # Main
 def main():
-    # Vérifier si un trade est soumis via arguments
+    logger.info("Démarrage de l’analyse crypto")
     args = sys.argv[1:]
     if len(args) == 3:
         pair, entry_price, signal_type = args
+        logger.info(f"Analyse d’un trade soumis: {pair}, {entry_price}, {signal_type}")
         try:
             entry_price = float(entry_price)
             signal_type = signal_type.upper()
             if signal_type not in ['ACHAT', 'VENTE']:
+                logger.error("Type de signal invalide")
                 print(json.dumps({'type': 'error', 'message': 'Type de signal invalide (doit être ACHAT ou VENTE)'}))
                 return
             if pair not in pairs:
+                logger.error(f"Paire non supportée: {pair}")
                 print(json.dumps({'type': 'error', 'message': f'Paire {pair} non supportée'}))
                 return
+            logger.info(f"Récupération des données pour {pair}")
             ohlcv_1h = kraken.fetch_ohlcv(pair, timeframe='1h', limit=LIMIT)
             ohlcv_4h = kraken.fetch_ohlcv(pair, timeframe='4h', limit=LIMIT)
             ohlcv_1d = kraken.fetch_ohlcv(pair, timeframe='1d', limit=LIMIT)
@@ -617,22 +621,28 @@ def main():
             df_4h = calculate_indicators(df_4h)
             df_1d = calculate_indicators(df_1d)
             if df_1h is None or df_4h is None or df_1d is None:
+                logger.error("Données insuffisantes pour l’analyse")
                 print(json.dumps({'type': 'error', 'message': 'Données insuffisantes pour l’analyse'}))
                 return
             result = analyze_trade(pair, entry_price, signal_type, df_1h, df_4h, df_1d)
             print(json.dumps(result))
         except Exception as e:
+            logger.error(f"Erreur lors de l’analyse du trade: {str(e)}")
             print(json.dumps({'type': 'error', 'message': f'Erreur lors de l’analyse du trade: {str(e)}'}))
         return
     
-    # Analyse standard
+    logger.info("Analyse standard des cryptos")
     try:
+        logger.info("Chargement des marchés Kraken")
         markets = kraken.load_markets()
         valid_pairs = [p for p in pairs if p in markets]
         if not valid_pairs:
+            logger.error("Aucune paire valide disponible")
             print(json.dumps({'type': 'error', 'message': 'Aucune paire valide disponible'}))
             return
+        logger.info(f"Paires valides: {valid_pairs}")
     except Exception as e:
+        logger.error(f"Erreur lors de la vérification des paires: {str(e)}")
         print(json.dumps({'type': 'error', 'message': f'Erreur lors de la vérification des paires: {str(e)}'}))
         return
     
@@ -641,13 +651,15 @@ def main():
     
     for pair in valid_pairs:
         try:
+            logger.info(f"Analyse de la paire {pair}")
             dfs = {}
             for tf in TIMEFRAMES:
+                logger.info(f"Récupération des données {tf} pour {pair}")
                 ohlcv = kraken.fetch_ohlcv(pair, timeframe=tf, limit=LIMIT)
                 df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
                 df = calculate_indicators(df)
                 if df is None:
-                    print(f"Données insuffisantes pour {pair} ({tf})")
+                    logger.error(f"Données insuffisantes pour {pair} ({tf})")
                     break
                 dfs[tf] = df
                 time.sleep(0.2)
@@ -656,7 +668,7 @@ def main():
                 all_signals.extend(signals)
                 fallback_data.append((fallback, dfs['1h'], dfs['4h'], dfs['1d']))
         except Exception as e:
-            print(f"Erreur pour {pair}: {str(e)}")
+            logger.error(f"Erreur pour {pair}: {str(e)}")
     
     if all_signals:
         best_signal = max(all_signals, key=lambda x: x['score'])
@@ -664,6 +676,7 @@ def main():
         best_signal = force_trade(fallback_data)
     
     if best_signal:
+        logger.info(f"Meilleur signal trouvé: {best_signal['pair']}, score: {best_signal['score']}")
         print(json.dumps({
             'type': 'best_signal',
             'result': {
@@ -683,6 +696,7 @@ def main():
             }
         }))
     else:
+        logger.error("Aucun trade possible")
         print(json.dumps({'type': 'error', 'message': 'Aucun trade possible (vérifiez les données ou paires)'}))
 
 if __name__ == "__main__":
