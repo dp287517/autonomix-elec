@@ -2434,7 +2434,11 @@ app.post('/api/translate', async (req, res) => {
     }
 });
 
-// Routes pour gérer les trades
+// Routes pour gérer les trades et l'analyse crypto
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
+
 app.get('/trades', async (req, res) => {
     console.log('[Server] GET /trades');
     let client;
@@ -2503,10 +2507,6 @@ app.delete('/trades/:id', async (req, res) => {
     }
 });
 
-const { exec } = require('child_process');
-const util = require('util');
-const execPromise = util.promisify(exec);
-
 app.get('/api/crypto-analysis', async (req, res) => {
     console.log('[Server] GET /api/crypto-analysis');
     try {
@@ -2515,47 +2515,17 @@ app.get('/api/crypto-analysis', async (req, res) => {
             console.error('[Server] Erreur exécution script Python:', stderr);
             return res.status(500).json({ error: 'Erreur lors de l\'exécution de l\'analyse: ' + stderr });
         }
-        // Parser la sortie du script Python
-        const lines = stdout.split('\n');
-        let bestSignal = {};
-        let capture = false;
-        for (const line of lines) {
-            if (line.includes('Meilleur trade du jour:')) {
-                capture = true;
-                continue;
-            }
-            if (capture && line.includes('Actif:')) {
-                bestSignal.pair = line.split(': ')[1];
-            } else if (capture && line.includes('Signal:')) {
-                bestSignal.signal = line.split(': ')[1];
-            } else if (capture && line.includes('Prix d\'entrée:')) {
-                bestSignal.price = parseFloat(line.split(': ')[1]);
-            } else if (capture && line.includes('Cible (x2 avec levier x50):')) {
-                bestSignal.target = parseFloat(line.split(': ')[1]);
-            } else if (capture && line.includes('Stop-loss:')) {
-                bestSignal.stop_loss = parseFloat(line.split(': ')[1]);
-            } else if (capture && line.includes('RSI (1h):')) {
-                bestSignal.rsi = parseFloat(line.split(': ')[1]);
-            } else if (capture && line.includes('Volatilité (ATR):')) {
-                bestSignal.atr = parseFloat(line.split(': ')[1]);
-            } else if (capture && line.includes('Support le plus proche (1h):')) {
-                bestSignal.support = parseFloat(line.split(': ')[1]);
-            } else if (capture && line.includes('Résistance la plus proche (1h):')) {
-                bestSignal.resistance = parseFloat(line.split(': ')[1]);
-            } else if (capture && line.includes('Confiance:')) {
-                bestSignal.confidence = line.split(': ')[1];
-            } else if (capture && line.includes('Score:')) {
-                bestSignal.score = parseFloat(line.split(': ')[1].split('/')[0]);
-            } else if (capture && line.includes('Raison:')) {
-                bestSignal.reason = line.split(': ')[1];
-                capture = false;
-            }
+        const result = JSON.parse(stdout);
+        if (result.type === 'error') {
+            console.error('[Server] Erreur dans le script Python:', result.message);
+            return res.status(500).json({ error: result.message });
         }
-        if (!bestSignal.pair) {
-            return res.status(404).json({ error: 'Aucun signal de trading trouvé' });
+        if (result.type !== 'best_signal') {
+            console.error('[Server] Type de réponse inattendu:', result.type);
+            return res.status(500).json({ error: 'Type de réponse inattendu du script Python' });
         }
-        console.log('[Server] Signal de trading:', bestSignal);
-        res.json(bestSignal);
+        console.log('[Server] Signal de trading:', result.result);
+        res.json(result.result);
     } catch (error) {
         console.error('[Server] Erreur GET /api/crypto-analysis:', {
             message: error.message,
@@ -2579,7 +2549,12 @@ app.post('/api/analyze-trade', async (req, res) => {
         }
         const result = JSON.parse(stdout);
         if (result.type === 'error') {
+            console.error('[Server] Erreur dans le script Python:', result.message);
             return res.status(500).json({ error: result.message });
+        }
+        if (result.type !== 'trade_analysis') {
+            console.error('[Server] Type de réponse inattendu:', result.type);
+            return res.status(500).json({ error: 'Type de réponse inattendu du script Python' });
         }
         console.log('[Server] Analyse de trade:', result.result);
         res.json(result.result);
