@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trade Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4">
+        <h1 class="text-3xl font-bold mb-4">Trade Dashboard : 10$ à 1M$</h1>
+
+        <!-- Formulaire pour ajouter un trade -->
+        <form id="tradeForm" class="mb-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input type="date" id="trade_date" class="border p-2 rounded" required>
+                <input type="number" id="investment" placeholder="Investissement ($)" class="border p-2 rounded" required>
+                <input type="number" id="profit_loss" placeholder="Gain/Perte ($)" class="border p-2 rounded" required>
+                <input type="number" id="current_capital" placeholder="Capital Actuel ($)" class="border p-2 rounded" required>
+                <input type="text" id="notes" placeholder="Notes" class="border p-2 rounded">
+            </div>
+            <button type="submit" class="mt-4 bg-blue-500 text-white p-2 rounded">Ajouter Trade</button>
+        </form>
+
+        <!-- Tableau récapitulatif -->
+        <div class="overflow-x-auto mb-4">
+            <table class="min-w-full border" id="tradeTable">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="border p-2">Date</th>
+                        <th class="border p-2">Investissement ($)</th>
+                        <th class="border p-2">Gain/Perte ($)</th>
+                        <th class="border p-2">Capital Actuel ($)</th>
+                        <th class="border p-2">Notes</th>
+                        <th class="border p-2">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tradeTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Graphique -->
+        <div class="mb-4">
+            <h2 class="text-2xl font-bold mb-2">Progression du Capital</h2>
+            <canvas id="capitalChart" width="400" height="200"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Charger les trades
+        async function loadTrades() {
+            const response = await fetch('https://autonomix-elec.onrender.com/trades');
+            const trades = await response.json();
+            const tableBody = document.getElementById('tradeTableBody');
+            tableBody.innerHTML = '';
+            trades.forEach(trade => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="border p-2">${trade.trade_date}</td>
+                    <td class="border p-2">${trade.investment}</td>
+                    <td class="border p-2">${trade.profit_loss}</td>
+                    <td class="border p-2">${trade.current_capital}</td>
+                    <td class="border p-2">${trade.notes || ''}</td>
+                    <td class="border p-2">
+                        <button onclick="deleteTrade(${trade.id})" class="bg-red-500 text-white p-1 rounded">Supprimer</button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+            updateChart(trades);
+        }
+
+        // Ajouter un trade
+        document.getElementById('tradeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const trade = {
+                trade_date: document.getElementById('trade_date').value,
+                investment: parseFloat(document.getElementById('investment').value),
+                profit_loss: parseFloat(document.getElementById('profit_loss').value),
+                current_capital: parseFloat(document.getElementById('current_capital').value),
+                notes: document.getElementById('notes').value
+            };
+            await fetch('https://autonomix-elec.onrender.com/trades', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(trade)
+            });
+            document.getElementById('tradeForm').reset();
+            loadTrades();
+        });
+
+        // Supprimer un trade
+        async function deleteTrade(id) {
+            await fetch(`https://autonomix-elec.onrender.com/trades/${id}`, { method: 'DELETE' });
+            loadTrades();
+        }
+
+        // Mettre à jour le graphique
+        function updateChart(trades) {
+            const ctx = document.getElementById('capitalChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: trades.map(trade => trade.trade_date),
+                    datasets: [{
+                        label: 'Capital ($)',
+                        data: trades.map(trade => trade.current_capital),
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: true, text: 'Progression du Capital' }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Capital ($)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Charger les trades au démarrage
+        loadTrades();
+    </script>
+</body>
+</html>
