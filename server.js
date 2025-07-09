@@ -317,6 +317,16 @@ async function initDb() {
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS trades (
+            id SERIAL PRIMARY KEY,
+            trade_date DATE NOT NULL,
+            investment DECIMAL NOT NULL,
+            profit_loss DECIMAL NOT NULL,
+            current_capital DECIMAL NOT NULL,
+            notes TEXT
+          )
+        `);
         console.log('[Server] Tables créées avec succès');
 
         // Insérer des données par défaut pour maintenance_org si vide
