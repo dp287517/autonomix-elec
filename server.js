@@ -2434,6 +2434,75 @@ app.post('/api/translate', async (req, res) => {
     }
 });
 
+// Routes pour gérer les trades
+app.get('/trades', async (req, res) => {
+    console.log('[Server] GET /trades');
+    let client;
+    try {
+        client = await pool.connect();
+        const result = await pool.query('SELECT * FROM trades ORDER BY trade_date DESC');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[Server] Erreur GET /trades:', {
+            message: err.message,
+            stack: err.stack
+        });
+        res.status(500).json({ error: 'Erreur lors de la récupération des trades: ' + err.message });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+app.post('/trades', async (req, res) => {
+    const { trade_date, investment, profit_loss, current_capital, notes } = req.body;
+    console.log('[Server] POST /trades - Requête reçue:', { trade_date, investment, profit_loss, current_capital, notes });
+    let client;
+    try {
+        client = await pool.connect();
+        if (!trade_date || isNaN(investment) || isNaN(profit_loss) || isNaN(current_capital)) {
+            throw new Error('Date, investissement, gain/perte et capital actuel sont requis et doivent être valides');
+        }
+        const result = await pool.query(
+            'INSERT INTO trades (trade_date, investment, profit_loss, current_capital, notes) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+            [trade_date, investment, profit_loss, current_capital, notes || null]
+        );
+        console.log('[Server] Trade ajouté:', result.rows[0]);
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error('[Server] Erreur POST /trades:', {
+            message: err.message,
+            stack: err.stack
+        });
+        res.status(400).json({ error: 'Erreur lors de l\'ajout du trade: ' + err.message });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+app.delete('/trades/:id', async (req, res) => {
+    const { id } = req.params;
+    console.log('[Server] DELETE /trades/:id', id);
+    let client;
+    try {
+        client = await pool.connect();
+        const result = await pool.query('DELETE FROM trades WHERE id = $1 RETURNING *', [id]);
+        if (result.rows.length === 0) {
+            console.log('[Server] Trade non trouvé:', id);
+            return res.status(404).json({ error: 'Trade non trouvé' });
+        }
+        console.log('[Server] Trade supprimé:', id);
+        res.json({ message: 'Trade supprimé' });
+    } catch (err) {
+        console.error('[Server] Erreur DELETE /trades/:id:', {
+            message: err.message,
+            stack: err.stack
+        });
+        res.status(500).json({ error: 'Erreur lors de la suppression du trade: ' + err.message });
+    } finally {
+        if (client) client.release();
+    }
+});
+
 // Démarrage du serveur
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
