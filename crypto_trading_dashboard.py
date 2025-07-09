@@ -7,9 +7,10 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # Configuration de l'API Kraken
+import os
 kraken = ccxt.kraken({
-    'apiKey': '2cODKhMXAL9MqITr+81uSxqVfXoZCbVmnklgqsB2Ps7qj+GtI6douZLv',
-    'secret': 'u6TZEwy6inpuWG5B10OiecmGRFrz2SNU46WTMJIuqcsm2lYvqqiSXR0G5uTBcWiaLk/oYChgWjsNB82uoMiD2wtJ',
+    'apiKey': os.getenv('KRAKEN_API_KEY'),
+    'secret': os.getenv('KRAKEN_SECRET'),
 })
 
 # Paires confirmées
