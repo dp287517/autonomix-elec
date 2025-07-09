@@ -2434,7 +2434,7 @@ app.post('/api/translate', async (req, res) => {
     }
 });
 
-// Routes pour gérer les trades et l'analyse crypto
+//// Routes pour gérer les trades et l'analyse crypto
 const { exec } = require('child_process');
 const util = require('util');
 const execPromise = util.promisify(exec);
