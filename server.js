@@ -5,6 +5,7 @@ const cors = require('cors');
 const fs = require('fs');
 const PDFDocument = require('pdfkit');
 const puppeteer = require('puppeteer');
+require('dotenv').config();
 
 const app = express();
 app.use(express.static('public'));
