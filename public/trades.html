@@ -3,47 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trade Dashboard</title>
+    <title>AutonomiX - Trade Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+            color: #ffffff;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+        .btn-primary {
+            background: #3b82f6;
+            transition: background 0.3s ease;
+        }
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        .btn-danger {
+            background: #ef4444;
+        }
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+    </style>
 </head>
-<body class="bg-gray-100">
-    <div class="container mx-auto p-4">
-        <h1 class="text-3xl font-bold mb-4">Trade Dashboard : 10$ à 1M$</h1>
+<body class="min-h-screen">
+    <div class="container mx-auto p-6">
+        <h1 class="text-4xl font-extrabold mb-6 text-center">AutonomiX - De 10$ à 1M$</h1>
 
         <!-- Formulaire pour ajouter un trade -->
-        <form id="tradeForm" class="mb-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input type="date" id="trade_date" class="border p-2 rounded" required>
-                <input type="number" id="investment" placeholder="Investissement ($)" class="border p-2 rounded" required>
-                <input type="number" id="profit_loss" placeholder="Gain/Perte ($)" class="border p-2 rounded" required>
-                <input type="number" id="current_capital" placeholder="Capital Actuel ($)" class="border p-2 rounded" required>
-                <input type="text" id="notes" placeholder="Notes" class="border p-2 rounded">
-            </div>
-            <button type="submit" class="mt-4 bg-blue-500 text-white p-2 rounded">Ajouter Trade</button>
-        </form>
-
-        <!-- Tableau récapitulatif -->
-        <div class="overflow-x-auto mb-4">
-            <table class="min-w-full border" id="tradeTable">
-                <thead>
-                    <tr class="bg-gray-200">
-                        <th class="border p-2">Date</th>
-                        <th class="border p-2">Investissement ($)</th>
-                        <th class="border p-2">Gain/Perte ($)</th>
-                        <th class="border p-2">Capital Actuel ($)</th>
-                        <th class="border p-2">Notes</th>
-                        <th class="border p-2">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="tradeTableBody"></tbody>
-            </table>
+        <div class="card p-6 mb-6">
+            <h2 class="text-2xl font-bold mb-4">Ajouter un Trade</h2>
+            <form id="tradeForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <input type="date" id="trade_date" class="border p-3 rounded-lg bg-gray-800 text-white" required>
+                <input type="number" id="investment" placeholder="Investissement ($)" class="border p-3 rounded-lg bg-gray-800 text-white" step="0.01" required>
+                <input type="number" id="profit_loss" placeholder="Gain/Perte ($)" class="border p-3 rounded-lg bg-gray-800 text-white" step="0.01" required>
+                <input type="number" id="current_capital" placeholder="Capital Actuel ($)" class="border p-3 rounded-lg bg-gray-800 text-white" step="0.01" required>
+                <input type="text" id="notes" placeholder="Notes" class="border p-3 rounded-lg bg-gray-800 text-white">
+                <button type="submit" class="btn-primary p-3 rounded-lg col-span-1 md:col-span-3">Ajouter Trade</button>
+            </form>
         </div>
 
-        <!-- Graphique -->
-        <div class="mb-4">
-            <h2 class="text-2xl font-bold mb-2">Progression du Capital</h2>
-            <canvas id="capitalChart" width="400" height="200"></canvas>
+        <!-- Statistiques -->
+        <div class="card p-6 mb-6">
+            <h2 class="text-2xl font-bold mb-4">Statistiques</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="p-4 bg-blue-600 rounded-lg">
+                    <p class="text-sm">Nombre de Trades</p>
+                    <p id="totalTrades" class="text-2xl font-bold">0</p>
+                </div>
+                <div class="p-4 bg-green-600 rounded-lg">
+                    <p class="text-sm">Gain Total ($)</p>
+                    <p id="totalProfit" class="text-2xl font-bold">0</p>
+                </div>
+                <div class="p-4 bg-red-600 rounded-lg">
+                    <p class="text-sm">Perte Totale ($)</p>
+                    <p id="totalLoss" class="text-2xl font-bold">0</p>
+                </div>
+                <div class="p-4 bg-purple-600 rounded-lg">
+                    <p class="text-sm">Taux de Réussite</p>
+                    <p id="successRate" class="text-2xl font-bold">0%</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tableau récapitulatif -->
+        <div class="card p-6 mb-6">
+            <h2 class="text-2xl font-bold mb-4">Trades Récapitulatifs</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full border-collapse">
+                    <thead>
+                        <tr class="bg-gray-700">
+                            <th class="border p-3">Date</th>
+                            <th class="border p-3">Investissement ($)</th>
+                            <th class="border p-3">Gain/Perte ($)</th>
+                            <th class="border p-3">Capital Actuel ($)</th>
+                            <th class="border p-3">Notes</th>
+                            <th class="border p-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tradeTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Graphiques -->
+        <div class="card p-6">
+            <h2 class="text-2xl font-bold mb-4">Analyses Visuelles</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-xl font-semibold mb-2">Progression du Capital</h3>
+                    <canvas id="capitalChart" height="200"></canvas>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-2">Gains vs Pertes</h3>
+                    <canvas id="profitLossChart" height="200"></canvas>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-2">Performance Mensuelle</h3>
+                    <canvas id="monthlyChart" height="200"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -54,21 +120,37 @@
             const trades = await response.json();
             const tableBody = document.getElementById('tradeTableBody');
             tableBody.innerHTML = '';
+
+            // Mettre à jour le tableau
             trades.forEach(trade => {
                 const row = document.createElement('tr');
+                row.className = trade.profit_loss >= 0 ? 'bg-green-800' : 'bg-red-800';
                 row.innerHTML = `
-                    <td class="border p-2">${trade.trade_date}</td>
-                    <td class="border p-2">${trade.investment}</td>
-                    <td class="border p-2">${trade.profit_loss}</td>
-                    <td class="border p-2">${trade.current_capital}</td>
-                    <td class="border p-2">${trade.notes || ''}</td>
-                    <td class="border p-2">
-                        <button onclick="deleteTrade(${trade.id})" class="bg-red-500 text-white p-1 rounded">Supprimer</button>
+                    <td class="border p-3">${trade.trade_date}</td>
+                    <td class="border p-3">${parseFloat(trade.investment).toFixed(2)}</td>
+                    <td class="border p-3">${parseFloat(trade.profit_loss).toFixed(2)}</td>
+                    <td class="border p-3">${parseFloat(trade.current_capital).toFixed(2)}</td>
+                    <td class="border p-3">${trade.notes || ''}</td>
+                    <td class="border p-3">
+                        <button onclick="deleteTrade(${trade.id})" class="btn-danger p-2 rounded">Supprimer</button>
                     </td>
                 `;
                 tableBody.appendChild(row);
             });
-            updateChart(trades);
+
+            // Mettre à jour les statistiques
+            const totalTrades = trades.length;
+            const totalProfit = trades.reduce((sum, trade) => trade.profit_loss > 0 ? sum + trade.profit_loss : sum, 0);
+            const totalLoss = trades.reduce((sum, trade) => trade.profit_loss < 0 ? sum + Math.abs(trade.profit_loss) : sum, 0);
+            const successRate = totalTrades ? ((trades.filter(trade => trade.profit_loss >= 0).length / totalTrades) * 100).toFixed(2) : 0;
+
+            document.getElementById('totalTrades').textContent = totalTrades;
+            document.getElementById('totalProfit').textContent = totalProfit.toFixed(2);
+            document.getElementById('totalLoss').textContent = totalLoss.toFixed(2);
+            document.getElementById('successRate').textContent = `${successRate}%`;
+
+            // Mettre à jour les graphiques
+            updateCharts(trades);
         }
 
         // Ajouter un trade
@@ -96,31 +178,87 @@
             loadTrades();
         }
 
-        // Mettre à jour le graphique
-        function updateChart(trades) {
-            const ctx = document.getElementById('capitalChart').getContext('2d');
-            new Chart(ctx, {
+        // Mettre à jour les graphiques
+        function updateCharts(trades) {
+            // Graphique 1 : Progression du Capital
+            const capitalCtx = document.getElementById('capitalChart').getContext('2d');
+            new Chart(capitalCtx, {
                 type: 'line',
                 data: {
                     labels: trades.map(trade => trade.trade_date),
                     datasets: [{
                         label: 'Capital ($)',
                         data: trades.map(trade => trade.current_capital),
-                        borderColor: 'rgb(75, 192, 192)',
-                        tension: 0.1
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        fill: true,
+                        tension: 0.4
                     }]
                 },
                 options: {
                     responsive: true,
                     plugins: {
                         legend: { position: 'top' },
-                        title: { display: true, text: 'Progression du Capital' }
+                        title: { display: true, text: 'Progression du Capital', color: '#ffffff' }
                     },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: { display: true, text: 'Capital ($)' }
-                        }
+                        y: { beginAtZero: true, title: { display: true, text: 'Capital ($)', color: '#ffffff' }, ticks: { color: '#ffffff' } },
+                        x: { title: { display: true, text: 'Date', color: '#ffffff' }, ticks: { color: '#ffffff' } }
+                    }
+                }
+            });
+
+            // Graphique 2 : Gains vs Pertes
+            const profitLossCtx = document.getElementById('profitLossChart').getContext('2d');
+            new Chart(profitLossCtx, {
+                type: 'bar',
+                data: {
+                    labels: trades.map(trade => trade.trade_date),
+                    datasets: [{
+                        label: 'Gain/Perte ($)',
+                        data: trades.map(trade => trade.profit_loss),
+                        backgroundColor: trades.map(trade => trade.profit_loss >= 0 ? 'rgba(34, 197, 94, 0.7)' : 'rgba(239, 68, 68, 0.7)')
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: true, text: 'Gains vs Pertes', color: '#ffffff' }
+                    },
+                    scales: {
+                        y: { title: { display: true, text: 'Montant ($)', color: '#ffffff' }, ticks: { color: '#ffffff' } },
+                        x: { title: { display: true, text: 'Date', color: '#ffffff' }, ticks: { color: '#ffffff' } }
+                    }
+                }
+            });
+
+            // Graphique 3 : Performance Mensuelle
+            const monthlyData = trades.reduce((acc, trade) => {
+                const month = new Date(trade.trade_date).toLocaleString('fr-FR', { year: 'numeric', month: 'short' });
+                acc[month] = (acc[month] || 0) + trade.profit_loss;
+                return acc;
+            }, {});
+            const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
+            new Chart(monthlyCtx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(monthlyData),
+                    datasets: [{
+                        label: 'Performance Mensuelle ($)',
+                        data: Object.values(monthlyData),
+                        backgroundColor: Object.values(monthlyData).map(value => value >= 0 ? 'rgba(34, 197, 94, 0.7)' : 'rgba(239, 68, 68, 0.7)')
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: true, text: 'Performance Mensuelle', color: '#ffffff' }
+                    },
+                    scales: {
+                        y: { title: { display: true, text: 'Montant ($)', color: '#ffffff' }, ticks: { color: '#ffffff' } },
+                        x: { title: { display: true, text: 'Mois', color: '#ffffff' }, ticks: { color: '#ffffff' } }
                     }
                 }
             });
