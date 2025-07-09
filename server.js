@@ -2565,6 +2565,33 @@ app.get('/api/crypto-analysis', async (req, res) => {
     }
 });
 
+app.post('/api/analyze-trade', async (req, res) => {
+    const { pair, entry_price, signal_type } = req.body;
+    console.log('[Server] POST /api/analyze-trade - Requête reçue:', { pair, entry_price, signal_type });
+    try {
+        if (!pair || !entry_price || !signal_type) {
+            throw new Error('Paire, prix d\'entrée et type de signal (ACHAT/VENTE) sont requis');
+        }
+        const { stdout, stderr } = await execPromise(`python3 crypto_trading_dashboard.py "${pair}" ${entry_price} ${signal_type}`);
+        if (stderr) {
+            console.error('[Server] Erreur exécution script Python:', stderr);
+            return res.status(500).json({ error: 'Erreur lors de l\'analyse: ' + stderr });
+        }
+        const result = JSON.parse(stdout);
+        if (result.type === 'error') {
+            return res.status(500).json({ error: result.message });
+        }
+        console.log('[Server] Analyse de trade:', result.result);
+        res.json(result.result);
+    } catch (error) {
+        console.error('[Server] Erreur POST /api/analyze-trade:', {
+            message: error.message,
+            stack: error.stack
+        });
+        res.status(500).json({ error: 'Erreur lors de l\'analyse du trade: ' + error.message });
+    }
+});
+
 // Démarrage du serveur
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
