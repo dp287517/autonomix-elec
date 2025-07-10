@@ -3,149 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutonomiX Projects - Gestion Cosmique des Projets</title>
+    <title>AutonomiX Projects - Gestion de Projets</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/frappe-gantt@0.6.1/dist/frappe-gantt.min.css"> <!-- Updated to latest version -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/frappe-gantt@0.6.1/dist/frappe-gantt.min.css">
     <script src="https://unpkg.com/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
         body {
-            font-family: 'Orbitron', sans-serif;
+            font-family: 'Roboto', sans-serif;
             background: #0a0a0a;
             color: #ffffff;
             overflow-x: hidden;
         }
-        .starfield {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
-            z-index: -1;
-        }
-        .star {
-            position: absolute;
-            background: #ffffff;
-            border-radius: 50%;
-            animation: twinkle 3s infinite;
-        }
-        @keyframes twinkle {
-            0%, 100% { opacity: 0.4; }
-            50% { opacity: 1; }
-        }
-        .floating-logo {
-            position: absolute;
-            animation: float 20s linear infinite;
-            opacity: 0.5;
-        }
-        @keyframes float {
-            0% { transform: translateX(100vw); }
-            100% { transform: translateX(-100px); }
-        }
         .card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            animation: fadeIn 1s ease-out;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.5s ease-out;
         }
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
+            from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
         .btn-primary {
-            background: #60a5fa;
-            color: #0a0a0a;
-            transition: all 0.3s ease;
+            background: #007bff;
+            color: #ffffff;
+            transition: background 0.3s ease;
         }
         .btn-primary:hover {
-            background: #3b82f6;
-            transform: scale(1.05);
+            background: #0056b3;
+        }
+        .btn-finalize {
+            background: #28a745;
+            color: #ffffff;
+            transition: background 0.3s ease;
+        }
+        .btn-finalize:hover {
+            background: #218838;
         }
         .btn-analyze {
-            background: #a855f7;
+            background: #6f42c1;
             color: #ffffff;
-            transition: all 0.3s ease;
+            transition: background 0.3s ease;
         }
         .btn-analyze:hover {
-            background: #9333ea;
-            transform: scale(1.05);
+            background: #5a32a3;
         }
         canvas {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
         }
         .progress-bar {
-            background: linear-gradient(90deg, #60a5fa 0%, #a855f7 100%);
+            background: #333;
             height: 20px;
             border-radius: 10px;
             overflow: hidden;
         }
         .progress-bar-fill {
-            background: #ffffff;
+            background: #007bff;
             height: 100%;
             transition: width 1s ease;
-        }
-        .loading-spinner {
-            border: 4px solid #ffffff;
-            border-top: 4px solid #60a5fa;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-            display: none;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .supernova {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle, rgba(96, 165, 250, 0.5) 0%, rgba(0, 0, 0, 0) 70%);
-            animation: supernova 2s ease-out forwards;
-            z-index: 10;
-            pointer-events: none;
-        }
-        @keyframes supernova {
-            0% { opacity: 1; transform: scale(0.1); }
-            100% { opacity: 0; transform: scale(2); }
         }
         .step {
             transition: opacity 0.5s ease, transform 0.5s ease;
         }
         .hidden {
-            opacity: 0;
-            transform: translateY(20px);
-            display: none;
+            opacity: 0.5;
+            pointer-events: none;
         }
         .gantt-container {
-            height: 300px;
+            height: 400px;
             margin: 10px 0;
-            background: rgba(255, 255, 255, 0.05);
+            background: #1a1a1a;
+            border: 1px solid #333;
         }
-        textarea, input {
+        input[type="date"] {
             background: #1a1a1a;
             color: #ffffff;
-            border: 1px solid #333;
+            border: 1px solid #444;
             border-radius: 4px;
             padding: 8px;
         }
         label {
             display: block;
             margin-top: 10px;
+            font-weight: 500;
         }
         .alert-over {
-            color: red;
+            color: #dc3545;
             font-weight: bold;
         }
         progress {
@@ -158,124 +108,180 @@
             border-radius: 10px;
         }
         progress::-webkit-progress-value {
-            background: linear-gradient(to right, #60a5fa, #a855f7);
+            background: #007bff;
             border-radius: 10px;
         }
         .over::-webkit-progress-value {
-            background: red;
+            background: #dc3545;
+        }
+        table th, table td {
+            border: 1px solid #444;
+            padding: 8px;
+            text-align: left;
+        }
+        table thead {
+            background: #222;
+        }
+        table tbody tr:hover {
+            background: #333;
+        }
+        .date-label {
+            font-size: 0.8rem;
+            color: #aaa;
         }
     </style>
 </head>
 <body class="min-h-screen">
-    <div class="starfield">
-        <script>
-            // Étoiles dynamiques
-            for (let i = 0; i < 150; i++) {
-                const star = document.createElement('div');
-                star.className = 'star';
-                star.style.width = `${Math.random() * 3}px`;
-                star.style.height = star.style.width;
-                star.style.left = `${Math.random() * 100}%`;
-                star.style.top = `${Math.random() * 100}%`;
-                star.style.animationDelay = `${Math.random() * 3}s`;
-                document.querySelector('.starfield').appendChild(star);
-            }
-        </script>
-    </div>
     <div class="container mx-auto p-6">
-        <h1 class="text-5xl font-extrabold mb-8 text-center">AutonomiX Projects - Gestion Cosmique des Projets</h1>
+        <h1 class="text-4xl font-bold mb-8 text-center">AutonomiX Projects - Gestion de Projets</h1>
 
-        <!-- Stats Galactiques -->
+        <!-- Stats en Temps Réel -->
         <div class="card p-6 mb-8">
-            <h2 class="text-2xl font-bold mb-4">Stats Galactiques en Temps Réel</h2>
+            <h2 class="text-2xl font-bold mb-4">Statistiques en Temps Réel</h2>
             <div id="globalStats" class="grid grid-cols-1 md:grid-cols-4 gap-4"></div>
         </div>
 
-        <!-- Analyses Stellaires AI -->
+        <!-- Analyse AI -->
         <div class="card p-6 mb-8">
-            <h2 class="text-2xl font-bold mb-4">Analyses Stellaires AI</h2>
-            <button onclick="analyzeSelectedProject()" class="btn-analyze p-3 rounded-lg font-semibold w-full">Lancer Analyse AI sur Projet Sélectionné</button>
+            <h2 class="text-2xl font-bold mb-4">Analyse AI des Projets</h2>
+            <button onclick="analyzeSelectedProject()" class="btn-analyze p-3 rounded-lg font-semibold w-full">Lancer Analyse AI sur un Projet</button>
             <div id="aiAnalysis" class="mt-4"></div>
         </div>
 
         <!-- Wizard Step-by-Step pour Nouveau Projet -->
         <div class="card p-6 mb-8">
-            <h2 class="text-2xl font-bold mb-4">Créer un Projet - Portails Cosmiques (Step-by-Step)</h2>
+            <h2 class="text-2xl font-bold mb-4">Créer un Nouveau Projet</h2>
             <form id="createForm" class="space-y-4">
-                <!-- Étape 1: Business Case -->
+                <input type="text" id="project_name" placeholder="Titre du Projet" class="w-full" required>
+                <!-- Étape 1: Création Business Case -->
                 <div id="step1" class="step card p-4">
-                    <h3 class="text-xl font-semibold mb-2">Étape 1: Création du Business Case</h3>
-                    <textarea id="business_case" placeholder="Rédigez le Business Case ici..." class="w-full h-32"></textarea>
+                    <h3 class="text-xl font-semibold mb-2">Étape 1: Création Business Case</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="date" id="bc_start" placeholder="Date Début Prévisionnelle">
+                        <input type="date" id="bc_end" placeholder="Date Fin Prévisionnelle">
+                    </div>
+                    <p class="date-label">Format: AAAA-MM-JJ</p>
                     <label class="flex items-center">
-                        <input type="checkbox" id="business_case_approved" onchange="unlockStep(2); supernovaEffect();"> Business Case Approved
+                        <input type="checkbox" id="business_case_approved" onchange="checkAllStepsCompleted();"> Approuvé
                     </label>
                     <button type="button" onclick="saveStep(1)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 1</button>
                 </div>
 
-                <!-- Étape 2: PIP & WBS -->
-                <div id="step2" class="hidden step card p-4">
-                    <h3 class="text-xl font-semibold mb-2">Étape 2: Création du PIP & WBS</h3>
-                    <textarea id="pip" placeholder="Rédigez le PIP ici..." class="w-full h-32"></textarea>
+                <!-- Étape 2: Création PIP -->
+                <div id="step2" class="step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 2: Création PIP</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="date" id="pip_start" placeholder="Date Début Prévisionnelle">
+                        <input type="date" id="pip_end" placeholder="Date Fin Prévisionnelle">
+                    </div>
+                    <p class="date-label">Format: AAAA-MM-JJ</p>
                     <label class="flex items-center">
-                        <input type="checkbox" id="pip_approved" onchange="unlockStep(3); supernovaEffect();"> PIP Approved
-                    </label>
-                    <label class="flex items-center">
-                        <input type="checkbox" id="wbs_created" onchange="unlockStep(4); supernovaEffect();"> WBS Created
+                        <input type="checkbox" id="pip_approved" onchange="checkAllStepsCompleted();"> Approuvé
                     </label>
                     <button type="button" onclick="saveStep(2)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 2</button>
                 </div>
 
-                <!-- Étape 3: WBS Number & PO Requests -->
-                <div id="step3" class="hidden step card p-4">
-                    <h3 class="text-xl font-semibold mb-2">Étape 3: Numéro WBS & Demandes PO</h3>
-                    <input type="text" id="wbs_number" placeholder="Insérez le Numéro WBS" class="w-full">
-                    <textarea id="po_requests" placeholder="URLs des demandes PO (séparées par ;)" class="w-full h-24"></textarea>
+                <!-- Étape 3: WBS Créé -->
+                <div id="step3" class="step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 3: WBS Créé</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="date" id="wbs_start" placeholder="Date Début Prévisionnelle">
+                        <input type="date" id="wbs_end" placeholder="Date Fin Prévisionnelle">
+                    </div>
+                    <p class="date-label">Format: AAAA-MM-JJ</p>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="wbs_created" onchange="checkAllStepsCompleted();"> Créé
+                    </label>
+                    <input type="text" id="wbs_number" placeholder="Numéro WBS" class="w-full mt-2">
                     <button type="button" onclick="saveStep(3)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 3</button>
                 </div>
 
-                <!-- Étape 4: Devis & Budget -->
-                <div id="step4" class="hidden step card p-4">
-                    <h3 class="text-xl font-semibold mb-2">Étape 4: Devis & Budget</h3>
-                    <textarea id="quotes" placeholder="Devis (format pour chaque devis: ID;Fournisseur;Montant;Status, séparés par | pour multiple, ex: ID1;Fourn1;100;Approuvé|ID2;Fourn2;200;En attente)" class="w-full h-24"></textarea>
-                    <input type="number" id="budget_total" placeholder="Budget Total" class="w-full" step="0.01">
+                <!-- Étape 4: Lancement des Commandes -->
+                <div id="step4" class="step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 4: Lancement des Commandes</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="date" id="po_start" placeholder="Date Début Prévisionnelle">
+                        <input type="date" id="po_end" placeholder="Date Fin Prévisionnelle">
+                    </div>
+                    <p class="date-label">Format: AAAA-MM-JJ</p>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="po_launched" onchange="checkAllStepsCompleted();"> Lancé
+                    </label>
+                    <textarea id="po_requests" placeholder="URLs PO (séparées par ;)" class="w-full h-24 mt-2"></textarea>
                     <button type="button" onclick="saveStep(4)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 4</button>
                 </div>
 
-                <!-- Étape 5: Pièces Jointes & Gantt -->
-                <div id="step5" class="hidden step card p-4">
-                    <h3 class="text-xl font-semibold mb-2">Étape 5: Pièces Jointes & Gantt</h3>
-                    <input type="file" id="attachment" onchange="uploadAttachment(newProjectId)" class="w-full mb-4">
+                <!-- Étape 5: Phase Projet -->
+                <div id="step5" class="step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 5: Phase Projet</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="date" id="project_phase_start" placeholder="Date Début Prévisionnelle">
+                        <input type="date" id="project_phase_end" placeholder="Date Fin Prévisionnelle">
+                    </div>
+                    <p class="date-label">Format: AAAA-MM-JJ</p>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="project_phase_completed" onchange="checkAllStepsCompleted();"> Complété
+                    </label>
                     <div class="gantt-container" id="ganttNew"></div>
-                    <button type="button" onclick="saveGantt(newProjectId)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Gantt</button>
+                    <button type="button" onclick="saveStep(5)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 5</button>
                 </div>
 
-                <button type="submit" id="createButton" class="btn-primary p-3 rounded-lg font-semibold w-full" disabled>Finaliser & Créer Projet</button>
+                <!-- Étape 6: Réception de Projet -->
+                <div id="step6" class="step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 6: Réception de Projet</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="date" id="reception_start" placeholder="Date Début Prévisionnelle">
+                        <input type="date" id="reception_end" placeholder="Date Fin Prévisionnelle">
+                    </div>
+                    <p class="date-label">Format: AAAA-MM-JJ</p>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="reception_completed" onchange="checkAllStepsCompleted();"> Complété
+                    </label>
+                    <button type="button" onclick="saveStep(6)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 6</button>
+                </div>
+
+                <!-- Étape 7: Clôture du Projet -->
+                <div id="step7" class="step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 7: Clôture du Projet</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="date" id="closure_start" placeholder="Date Début Prévisionnelle">
+                        <input type="date" id="closure_end" placeholder="Date Fin Prévisionnelle">
+                    </div>
+                    <p class="date-label">Format: AAAA-MM-JJ</p>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="closure_completed" onchange="checkAllStepsCompleted();"> Complété
+                    </label>
+                    <input type="file" id="attachment" onchange="uploadAttachment(newProjectId)" class="w-full mt-2">
+                    <button type="button" onclick="saveStep(7)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 7</button>
+                </div>
+
+                <button type="submit" id="createButton" class="btn-primary p-3 rounded-lg font-semibold w-full" disabled>Finaliser le Projet</button>
             </form>
         </div>
 
-        <!-- Trajectoire Cosmique -->
+        <!-- Progression Globale -->
         <div class="card p-6 mb-8">
-            <h2 class="text-2xl font-bold mb-4">Trajectoire Cosmique vers Succès</h2>
+            <h2 class="text-2xl font-bold mb-4">Progression Globale des Projets</h2>
             <div class="progress-bar mb-2">
                 <div id="progressBarFill" class="progress-bar-fill" style="width: 0%"></div>
             </div>
-            <p id="progressText" class="text-sm text-gray-300">0% complété</p>
-            <p id="forecastText" class="text-sm text-gray-300">Estimation : -</p>
+            <p id="progressText" class="text-sm">0% complété</p>
+            <p id="forecastText" class="text-sm">Estimation : -</p>
         </div>
 
-        <!-- Projets Récapitulatifs -->
+        <!-- Tableau des Projets -->
         <div class="card p-6 mb-8">
-            <h2 class="text-2xl font-bold mb-4">Projets Stellaires Récap</h2>
+            <h2 class="text-2xl font-bold mb-4">Récapitulatif des Projets</h2>
             <div class="overflow-x-auto">
                 <table id="projectsTable" class="min-w-full border-collapse">
                     <thead>
-                        <tr class="bg-gray-900">
-                            <th class="border border-gray-700 p-3">Nom</th>
-                            <th class="border border-gray-700 p-3">Status</th>
-                            <th class="border border-gray-700 p-3">Étapes Checks</th>
-                            <th class="border border-gray-700 p-3">Gantt</th>
-                            <th class="border border-gray-700 p-3">Budget Progress</th>
-                            <th class="border border-gray-700 p-3">Actions</th>
+                        <tr class="bg-gray-800">
+                            <th class="p-3">Nom</th>
+                            <th class="p-3">Status</th>
+                            <th class="p-3">Étapes</th>
+                            <th class="p-3">Gantt</th>
+                            <th class="p-3">Budget</th>
+                            <th class="p-3">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="projectsTableBody"></tbody>
@@ -283,9 +289,9 @@
             </div>
         </div>
 
-        <!-- Analyses Galactiques -->
+        <!-- Analyses -->
         <div class="card p-6">
-            <h2 class="text-2xl font-bold mb-4">Analyses Galactiques</h2>
+            <h2 class="text-2xl font-bold mb-4">Analyses des Projets</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <h3 class="text-xl font-semibold mb-2">Distribution des Status</h3>
@@ -296,7 +302,7 @@
                     <canvas id="budgetBar" height="200"></canvas>
                 </div>
                 <div class="col-span-2">
-                    <h3 class="text-xl font-semibold mb-2">Gantt Global des Projets</h3>
+                    <h3 class="text-xl font-semibold mb-2">Gantt Global</h3>
                     <div id="globalGantt" class="gantt-container"></div>
                 </div>
             </div>
@@ -306,22 +312,39 @@
     <script>
         let newProjectId = null;
         const defaultGanttTasks = [
-            { id: 'Task1', name: 'Business Case', start: '2025-07-10', end: '2025-08-10', progress: 0, dependencies: '', custom_class: 'bar-blue' },
-            { id: 'Task2', name: 'PIP & WBS', start: '2025-08-10', end: '2025-09-10', progress: 0, dependencies: 'Task1', custom_class: 'bar-green' },
-            { id: 'Task3', name: 'PO & Devis', start: '2025-09-10', end: '2025-10-10', progress: 0, dependencies: 'Task2', custom_class: 'bar-purple' },
-            { id: 'Task4', name: 'Exécution', start: '2025-10-10', end: '2025-12-10', progress: 0, dependencies: 'Task3', custom_class: 'bar-orange' }
+            { id: 'Task1', name: 'Business Case', start: '2025-07-10', end: '2025-08-10', progress: 0, dependencies: '' },
+            { id: 'Task2', name: 'PIP', start: '2025-08-10', end: '2025-09-10', progress: 0, dependencies: 'Task1' },
+            { id: 'Task3', name: 'WBS', start: '2025-09-10', end: '2025-10-10', progress: 0, dependencies: 'Task2' },
+            { id: 'Task4', name: 'Commandes', start: '2025-10-10', end: '2025-11-10', progress: 0, dependencies: 'Task3' },
+            { id: 'Task5', name: 'Phase Projet', start: '2025-11-10', end: '2026-01-10', progress: 0, dependencies: 'Task4' },
+            { id: 'Task6', name: 'Réception', start: '2026-01-10', end: '2026-02-10', progress: 0, dependencies: 'Task5' },
+            { id: 'Task7', name: 'Clôture', start: '2026-02-10', end: '2026-03-10', progress: 0, dependencies: 'Task6' }
         ];
 
-        // Unlock step with animation
-        function unlockStep(step) {
-            const element = document.getElementById(`step${step}`);
-            element.classList.remove('hidden');
-            element.style.opacity = 0;
-            setTimeout(() => {
-                element.style.opacity = 1;
-                element.style.transform = 'translateY(0)';
-            }, 100);
-            supernovaEffect();
+        let statusPieChart = null;
+        let budgetBarChart = null;
+
+        // Check if all steps completed to enable finalize
+        function checkAllStepsCompleted() {
+            const checkboxes = [
+                document.getElementById('business_case_approved').checked,
+                document.getElementById('pip_approved').checked,
+                document.getElementById('wbs_created').checked,
+                document.getElementById('po_launched').checked,
+                document.getElementById('project_phase_completed').checked,
+                document.getElementById('reception_completed').checked,
+                document.getElementById('closure_completed').checked
+            ];
+            const allChecked = checkboxes.every(checked => checked);
+            const button = document.getElementById('createButton');
+            button.disabled = !allChecked;
+            if (allChecked) {
+                button.classList.remove('btn-primary');
+                button.classList.add('btn-finalize');
+            } else {
+                button.classList.add('btn-primary');
+                button.classList.remove('btn-finalize');
+            }
         }
 
         // Save step
@@ -332,35 +355,61 @@
             } else {
                 createProject(data);
             }
+            checkAllStepsCompleted();
         }
 
         // Get form data
         function getFormData(step) {
             let data = {};
+            data.name = document.getElementById('project_name').value || 'Projet Sans Nom';
+            let progress = 0;
             if (step === 1) {
-                data.business_case = document.getElementById('business_case').value;
                 data.business_case_approved = document.getElementById('business_case_approved').checked;
+                progress = data.business_case_approved ? 100 : 0;
+                data.gantt_data = updateGanttDates(0, document.getElementById('bc_start').value, document.getElementById('bc_end').value, progress);
             } else if (step === 2) {
-                data.pip = document.getElementById('pip').value;
                 data.pip_approved = document.getElementById('pip_approved').checked;
-                data.wbs_created = document.getElementById('wbs_created').checked;
+                progress = data.pip_approved ? 100 : 0;
+                data.gantt_data = updateGanttDates(1, document.getElementById('pip_start').value, document.getElementById('pip_end').value, progress);
             } else if (step === 3) {
+                data.wbs_created = document.getElementById('wbs_created').checked;
                 data.wbs_number = document.getElementById('wbs_number').value;
-                data.po_requests = document.getElementById('po_requests').value.split(';').filter(url => url.trim()).map(url => ({ url: url.trim(), status: 'En attente' }));
+                progress = data.wbs_created ? 100 : 0;
+                data.gantt_data = updateGanttDates(2, document.getElementById('wbs_start').value, document.getElementById('wbs_end').value, progress);
             } else if (step === 4) {
-                const quotesInput = document.getElementById('quotes').value;
-                data.quotes = quotesInput.split('|').filter(q => q.trim()).map(q => {
-                    const [id, fournisseur, montant, status] = q.split(';').map(s => s?.trim() || '');
-                    return { id, fournisseur, montant: parseFloat(montant) || 0, status: status || 'En attente' };
-                });
-                data.budget_total = parseFloat(document.getElementById('budget_total').value) || 0;
+                data.po_launched = document.getElementById('po_launched').checked;
+                data.po_requests = document.getElementById('po_requests').value.split(';').filter(url => url.trim()).map(url => ({ url: url.trim(), status: 'En attente' }));
+                progress = data.po_launched ? 100 : 0;
+                data.gantt_data = updateGanttDates(3, document.getElementById('po_start').value, document.getElementById('po_end').value, progress);
+            } else if (step === 5) {
+                data.project_phase_completed = document.getElementById('project_phase_completed').checked;
+                progress = data.project_phase_completed ? 100 : 0;
+                data.gantt_data = updateGanttDates(4, document.getElementById('project_phase_start').value, document.getElementById('project_phase_end').value, progress);
+            } else if (step === 6) {
+                data.reception_completed = document.getElementById('reception_completed').checked;
+                progress = data.reception_completed ? 100 : 0;
+                data.gantt_data = updateGanttDates(5, document.getElementById('reception_start').value, document.getElementById('reception_end').value, progress);
+            } else if (step === 7) {
+                data.closure_completed = document.getElementById('closure_completed').checked;
+                progress = data.closure_completed ? 100 : 0;
+                data.gantt_data = updateGanttDates(6, document.getElementById('closure_start').value, document.getElementById('closure_end').value, progress);
             }
             return data;
         }
 
+        // Update Gantt dates and progress
+        function updateGanttDates(taskIndex, start, end, progress) {
+            let tasks = JSON.parse(localStorage.getItem('tempGanttTasks')) || defaultGanttTasks;
+            tasks[taskIndex].start = start || tasks[taskIndex].start;
+            tasks[taskIndex].end = end || tasks[taskIndex].end;
+            if (new Date(tasks[taskIndex].end) <= new Date(tasks[taskIndex].start)) tasks[taskIndex].end = new Date(new Date(tasks[taskIndex].start).getTime() + 86400000).toISOString().split('T')[0];
+            tasks[taskIndex].progress = progress;
+            localStorage.setItem('tempGanttTasks', JSON.stringify(tasks));
+            return { tasks };
+        }
+
         // Create project
         function createProject(data) {
-            data.name = prompt('Nom du projet ?') || 'Projet Sans Nom';
             fetch('/api/projects', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -371,6 +420,7 @@
             }).then(project => {
                 newProjectId = project.id;
                 document.getElementById('createButton').disabled = false;
+                localStorage.removeItem('tempGanttTasks');
                 loadProjects();
             }).catch(error => {
                 console.error('Erreur création:', error);
@@ -424,13 +474,12 @@
                         body: JSON.stringify({ projectData: project })
                     }).then(res => res.json()).then(analysis => {
                         document.getElementById('aiAnalysis').innerHTML = `
-                            <h3 class="text-xl font-semibold mb-2">Analyse AI pour ${project.name}</h3>
+                            <h3 class="text-xl font-semibold mb-2">Analyse pour ${project.name}</h3>
                             <p><strong>Avis :</strong> ${analysis.avis || 'N/A'}</p>
                             <p><strong>Risques :</strong> ${analysis.risques ? analysis.risques.join(', ') : 'Aucun'}</p>
                             <p><strong>Score :</strong> ${analysis.score || 0}/100</p>
                             <p><strong>Suggestions :</strong> ${analysis.suggestions ? analysis.suggestions.join(', ') : 'Aucune'}</p>
                         `;
-                        supernovaEffect();
                     }).catch(error => {
                         console.error('Erreur analyse AI:', error);
                         alert('Erreur analyse AI: ' + error.message);
@@ -447,33 +496,36 @@
                     tableBody.innerHTML = '';
                     projects.forEach(p => {
                         const row = document.createElement('tr');
-                        row.className = 'hover:bg-gray-800';
+                        row.className = 'hover:bg-gray-700';
                         row.innerHTML = `
-                            <td class="border border-gray-700 p-3">${p.name}</td>
-                            <td class="border border-gray-700 p-3">${p.status}</td>
-                            <td class="border border-gray-700 p-3">
-                                BC App: <input type="checkbox" ${p.business_case_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {business_case_approved: this.checked}); supernovaEffect();"><br>
-                                PIP App: <input type="checkbox" ${p.pip_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {pip_approved: this.checked}); supernovaEffect();"><br>
-                                WBS: <input type="checkbox" ${p.wbs_created ? 'checked' : ''} onchange="updateProject(${p.id}, {wbs_created: this.checked}); supernovaEffect();">
+                            <td class="p-3">${p.name}</td>
+                            <td class="p-3">${p.status}</td>
+                            <td class="p-3">
+                                BC: <input type="checkbox" ${p.business_case_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {business_case_approved: this.checked});"><br>
+                                PIP: <input type="checkbox" ${p.pip_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {pip_approved: this.checked});"><br>
+                                WBS: <input type="checkbox" ${p.wbs_created ? 'checked' : ''} onchange="updateProject(${p.id}, {wbs_created: this.checked});"><br>
+                                Commandes: <input type="checkbox" ${p.po_launched ? 'checked' : ''} onchange="updateProject(${p.id}, {po_launched: this.checked});"><br>
+                                Phase Projet: <input type="checkbox" ${p.project_phase_completed ? 'checked' : ''} onchange="updateProject(${p.id}, {project_phase_completed: this.checked});"><br>
+                                Réception: <input type="checkbox" ${p.reception_completed ? 'checked' : ''} onchange="updateProject(${p.id}, {reception_completed: this.checked});"><br>
+                                Clôture: <input type="checkbox" ${p.closure_completed ? 'checked' : ''} onchange="updateProject(${p.id}, {closure_completed: this.checked});">
                             </td>
-                            <td class="border border-gray-700 p-3"><div class="gantt-container" id="gantt${p.id}"></div></td>
-                            <td class="border border-gray-700 p-3">
+                            <td class="p-3"><div class="gantt-container" id="gantt${p.id}"></div></td>
+                            <td class="p-3">
                                 <progress value="${parseFloat(p.budget_spent) || 0}" max="${parseFloat(p.budget_total) || 1}" class="${parseFloat(p.budget_spent) > parseFloat(p.budget_total) ? 'over' : ''}"></progress>
                                 <span class="${parseFloat(p.budget_spent) > parseFloat(p.budget_total) ? 'alert-over' : ''}">${parseFloat(p.budget_spent) || 0}/${parseFloat(p.budget_total) || 0}</span>
                             </td>
-                            <td class="border border-gray-700 p-3"><button onclick="deleteProject(${p.id})" class="btn-danger p-2 rounded">Supprimer</button></td>
+                            <td class="p-3"><button onclick="deleteProject(${p.id})" class="bg-red-500 text-white p-2 rounded">Supprimer</button></td>
                         `;
                         tableBody.appendChild(row);
 
-                        // Init Gantt
                         let tasks = p.gantt_data?.tasks || defaultGanttTasks;
                         tasks = tasks.map(t => ({
                             ...t,
                             start: t.start || '2025-07-10',
-                            end: t.end || '2025-07-11'  // Minimum 1 day to avoid error
+                            end: t.end && new Date(t.end) > new Date(t.start) ? t.end : new Date(new Date(t.start).getTime() + 86400000).toISOString().split('T')[0]
                         }));
                         if (tasks.length === 0) {
-                            document.getElementById(`gantt${p.id}`).innerHTML = '<p class="text-gray-300 text-center">Aucune tâche définie</p>';
+                            document.getElementById(`gantt${p.id}`).innerHTML = '<p class="text-gray-400 text-center">Aucune tâche</p>';
                         } else {
                             new Gantt(`#gantt${p.id}`, tasks, {
                                 header_height: 50,
@@ -487,8 +539,9 @@
                                 view_mode: 'Month',
                                 date_format: 'YYYY-MM-DD',
                                 language: 'fr',
-                                custom_popup_html: task => `<div class="p-2 bg-gray-800 rounded">${task.name}<br>Progress: ${task.progress}%</div>`,
+                                custom_popup_html: task => `<div class="p-2 bg-gray-800 rounded text-white">${task.name}<br>Progress: ${task.progress}%</div>`,
                                 on_date_change: (task, start, end) => {
+                                    if (new Date(end) <= new Date(start)) end = new Date(new Date(start).getTime() + 86400000).toISOString().split('T')[0];
                                     const updatedTasks = tasks.map(t => t.id === task.id ? { ...t, start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] } : t);
                                     updateProject(p.id, { gantt_data: { tasks: updatedTasks } });
                                 },
@@ -505,7 +558,7 @@
 
         // Delete project
         function deleteProject(id) {
-            if (confirm('Supprimer ce projet ?')) {
+            if (confirm('Confirmer la suppression ?')) {
                 fetch(`/api/projects/${id}`, { method: 'DELETE' }).then(loadProjects).catch(error => console.error('Erreur delete:', error));
             }
         }
@@ -516,26 +569,28 @@
                 .then(res => res.json())
                 .then(stats => {
                     document.getElementById('globalStats').innerHTML = `
-                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm text-gray-300">Projets Totaux</p><p class="text-2xl font-bold">${stats.totalProjects}</p></div>
-                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm text-gray-300">Business Cases Approuvés</p><p class="text-2xl font-bold">${stats.approvedBusinessCases}</p></div>
-                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm text-gray-300">Budget Global</p><p class="text-2xl font-bold">$${stats.totalBudget.toFixed(2)}</p></div>
-                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm text-gray-300">Budget Dépensé</p><p class="text-2xl font-bold">$${stats.spentBudget.toFixed(2)}</p></div>
+                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Projets Totaux</p><p class="text-2xl font-bold">${stats.totalProjects}</p></div>
+                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Business Cases Approuvés</p><p class="text-2xl font-bold">${stats.approvedBusinessCases}</p></div>
+                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Budget Global</p><p class="text-2xl font-bold">$${stats.totalBudget.toFixed(2)}</p></div>
+                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Budget Dépensé</p><p class="text-2xl font-bold">$${stats.spentBudget.toFixed(2)}</p></div>
                     `;
 
                     const avgProgress = projects.length ? projects.reduce((sum, p) => {
                         let progress = 0;
-                        if (p.business_case_approved) progress += 20;
-                        if (p.pip_approved) progress += 20;
-                        if (p.wbs_created) progress += 20;
-                        if (p.po_requests?.length > 0) progress += 20;
-                        if (p.quotes?.length > 0) progress += 20;
+                        if (p.business_case_approved) progress += 14.2857;
+                        if (p.pip_approved) progress += 14.2857;
+                        if (p.wbs_created) progress += 14.2857;
+                        if (p.po_launched) progress += 14.2857;
+                        if (p.project_phase_completed) progress += 14.2857;
+                        if (p.reception_completed) progress += 14.2857;
+                        if (p.closure_completed) progress += 14.2857;
                         return sum + progress;
                     }, 0) / projects.length : 0;
                     document.getElementById('progressBarFill').style.width = `${avgProgress}%`;
                     document.getElementById('progressText').textContent = `${avgProgress.toFixed(2)}% complété`;
 
                     if (projects.length) {
-                        const estimatedMonths = Math.ceil((100 - avgProgress) / 10); // Estimation exemple
+                        const estimatedMonths = Math.ceil((100 - avgProgress) / 10);
                         const estimatedDate = new Date();
                         estimatedDate.setMonth(estimatedDate.getMonth() + estimatedMonths);
                         document.getElementById('forecastText').textContent = `Estimation : ${estimatedDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}`;
@@ -543,24 +598,28 @@
                         document.getElementById('forecastText').textContent = 'Estimation : -';
                     }
 
+                    // Destroy existing charts
+                    if (statusPieChart) statusPieChart.destroy();
+                    if (budgetBarChart) budgetBarChart.destroy();
+
                     // Pie Chart
-                    new Chart(document.getElementById('statusPie'), {
+                    statusPieChart = new Chart(document.getElementById('statusPie'), {
                         type: 'pie',
                         data: {
                             labels: Object.keys(stats.statusDistribution),
-                            datasets: [{ data: Object.values(stats.statusDistribution), backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'] }]
+                            datasets: [{ data: Object.values(stats.statusDistribution), backgroundColor: ['#007bff', '#28a745', '#ffc107', '#dc3545'] }]
                         },
-                        options: { animation: { duration: 2000, easing: 'easeInOutBounce' } }
+                        options: { animation: { duration: 1000, easing: 'easeInOutQuart' } }
                     });
 
                     // Bar Chart
-                    new Chart(document.getElementById('budgetBar'), {
+                    budgetBarChart = new Chart(document.getElementById('budgetBar'), {
                         type: 'bar',
                         data: {
                             labels: ['Total', 'Dépensé'],
-                            datasets: [{ data: [stats.totalBudget, stats.spentBudget], backgroundColor: stats.spentBudget > stats.totalBudget ? '#f87171' : '#60a5fa' }]
+                            datasets: [{ data: [stats.totalBudget, stats.spentBudget], backgroundColor: stats.spentBudget > stats.totalBudget ? '#dc3545' : '#007bff' }]
                         },
-                        options: { animation: { duration: 1500, easing: 'easeOutElastic' } }
+                        options: { animation: { duration: 1000, easing: 'easeInOutQuart' } }
                     });
 
                     // Global Gantt
@@ -568,10 +627,10 @@
                     globalTasks = globalTasks.map(t => ({
                         ...t,
                         start: t.start || '2025-07-10',
-                        end: t.end || '2025-07-11'
+                        end: t.end && new Date(t.end) > new Date(t.start) ? t.end : new Date(new Date(t.start).getTime() + 86400000).toISOString().split('T')[0]
                     }));
                     if (globalTasks.length === 0) {
-                        document.getElementById('globalGantt').innerHTML = '<p class="text-gray-300 text-center">Aucun projet avec tâches</p>';
+                        document.getElementById('globalGantt').innerHTML = '<p class="text-gray-400 text-center">Aucun projet avec tâches</p>';
                     } else {
                         new Gantt('#globalGantt', globalTasks, {
                             view_mode: 'Month',
@@ -579,19 +638,6 @@
                         });
                     }
                 }).catch(error => console.error('Erreur stats:', error));
-        }
-
-        // Supernova effect
-        function supernovaEffect() {
-            const supernova = document.createElement('div');
-            supernova.className = 'supernova';
-            document.body.appendChild(supernova);
-            setTimeout(() => supernova.remove(), 2000);
-            launchConfetti();
-        }
-
-        function launchConfetti() {
-            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
         }
 
         // Form submit for final create
@@ -607,8 +653,7 @@
 
         // Save Gantt for new project
         function saveGantt(id) {
-            // Frappe saves on change
-            alert('Gantt sauvegardé !');
+            alert('Gantt sauvegardé.');
         }
 
         // Init Gantt for new
@@ -616,6 +661,7 @@
             view_mode: 'Month',
             language: 'fr',
             on_date_change: (task, start, end) => {
+                if (new Date(end) <= new Date(start)) end = new Date(new Date(start).getTime() + 86400000).toISOString().split('T')[0];
                 if (newProjectId) {
                     const updatedTasks = defaultGanttTasks.map(t => t.id === task.id ? { ...t, start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] } : t);
                     updateProject(newProjectId, { gantt_data: { tasks: updatedTasks } });
