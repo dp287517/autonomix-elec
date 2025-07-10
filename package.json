@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "postinstall": "pip3 install ccxt pandas numpy"
+    "postinstall": "pip3 install -r requirements.txt"  // Changement ici : utilise requirements.txt
   },
   "dependencies": {
     "cors": "^2.8.5",
