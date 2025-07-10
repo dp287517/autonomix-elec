@@ -6,6 +6,8 @@
     <title>AutonomiX - Trade Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -32,6 +34,15 @@
         @keyframes twinkle {
             0%, 100% { opacity: 0.4; }
             50% { opacity: 1; }
+        }
+        .floating-logo {
+            position: absolute;
+            animation: float 20s linear infinite;
+            opacity: 0.5;
+        }
+        @keyframes float {
+            0% { transform: translateX(100vw); }
+            100% { transform: translateX(-100px); }
         }
         .card {
             background: rgba(255, 255, 255, 0.05);
@@ -125,6 +136,7 @@
 <body class="min-h-screen">
     <div class="starfield">
         <script>
+            // Étoiles
             for (let i = 0; i < 150; i++) {
                 const star = document.createElement('div');
                 star.className = 'star';
@@ -139,6 +151,12 @@
     </div>
     <div class="container mx-auto p-6">
         <h1 class="text-5xl font-extrabold mb-8 text-center">AutonomiX - De 10$ à 1M$</h1>
+
+        <!-- Prix en Temps Réel -->
+        <div class="card p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">Prix en Temps Réel</h2>
+            <div id="livePrices" class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-4"></div>
+        </div>
 
         <!-- Analyse Crypto -->
         <div class="card p-6 mb-8">
@@ -184,6 +202,62 @@
                     <option value="NEAR/USD">NEAR/USD</option>
                     <option value="XLM/USD">XLM/USD</option>
                     <option value="LTC/USD">LTC/USD</option>
+                    <option value="DOT/USD">DOT/USD</option>
+                    <option value="MATIC/USD">MATIC/USD</option>
+                    <option value="SHIB/USD">SHIB/USD</option>
+                    <option value="UNI/USD">UNI/USD</option>
+                    <option value="TRX/USD">TRX/USD</option>
+                    <option value="BCH/USD">BCH/USD</option>
+                    <option value="EOS/USD">EOS/USD</option>
+                    <option value="ALGO/USD">ALGO/USD</option>
+                    <option value="ATOM/USD">ATOM/USD</option>
+                    <option value="FIL/USD">FIL/USD</option>
+                    <option value="ICP/USD">ICP/USD</option>
+                    <option value="HBAR/USD">HBAR/USD</option>
+                    <option value="ETC/USD">ETC/USD</option>
+                    <option value="XMR/USD">XMR/USD</option>
+                    <option value="APT/USD">APT/USD</option>
+                    <option value="RNDR/USD">RNDR/USD</option>
+                    <option value="STX/USD">STX/USD</option>
+                    <option value="IMX/USD">IMX/USD</option>
+                    <option value="AR/USD">AR/USD</option>
+                    <option value="GRT/USD">GRT/USD</option>
+                    <option value="MKR/USD">MKR/USD</option>
+                    <option value="PEPE/USD">PEPE/USD</option>
+                    <option value="LDO/USD">LDO/USD</option>
+                    <option value="QNT/USD">QNT/USD</option>
+                    <option value="FET/USD">FET/USD</option>
+                    <option value="SAND/USD">SAND/USD</option>
+                    <option value="MANA/USD">MANA/USD</option>
+                    <option value="AXS/USD">AXS/USD</option>
+                    <option value="GALA/USD">GALA/USD</option>
+                    <option value="CHZ/USD">CHZ/USD</option>
+                    <option value="CRV/USD">CRV/USD</option>
+                    <option value="SNX/USD">SNX/USD</option>
+                    <option value="COMP/USD">COMP/USD</option>
+                    <option value="1INCH/USD">1INCH/USD</option>
+                    <option value="ZRX/USD">ZRX/USD</option>
+                    <option value="BAT/USD">BAT/USD</option>
+                    <option value="ENJ/USD">ENJ/USD</option>
+                    <option value="YFI/USD">YFI/USD</option>
+                    <option value="BAL/USD">BAL/USD</option>
+                    <option value="KSM/USD">KSM/USD</option>
+                    <option value="GLM/USD">GLM/USD</option>
+                    <option value="OCEAN/USD">OCEAN/USD</option>
+                    <option value="POWR/USD">POWR/USD</option>
+                    <option value="STORJ/USD">STORJ/USD</option>
+                    <option value="ZEC/USD">ZEC/USD</option>
+                    <option value="DASH/USD">DASH/USD</option>
+                    <option value="XTZ/USD">XTZ/USD</option>
+                    <option value="WAVES/USD">WAVES/USD</option>
+                    <option value="OMG/USD">OMG/USD</option>
+                    <option value="KNC/USD">KNC/USD</option>
+                    <option value="REP/USD">REP/USD</option>
+                    <option value="PAXG/USD">PAXG/USD</option>
+                    <option value="TBTC/USD">TBTC/USD</option>
+                    <option value="USDT/USD">USDT/USD</option>
+                    <option value="USDC/USD">USDC/USD</option>
+                    <option value="DAI/USD">DAI/USD</option>
                 </select>
                 <input type="number" id="entryPrice" placeholder="Prix d'entrée ($)" class="border p-3 rounded-lg bg-gray-900 text-white" step="0.01" required>
                 <select id="tradeSignalType" class="border p-3 rounded-lg bg-gray-900 text-white" required>
@@ -301,7 +375,7 @@
     </div>
 
     <script>
-        // Logos des cryptos
+        // Logos des cryptos (étendu avec beaucoup plus de cryptos Kraken)
         const cryptoLogos = {
             'BTC/USD': 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png?1696501400',
             'ETH/USD': 'https://assets.coingecko.com/coins/images/279/large/ethereum.png?1696501628',
@@ -314,12 +388,184 @@
             'LINK/USD': 'https://assets.coingecko.com/coins/images/877/large/chainlink-new-logo.png?1696501909',
             'AVAX/USD': 'https://assets.coingecko.com/coins/images/12559/large/Avalanche_Circle_RedWhite_Trans.png?1696512369',
             'NEAR/USD': 'https://assets.coingecko.com/coins/images/10365/large/Near_Protocol_Logo.svg?1696510367',
-            'XLM/USD': 'https://assets.coingecko.com/coins/images/100/large/Stellar_symbol_black_RGB.png?1696501482',  // Changé en CoinGecko pour cohérence (Wikipedia marchait déjà)
-            'LTC/USD': 'https://assets.coingecko.com/coins/images/2/large/litecoin.png?1696501400'
+            'XLM/USD': 'https://assets.coingecko.com/coins/images/100/large/Stellar_symbol_black_RGB.png?1696501482',
+            'LTC/USD': 'https://assets.coingecko.com/coins/images/2/large/litecoin.png?1696501400',
+            'DOT/USD': 'https://assets.coingecko.com/coins/images/12171/large/polkadot.png?1696512003',
+            'MATIC/USD': 'https://assets.coingecko.com/coins/images/4713/large/matic-token-icon.png?1696505277',
+            'SHIB/USD': 'https://assets.coingecko.com/coins/images/11939/large/shiba.png?1696511800',
+            'UNI/USD': 'https://assets.coingecko.com/coins/images/12504/large/uniswap-uni.png?1696512319',
+            'TRX/USD': 'https://assets.coingecko.com/coins/images/1094/large/tron-logo.png?1696502153',
+            'BCH/USD': 'https://assets.coingecko.com/coins/images/780/large/bitcoin-cash-circle.png?1696501902',
+            'EOS/USD': 'https://assets.coingecko.com/coins/images/738/large/eos-eos-logo.png?1696501891',
+            'ALGO/USD': 'https://assets.coingecko.com/coins/images/4380/large/download.png?1696504978',
+            'ATOM/USD': 'https://assets.coingecko.com/coins/images/1481/large/cosmos_hub.png?1696502525',
+            'FIL/USD': 'https://assets.coingecko.com/coins/images/12817/large/filecoin.png?1696512520',
+            'ICP/USD': 'https://assets.coingecko.com/coins/images/14495/large/Internet_Computer_logo.png?1696514180',
+            'HBAR/USD': 'https://assets.coingecko.com/coins/images/3688/large/NxLm6Yc7_400x400.jpg?1696504370',
+            'ETC/USD': 'https://assets.coingecko.com/coins/images/453/large/ethereum-classic-logo.png?1696501717',
+            'XMR/USD': 'https://assets.coingecko.com/coins/images/69/large/monero_logo.png?1696501460',
+            'APT/USD': 'https://assets.coingecko.com/coins/images/26455/large/aptos_round.png?1696525529',
+            'RNDR/USD': 'https://assets.coingecko.com/coins/images/11636/large/rndr.png?1696511529',
+            'STX/USD': 'https://assets.coingecko.com/coins/images/10620/large/NxLm6Yc7_400x400.jpg?1696510367',
+            'IMX/USD': 'https://assets.coingecko.com/coins/images/17233/large/imx.png?1696516751',
+            'AR/USD': 'https://assets.coingecko.com/coins/images/4380/large/NxLm6Yc7_400x400.png?1696504978',
+            'GRT/USD': 'https://assets.coingecko.com/coins/images/13397/large/Graph_Token.png?1696513205',
+            'MKR/USD': 'https://assets.coingecko.com/coins/images/1364/large/Mark_Maker.png?1696502423',
+            'PEPE/USD': 'https://assets.coingecko.com/coins/images/29850/large/pepe1.png?1696528776',
+            'LDO/USD': 'https://assets.coingecko.com/coins/images/13539/large/Lido_DAO_Token_100x100.png?1696513276',
+            'QNT/USD': 'https://assets.coingecko.com/coins/images/3370/large/5ZOu7brX_400x400.jpg?1696504057',
+            'FET/USD': 'https://assets.coingecko.com/coins/images/5681/large/Fetch.jpg?1696506677',
+            'SAND/USD': 'https://assets.coingecko.com/coins/images/12129/large/the_sandbox_logo.jpg?1696511971',
+            'MANA/USD': 'https://assets.coingecko.com/coins/images/878/large/decentraland-mana.png?1696501928',
+            'AXS/USD': 'https://assets.coingecko.com/coins/images/13029/large/axie_infinity_logo.png?1696512817',
+            'GALA/USD': 'https://assets.coingecko.com/coins/images/12493/large/Gala_Logo_%281%29.png?1696512310',
+            'CHZ/USD': 'https://assets.coingecko.com/coins/images/8834/large/Chiliz.png?1696509346',
+            'CRV/USD': 'https://assets.coingecko.com/coins/images/12124/large/Curve.png?1696511967',
+            'SNX/USD': 'https://assets.coingecko.com/coins/images/3406/large/SNX.png?1696504103',
+            'COMP/USD': 'https://assets.coingecko.com/coins/images/10775/large/COMP.png?1696510607',
+            '1INCH/USD': 'https://assets.coingecko.com/coins/images/13469/large/1inch-token.png?1696513230',
+            'ZRX/USD': 'https://assets.coingecko.com/coins/images/863/large/0x.png?1696501896',
+            'BAT/USD': 'https://assets.coingecko.com/coins/images/681/large/BAT_icon.png?1696501595',
+            'ENJ/USD': 'https://assets.coingecko.com/coins/images/1102/large/enjin-coin-logo.png?1696502200',
+            'YFI/USD': 'https://assets.coingecko.com/coins/images/11849/large/yearn.jpg?1696511720',
+            'BAL/USD': 'https://assets.coingecko.com/coins/images/11683/large/Balancer.png?1696511570',
+            'KSM/USD': 'https://assets.coingecko.com/coins/images/9568/large/NxLm6Yc7_400x400.jpg?1696509604',
+            'GLM/USD': 'https://assets.coingecko.com/coins/images/542/large/Golem_Submark_Positive_RGB.png?1696501622',
+            'OCEAN/USD': 'https://assets.coingecko.com/coins/images/3687/large/ocean-protocol-logo.jpg?1696504363',
+            'POWR/USD': 'https://assets.coingecko.com/coins/images/1104/large/Power_Ledger_Token.png?1696502206',
+            'STORJ/USD': 'https://assets.coingecko.com/coins/images/949/large/Storj.png?1696502071',
+            'ZEC/USD': 'https://assets.coingecko.com/coins/images/486/large/circle-zcash-color.png?1696501570',
+            'DASH/USD': 'https://assets.coingecko.com/coins/images/19/large/dash-logo.png?1696501423',
+            'XTZ/USD': 'https://assets.coingecko.com/coins/images/976/large/Tezos-logo.png?1696502091',
+            'WAVES/USD': 'https://assets.coingecko.com/coins/images/425/large/Waves.png?1696501731',
+            'OMG/USD': 'https://assets.coingecko.com/coins/images/690/large/OMG_Network.jpg?1696501817',
+            'KNC/USD': 'https://assets.coingecko.com/coins/images/14899/large/RzUVoNp-400x400.jpg?1696514556',
+            'REP/USD': 'https://assets.coingecko.com/coins/images/647/large/augur-logo.png?1696501743',
+            'PAXG/USD': 'https://assets.coingecko.com/coins/images/9519/large/Pax_Gold.png?1696509434',
+            'TBTC/USD': 'https://assets.coingecko.com/coins/images/11224/large/tBTC.png?1696511185',
+            'USDT/USD': 'https://assets.coingecko.com/coins/images/325/large/Tether.png?1696501661',
+            'USDC/USD': 'https://assets.coingecko.com/coins/images/6319/large/usdc.png?1696506694',
+            'DAI/USD': 'https://assets.coingecko.com/coins/images/9956/large/Badge_Dai.png?1696509996'
         };
 
         let signalChart = null;
         let tradeAnalysisChart = null;
+        let capitalChart = null;
+        let profitLossChart = null;
+        let monthlyChart = null;
+        let donutChart = null;
+
+        // Mapping CoinGecko IDs to symbols
+        const coinMap = {
+            'bitcoin': 'BTC',
+            'ethereum': 'ETH',
+            'ripple': 'XRP',
+            'solana': 'SOL',
+            'dogecoin': 'DOGE',
+            'cardano': 'ADA',
+            'sui': 'SUI',
+            'aave': 'AAVE',
+            'chainlink': 'LINK',
+            'avalanche-2': 'AVAX',
+            'near-protocol': 'NEAR',
+            'stellar': 'XLM',
+            'litecoin': 'LTC',
+            'polkadot': 'DOT',
+            'polygon': 'MATIC',
+            'shiba-inu': 'SHIB',
+            'uniswap': 'UNI',
+            'tron': 'TRX',
+            'bitcoin-cash': 'BCH',
+            'eos': 'EOS',
+            'algorand': 'ALGO',
+            'cosmos': 'ATOM',
+            'filecoin': 'FIL',
+            'internet-computer': 'ICP',
+            'hedera': 'HBAR',
+            'ethereum-classic': 'ETC',
+            'monero': 'XMR',
+            'aptos': 'APT',
+            'render': 'RNDR',
+            'stacks': 'STX',
+            'immutable': 'IMX',
+            'arweave': 'AR',
+            'the-graph': 'GRT',
+            'maker': 'MKR',
+            'pepe': 'PEPE',
+            'lido-dao': 'LDO',
+            'quant-network': 'QNT',
+            'artificial-superintelligence-alliance': 'FET',
+            'the-sandbox': 'SAND',
+            'decentraland': 'MANA',
+            'axie-infinity': 'AXS',
+            'gala': 'GALA',
+            'chiliz': 'CHZ',
+            'curve-dao-token': 'CRV',
+            'synthetix': 'SNX',
+            'compound': 'COMP',
+            '1inch': '1INCH',
+            '0x-protocol': 'ZRX',
+            'basic-attention': 'BAT',
+            'enjin-coin': 'ENJ',
+            'yearn-finance': 'YFI',
+            'balancer': 'BAL',
+            'kusama': 'KSM',
+            'golem': 'GLM',
+            'ocean-protocol': 'OCEAN',
+            'power-ledger': 'POWR',
+            'storj': 'STORJ',
+            'zcash': 'ZEC',
+            'dash': 'DASH',
+            'tezos': 'XTZ',
+            'waves': 'WAVES',
+            'omg-network': 'OMG',
+            'kyber-network-crystal': 'KNC',
+            'augur': 'REP',
+            'pax-gold': 'PAXG',
+            'tbtc': 'TBTC',
+            'tether': 'USDT',
+            'usd-coin': 'USDC',
+            'dai': 'DAI'
+        };
+        const coinIds = Object.keys(coinMap);
+
+        // Ajouter des logos flottants dynamiques
+        for (let i = 0; i < 20; i++) {
+            const logoKeys = Object.keys(cryptoLogos);
+            const randomKey = logoKeys[Math.floor(Math.random() * logoKeys.length)];
+            const img = document.createElement('img');
+            img.src = cryptoLogos[randomKey];
+            img.className = 'floating-logo';
+            img.style.width = `${Math.random() * 30 + 30}px`;
+            img.style.height = 'auto';
+            img.style.top = `${Math.random() * 100}%`;
+            img.style.left = '100vw';
+            img.style.animationDuration = `${Math.random() * 10 + 15}s`;
+            img.style.opacity = Math.random() * 0.4 + 0.3;
+            document.querySelector('.starfield').appendChild(img);
+        }
+
+        // Mettre à jour les prix en temps réel
+        function updateLivePrices() {
+            fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinIds.join(',')}&vs_currencies=usd`)
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('livePrices');
+                    container.innerHTML = '';
+                    coinIds.forEach(id => {
+                        if (data[id]) {
+                            const symbol = coinMap[id];
+                            const div = document.createElement('div');
+                            div.className = 'p-2 bg-gray-800 rounded-lg flex items-center';
+                            div.innerHTML = `<img src="${cryptoLogos[`${symbol}/USD`] || ''}" class="crypto-logo" alt="${symbol}"> ${symbol}: $${data[id].usd.toFixed(2)}`;
+                            container.appendChild(div);
+                        }
+                    });
+                })
+                .catch(error => console.error('Erreur lors de la mise à jour des prix:', error));
+        }
+        updateLivePrices();
+        setInterval(updateLivePrices, 30000);
 
         // Charger les trades
         async function loadTrades() {
@@ -379,6 +625,36 @@
                 console.error('Erreur lors du chargement des trades:', error);
             }
         }
+
+        // Ajouter un trade
+        document.getElementById('tradeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const trade = {
+                trade_date: document.getElementById('trade_date').value,
+                investment: parseFloat(document.getElementById('investment').value),
+                profit_loss: parseFloat(document.getElementById('profit_loss').value),
+                current_capital: parseFloat(document.getElementById('current_capital').value),
+                notes: document.getElementById('notes').value
+            };
+            try {
+                const response = await fetch('https://autonomix-elec.onrender.com/trades', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(trade)
+                });
+                if (!response.ok) throw new Error(`Erreur HTTP: ${response.status}`);
+                if (trade.profit_loss > 0) {
+                    const supernova = document.createElement('div');
+                    supernova.className = 'supernova';
+                    document.body.appendChild(supernova);
+                    setTimeout(() => supernova.remove(), 2000);
+                }
+                e.target.reset();
+                loadTrades();
+            } catch (error) {
+                console.error('Erreur lors de l\'ajout du trade:', error);
+            }
+        });
 
         // Lancer l’analyse crypto
         document.getElementById('analyzeButton').addEventListener('click', async () => {
@@ -469,12 +745,23 @@
             }
         }
 
+        // Options communes pour zoom et pan sur les graphiques
+        const zoomOptions = {
+            zoom: {
+                wheel: { enabled: true },
+                pinch: { enabled: true },
+                mode: 'xy'
+            },
+            pan: {
+                enabled: true,
+                mode: 'xy'
+            }
+        };
+
         // Mettre à jour le graphique de l’analyse crypto
         function updateSignalChart(priceHistory, support, resistance) {
             const ctx = document.getElementById('signalChart').getContext('2d');
-            if (signalChart) {
-                signalChart.destroy();
-            }
+            if (signalChart) signalChart.destroy();
             const labels = priceHistory.map(data => new Date(data.timestamp).toLocaleDateString());
             const prices = priceHistory.map(data => data.close);
             signalChart = new Chart(ctx, {
@@ -510,7 +797,8 @@
                     responsive: true,
                     plugins: {
                         legend: { position: 'top', labels: { color: '#ffffff' } },
-                        title: { display: true, text: 'Analyse des Prix', color: '#ffffff', font: { size: 16 } }
+                        title: { display: true, text: 'Analyse des Prix', color: '#ffffff', font: { size: 16 } },
+                        zoom: zoomOptions
                     },
                     scales: {
                         y: { title: { display: true, text: 'Prix ($)', color: '#ffffff' }, ticks: { color: '#ffffff' } },
@@ -523,9 +811,7 @@
         // Mettre à jour le graphique de l’analyse de trade
         function updateTradeAnalysisChart(priceHistory, support, resistance) {
             const ctx = document.getElementById('tradeAnalysisChart').getContext('2d');
-            if (tradeAnalysisChart) {
-                tradeAnalysisChart.destroy();
-            }
+            if (tradeAnalysisChart) tradeAnalysisChart.destroy();
             const labels = priceHistory.map(data => new Date(data.timestamp).toLocaleDateString());
             const prices = priceHistory.map(data => data.close);
             tradeAnalysisChart = new Chart(ctx, {
@@ -561,7 +847,8 @@
                     responsive: true,
                     plugins: {
                         legend: { position: 'top', labels: { color: '#ffffff' } },
-                        title: { display: true, text: 'Analyse de Votre Trade', color: '#ffffff', font: { size: 16 } }
+                        title: { display: true, text: 'Analyse de Votre Trade', color: '#ffffff', font: { size: 16 } },
+                        zoom: zoomOptions
                     },
                     scales: {
                         y: { title: { display: true, text: 'Prix ($)', color: '#ffffff' }, ticks: { color: '#ffffff' } },
@@ -574,7 +861,8 @@
         // Mettre à jour les graphiques de suivi
         function updateCharts(trades) {
             const capitalCtx = document.getElementById('capitalChart').getContext('2d');
-            new Chart(capitalCtx, {
+            if (capitalChart) capitalChart.destroy();
+            capitalChart = new Chart(capitalCtx, {
                 type: 'line',
                 data: {
                     labels: trades.map(trade => trade.trade_date),
@@ -591,7 +879,8 @@
                     responsive: true,
                     plugins: {
                         legend: { position: 'top', labels: { color: '#ffffff' } },
-                        title: { display: true, text: 'Trajectoire du Capital', color: '#ffffff', font: { size: 16 } }
+                        title: { display: true, text: 'Trajectoire du Capital', color: '#ffffff', font: { size: 16 } },
+                        zoom: zoomOptions
                     },
                     scales: {
                         y: { beginAtZero: true, title: { display: true, text: 'Capital ($)', color: '#ffffff' }, ticks: { color: '#ffffff' } },
@@ -601,7 +890,8 @@
             });
 
             const profitLossCtx = document.getElementById('profitLossChart').getContext('2d');
-            new Chart(profitLossCtx, {
+            if (profitLossChart) profitLossChart.destroy();
+            profitLossChart = new Chart(profitLossCtx, {
                 type: 'bar',
                 data: {
                     labels: trades.map(trade => trade.trade_date),
@@ -615,7 +905,8 @@
                     responsive: true,
                     plugins: {
                         legend: { position: 'top', labels: { color: '#ffffff' } },
-                        title: { display: true, text: 'Gains vs Pertes', color: '#ffffff', font: { size: 16 } }
+                        title: { display: true, text: 'Gains vs Pertes', color: '#ffffff', font: { size: 16 } },
+                        zoom: zoomOptions
                     },
                     scales: {
                         y: { title: { display: true, text: 'Montant ($)', color: '#ffffff' }, ticks: { color: '#ffffff' } },
@@ -630,7 +921,8 @@
                 return acc;
             }, {});
             const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
-            new Chart(monthlyCtx, {
+            if (monthlyChart) monthlyChart.destroy();
+            monthlyChart = new Chart(monthlyCtx, {
                 type: 'bar',
                 data: {
                     labels: Object.keys(monthlyData),
@@ -644,7 +936,8 @@
                     responsive: true,
                     plugins: {
                         legend: { position: 'top', labels: { color: '#ffffff' } },
-                        title: { display: true, text: 'Performance Mensuelle', color: '#ffffff', font: { size: 16 } }
+                        title: { display: true, text: 'Performance Mensuelle', color: '#ffffff', font: { size: 16 } },
+                        zoom: zoomOptions
                     },
                     scales: {
                         y: { title: { display: true, text: 'Montant ($)', color: '#ffffff' }, ticks: { color: '#ffffff' } },
@@ -654,7 +947,8 @@
             });
 
             const donutCtx = document.getElementById('donutChart').getContext('2d');
-            new Chart(donutCtx, {
+            if (donutChart) donutChart.destroy();
+            donutChart = new Chart(donutCtx, {
                 type: 'doughnut',
                 data: {
                     labels: ['Gains ($)', 'Pertes ($)'],
@@ -670,7 +964,8 @@
                     responsive: true,
                     plugins: {
                         legend: { position: 'top', labels: { color: '#ffffff' } },
-                        title: { display: true, text: 'Répartition Gains/Pertes', color: '#ffffff', font: { size: 16 } }
+                        title: { display: true, text: 'Répartition Gains/Pertes', color: '#ffffff', font: { size: 16 } },
+                        zoom: zoomOptions
                     }
                 }
             });
