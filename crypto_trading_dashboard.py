@@ -886,21 +886,21 @@ def backtest_strategy(pair, capital=10000):
 
 # Optimisation basique (grid search for params)
 def optimize_params(pair):
-    # Exemple simple sur BB_STD and RSI_PERIOD
+    global BB_STD, RSI_PERIOD
+    current_bb_std = BB_STD
+    current_rsi_period = RSI_PERIOD
     best_sharpe = -np.inf
-    best_params = {'BB_STD': BB_STD, 'RSI_PERIOD': RSI_PERIOD}
-    
+    best_params = {'BB_STD': current_bb_std, 'RSI_PERIOD': current_rsi_period}
     for bb_std in [1.5, 2.0, 2.5]:
         for rsi_period in [10, 14, 20]:
-            # Temporarily set
-            global BB_STD, RSI_PERIOD
             BB_STD = bb_std
             RSI_PERIOD = rsi_period
             backtest = backtest_strategy(pair)
             if backtest['sharpe_ratio'] > best_sharpe:
                 best_sharpe = backtest['sharpe_ratio']
                 best_params = {'BB_STD': bb_std, 'RSI_PERIOD': rsi_period}
-    
+    BB_STD = current_bb_std
+    RSI_PERIOD = current_rsi_period
     return best_params
 
 # Plot chart for visualization
