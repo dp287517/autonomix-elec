@@ -2,153 +2,268 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Suivi Projets</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- CDN pour graphs fous -->
+    <title>AutonomiX Projects - Gestion Cosmique des Projets</title>
+    <link rel="stylesheet" href="https://unpkg.com/frappe-gantt@0.3.0/dist/frappe-gantt.min.css"> <!-- CDN Frappe Gantt -->
+    <script src="https://unpkg.com/frappe-gantt@0.3.0/dist/frappe-gantt.min.js"></script> <!-- JS Gantt -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- CDN Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script> <!-- Confettis fou fou -->
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f0f0f0; padding: 20px; }
-        .project { border: 1px solid #ccc; padding: 10px; margin: 10px 0; background: white; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        progress { width: 100%; height: 20px; }
-        progress[value]::-webkit-progress-value { background-color: green; } /* Vert si OK */
-        progress.over { background-color: red; } /* Rouge si dépassé */
-        canvas { max-width: 400px; margin: 20px 0; }
-        .gantt { display: grid; grid-template-columns: repeat(12, 1fr); } /* Gantt simple en grid */
-        .gantt-task { background: blue; color: white; padding: 5px; border-radius: 4px; }
+        body { font-family: Arial, sans-serif; background: url('https://img.freepik.com/free-vector/realistic-galaxy-background_23-2148991322.jpg') no-repeat center fixed; background-size: cover; color: white; padding: 20px; }
+        .section { background: rgba(0,0,0,0.7); padding: 15px; margin: 10px 0; border-radius: 10px; animation: fadeIn 1s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-10px); } 60% { transform: translateY(-5px); } }
+        input[type="checkbox"]:checked + label { animation: bounce 0.5s; color: lime; }
+        progress { width: 100%; height: 25px; border-radius: 10px; }
+        progress::-webkit-progress-value { background: linear-gradient(to right, blue, purple); border-radius: 10px; }
+        progress.over::-webkit-progress-value { background: red; }
+        canvas { max-width: 400px; margin: 20px auto; display: block; animation: spin 2s ease-in-out; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .gantt-container { height: 300px; margin: 10px 0; }
+        .hidden { display: none; }
+        button { background: purple; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; }
+        button:hover { background: lime; }
     </style>
 </head>
 <body>
-    <h1>Suivi de Projets - Dynamique Fou Fou Fou !</h1>
+    <h1>AutonomiX Projects - Voyage Cosmique vers le Succès !</h1>
     
-    <!-- Formulaire création projet -->
-    <h2>Créer un nouveau projet</h2>
-    <form id="createForm">
-        <input type="text" id="name" placeholder="Nom du projet" required>
-        <textarea id="description" placeholder="Description"></textarea>
-        <textarea id="business_case" placeholder="Business Case"></textarea>
-        <textarea id="pip" placeholder="PIP"></textarea>
-        <input type="text" id="wbs_number" placeholder="Numéro WBS">
-        <input type="number" id="budget_total" placeholder="Budget Total">
-        <button type="submit">Créer</button>
-    </form>
+    <!-- Stats en Temps Réel -->
+    <div class="section">
+        <h2>Stats Galactiques en Temps Réel</h2>
+        <div id="globalStats"></div>
+    </div>
     
-    <!-- Liste projets -->
-    <div id="projectsList"></div>
+    <!-- Analyse Projet AI -->
+    <div class="section">
+        <h2>Analyse Stellaires AI</h2>
+        <button onclick="analyzeSelectedProject()">Lancer Analyse AI sur Projet Sélectionné</button>
+        <div id="aiAnalysis"></div>
+    </div>
     
-    <!-- Graphs dynamiques -->
-    <h2>Stats Graphiques (Animations Folles)</h2>
-    <canvas id="statusPie"></canvas> <!-- Pie pour distribution status -->
-    <canvas id="budgetBar"></canvas> <!-- Bar pour budget total/spent -->
+    <!-- Wizard Step-by-Step pour Nouveau Projet -->
+    <div class="section">
+        <h2>Créer un Projet - Portails Cosmiques (Step-by-Step)</h2>
+        <form id="createForm">
+            <!-- Étape 1: Business Case -->
+            <div id="step1">
+                <textarea id="business_case" placeholder="Création du Business Case"></textarea><br>
+                <label><input type="checkbox" id="business_case_approved" onchange="unlockStep(2)"> Business Case Approved</label><br>
+                <button type="button" onclick="saveStep(1)">Sauver Étape 1</button>
+            </div>
+            
+            <!-- Étape 2: PIP (caché initialement) -->
+            <div id="step2" class="hidden">
+                <textarea id="pip" placeholder="Création du PIP"></textarea><br>
+                <label><input type="checkbox" id="pip_approved" onchange="unlockStep(3)"> PIP Approved</label><br>
+                <label><input type="checkbox" id="wbs_created" onchange="unlockStep(3)"> WBS Created</label><br>
+                <button type="button" onclick="saveStep(2)">Sauver Étape 2</button>
+            </div>
+            
+            <!-- Étape 3: WBS Number & PO -->
+            <div id="step3" class="hidden">
+                <input type="text" id="wbs_number" placeholder="Insérer Numéro WBS"><br>
+                <textarea id="po_requests" placeholder="Demandes PO (URLs haleon-tool.io séparées par ;)"></textarea><br>
+                <button type="button" onclick="saveStep(3)">Sauver Étape 3</button>
+            </div>
+            
+            <!-- Étape 4: Devis & Budget -->
+            <div id="step4" class="hidden">
+                <textarea id="quotes" placeholder="Devis (ID;Fournisseur;Montant;Status séparés par ;)"></textarea><br>
+                <input type="number" id="budget_total" placeholder="Budget Total"><br>
+                <button type="button" onclick="saveStep(4)">Sauver Étape 4</button>
+            </div>
+            
+            <!-- Étape 5: Attachments & Gantt -->
+            <div id="step5" class="hidden">
+                <input type="file" id="attachment" onchange="uploadAttachment(newProjectId)"><br> <!-- newProjectId set after create -->
+                <div class="gantt-container" id="ganttNew"></div>
+                <button type="button" onclick="saveGantt(newProjectId)">Sauver Gantt</button>
+            </div>
+            
+            <button type="submit" id="createButton" disabled>Créer Projet Complet</button>
+        </form>
+    </div>
     
+    <!-- Trajectoire Succès -->
+    <div class="section">
+        <h2>Trajectoire Cosmique vers Succès</h2>
+        <progress id="globalProgress" value="0" max="100"></progress>
+        <p id="progressText">0% - Estimation: Infinie</p>
+    </div>
+    
+    <!-- Projets Récap -->
+    <div class="section">
+        <h2>Projets Stellaires Récap</h2>
+        <table id="projectsTable" border="1" style="width:100%; color:white;">
+            <tr><th>Nom</th><th>Status</th><th>Étapes Checks</th><th>Gantt</th><th>Budget Progress</th><th>Actions</th></tr>
+        </table>
+    </div>
+    
+    <!-- Analyses Stellaires -->
+    <div class="section">
+        <h2>Analyses Galactiques</h2>
+        <canvas id="statusPie"></canvas> <!-- Pie Status -->
+        <canvas id="budgetBar"></canvas> <!-- Bar Budget -->
+        <div id="globalGantt" class="gantt-container"></div> <!-- Gantt Global -->
+    </div>
+
     <script>
-        // Fetch et affiche projets
-        function loadProjects() {
-            fetch('/api/projects')
+        let newProjectId = null; // Pour wizard
+        const defaultGanttTasks = [
+            { id: 'Task1', name: 'Business Case', start: '2025-07-10', end: '2025-08-10', progress: 0, dependencies: '', color: 'blue' },
+            { id: 'Task2', name: 'PIP & WBS', start: '2025-08-10', end: '2025-09-10', progress: 0, dependencies: 'Task1', color: 'green' },
+            { id: 'Task3', name: 'PO & Devis', start: '2025-09-10', end: '2025-10-10', progress: 0, dependencies: 'Task2', color: 'purple' },
+            { id: 'Task4', name: 'Exécution', start: '2025-10-10', end: '2025-12-10', progress: 0, dependencies: 'Task3', color: 'orange' }
+        ];
+
+        // Unlock step
+        function unlockStep(step) {
+            document.getElementById(`step${step}`).classList.remove('hidden');
+            confetti(); // Confettis fou !
+        }
+
+        // Save step (partial update)
+        function saveStep(step) {
+            const data = getFormData(step);
+            if (newProjectId) {
+                updateProject(newProjectId, data);
+            } else {
+                createProject(data); // Crée si premier
+            }
+        }
+
+        // Get form data per step
+        function getFormData(step) {
+            let data = {};
+            if (step === 1) data = { business_case: document.getElementById('business_case').value, business_case_approved: document.getElementById('business_case_approved').checked };
+            if (step === 2) data = { pip: document.getElementById('pip').value, pip_approved: document.getElementById('pip_approved').checked, wbs_created: document.getElementById('wbs_created').checked };
+            if (step === 3) data = { wbs_number: document.getElementById('wbs_number').value, po_requests: document.getElementById('po_requests').value.split(';').map(url => ({url, status: 'En attente'})) };
+            if (step === 4) data = { quotes: document.getElementById('quotes').value.split(';').map(q => {
+                const [id, fournisseur, montant, status] = q.split(';');
+                return {id, fournisseur, montant, status};
+            }), budget_total: document.getElementById('budget_total').value };
+            return data;
+        }
+
+        // Create project
+        function createProject(data) {
+            fetch('/api/projects', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) })
                 .then(res => res.json())
-                .then(projects => {
-                    const list = document.getElementById('projectsList');
-                    list.innerHTML = '';
-                    projects.forEach(p => {
-                        const div = document.createElement('div');
-                        div.className = 'project';
-                        div.innerHTML = `
-                            <h3>${p.name} (Status: ${p.status})</h3>
-                            <p>Description: ${p.description}</p>
-                            <label><input type="checkbox" ${p.business_case_approved ? 'checked' : ''} onchange="updateProject(${p.id}, 'business_case_approved', this.checked)"> Business Case Approved</label><br>
-                            <label><input type="checkbox" ${p.pip_approved ? 'checked' : ''} onchange="updateProject(${p.id}, 'pip_approved', this.checked)"> PIP Approved</label><br>
-                            <label><input type="checkbox" ${p.wbs_created ? 'checked' : ''} onchange="updateProject(${p.id}, 'wbs_created', this.checked)"> WBS Created</label><br>
-                            <input type="text" value="${p.wbs_number || ''}" onchange="updateProject(${p.id}, 'wbs_number', this.value)" placeholder="WBS Number"><br>
-                            <textarea onchange="updateProject(${p.id}, 'po_requests', JSON.stringify([{url: this.value, status: 'En attente'}]))" placeholder="URL PO (haleon-tool.io)"></textarea><br>
-                            <textarea onchange="updateQuotes(${p.id}, this.value)" placeholder="Devis (format: ID;Fournisseur;Montant;Status séparés par ;)"></textarea><br>
-                            <input type="file" onchange="uploadAttachment(${p.id}, this.files[0])"><br>
-                            <textarea placeholder="Gantt JSON (ex: {'tasks': [{'name':'T1','start':'2025-07-10','end':'2025-07-20','progress':50}]} )" onchange="updateProject(${p.id}, 'gantt_data', JSON.parse(this.value))"></textarea><br>
-                            <div class="gantt">${renderGantt(p.gantt_data)}</div>
-                            <progress value="${p.budget_spent}" max="${p.budget_total}" class="${p.budget_spent > p.budget_total ? 'over' : ''}"></progress> ${p.budget_spent}/${p.budget_total} (Alert si dépassé !)
-                            <button onclick="deleteProject(${p.id})">Supprimer</button>
-                        `;
-                        list.appendChild(div);
-                    });
+                .then(project => {
+                    newProjectId = project.id;
+                    document.getElementById('createButton').disabled = false;
+                    loadProjects();
                 });
         }
 
-        // Update projet
-        function updateProject(id, field, value) {
-            fetch(`/api/projects/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ [field]: value })
-            }).then(() => loadProjects());
+        // Update project
+        function updateProject(id, data) {
+            fetch(`/api/projects/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(loadProjects);
         }
 
-        // Update quotes (parse textarea comme "ID;Fournisseur;Montant;Status")
-        function updateQuotes(id, value) {
-            const quotes = value.split(';').map(q => {
-                const [id, fournisseur, montant, status] = q.split(';');
-                return { id, fournisseur, montant: parseFloat(montant), status };
-            });
-            updateProject(id, 'quotes', quotes);
-        }
-
-        // Upload fichier
+        // Upload attachment
         function uploadAttachment(id, file) {
             const formData = new FormData();
             formData.append('file', file);
-            fetch(`/api/projects/${id}/attachment`, { method: 'POST', body: formData })
-                .then(() => loadProjects());
+            fetch(`/api/projects/${id}/attachment`, { method: 'POST', body: formData }).then(loadProjects);
         }
 
-        // Delete projet
-        function deleteProject(id) {
-            fetch(`/api/projects/${id}`, { method: 'DELETE' }).then(() => loadProjects());
+        // Analyze project
+        function analyzeSelectedProject() {
+            const selectedId = prompt('Entrez ID projet à analyser');
+            fetch('/api/projects').then(res => res.json()).then(projects => {
+                const project = projects.find(p => p.id == selectedId);
+                if (project) {
+                    fetch('/api/project-analyze', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({projectData: project}) })
+                        .then(res => res.json())
+                        .then(analysis => {
+                            document.getElementById('aiAnalysis').innerHTML = `<p>Avis: ${analysis.avis}</p><ul>${analysis.risques.map(r => `<li>${r}</li>`).join('')}</ul><p>Score: ${analysis.score}/100</p><ul>${analysis.suggestions.map(s => `<li>${s}</li>`).join('')}</ul>`;
+                        });
+                }
+            });
         }
 
-        // Render Gantt simple (grid avec bars)
-        function renderGantt(gantt) {
-            if (!gantt || !gantt.tasks) return '';
-            return gantt.tasks.map(task => `<div class="gantt-task" style="grid-column: span ${Math.floor((new Date(task.end) - new Date(task.start)) / (1000*60*60*24) / 30)};">${task.name} (${task.progress}%)</div>`).join('');
-        }
-
-        // Load stats et graphs
-        function loadStats() {
-            fetch('/api/project-stats')
-                .then(res => res.json())
-                .then(stats => {
-                    // Pie status (animation folle)
-                    new Chart(document.getElementById('statusPie'), {
-                        type: 'pie',
-                        data: { labels: Object.keys(stats.statusDistribution), datasets: [{ data: Object.values(stats.statusDistribution), backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'] }] },
-                        options: { animation: { duration: 2000, easing: 'easeInOutBounce' } } // Fou fou !
+        // Load projects & table
+        function loadProjects() {
+            fetch('/api/projects').then(res => res.json()).then(projects => {
+                const table = document.getElementById('projectsTable');
+                table.innerHTML = '<tr><th>Nom</th><th>Status</th><th>Étapes Checks</th><th>Gantt</th><th>Budget Progress</th><th>Actions</th></tr>';
+                projects.forEach(p => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${p.name}</td>
+                        <td>${p.status}</td>
+                        <td>
+                            <input type="checkbox" ${p.business_case_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {business_case_approved: this.checked})"> BC App<br>
+                            <input type="checkbox" ${p.pip_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {pip_approved: this.checked})"> PIP App<br>
+                            <input type="checkbox" ${p.wbs_created ? 'checked' : ''} onchange="updateProject(${p.id}, {wbs_created: this.checked})"> WBS
+                        </td>
+                        <td><div class="gantt-container" id="gantt${p.id}"></div></td>
+                        <td><progress value="${p.budget_spent}" max="${p.budget_total}" class="${p.budget_spent > p.budget_total ? 'over' : ''}"></progress> ${p.budget_spent}/${p.budget_total}</td>
+                        <td><button onclick="deleteProject(${p.id})">Suppr</button></td>
+                    `;
+                    table.appendChild(row);
+                    new Gantt(`#gantt${p.id}`, p.gantt_data.tasks || defaultGanttTasks, {
+                        header_height: 50,
+                        column_width: 30,
+                        step: 24,
+                        view_modes: ['Day', 'Week', 'Month'],
+                        bar_height: 20,
+                        bar_corner_radius: 3,
+                        arrow_curve: 5,
+                        padding: 18,
+                        view_mode: 'Month',
+                        date_format: 'YYYY-MM-DD',
+                        language: 'fr',
+                        on_click: task => console.log(task),
+                        on_date_change: (task, start, end) => updateProject(p.id, {gantt_data: {tasks: p.gantt_data.tasks.map(t => t.id === task.id ? {...t, start, end} : t)}}),
+                        on_progress_change: (task, progress) => updateProject(p.id, {gantt_data: {tasks: p.gantt_data.tasks.map(t => t.id === task.id ? {...t, progress} : t)}})
                     });
-
-                    // Bar budget (avec alert si spent > total)
-                    new Chart(document.getElementById('budgetBar'), {
-                        type: 'bar',
-                        data: { labels: ['Total', 'Spent'], datasets: [{ data: [stats.totalBudget, stats.spentBudget], backgroundColor: stats.spentBudget > stats.totalBudget ? 'red' : 'green' }] },
-                        options: { animation: { duration: 1500, easing: 'easeOutElastic' } } // Encore plus fou !
-                    });
-                    if (stats.spentBudget > stats.totalBudget) alert('Budget dépassé global !');
                 });
+                loadStats(projects);
+            });
         }
 
-        // Créer projet
+        // Delete
+        function deleteProject(id) {
+            fetch(`/api/projects/${id}`, { method: 'DELETE' }).then(loadProjects);
+        }
+
+        // Load stats & graphs
+        function loadStats(projects) {
+            fetch('/api/project-stats').then(res => res.json()).then(stats => {
+                document.getElementById('globalStats').innerHTML = `Projets: ${stats.totalProjects} | BC Approved: ${stats.approvedBusinessCases} | Budget Global: ${stats.totalBudget} (Spent: ${stats.spentBudget})`;
+                const avgProgress = projects.reduce((sum, p) => sum + ( (p.business_case_approved ? 20 : 0) + (p.pip_approved ? 20 : 0) + (p.wbs_created ? 20 : 0) + (p.po_requests.length > 0 ? 20 : 0) + (p.quotes.length > 0 ? 20 : 0) ), 0) / projects.length;
+                document.getElementById('globalProgress').value = avgProgress;
+                document.getElementById('progressText').textContent = `${avgProgress}% - Estimation: ${projects.length > 0 ? 'Fin ' + new Date(new Date().setMonth(new Date().getMonth() + projects.length)).toLocaleDateString() : '-'}`;
+
+                new Chart('statusPie', { type: 'pie', data: { labels: Object.keys(stats.statusDistribution), datasets: [{ data: Object.values(stats.statusDistribution), backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56'] }] }, options: { animation: { duration: 2000, easing: 'easeInOutBounce' } } });
+                new Chart('budgetBar', { type: 'bar', data: { labels: ['Total', 'Spent'], datasets: [{ data: [stats.totalBudget, stats.spentBudget], backgroundColor: stats.spentBudget > stats.totalBudget ? 'red' : 'blue' }] }, options: { animation: { duration: 1500, easing: 'easeOutElastic' } } });
+
+                // Global Gantt: Aggregate tasks
+                const globalTasks = projects.flatMap(p => (p.gantt_data.tasks || []).map(t => ({...t, name: `${p.name} - ${t.name}` })));
+                new Gantt('#globalGantt', globalTasks, { view_mode: 'Month' });
+            });
+        }
+
+        // Confettis on approval
+        function confetti() {
+            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        }
+
+        // Submit full create
         document.getElementById('createForm').addEventListener('submit', e => {
             e.preventDefault();
-            const data = {
-                name: document.getElementById('name').value,
-                description: document.getElementById('description').value,
-                business_case: document.getElementById('business_case').value,
-                pip: document.getElementById('pip').value,
-                wbs_number: document.getElementById('wbs_number').value,
-                budget_total: document.getElementById('budget_total').value
-            };
-            fetch('/api/projects', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            }).then(() => { loadProjects(); loadStats(); });
+            if (newProjectId) updateProject(newProjectId, { status: 'Terminé' }); // Finalize
+            newProjectId = null;
+            loadProjects();
         });
 
-        // Load initial
+        // Init Gantt for new
+        new Gantt('#ganttNew', defaultGanttTasks, { view_mode: 'Month', on_date_change: (task, start, end) => console.log('Save Gantt changes') });
+
+        // Load
         loadProjects();
-        loadStats();
     </script>
 </body>
 </html>
