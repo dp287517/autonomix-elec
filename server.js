@@ -255,6 +255,18 @@ function validateProjectData(data) {
     if (data.wbs_created && typeof data.wbs_created !== 'boolean') {
         errors.push('WBS created doit être un booléen.');
     }
+    if (data.po_launched && typeof data.po_launched !== 'boolean') {
+    errors.push('PO launched doit être un booléen.');
+    }
+    if (data.project_phase_completed && typeof data.project_phase_completed !== 'boolean') {
+        errors.push('Project phase completed doit être un booléen.');
+    }
+    if (data.reception_completed && typeof data.reception_completed !== 'boolean') {
+        errors.push('Reception completed doit être un booléen.');
+    }
+    if (data.closure_completed && typeof data.closure_completed !== 'boolean') {
+        errors.push('Closure completed doit être un booléen.');
+    }
     if (data.po_requests && !Array.isArray(data.po_requests)) {
         errors.push('Les demandes PO doivent être un tableau.');
     }
@@ -372,6 +384,10 @@ async function initDb() {
                 pip TEXT,
                 pip_approved BOOLEAN DEFAULT FALSE,
                 wbs_created BOOLEAN DEFAULT FALSE,
+                po_launched BOOLEAN DEFAULT FALSE,
+                project_phase_completed BOOLEAN DEFAULT FALSE,
+                reception_completed BOOLEAN DEFAULT FALSE,
+                closure_completed BOOLEAN DEFAULT FALSE,
                 wbs_number VARCHAR(50),
                 po_requests JSONB DEFAULT '[]'::jsonb,  -- Array de demandes PO {url: string, status: string}
                 quotes JSONB DEFAULT '[]'::jsonb,       -- Array de devis {id: string, montant: number, status: string, fournisseur: string}
@@ -2528,8 +2544,8 @@ app.put('/api/projects/:id', async (req, res) => {
         }
 
         const result = await client.query(
-            'UPDATE projects SET name=$1, description=$2, business_case=$3, business_case_approved=$4, pip=$5, pip_approved=$6, wbs_created=$7, wbs_number=$8, po_requests=$9::jsonb, quotes=$10::jsonb, attachments=$11::jsonb, gantt_data=$12::jsonb, budget_total=$13, budget_spent=$14, status=$15 WHERE id=$16 RETURNING *',
-            [data.name, data.description, data.business_case, !!data.business_case_approved, data.pip, !!data.pip_approved, !!data.wbs_created, data.wbs_number, JSON.stringify(data.po_requests || []), JSON.stringify(data.quotes || []), JSON.stringify(data.attachments || []), JSON.stringify(data.gantt_data || {}), parseFloat(data.budget_total) || 0, budget_spent, data.status, id]
+            'UPDATE projects SET name=$1, description=$2, business_case=$3, business_case_approved=$4, pip=$5, pip_approved=$6, wbs_created=$7, wbs_number=$8, po_requests=$9::jsonb, quotes=$10::jsonb, attachments=$11::jsonb, gantt_data=$12::jsonb, budget_total=$13, budget_spent=$14, status=$15, po_launched=$16, project_phase_completed=$17, reception_completed=$18, closure_completed=$19 WHERE id=$20 RETURNING *',
+            [data.name, data.description || '', data.business_case || '', !!data.business_case_approved, data.pip || '', !!data.pip_approved, !!data.wbs_created, data.wbs_number || '', JSON.stringify(data.po_requests || []), JSON.stringify(data.quotes || []), JSON.stringify(data.attachments || []), JSON.stringify(data.gantt_data || {}), parseFloat(data.budget_total) || 0, budget_spent, data.status || 'En cours', !!data.po_launched, !!data.project_phase_completed, !!data.reception_completed, !!data.closure_completed, id]
         );
         if (result.rows.length === 0) return res.status(404).json({ error: 'Projet non trouvé' });
         res.json(result.rows[0]);
