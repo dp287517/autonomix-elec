@@ -1,6 +1,3 @@
-Voici la version complète et refaite du fichier `crypto_trading_dashboard.py`. J'ai intégré les corrections suggérées précédemment pour résoudre les problèmes (comme le logging à ERROR pour éviter le bruit sur stderr, la gestion robuste des erreurs, l'utilisation publique de l'API Kraken sans clés obligatoires pour les fetches OHLCV, et des try-except supplémentaires autour des fetches pour skipper les paires défaillantes). J'ai aussi nettoyé le code pour plus de clarté, ajouté des commentaires, et assuré que le JSON de sortie est toujours produit même en cas d'erreur. Cela devrait fonctionner sans les erreurs 500 dues à stderr, tant que `ccxt`, `pandas` et `numpy` sont installés dans votre environnement.
-
-```python
 import os
 import ccxt
 import pandas as pd
@@ -213,7 +210,7 @@ def calculate_score(last_row, signal_type, higher_timeframes=None):
     except Exception as e:
         return 0
 
-# Générer des signaux
+# Générer des signaux (assouplis pour générer plus souvent)
 def generate_signals(df_1h, df_4h, df_1d, pair):
     if df_1h is None or df_4h is None or df_1d is None:
         return [], {'pair': pair, 'score': 0}
@@ -230,40 +227,42 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
     fib_proximity_sell = min([abs(price - last_row_1h[level]) / price for level in fib_levels_sell 
                               if not np.isnan(last_row_1h[level])], default=np.inf)
     
+    # Assouplir strict: RSI <35 au lieu de <30, fib <0.03, support <0.02
     buy_strict = (
         (price <= last_row_1h['lower_bb']) and
-        (last_row_1h['rsi'] < 30) and
+        (last_row_1h['rsi'] < 35) and
         (last_row_1h['ema_fast'] > last_row_1h['ema_slow']) and
         (last_row_1h['macd'] > last_row_1h['macd_signal']) and
         (last_row_1h['momentum'] > 0) and
-        (fib_proximity_buy < 0.02) and
-        (not np.isnan(last_row_1d['supports']) and abs(price - last_row_1d['supports']) / price < 0.01)
+        (fib_proximity_buy < 0.03) and
+        (not np.isnan(last_row_1d['supports']) and abs(price - last_row_1d['supports']) / price < 0.02)
     )
     sell_strict = (
         (price >= last_row_1h['upper_bb']) and
-        (last_row_1h['rsi'] > 70) and
+        (last_row_1h['rsi'] > 65) and
         (last_row_1h['ema_fast'] < last_row_1h['ema_slow']) and
         (last_row_1h['macd'] < last_row_1h['macd_signal']) and
         (last_row_1h['momentum'] < 0) and
-        (fib_proximity_sell < 0.02) and
-        (not np.isnan(last_row_1d['resistances']) and abs(price - last_row_1d['resistances']) / price < 0.01)
+        (fib_proximity_sell < 0.03) and
+        (not np.isnan(last_row_1d['resistances']) and abs(price - last_row_1d['resistances']) / price < 0.02)
     )
     
+    # Medium: RSI <40, fib <0.06
     buy_medium = (
         (price <= last_row_1h['sma']) and
-        (last_row_1h['rsi'] < 35) and
+        (last_row_1h['rsi'] < 40) and
         (last_row_1h['ema_fast'] >= last_row_1h['ema_slow'] * 0.995) and
         (last_row_1h['macd'] > 0) and
         (last_row_1h['momentum'] > 0) and
-        (fib_proximity_buy < 0.05)
+        (fib_proximity_buy < 0.06)
     )
     sell_medium = (
         (price >= last_row_1h['sma']) and
-        (last_row_1h['rsi'] > 65) and
+        (last_row_1h['rsi'] > 60) and
         (last_row_1h['ema_fast'] <= last_row_1h['ema_slow'] * 1.005) and
         (last_row_1h['macd'] < 0) and
         (last_row_1h['momentum'] < 0) and
-        (fib_proximity_sell < 0.05)
+        (fib_proximity_sell < 0.06)
     )
     
     atr = last_row_1h['atr'] if not np.isnan(last_row_1h['atr']) else last_row_1h['close'] * 0.005
@@ -314,7 +313,7 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
             'target': round(target_buy, 2),
             'stop_loss': round(stop_loss_buy, 2),
             'confidence': 'Élevé',
-            'reason': 'Conditions strictes (Bollinger bas, RSI < 30, EMA haussier, MACD haussier, Momentum positif, Fibonacci + support 1d, confirmé 4h/1d)',
+            'reason': 'Conditions strictes (Bollinger bas, RSI < 35, EMA haussier, MACD haussier, Momentum positif, Fibonacci + support 1d, confirmé 4h/1d)',
             'score': round(score, 1)
         })
     elif sell_strict:
@@ -327,7 +326,7 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
             'target': round(target_sell, 2),
             'stop_loss': round(stop_loss_sell, 2),
             'confidence': 'Élevé',
-            'reason': 'Conditions strictes (Bollinger haut, RSI > 70, EMA baissier, MACD baissier, Momentum négatif, Fibonacci + résistance 1d, confirmé 4h/1d)',
+            'reason': 'Conditions strictes (Bollinger haut, RSI > 65, EMA baissier, MACD baissier, Momentum négatif, Fibonacci + résistance 1d, confirmé 4h/1d)',
             'score': round(score, 1)
         })
     elif buy_medium:
@@ -340,7 +339,7 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
             'target': round(target_buy, 2),
             'stop_loss': round(stop_loss_buy, 2),
             'confidence': 'Moyen',
-            'reason': 'Conditions moyennes (prix sous SMA, RSI < 35, EMA neutre, MACD positif, Momentum positif, Fibonacci proche, partiellement confirmé 4h/1d)',
+            'reason': 'Conditions moyennes (prix sous SMA, RSI < 40, EMA neutre, MACD positif, Momentum positif, Fibonacci proche, partiellement confirmé 4h/1d)',
             'score': round(score, 1)
         })
     elif sell_medium:
@@ -353,9 +352,26 @@ def generate_signals(df_1h, df_4h, df_1d, pair):
             'target': round(target_sell, 2),
             'stop_loss': round(stop_loss_sell, 2),
             'confidence': 'Moyen',
-            'reason': 'Conditions moyennes (prix sur SMA, RSI > 65, EMA neutre, MACD négatif, Momentum négatif, Fibonacci proche, partiellement confirmé 4h/1d)',
+            'reason': 'Conditions moyennes (prix sur SMA, RSI > 60, EMA neutre, MACD négatif, Momentum négatif, Fibonacci proche, partiellement confirmé 4h/1d)',
             'score': round(score, 1)
         })
+    
+    # Ajout d'un niveau low si score >40 et pas de signal (basé sur EMA trend et momentum)
+    if not signals:
+        score = calculate_score(last_row_1h, 'ACHAT' if last_row_1h['rsi'] < 50 else 'VENTE', higher_timeframes)
+        if score > 40:
+            signal_type = 'ACHAT' if last_row_1h['rsi'] < 50 else 'VENTE'
+            target = target_buy if signal_type == 'ACHAT' else target_sell
+            stop_loss = stop_loss_buy if signal_type == 'ACHAT' else stop_loss_sell
+            signals.append({
+                **signal_data,
+                'signal': signal_type,
+                'target': round(target, 2),
+                'stop_loss': round(stop_loss, 2),
+                'confidence': 'Faible',
+                'reason': 'Conditions faibles (basé sur score global, EMA trend, et momentum)',
+                'score': round(score, 1)
+            })
     
     return signals, {
         **signal_data,
@@ -458,7 +474,7 @@ def analyze_trade(pair, entry_price, signal_type, df_1h, df_4h, df_1d):
     except Exception as e:
         return {'type': 'error', 'message': f'Erreur lors de l’analyse du trade: {str(e)}'}
 
-# Forcer un trade
+# Forcer un trade (assoupli: score >50 au lieu de >60)
 def force_trade(fallback_data):
     if not fallback_data:
         return None
@@ -469,8 +485,8 @@ def force_trade(fallback_data):
     
     valid_fallbacks = [
         (f, df1, df2, df3) for f, df1, df2, df3 in valid_fallbacks
-        if f['score'] > 60 and not np.isnan(df3.iloc[-1]['supports']) and not np.isnan(df3.iloc[-1]['resistances'])
-        and abs(df3.iloc[-1]['supports'] - df3.iloc[-1]['resistances']) / f['price'] > 0.01
+        if f['score'] > 50 and not np.isnan(df3.iloc[-1]['supports']) and not np.isnan(df3.iloc[-1]['resistances'])
+        and abs(df3.iloc[-1]['supports'] - df3.iloc[-1]['resistances']) / f['price'] > 0.005  # Assoupli >0.005
     ]
     if not valid_fallbacks:
         return None
@@ -490,25 +506,26 @@ def force_trade(fallback_data):
     fib_proximity_sell = min([abs(price - last_row_1h[level]) / price for level in fib_levels_sell 
                               if not np.isnan(last_row_1h[level])], default=np.inf)
     
+    # Assouplir forced: RSI <45, fib <0.15, support <0.03
     buy_forced = (
         (price <= last_row_1h['sma'] * 1.05) and
-        (last_row_1h['rsi'] < 40) and
+        (last_row_1h['rsi'] < 45) and
         (last_row_1h['ema_fast'] >= last_row_1h['ema_slow'] * 0.99) and
         (last_row_1h['macd'] >= 0) and
         (last_row_1h['momentum'] > 0) and
-        (fib_proximity_buy < 0.1) and
-        (not np.isnan(last_row_1d['supports']) and abs(price - last_row_1d['supports']) / price < 0.02) and
-        (last_row_1h['atr'] > last_row_1h['close'] * 0.005)
+        (fib_proximity_buy < 0.15) and
+        (not np.isnan(last_row_1d['supports']) and abs(price - last_row_1d['supports']) / price < 0.03) and
+        (last_row_1h['atr'] > last_row_1h['close'] * 0.004)  # Volatilité minimale assouplie
     )
     sell_forced = (
         (price >= last_row_1h['sma'] * 0.95) and
-        (last_row_1h['rsi'] > 60) and
+        (last_row_1h['rsi'] > 55) and
         (last_row_1h['ema_fast'] <= last_row_1h['ema_slow'] * 1.01) and
         (last_row_1h['macd'] <= 0) and
         (last_row_1h['momentum'] < 0) and
-        (fib_proximity_sell < 0.1) and
-        (not np.isnan(last_row_1d['resistances']) and abs(price - last_row_1d['resistances']) / price < 0.02) and
-        (last_row_1h['atr'] > last_row_1h['close'] * 0.005)
+        (fib_proximity_sell < 0.15) and
+        (not np.isnan(last_row_1d['resistances']) and abs(price - last_row_1d['resistances']) / price < 0.03) and
+        (last_row_1h['atr'] > last_row_1h['close'] * 0.004)
     )
     
     atr = last_row_1h['atr'] if not np.isnan(last_row_1h['atr']) else last_row_1h['close'] * 0.005
@@ -557,7 +574,7 @@ def force_trade(fallback_data):
             'signal': 'ACHAT',
             'target': round(target_buy, 2),
             'stop_loss': round(stop_loss_buy, 2),
-            'reason': 'Trade forcé (conditions assouplies: prix près de SMA, RSI < 40, EMA neutre, MACD positif, Momentum positif, Fibonacci proche, support 1d proche, volatilité suffisante)',
+            'reason': 'Trade forcé (conditions assouplies: prix près de SMA, RSI < 45, EMA neutre, MACD positif, Momentum positif, Fibonacci proche, support 1d proche, volatilité suffisante)',
             'score': round(score, 1)
         })
         return signal_data
@@ -569,7 +586,7 @@ def force_trade(fallback_data):
             'signal': 'VENTE',
             'target': round(target_sell, 2),
             'stop_loss': round(stop_loss_sell, 2),
-            'reason': 'Trade forcé (conditions assouplies: prix près de SMA, RSI > 60, EMA neutre, MACD négatif, Momentum négatif, Fibonacci proche, résistance 1d proche, volatilité suffisante)',
+            'reason': 'Trade forcé (conditions assouplies: prix près de SMA, RSI > 55, EMA neutre, MACD négatif, Momentum négatif, Fibonacci proche, résistance 1d proche, volatilité suffisante)',
             'score': round(score, 1)
         })
         return signal_data
@@ -664,8 +681,34 @@ def main():
             }
         }))
     else:
+        # Fallback final si toujours rien: Choisir le pair avec le score le plus haut, générer low confidence
+        if fallback_data:
+            best_fallback = max(fallback_data, key=lambda x: x[0]['score'])
+            score = best_fallback[0]['score']
+            if score > 30:  # Très bas threshold pour éviter error
+                signal_type = 'ACHAT' if best_fallback[0]['rsi'] < 50 else 'VENTE'
+                target = best_fallback[0]['price'] * (1 + TARGET_MOVE) if signal_type == 'ACHAT' else best_fallback[0]['price'] * (1 - TARGET_MOVE)
+                stop_loss = best_fallback[0]['price'] - best_fallback[0]['atr'] if signal_type == 'ACHAT' else best_fallback[0]['price'] + best_fallback[0]['atr']
+                print(json.dumps({
+                    'type': 'best_signal',
+                    'result': {
+                        'pair': best_fallback[0]['pair'],
+                        'signal': signal_type,
+                        'price': best_fallback[0]['price'],
+                        'target': round(target, 2),
+                        'stop_loss': round(stop_loss, 2),
+                        'rsi': best_fallback[0]['rsi'],
+                        'atr': best_fallback[0]['atr'],
+                        'support': best_fallback[0]['support'],
+                        'resistance': best_fallback[0]['resistance'],
+                        'confidence': 'Très Faible',
+                        'score': round(score, 1),
+                        'reason': 'Fallback final: Score minimal atteint, basé sur RSI global',
+                        'price_history': best_fallback[0].get('price_history', [])
+                    }
+                }))
+                return
         print(json.dumps({'type': 'error', 'message': 'Aucun trade possible (vérifiez les données ou paires)'}))
-    
+
 if __name__ == "__main__":
     main()
-```
