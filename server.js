@@ -240,6 +240,39 @@ function validateEquipementData(data) {
     return errors;
 }
 
+// Validation des données de projet
+function validateProjectData(data) {
+    const errors = [];
+    if (!data.name || typeof data.name !== 'string' || data.name.trim().length === 0) {
+        errors.push('Le nom du projet est requis et doit être une chaîne non vide.');
+    }
+    if (data.business_case_approved && typeof data.business_case_approved !== 'boolean') {
+        errors.push('Business case approved doit être un booléen.');
+    }
+    if (data.pip_approved && typeof data.pip_approved !== 'boolean') {
+        errors.push('PIP approved doit être un booléen.');
+    }
+    if (data.wbs_created && typeof data.wbs_created !== 'boolean') {
+        errors.push('WBS created doit être un booléen.');
+    }
+    if (data.po_requests && !Array.isArray(data.po_requests)) {
+        errors.push('Les demandes PO doivent être un tableau.');
+    }
+    if (data.quotes && !Array.isArray(data.quotes)) {
+        errors.push('Les devis doivent être un tableau.');
+    }
+    if (data.attachments && !Array.isArray(data.attachments)) {
+        errors.push('Les pièces jointes doivent être un tableau.');
+    }
+    if (data.gantt_data && typeof data.gantt_data !== 'object') {
+        errors.push('Les données Gantt doivent être un objet JSON valide.');
+    }
+    if (data.budget_total && isNaN(parseFloat(data.budget_total))) {
+        errors.push('Le budget total doit être un nombre.');
+    }
+    return errors;
+}
+
 // Initialisation de la base de données
 async function initDb() {
     console.log('[Server] Initialisation de la base de données');
@@ -328,6 +361,44 @@ async function initDb() {
             current_capital DECIMAL NOT NULL,
             notes TEXT
           )
+        `);
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS projects (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                description TEXT,
+                business_case TEXT,
+                business_case_approved BOOLEAN DEFAULT FALSE,
+                pip TEXT,
+                pip_approved BOOLEAN DEFAULT FALSE,
+                wbs_created BOOLEAN DEFAULT FALSE,
+                wbs_number VARCHAR(50),
+                po_requests JSONB DEFAULT '[]'::jsonb,  -- Array de demandes PO {url: string, status: string}
+                quotes JSONB DEFAULT '[]'::jsonb,       -- Array de devis {id: string, montant: number, status: string, fournisseur: string}
+                attachments JSONB DEFAULT '[]'::jsonb,  -- Array de pièces jointes {filename: string, data: base64, type: string}
+                gantt_data JSONB,                      -- JSON pour Gantt {tasks: [{name, start, end, progress}]}
+                budget_total DECIMAL DEFAULT 0,
+                budget_spent DECIMAL DEFAULT 0,
+                status VARCHAR(20) DEFAULT 'En cours', -- En cours, Approuvé, Terminé, Bloqué
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // Trigger pour updated_at
+        await client.query(`
+            CREATE OR REPLACE FUNCTION update_updated_at_projects()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                NEW.updated_at = CURRENT_TIMESTAMP;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+
+            DROP TRIGGER IF EXISTS trig_updated_at_projects ON projects;
+            CREATE TRIGGER trig_updated_at_projects
+            BEFORE UPDATE ON projects
+            FOR EACH ROW EXECUTE PROCEDURE update_updated_at_projects();
         `);
         console.log('[Server] Tables créées avec succès');
 
@@ -2396,6 +2467,144 @@ app.put('/api/emergency-reports/:id', async (req, res) => {
             detail: error.detail
         });
         res.status(500).json({ error: 'Erreur lors de la mise à jour du rapport: ' + error.message });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+// GET tous les projets
+app.get('/api/projects', async (req, res) => {
+    console.log('[Server] GET /api/projects');
+    let client;
+    try {
+        client = await pool.connect();
+        const result = await client.query('SELECT * FROM projects ORDER BY created_at DESC');
+        res.json(result.rows);
+    } catch (error) {
+        console.error('[Server] Erreur GET /api/projects:', { message: error.message, stack: error.stack });
+        res.status(500).json({ error: 'Erreur récupération projets: ' + error.message });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+// POST créer un projet
+app.post('/api/projects', async (req, res) => {
+    const data = req.body;
+    console.log('[Server] POST /api/projects', data.name);
+    let client;
+    try {
+        client = await pool.connect();
+        const errors = validateProjectData(data);
+        if (errors.length > 0) return res.status(400).json({ error: errors.join('; ') });
+        const result = await client.query(
+            'INSERT INTO projects (name, description, business_case, pip, wbs_number, gantt_data, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            [data.name, data.description || '', data.business_case || '', data.pip || '', data.wbs_number || '', JSON.stringify(data.gantt_data || {}), data.status || 'En cours']
+        );
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('[Server] Erreur POST /api/projects:', { message: error.message, stack: error.stack });
+        res.status(500).json({ error: 'Erreur création projet: ' + error.message });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+// PUT mise à jour projet (inclut checks étapes, budget auto)
+app.put('/api/projects/:id', async (req, res) => {
+    const { id } = req.params;
+    const data = req.body;
+    console.log('[Server] PUT /api/projects/:id', id);
+    let client;
+    try {
+        client = await pool.connect();
+        const errors = validateProjectData(data);
+        if (errors.length > 0) return res.status(400).json({ error: errors.join('; ') });
+
+        // Calcul budget spent : somme des montants devis approuvés
+        let budget_spent = 0;
+        if (Array.isArray(data.quotes)) {
+            budget_spent = data.quotes.reduce((sum, q) => sum + (q.status === 'Approuvé' ? parseFloat(q.montant) || 0 : 0), 0);
+        }
+
+        const result = await client.query(
+            'UPDATE projects SET name=$1, description=$2, business_case=$3, business_case_approved=$4, pip=$5, pip_approved=$6, wbs_created=$7, wbs_number=$8, po_requests=$9::jsonb, quotes=$10::jsonb, attachments=$11::jsonb, gantt_data=$12::jsonb, budget_total=$13, budget_spent=$14, status=$15 WHERE id=$16 RETURNING *',
+            [data.name, data.description, data.business_case, !!data.business_case_approved, data.pip, !!data.pip_approved, !!data.wbs_created, data.wbs_number, JSON.stringify(data.po_requests || []), JSON.stringify(data.quotes || []), JSON.stringify(data.attachments || []), JSON.stringify(data.gantt_data || {}), parseFloat(data.budget_total) || 0, budget_spent, data.status, id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Projet non trouvé' });
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('[Server] Erreur PUT /api/projects/:id:', { message: error.message, stack: error.stack });
+        res.status(500).json({ error: 'Erreur mise à jour projet: ' + error.message });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+// DELETE projet
+app.delete('/api/projects/:id', async (req, res) => {
+    const { id } = req.params;
+    console.log('[Server] DELETE /api/projects/:id', id);
+    let client;
+    try {
+        client = await pool.connect();
+        const result = await client.query('DELETE FROM projects WHERE id = $1 RETURNING *', [id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Projet non trouvé' });
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[Server] Erreur DELETE /api/projects/:id:', { message: error.message, stack: error.stack });
+        res.status(500).json({ error: 'Erreur suppression projet: ' + error.message });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+// POST upload attachment (fichier en base64)
+app.post('/api/projects/:id/attachment', upload.single('file'), async (req, res) => {
+    const { id } = req.params;
+    const file = req.file;
+    console.log('[Server] POST /api/projects/:id/attachment', id);
+    let client;
+    try {
+        client = await pool.connect();
+        if (!file) return res.status(400).json({ error: 'Fichier requis' });
+
+        const base64 = file.buffer.toString('base64');
+        const attachment = { filename: file.originalname, data: `data:${file.mimetype};base64,${base64}`, type: file.mimetype };
+
+        const projectResult = await client.query('SELECT attachments FROM projects WHERE id = $1', [id]);
+        if (projectResult.rows.length === 0) return res.status(404).json({ error: 'Projet non trouvé' });
+
+        const attachments = [...(projectResult.rows[0].attachments || []), attachment];
+        await client.query('UPDATE projects SET attachments = $1::jsonb WHERE id = $2', [JSON.stringify(attachments), id]);
+
+        res.json({ success: true, attachment });
+    } catch (error) {
+        console.error('[Server] Erreur upload attachment:', { message: error.message, stack: error.stack });
+        res.status(500).json({ error: 'Erreur upload: ' + error.message });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+// GET stats graphiques (pour front dynamique)
+app.get('/api/project-stats', async (req, res) => {
+    console.log('[Server] GET /api/project-stats');
+    let client;
+    try {
+        client = await pool.connect();
+        const projectsResult = await client.query('SELECT * FROM projects');
+        const stats = {
+            totalProjects: projectsResult.rows.length,
+            approvedBusinessCases: projectsResult.rows.filter(p => p.business_case_approved).length,
+            totalBudget: projectsResult.rows.reduce((sum, p) => sum + (parseFloat(p.budget_total) || 0), 0),
+            spentBudget: projectsResult.rows.reduce((sum, p) => sum + (parseFloat(p.budget_spent) || 0), 0),
+            statusDistribution: projectsResult.rows.reduce((acc, p) => { acc[p.status] = (acc[p.status] || 0) + 1; return acc; }, {}),
+        };
+        res.json(stats);
+    } catch (error) {
+        console.error('[Server] Erreur GET /api/project-stats:', { message: error.message, stack: error.stack });
+        res.status(500).json({ error: 'Erreur stats: ' + error.message });
     } finally {
         if (client) client.release();
     }
