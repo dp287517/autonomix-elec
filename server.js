@@ -2610,6 +2610,25 @@ app.get('/api/project-stats', async (req, res) => {
     }
 });
 
+// POST pour analyser un projet avec AI (avis, risques, score)
+app.post('/api/project-analyze', async (req, res) => {
+    const { projectData } = req.body;
+    console.log('[Server] POST /api/project-analyze', projectData.name);
+    try {
+        const prompt = `Analyse ce projet en date du July 10, 2025: Nom: ${projectData.name}. Description: ${projectData.description}. Business Case: ${projectData.business_case}. PIP: ${projectData.pip}. WBS: ${projectData.wbs_number}. Budget: ${projectData.budget_total} (spent: ${projectData.budget_spent}). Gantt: ${JSON.stringify(projectData.gantt_data)}. Donne un avis détaillé, risques potentiels, score /100, suggestions pour amélioration. Format JSON: {avis: string, risques: array, score: number, suggestions: array}`;
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            messages: [{ role: 'user', content: prompt }],
+            response_format: { type: 'json_object' }
+        });
+        const analysis = JSON.parse(response.choices[0].message.content);
+        res.json(analysis);
+    } catch (error) {
+        console.error('[Server] Erreur POST /api/project-analyze:', { message: error.message, stack: error.stack });
+        res.status(500).json({ error: 'Erreur analyse AI: ' + error.message });
+    }
+});
+
 // Middleware pour gérer les erreurs globales
 app.use((err, req, res, next) => {
     console.error('[Server] Erreur non gérée:', {
