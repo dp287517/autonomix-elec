@@ -314,7 +314,7 @@
             'LINK/USD': 'https://cryptologos.cc/logos/chainlink-link-logo.png',
             'AVAX/USD': 'https://cryptologos.cc/logos/avalanche-avax-logo.png',
             'NEAR/USD': 'https://cryptologos.cc/logos/near-protocol-near-logo.png',
-            'XLM/USD': 'https://cryptologos.cc/logos/stellar-xlm-logo.png',
+            'XLM/USD': 'https://upload.wikimedia.org/wikipedia/commons/5/56/Stellar_Lumens_%28XLM%29_Logo.png',  // Source alternative (Wikipedia supporte CORS)
             'LTC/USD': 'https://cryptologos.cc/logos/litecoin-ltc-logo.png'
         };
 
@@ -469,9 +469,12 @@
         // Mettre à jour le graphique de l’analyse crypto
         function updateSignalChart(priceHistory, support, resistance) {
             const ctx = document.getElementById('signalChart').getContext('2d');
+            if (signalChart) {
+                signalChart.destroy();
+            }
             const labels = priceHistory.map(data => new Date(data.timestamp).toLocaleDateString());
             const prices = priceHistory.map(data => data.close);
-            new Chart(ctx, {
+            signalChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
@@ -517,9 +520,12 @@
         // Mettre à jour le graphique de l’analyse de trade
         function updateTradeAnalysisChart(priceHistory, support, resistance) {
             const ctx = document.getElementById('tradeAnalysisChart').getContext('2d');
+            if (tradeAnalysisChart) {
+                tradeAnalysisChart.destroy();
+            }
             const labels = priceHistory.map(data => new Date(data.timestamp).toLocaleDateString());
             const prices = priceHistory.map(data => data.close);
-            new Chart(ctx, {
+            tradeAnalysisChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
