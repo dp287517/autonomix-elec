@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Suivi Projets</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- CDN pour graphs fous -->
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f0f0f0; padding: 20px; }
+        .project { border: 1px solid #ccc; padding: 10px; margin: 10px 0; background: white; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        progress { width: 100%; height: 20px; }
+        progress[value]::-webkit-progress-value { background-color: green; } /* Vert si OK */
+        progress.over { background-color: red; } /* Rouge si dépassé */
+        canvas { max-width: 400px; margin: 20px 0; }
+        .gantt { display: grid; grid-template-columns: repeat(12, 1fr); } /* Gantt simple en grid */
+        .gantt-task { background: blue; color: white; padding: 5px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Suivi de Projets - Dynamique Fou Fou Fou !</h1>
+    
+    <!-- Formulaire création projet -->
+    <h2>Créer un nouveau projet</h2>
+    <form id="createForm">
+        <input type="text" id="name" placeholder="Nom du projet" required>
+        <textarea id="description" placeholder="Description"></textarea>
+        <textarea id="business_case" placeholder="Business Case"></textarea>
+        <textarea id="pip" placeholder="PIP"></textarea>
+        <input type="text" id="wbs_number" placeholder="Numéro WBS">
+        <input type="number" id="budget_total" placeholder="Budget Total">
+        <button type="submit">Créer</button>
+    </form>
+    
+    <!-- Liste projets -->
+    <div id="projectsList"></div>
+    
+    <!-- Graphs dynamiques -->
+    <h2>Stats Graphiques (Animations Folles)</h2>
+    <canvas id="statusPie"></canvas> <!-- Pie pour distribution status -->
+    <canvas id="budgetBar"></canvas> <!-- Bar pour budget total/spent -->
+    
+    <script>
+        // Fetch et affiche projets
+        function loadProjects() {
+            fetch('/api/projects')
+                .then(res => res.json())
+                .then(projects => {
+                    const list = document.getElementById('projectsList');
+                    list.innerHTML = '';
+                    projects.forEach(p => {
+                        const div = document.createElement('div');
+                        div.className = 'project';
+                        div.innerHTML = `
+                            <h3>${p.name} (Status: ${p.status})</h3>
+                            <p>Description: ${p.description}</p>
+                            <label><input type="checkbox" ${p.business_case_approved ? 'checked' : ''} onchange="updateProject(${p.id}, 'business_case_approved', this.checked)"> Business Case Approved</label><br>
+                            <label><input type="checkbox" ${p.pip_approved ? 'checked' : ''} onchange="updateProject(${p.id}, 'pip_approved', this.checked)"> PIP Approved</label><br>
+                            <label><input type="checkbox" ${p.wbs_created ? 'checked' : ''} onchange="updateProject(${p.id}, 'wbs_created', this.checked)"> WBS Created</label><br>
+                            <input type="text" value="${p.wbs_number || ''}" onchange="updateProject(${p.id}, 'wbs_number', this.value)" placeholder="WBS Number"><br>
+                            <textarea onchange="updateProject(${p.id}, 'po_requests', JSON.stringify([{url: this.value, status: 'En attente'}]))" placeholder="URL PO (haleon-tool.io)"></textarea><br>
+                            <textarea onchange="updateQuotes(${p.id}, this.value)" placeholder="Devis (format: ID;Fournisseur;Montant;Status séparés par ;)"></textarea><br>
+                            <input type="file" onchange="uploadAttachment(${p.id}, this.files[0])"><br>
+                            <textarea placeholder="Gantt JSON (ex: {'tasks': [{'name':'T1','start':'2025-07-10','end':'2025-07-20','progress':50}]} )" onchange="updateProject(${p.id}, 'gantt_data', JSON.parse(this.value))"></textarea><br>
+                            <div class="gantt">${renderGantt(p.gantt_data)}</div>
+                            <progress value="${p.budget_spent}" max="${p.budget_total}" class="${p.budget_spent > p.budget_total ? 'over' : ''}"></progress> ${p.budget_spent}/${p.budget_total} (Alert si dépassé !)
+                            <button onclick="deleteProject(${p.id})">Supprimer</button>
+                        `;
+                        list.appendChild(div);
+                    });
+                });
+        }
+
+        // Update projet
+        function updateProject(id, field, value) {
+            fetch(`/api/projects/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ [field]: value })
+            }).then(() => loadProjects());
+        }
+
+        // Update quotes (parse textarea comme "ID;Fournisseur;Montant;Status")
+        function updateQuotes(id, value) {
+            const quotes = value.split(';').map(q => {
+                const [id, fournisseur, montant, status] = q.split(';');
+                return { id, fournisseur, montant: parseFloat(montant), status };
+            });
+            updateProject(id, 'quotes', quotes);
+        }
+
+        // Upload fichier
+        function uploadAttachment(id, file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            fetch(`/api/projects/${id}/attachment`, { method: 'POST', body: formData })
+                .then(() => loadProjects());
+        }
+
+        // Delete projet
+        function deleteProject(id) {
+            fetch(`/api/projects/${id}`, { method: 'DELETE' }).then(() => loadProjects());
+        }
+
+        // Render Gantt simple (grid avec bars)
+        function renderGantt(gantt) {
+            if (!gantt || !gantt.tasks) return '';
+            return gantt.tasks.map(task => `<div class="gantt-task" style="grid-column: span ${Math.floor((new Date(task.end) - new Date(task.start)) / (1000*60*60*24) / 30)};">${task.name} (${task.progress}%)</div>`).join('');
+        }
+
+        // Load stats et graphs
+        function loadStats() {
+            fetch('/api/project-stats')
+                .then(res => res.json())
+                .then(stats => {
+                    // Pie status (animation folle)
+                    new Chart(document.getElementById('statusPie'), {
+                        type: 'pie',
+                        data: { labels: Object.keys(stats.statusDistribution), datasets: [{ data: Object.values(stats.statusDistribution), backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'] }] },
+                        options: { animation: { duration: 2000, easing: 'easeInOutBounce' } } // Fou fou !
+                    });
+
+                    // Bar budget (avec alert si spent > total)
+                    new Chart(document.getElementById('budgetBar'), {
+                        type: 'bar',
+                        data: { labels: ['Total', 'Spent'], datasets: [{ data: [stats.totalBudget, stats.spentBudget], backgroundColor: stats.spentBudget > stats.totalBudget ? 'red' : 'green' }] },
+                        options: { animation: { duration: 1500, easing: 'easeOutElastic' } } // Encore plus fou !
+                    });
+                    if (stats.spentBudget > stats.totalBudget) alert('Budget dépassé global !');
+                });
+        }
+
+        // Créer projet
+        document.getElementById('createForm').addEventListener('submit', e => {
+            e.preventDefault();
+            const data = {
+                name: document.getElementById('name').value,
+                description: document.getElementById('description').value,
+                business_case: document.getElementById('business_case').value,
+                pip: document.getElementById('pip').value,
+                wbs_number: document.getElementById('wbs_number').value,
+                budget_total: document.getElementById('budget_total').value
+            };
+            fetch('/api/projects', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(() => { loadProjects(); loadStats(); });
+        });
+
+        // Load initial
+        loadProjects();
+        loadStats();
+    </script>
+</body>
+</html>
