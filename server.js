@@ -2512,10 +2512,15 @@ app.get('/api/crypto-analysis', async (req, res) => {
     try {
         const { stdout, stderr } = await execPromise('python3 crypto_trading_dashboard.py');
         if (stderr) {
-            console.error('[Server] Erreur exécution script Python:', stderr);
-            return res.status(500).json({ error: 'Erreur lors de l\'exécution de l\'analyse: ' + stderr });
+            console.error(`[Server] Logs/Erreurs du script Python: ${stderr}`);  // Log mais ne bloque pas
         }
-        const result = JSON.parse(stdout);
+        let result;
+        try {
+            result = JSON.parse(stdout.trim());  // Trim pour enlever espaces/newlines
+        } catch (parseError) {
+            console.error(`[Server] Erreur parsing JSON de stdout: ${parseError.message}`);
+            return res.status(500).json({ error: 'Erreur parsing sortie Python: ' + parseError.message });
+        }
         if (result.type === 'error') {
             console.error('[Server] Erreur dans le script Python:', result.message);
             return res.status(500).json({ error: result.message });
