@@ -1,212 +1,636 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AutonomiX Projects - Gestion Professionnelle</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://unpkg.com/frappe-gantt/dist/frappe-gantt.min.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/frappe-gantt/dist/frappe-gantt.css" />
-  <style>
-    body {
-      background-color: #0f172a;
-      color: white;
-      font-family: 'Inter', sans-serif;
-    }
-    .modal {
-      background: rgba(0,0,0,0.7);
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 50;
-    }
-    .modal-content {
-      background: #1e293b;
-      padding: 2rem;
-      border-radius: 1rem;
-      width: 90%;
-      max-width: 700px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutonomiX Projects - Gestion Cosmique des Projets</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/frappe-gantt@0.6.1/dist/frappe-gantt.min.css"> <!-- Updated to latest version -->
+    <script src="https://unpkg.com/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <style>
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background: #0a0a0a;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+        .starfield {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+            z-index: -1;
+        }
+        .star {
+            position: absolute;
+            background: #ffffff;
+            border-radius: 50%;
+            animation: twinkle 3s infinite;
+        }
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+        .floating-logo {
+            position: absolute;
+            animation: float 20s linear infinite;
+            opacity: 0.5;
+        }
+        @keyframes float {
+            0% { transform: translateX(100vw); }
+            100% { transform: translateX(-100px); }
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            animation: fadeIn 1s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .btn-primary {
+            background: #60a5fa;
+            color: #0a0a0a;
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            background: #3b82f6;
+            transform: scale(1.05);
+        }
+        .btn-analyze {
+            background: #a855f7;
+            color: #ffffff;
+            transition: all 0.3s ease;
+        }
+        .btn-analyze:hover {
+            background: #9333ea;
+            transform: scale(1.05);
+        }
+        canvas {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+        }
+        .progress-bar {
+            background: linear-gradient(90deg, #60a5fa 0%, #a855f7 100%);
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            background: #ffffff;
+            height: 100%;
+            transition: width 1s ease;
+        }
+        .loading-spinner {
+            border: 4px solid #ffffff;
+            border-top: 4px solid #60a5fa;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .supernova {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(96, 165, 250, 0.5) 0%, rgba(0, 0, 0, 0) 70%);
+            animation: supernova 2s ease-out forwards;
+            z-index: 10;
+            pointer-events: none;
+        }
+        @keyframes supernova {
+            0% { opacity: 1; transform: scale(0.1); }
+            100% { opacity: 0; transform: scale(2); }
+        }
+        .step {
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        .hidden {
+            opacity: 0;
+            transform: translateY(20px);
+            display: none;
+        }
+        .gantt-container {
+            height: 300px;
+            margin: 10px 0;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        textarea, input {
+            background: #1a1a1a;
+            color: #ffffff;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 8px;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+        }
+        .alert-over {
+            color: red;
+            font-weight: bold;
+        }
+        progress {
+            width: 100%;
+            height: 20px;
+            border-radius: 10px;
+        }
+        progress::-webkit-progress-bar {
+            background-color: #333;
+            border-radius: 10px;
+        }
+        progress::-webkit-progress-value {
+            background: linear-gradient(to right, #60a5fa, #a855f7);
+            border-radius: 10px;
+        }
+        .over::-webkit-progress-value {
+            background: red;
+        }
+    </style>
 </head>
-<body class="p-6">
-  <h1 class="text-4xl font-bold text-center mb-10">AutonomiX - Gestion des Projets</h1>
-
-  <div class="flex justify-end mb-4">
-  <button onclick="startProjectCreation()" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded">+ Nouveau projet</button>
-</div>
-
-$1
-  <div class="flex flex-wrap gap-4 mb-6">
-    <select id="filterStatus" class="text-black p-2 rounded">
-      <option value="">Tous les statuts</option>
-      <option>En cours</option>
-      <option>Approuvé</option>
-      <option>Terminé</option>
-      <option>Bloqué</option>
-    </select>
-    <input type="number" id="minBudget" placeholder="Budget min €" class="text-black p-2 rounded" />
-    <input type="number" id="maxBudget" placeholder="Budget max €" class="text-black p-2 rounded" />
-    <button onclick="loadProjects()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">Appliquer les filtres</button>
-  </div>
-
-  <!-- Liste des projets -->
-  <table class="w-full text-left mb-10">
-    <thead class="bg-gray-700">
-      <tr>
-        <th class="p-3">Nom</th>
-        <th class="p-3">Statut</th>
-        <th class="p-3">Budget</th>
-        <th class="p-3">Actions</th>
-      </tr>
-    </thead>
-    <tbody id="projectTable"></tbody>
-  </table>
-
-  <!-- Vue Gantt -->
-  <div class="mb-10">
-    <h2 class="text-2xl font-semibold mb-2">Timeline globale</h2>
-    <select id="ganttFilter" class="text-black p-2 rounded mb-2" onchange="loadProjects()">
-      <option value="3">3 mois</option>
-      <option value="6">6 mois</option>
-      <option value="12" selected>12 mois</option>
-    </select>
-    <div id="globalGantt" class="bg-white rounded text-black"></div>
-  </div>
-
-  <!-- Modale Détail Projet -->
-  <div id="modal" class="modal hidden">
-    <div class="modal-content">
-      <h2 class="text-xl font-semibold mb-4">Détails du projet</h2>
-      <div id="modalContent"></div>
-      <button onclick="closeModal()" class="mt-4 bg-red-600 px-4 py-2 rounded">Fermer</button>
+<body class="min-h-screen">
+    <div class="starfield">
+        <script>
+            // Étoiles dynamiques
+            for (let i = 0; i < 150; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.width = `${Math.random() * 3}px`;
+                star.style.height = star.style.width;
+                star.style.left = `${Math.random() * 100}%`;
+                star.style.top = `${Math.random() * 100}%`;
+                star.style.animationDelay = `${Math.random() * 3}s`;
+                document.querySelector('.starfield').appendChild(star);
+            }
+        </script>
     </div>
-  </div>
+    <div class="container mx-auto p-6">
+        <h1 class="text-5xl font-extrabold mb-8 text-center">AutonomiX Projects - Gestion Cosmique des Projets</h1>
 
-  <script>
-    let allProjects = [];
+        <!-- Stats Galactiques -->
+        <div class="card p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">Stats Galactiques en Temps Réel</h2>
+            <div id="globalStats" class="grid grid-cols-1 md:grid-cols-4 gap-4"></div>
+        </div>
 
-    async function loadProjects() {
-      const res = await fetch('/api/projects');
-      const projects = await res.json();
-      allProjects = projects;
+        <!-- Analyses Stellaires AI -->
+        <div class="card p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">Analyses Stellaires AI</h2>
+            <button onclick="analyzeSelectedProject()" class="btn-analyze p-3 rounded-lg font-semibold w-full">Lancer Analyse AI sur Projet Sélectionné</button>
+            <div id="aiAnalysis" class="mt-4"></div>
+        </div>
 
-      const statusFilter = document.getElementById('filterStatus').value;
-      const min = parseFloat(document.getElementById('minBudget').value) || 0;
-      const max = parseFloat(document.getElementById('maxBudget').value) || Infinity;
+        <!-- Wizard Step-by-Step pour Nouveau Projet -->
+        <div class="card p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">Créer un Projet - Portails Cosmiques (Step-by-Step)</h2>
+            <form id="createForm" class="space-y-4">
+                <!-- Étape 1: Business Case -->
+                <div id="step1" class="step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 1: Création du Business Case</h3>
+                    <textarea id="business_case" placeholder="Rédigez le Business Case ici..." class="w-full h-32"></textarea>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="business_case_approved" onchange="unlockStep(2); supernovaEffect();"> Business Case Approved
+                    </label>
+                    <button type="button" onclick="saveStep(1)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 1</button>
+                </div>
 
-      const filtered = projects.filter(p => {
-        const matchStatus = !statusFilter || p.status === statusFilter;
-        const matchBudget = (p.budget_total >= min && p.budget_total <= max);
-        return matchStatus && matchBudget;
-      });
+                <!-- Étape 2: PIP & WBS -->
+                <div id="step2" class="hidden step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 2: Création du PIP & WBS</h3>
+                    <textarea id="pip" placeholder="Rédigez le PIP ici..." class="w-full h-32"></textarea>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="pip_approved" onchange="unlockStep(3); supernovaEffect();"> PIP Approved
+                    </label>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="wbs_created" onchange="unlockStep(4); supernovaEffect();"> WBS Created
+                    </label>
+                    <button type="button" onclick="saveStep(2)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 2</button>
+                </div>
 
-      const tbody = document.getElementById('projectTable');
-      tbody.innerHTML = '';
-      filtered.forEach(p => {
-        const row = document.createElement('tr');
-        row.className = 'hover:bg-gray-800';
-        row.innerHTML = `
-          <td class="p-3">${p.name}</td>
-          <td class="p-3">${p.status}</td>
-          <td class="p-3">\${p.budget_spent || 0} / \${p.budget_total || 0} €</td>
-          <td class="p-3 space-x-2">
-            <button class="bg-indigo-600 px-2 py-1 rounded" onclick="viewProject(${p.id})">Voir</button>
-            <button class="bg-yellow-500 px-2 py-1 rounded" onclick="duplicateProject(${p.id})">Dupliquer</button>
-            <button class="bg-red-600 px-2 py-1 rounded" onclick="deleteProject(${p.id})">Supprimer</button>
-          </td>
-        `;
-        tbody.appendChild(row);
-      });
+                <!-- Étape 3: WBS Number & PO Requests -->
+                <div id="step3" class="hidden step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 3: Numéro WBS & Demandes PO</h3>
+                    <input type="text" id="wbs_number" placeholder="Insérez le Numéro WBS" class="w-full">
+                    <textarea id="po_requests" placeholder="URLs des demandes PO (séparées par ;)" class="w-full h-24"></textarea>
+                    <button type="button" onclick="saveStep(3)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 3</button>
+                </div>
 
-      // Gantt
-      const ganttScope = parseInt(document.getElementById('ganttFilter').value);
-      const today = new Date();
-      const end = new Date();
-      end.setMonth(today.getMonth() + ganttScope);
-      const ganttTasks = filtered.flatMap(p => (p.gantt_data?.tasks || []).map(t => ({
-        ...t,
-        name: `${p.name} - ${t.name}`,
-        start: t.start,
-        end: t.end
-      }))).filter(t => new Date(t.start) < end);
+                <!-- Étape 4: Devis & Budget -->
+                <div id="step4" class="hidden step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 4: Devis & Budget</h3>
+                    <textarea id="quotes" placeholder="Devis (format pour chaque devis: ID;Fournisseur;Montant;Status, séparés par | pour multiple, ex: ID1;Fourn1;100;Approuvé|ID2;Fourn2;200;En attente)" class="w-full h-24"></textarea>
+                    <input type="number" id="budget_total" placeholder="Budget Total" class="w-full" step="0.01">
+                    <button type="button" onclick="saveStep(4)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 4</button>
+                </div>
 
-      document.getElementById('globalGantt').innerHTML = '';
-      new Gantt('#globalGantt', ganttTasks, { view_mode: 'Month', language: 'fr' });
-    }
+                <!-- Étape 5: Pièces Jointes & Gantt -->
+                <div id="step5" class="hidden step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 5: Pièces Jointes & Gantt</h3>
+                    <input type="file" id="attachment" onchange="uploadAttachment(newProjectId)" class="w-full mb-4">
+                    <div class="gantt-container" id="ganttNew"></div>
+                    <button type="button" onclick="saveGantt(newProjectId)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Gantt</button>
+                </div>
 
-    async function duplicateProject(id) {
-      const project = allProjects.find(p => p.id === id);
-      if (!project) return;
-      const copy = { ...project, name: `${project.name} (copie)` };
-      delete copy.id;
-      const res = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(copy)
-      });
-      await res.json();
-      loadProjects();
-    }
+                <button type="submit" id="createButton" class="btn-primary p-3 rounded-lg font-semibold w-full" disabled>Finaliser & Créer Projet</button>
+            </form>
+        </div>
 
-    async function deleteProject(id) {
-      if (confirm('Supprimer ce projet ?')) {
-        await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+        <!-- Trajectoire Cosmique -->
+        <div class="card p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">Trajectoire Cosmique vers Succès</h2>
+            <div class="progress-bar mb-2">
+                <div id="progressBarFill" class="progress-bar-fill" style="width: 0%"></div>
+            </div>
+            <p id="progressText" class="text-sm text-gray-300">0% complété</p>
+            <p id="forecastText" class="text-sm text-gray-300">Estimation : -</p>
+        </div>
+
+        <!-- Projets Récapitulatifs -->
+        <div class="card p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">Projets Stellaires Récap</h2>
+            <div class="overflow-x-auto">
+                <table id="projectsTable" class="min-w-full border-collapse">
+                    <thead>
+                        <tr class="bg-gray-900">
+                            <th class="border border-gray-700 p-3">Nom</th>
+                            <th class="border border-gray-700 p-3">Status</th>
+                            <th class="border border-gray-700 p-3">Étapes Checks</th>
+                            <th class="border border-gray-700 p-3">Gantt</th>
+                            <th class="border border-gray-700 p-3">Budget Progress</th>
+                            <th class="border border-gray-700 p-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="projectsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Analyses Galactiques -->
+        <div class="card p-6">
+            <h2 class="text-2xl font-bold mb-4">Analyses Galactiques</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-xl font-semibold mb-2">Distribution des Status</h3>
+                    <canvas id="statusPie" height="200"></canvas>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-2">Budget Global vs Dépensé</h3>
+                    <canvas id="budgetBar" height="200"></canvas>
+                </div>
+                <div class="col-span-2">
+                    <h3 class="text-xl font-semibold mb-2">Gantt Global des Projets</h3>
+                    <div id="globalGantt" class="gantt-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let newProjectId = null;
+        const defaultGanttTasks = [
+            { id: 'Task1', name: 'Business Case', start: '2025-07-10', end: '2025-08-10', progress: 0, dependencies: '', custom_class: 'bar-blue' },
+            { id: 'Task2', name: 'PIP & WBS', start: '2025-08-10', end: '2025-09-10', progress: 0, dependencies: 'Task1', custom_class: 'bar-green' },
+            { id: 'Task3', name: 'PO & Devis', start: '2025-09-10', end: '2025-10-10', progress: 0, dependencies: 'Task2', custom_class: 'bar-purple' },
+            { id: 'Task4', name: 'Exécution', start: '2025-10-10', end: '2025-12-10', progress: 0, dependencies: 'Task3', custom_class: 'bar-orange' }
+        ];
+
+        // Unlock step with animation
+        function unlockStep(step) {
+            const element = document.getElementById(`step${step}`);
+            element.classList.remove('hidden');
+            element.style.opacity = 0;
+            setTimeout(() => {
+                element.style.opacity = 1;
+                element.style.transform = 'translateY(0)';
+            }, 100);
+            supernovaEffect();
+        }
+
+        // Save step
+        function saveStep(step) {
+            const data = getFormData(step);
+            if (newProjectId) {
+                updateProject(newProjectId, data);
+            } else {
+                createProject(data);
+            }
+        }
+
+        // Get form data
+        function getFormData(step) {
+            let data = {};
+            if (step === 1) {
+                data.business_case = document.getElementById('business_case').value;
+                data.business_case_approved = document.getElementById('business_case_approved').checked;
+            } else if (step === 2) {
+                data.pip = document.getElementById('pip').value;
+                data.pip_approved = document.getElementById('pip_approved').checked;
+                data.wbs_created = document.getElementById('wbs_created').checked;
+            } else if (step === 3) {
+                data.wbs_number = document.getElementById('wbs_number').value;
+                data.po_requests = document.getElementById('po_requests').value.split(';').filter(url => url.trim()).map(url => ({ url: url.trim(), status: 'En attente' }));
+            } else if (step === 4) {
+                const quotesInput = document.getElementById('quotes').value;
+                data.quotes = quotesInput.split('|').filter(q => q.trim()).map(q => {
+                    const [id, fournisseur, montant, status] = q.split(';').map(s => s?.trim() || '');
+                    return { id, fournisseur, montant: parseFloat(montant) || 0, status: status || 'En attente' };
+                });
+                data.budget_total = parseFloat(document.getElementById('budget_total').value) || 0;
+            }
+            return data;
+        }
+
+        // Create project
+        function createProject(data) {
+            data.name = prompt('Nom du projet ?') || 'Projet Sans Nom';
+            fetch('/api/projects', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(res => {
+                if (!res.ok) throw new Error('Erreur création projet');
+                return res.json();
+            }).then(project => {
+                newProjectId = project.id;
+                document.getElementById('createButton').disabled = false;
+                loadProjects();
+            }).catch(error => {
+                console.error('Erreur création:', error);
+                alert('Erreur lors de la création du projet: ' + error.message);
+            });
+        }
+
+        // Update project
+        function updateProject(id, data) {
+            fetch(`/api/projects/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(res => {
+                if (!res.ok) throw new Error('Erreur mise à jour projet');
+                loadProjects();
+            }).catch(error => {
+                console.error('Erreur update:', error);
+                alert('Erreur lors de la mise à jour: ' + error.message);
+            });
+        }
+
+        // Upload attachment
+        function uploadAttachment(id) {
+            const file = document.getElementById('attachment').files[0];
+            if (!file || !id) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            fetch(`/api/projects/${id}/attachment`, { method: 'POST', body: formData })
+                .then(res => {
+                    if (!res.ok) throw new Error('Erreur upload');
+                    loadProjects();
+                }).catch(error => console.error('Erreur upload:', error));
+        }
+
+        // Analyze project
+        function analyzeSelectedProject() {
+            const selectedId = prompt('Entrez l\'ID du projet à analyser :');
+            if (!selectedId) return;
+            fetch('/api/projects')
+                .then(res => res.json())
+                .then(projects => {
+                    const project = projects.find(p => p.id == selectedId);
+                    if (!project) {
+                        alert('Projet non trouvé !');
+                        return;
+                    }
+                    fetch('/api/project-analyze', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ projectData: project })
+                    }).then(res => res.json()).then(analysis => {
+                        document.getElementById('aiAnalysis').innerHTML = `
+                            <h3 class="text-xl font-semibold mb-2">Analyse AI pour ${project.name}</h3>
+                            <p><strong>Avis :</strong> ${analysis.avis || 'N/A'}</p>
+                            <p><strong>Risques :</strong> ${analysis.risques ? analysis.risques.join(', ') : 'Aucun'}</p>
+                            <p><strong>Score :</strong> ${analysis.score || 0}/100</p>
+                            <p><strong>Suggestions :</strong> ${analysis.suggestions ? analysis.suggestions.join(', ') : 'Aucune'}</p>
+                        `;
+                        supernovaEffect();
+                    }).catch(error => {
+                        console.error('Erreur analyse AI:', error);
+                        alert('Erreur analyse AI: ' + error.message);
+                    });
+                }).catch(error => console.error('Erreur fetch projects:', error));
+        }
+
+        // Load projects table
+        function loadProjects() {
+            fetch('/api/projects')
+                .then(res => res.json())
+                .then(projects => {
+                    const tableBody = document.getElementById('projectsTableBody');
+                    tableBody.innerHTML = '';
+                    projects.forEach(p => {
+                        const row = document.createElement('tr');
+                        row.className = 'hover:bg-gray-800';
+                        row.innerHTML = `
+                            <td class="border border-gray-700 p-3">${p.name}</td>
+                            <td class="border border-gray-700 p-3">${p.status}</td>
+                            <td class="border border-gray-700 p-3">
+                                BC App: <input type="checkbox" ${p.business_case_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {business_case_approved: this.checked}); supernovaEffect();"><br>
+                                PIP App: <input type="checkbox" ${p.pip_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {pip_approved: this.checked}); supernovaEffect();"><br>
+                                WBS: <input type="checkbox" ${p.wbs_created ? 'checked' : ''} onchange="updateProject(${p.id}, {wbs_created: this.checked}); supernovaEffect();">
+                            </td>
+                            <td class="border border-gray-700 p-3"><div class="gantt-container" id="gantt${p.id}"></div></td>
+                            <td class="border border-gray-700 p-3">
+                                <progress value="${parseFloat(p.budget_spent) || 0}" max="${parseFloat(p.budget_total) || 1}" class="${parseFloat(p.budget_spent) > parseFloat(p.budget_total) ? 'over' : ''}"></progress>
+                                <span class="${parseFloat(p.budget_spent) > parseFloat(p.budget_total) ? 'alert-over' : ''}">${parseFloat(p.budget_spent) || 0}/${parseFloat(p.budget_total) || 0}</span>
+                            </td>
+                            <td class="border border-gray-700 p-3"><button onclick="deleteProject(${p.id})" class="btn-danger p-2 rounded">Supprimer</button></td>
+                        `;
+                        tableBody.appendChild(row);
+
+                        // Init Gantt
+                        let tasks = p.gantt_data?.tasks || defaultGanttTasks;
+                        tasks = tasks.map(t => ({
+                            ...t,
+                            start: t.start || '2025-07-10',
+                            end: t.end || '2025-07-11'  // Minimum 1 day to avoid error
+                        }));
+                        if (tasks.length === 0) {
+                            document.getElementById(`gantt${p.id}`).innerHTML = '<p class="text-gray-300 text-center">Aucune tâche définie</p>';
+                        } else {
+                            new Gantt(`#gantt${p.id}`, tasks, {
+                                header_height: 50,
+                                column_width: 30,
+                                step: 24,
+                                view_modes: ['Day', 'Week', 'Month'],
+                                bar_height: 20,
+                                bar_corner_radius: 3,
+                                arrow_curve: 5,
+                                padding: 18,
+                                view_mode: 'Month',
+                                date_format: 'YYYY-MM-DD',
+                                language: 'fr',
+                                custom_popup_html: task => `<div class="p-2 bg-gray-800 rounded">${task.name}<br>Progress: ${task.progress}%</div>`,
+                                on_date_change: (task, start, end) => {
+                                    const updatedTasks = tasks.map(t => t.id === task.id ? { ...t, start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] } : t);
+                                    updateProject(p.id, { gantt_data: { tasks: updatedTasks } });
+                                },
+                                on_progress_change: (task, progress) => {
+                                    const updatedTasks = tasks.map(t => t.id === task.id ? { ...t, progress } : t);
+                                    updateProject(p.id, { gantt_data: { tasks: updatedTasks } });
+                                }
+                            });
+                        }
+                    });
+                    loadStats(projects);
+                }).catch(error => console.error('Erreur load projects:', error));
+        }
+
+        // Delete project
+        function deleteProject(id) {
+            if (confirm('Supprimer ce projet ?')) {
+                fetch(`/api/projects/${id}`, { method: 'DELETE' }).then(loadProjects).catch(error => console.error('Erreur delete:', error));
+            }
+        }
+
+        // Load stats & graphs
+        function loadStats(projects) {
+            fetch('/api/project-stats')
+                .then(res => res.json())
+                .then(stats => {
+                    document.getElementById('globalStats').innerHTML = `
+                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm text-gray-300">Projets Totaux</p><p class="text-2xl font-bold">${stats.totalProjects}</p></div>
+                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm text-gray-300">Business Cases Approuvés</p><p class="text-2xl font-bold">${stats.approvedBusinessCases}</p></div>
+                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm text-gray-300">Budget Global</p><p class="text-2xl font-bold">$${stats.totalBudget.toFixed(2)}</p></div>
+                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm text-gray-300">Budget Dépensé</p><p class="text-2xl font-bold">$${stats.spentBudget.toFixed(2)}</p></div>
+                    `;
+
+                    const avgProgress = projects.length ? projects.reduce((sum, p) => {
+                        let progress = 0;
+                        if (p.business_case_approved) progress += 20;
+                        if (p.pip_approved) progress += 20;
+                        if (p.wbs_created) progress += 20;
+                        if (p.po_requests?.length > 0) progress += 20;
+                        if (p.quotes?.length > 0) progress += 20;
+                        return sum + progress;
+                    }, 0) / projects.length : 0;
+                    document.getElementById('progressBarFill').style.width = `${avgProgress}%`;
+                    document.getElementById('progressText').textContent = `${avgProgress.toFixed(2)}% complété`;
+
+                    if (projects.length) {
+                        const estimatedMonths = Math.ceil((100 - avgProgress) / 10); // Estimation exemple
+                        const estimatedDate = new Date();
+                        estimatedDate.setMonth(estimatedDate.getMonth() + estimatedMonths);
+                        document.getElementById('forecastText').textContent = `Estimation : ${estimatedDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}`;
+                    } else {
+                        document.getElementById('forecastText').textContent = 'Estimation : -';
+                    }
+
+                    // Pie Chart
+                    new Chart(document.getElementById('statusPie'), {
+                        type: 'pie',
+                        data: {
+                            labels: Object.keys(stats.statusDistribution),
+                            datasets: [{ data: Object.values(stats.statusDistribution), backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'] }]
+                        },
+                        options: { animation: { duration: 2000, easing: 'easeInOutBounce' } }
+                    });
+
+                    // Bar Chart
+                    new Chart(document.getElementById('budgetBar'), {
+                        type: 'bar',
+                        data: {
+                            labels: ['Total', 'Dépensé'],
+                            datasets: [{ data: [stats.totalBudget, stats.spentBudget], backgroundColor: stats.spentBudget > stats.totalBudget ? '#f87171' : '#60a5fa' }]
+                        },
+                        options: { animation: { duration: 1500, easing: 'easeOutElastic' } }
+                    });
+
+                    // Global Gantt
+                    let globalTasks = projects.flatMap(p => (p.gantt_data?.tasks || defaultGanttTasks).map(t => ({ ...t, name: `${p.name} - ${t.name}` })));
+                    globalTasks = globalTasks.map(t => ({
+                        ...t,
+                        start: t.start || '2025-07-10',
+                        end: t.end || '2025-07-11'
+                    }));
+                    if (globalTasks.length === 0) {
+                        document.getElementById('globalGantt').innerHTML = '<p class="text-gray-300 text-center">Aucun projet avec tâches</p>';
+                    } else {
+                        new Gantt('#globalGantt', globalTasks, {
+                            view_mode: 'Month',
+                            language: 'fr'
+                        });
+                    }
+                }).catch(error => console.error('Erreur stats:', error));
+        }
+
+        // Supernova effect
+        function supernovaEffect() {
+            const supernova = document.createElement('div');
+            supernova.className = 'supernova';
+            document.body.appendChild(supernova);
+            setTimeout(() => supernova.remove(), 2000);
+            launchConfetti();
+        }
+
+        function launchConfetti() {
+            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        }
+
+        // Form submit for final create
+        document.getElementById('createForm').addEventListener('submit', e => {
+            e.preventDefault();
+            if (newProjectId) {
+                updateProject(newProjectId, { status: 'En cours' });
+                newProjectId = null;
+                document.getElementById('createButton').disabled = true;
+                loadProjects();
+            }
+        });
+
+        // Save Gantt for new project
+        function saveGantt(id) {
+            // Frappe saves on change
+            alert('Gantt sauvegardé !');
+        }
+
+        // Init Gantt for new
+        new Gantt('#ganttNew', defaultGanttTasks, {
+            view_mode: 'Month',
+            language: 'fr',
+            on_date_change: (task, start, end) => {
+                if (newProjectId) {
+                    const updatedTasks = defaultGanttTasks.map(t => t.id === task.id ? { ...t, start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] } : t);
+                    updateProject(newProjectId, { gantt_data: { tasks: updatedTasks } });
+                }
+            },
+            on_progress_change: (task, progress) => {
+                if (newProjectId) {
+                    const updatedTasks = defaultGanttTasks.map(t => t.id === task.id ? { ...t, progress } : t);
+                    updateProject(newProjectId, { gantt_data: { tasks: updatedTasks } });
+                }
+            }
+        });
+
+        // Load initial
         loadProjects();
-      }
-    }
-
-    async function viewProject(id) {
-      const project = allProjects.find(p => p.id === id);
-      if (!project) return;
-      document.getElementById('modalContent').innerHTML = `
-        <p><strong>Nom:</strong> ${project.name}</p>
-        <p><strong>Status:</strong> ${project.status}</p>
-        <p><strong>Description:</strong> ${project.description || 'Aucune'}</p>
-        <p><strong>WBS:</strong> ${project.wbs_number || '-'}</p>
-        <p><strong>Budget:</strong> ${project.budget_spent || 0} / ${project.budget_total || 0} €</p>
-        <p><strong>PO:</strong> ${project.po_requests?.map(p => p.url).join(', ') || '-'}</p>
-        <p><strong>Devis:</strong> ${project.quotes?.map(q => q.id + ' (' + q.montant + '€)').join(', ') || '-'}</p>
-        <p><strong>Pièces jointes:</strong> ${project.attachments?.map(a => a.filename).join(', ') || '-'}</p>
-      `;
-      document.getElementById('modal').classList.remove('hidden');
-    }
-
-    function closeModal() {
-      document.getElementById('modal').classList.add('hidden');
-    }
-
-    loadProjects();
-  </script>
-<script>
-function startProjectCreation() {
-  const name = prompt('Nom du projet :');
-  if (!name) return;
-  const newProject = {
-    name,
-    status: 'En cours',
-    business_case_approved: false,
-    pip_approved: false,
-    wbs_created: false,
-    budget_total: 0,
-    budget_spent: 0,
-    po_requests: [],
-    quotes: [],
-    attachments: [],
-    gantt_data: { tasks: [] }
-  };
-  fetch('/api/projects', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(newProject)
-  }).then(res => res.json())
-    .then(() => loadProjects())
-    .catch(err => alert('Erreur création : ' + err.message));
-}
-</script>
-
-$1
+    </script>
+</body>
 </html>
