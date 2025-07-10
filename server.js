@@ -5,6 +5,8 @@ const cors = require('cors');
 const fs = require('fs');
 const PDFDocument = require('pdfkit');
 const puppeteer = require('puppeteer');
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage() });
 require('dotenv').config();
 
 const app = express();
