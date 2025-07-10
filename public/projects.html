@@ -350,6 +350,7 @@
         // Save step
         function saveStep(step) {
             const data = getFormData(step);
+            data.description = data.description || ''; // Ensure description is defined
             if (newProjectId) {
                 updateProject(newProjectId, data);
             } else {
@@ -362,6 +363,7 @@
         function getFormData(step) {
             let data = {};
             data.name = document.getElementById('project_name').value || 'Projet Sans Nom';
+            data.description = ''; // Default empty string
             let progress = 0;
             if (step === 1) {
                 data.business_case_approved = document.getElementById('business_case_approved').checked;
@@ -409,235 +411,259 @@
         }
 
         // Create project
-        function createProject(data) {
-            fetch('/api/projects', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            }).then(res => {
-                if (!res.ok) throw new Error('Erreur création projet');
-                return res.json();
-            }).then(project => {
+        async function createProject(data) {
+            try {
+                const response = await fetch('/api/projects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'Erreur création projet');
+                }
+                const project = await response.json();
                 newProjectId = project.id;
                 document.getElementById('createButton').disabled = false;
                 localStorage.removeItem('tempGanttTasks');
                 loadProjects();
-            }).catch(error => {
+            } catch (error) {
                 console.error('Erreur création:', error);
                 alert('Erreur lors de la création du projet: ' + error.message);
-            });
+            }
         }
 
         // Update project
-        function updateProject(id, data) {
-            fetch(`/api/projects/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            }).then(res => {
-                if (!res.ok) throw new Error('Erreur mise à jour projet');
+        async function updateProject(id, data) {
+            try {
+                const response = await fetch(`/api/projects/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'Erreur mise à jour projet');
+                }
                 loadProjects();
-            }).catch(error => {
+            } catch (error) {
                 console.error('Erreur update:', error);
                 alert('Erreur lors de la mise à jour: ' + error.message);
-            });
+            }
         }
 
         // Upload attachment
-        function uploadAttachment(id) {
+        async function uploadAttachment(id) {
             const file = document.getElementById('attachment').files[0];
             if (!file || !id) return;
             const formData = new FormData();
             formData.append('file', file);
-            fetch(`/api/projects/${id}/attachment`, { method: 'POST', body: formData })
-                .then(res => {
-                    if (!res.ok) throw new Error('Erreur upload');
-                    loadProjects();
-                }).catch(error => console.error('Erreur upload:', error));
-        }
-
-        // Analyze project
-        function analyzeSelectedProject() {
-            const selectedId = prompt('Entrez l\'ID du projet à analyser :');
-            if (!selectedId) return;
-            fetch('/api/projects')
-                .then(res => res.json())
-                .then(projects => {
-                    const project = projects.find(p => p.id == selectedId);
-                    if (!project) {
-                        alert('Projet non trouvé !');
-                        return;
-                    }
-                    fetch('/api/project-analyze', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ projectData: project })
-                    }).then(res => res.json()).then(analysis => {
-                        document.getElementById('aiAnalysis').innerHTML = `
-                            <h3 class="text-xl font-semibold mb-2">Analyse pour ${project.name}</h3>
-                            <p><strong>Avis :</strong> ${analysis.avis || 'N/A'}</p>
-                            <p><strong>Risques :</strong> ${analysis.risques ? analysis.risques.join(', ') : 'Aucun'}</p>
-                            <p><strong>Score :</strong> ${analysis.score || 0}/100</p>
-                            <p><strong>Suggestions :</strong> ${analysis.suggestions ? analysis.suggestions.join(', ') : 'Aucune'}</p>
-                        `;
-                    }).catch(error => {
-                        console.error('Erreur analyse AI:', error);
-                        alert('Erreur analyse AI: ' + error.message);
-                    });
-                }).catch(error => console.error('Erreur fetch projects:', error));
-        }
-
-        // Load projects table
-        function loadProjects() {
-            fetch('/api/projects')
-                .then(res => res.json())
-                .then(projects => {
-                    const tableBody = document.getElementById('projectsTableBody');
-                    tableBody.innerHTML = '';
-                    projects.forEach(p => {
-                        const row = document.createElement('tr');
-                        row.className = 'hover:bg-gray-700';
-                        row.innerHTML = `
-                            <td class="p-3">${p.name}</td>
-                            <td class="p-3">${p.status}</td>
-                            <td class="p-3">
-                                BC: <input type="checkbox" ${p.business_case_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {business_case_approved: this.checked});"><br>
-                                PIP: <input type="checkbox" ${p.pip_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {pip_approved: this.checked});"><br>
-                                WBS: <input type="checkbox" ${p.wbs_created ? 'checked' : ''} onchange="updateProject(${p.id}, {wbs_created: this.checked});"><br>
-                                Commandes: <input type="checkbox" ${p.po_launched ? 'checked' : ''} onchange="updateProject(${p.id}, {po_launched: this.checked});"><br>
-                                Phase Projet: <input type="checkbox" ${p.project_phase_completed ? 'checked' : ''} onchange="updateProject(${p.id}, {project_phase_completed: this.checked});"><br>
-                                Réception: <input type="checkbox" ${p.reception_completed ? 'checked' : ''} onchange="updateProject(${p.id}, {reception_completed: this.checked});"><br>
-                                Clôture: <input type="checkbox" ${p.closure_completed ? 'checked' : ''} onchange="updateProject(${p.id}, {closure_completed: this.checked});">
-                            </td>
-                            <td class="p-3"><div class="gantt-container" id="gantt${p.id}"></div></td>
-                            <td class="p-3">
-                                <progress value="${parseFloat(p.budget_spent) || 0}" max="${parseFloat(p.budget_total) || 1}" class="${parseFloat(p.budget_spent) > parseFloat(p.budget_total) ? 'over' : ''}"></progress>
-                                <span class="${parseFloat(p.budget_spent) > parseFloat(p.budget_total) ? 'alert-over' : ''}">${parseFloat(p.budget_spent) || 0}/${parseFloat(p.budget_total) || 0}</span>
-                            </td>
-                            <td class="p-3"><button onclick="deleteProject(${p.id})" class="bg-red-500 text-white p-2 rounded">Supprimer</button></td>
-                        `;
-                        tableBody.appendChild(row);
-
-                        let tasks = p.gantt_data?.tasks || defaultGanttTasks;
-                        tasks = tasks.map(t => ({
-                            ...t,
-                            start: t.start || '2025-07-10',
-                            end: t.end && new Date(t.end) > new Date(t.start) ? t.end : new Date(new Date(t.start).getTime() + 86400000).toISOString().split('T')[0]
-                        }));
-                        if (tasks.length === 0) {
-                            document.getElementById(`gantt${p.id}`).innerHTML = '<p class="text-gray-400 text-center">Aucune tâche</p>';
-                        } else {
-                            new Gantt(`#gantt${p.id}`, tasks, {
-                                header_height: 50,
-                                column_width: 30,
-                                step: 24,
-                                view_modes: ['Day', 'Week', 'Month'],
-                                bar_height: 20,
-                                bar_corner_radius: 3,
-                                arrow_curve: 5,
-                                padding: 18,
-                                view_mode: 'Month',
-                                date_format: 'YYYY-MM-DD',
-                                language: 'fr',
-                                custom_popup_html: task => `<div class="p-2 bg-gray-800 rounded text-white">${task.name}<br>Progress: ${task.progress}%</div>`,
-                                on_date_change: (task, start, end) => {
-                                    if (new Date(end) <= new Date(start)) end = new Date(new Date(start).getTime() + 86400000).toISOString().split('T')[0];
-                                    const updatedTasks = tasks.map(t => t.id === task.id ? { ...t, start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] } : t);
-                                    updateProject(p.id, { gantt_data: { tasks: updatedTasks } });
-                                },
-                                on_progress_change: (task, progress) => {
-                                    const updatedTasks = tasks.map(t => t.id === task.id ? { ...t, progress } : t);
-                                    updateProject(p.id, { gantt_data: { tasks: updatedTasks } });
-                                }
-                            });
-                        }
-                    });
-                    loadStats(projects);
-                }).catch(error => console.error('Erreur load projects:', error));
-        }
-
-        // Delete project
-        function deleteProject(id) {
-            if (confirm('Confirmer la suppression ?')) {
-                fetch(`/api/projects/${id}`, { method: 'DELETE' }).then(loadProjects).catch(error => console.error('Erreur delete:', error));
+            try {
+                const response = await fetch(`/api/projects/${id}/attachment`, { method: 'POST', body: formData });
+                if (!response.ok) throw new Error('Erreur upload');
+                loadProjects();
+            } catch (error) {
+                console.error('Erreur upload:', error);
+                alert('Erreur lors de l\'upload: ' + error.message);
             }
         }
 
-        // Load stats & graphs
-        function loadStats(projects) {
-            fetch('/api/project-stats')
-                .then(res => res.json())
-                .then(stats => {
-                    document.getElementById('globalStats').innerHTML = `
-                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Projets Totaux</p><p class="text-2xl font-bold">${stats.totalProjects}</p></div>
-                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Business Cases Approuvés</p><p class="text-2xl font-bold">${stats.approvedBusinessCases}</p></div>
-                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Budget Global</p><p class="text-2xl font-bold">$${stats.totalBudget.toFixed(2)}</p></div>
-                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Budget Dépensé</p><p class="text-2xl font-bold">$${stats.spentBudget.toFixed(2)}</p></div>
+        // Analyze project
+        async function analyzeSelectedProject() {
+            const selectedId = prompt('Entrez l\'ID du projet à analyser :');
+            if (!selectedId) return;
+            try {
+                const response = await fetch('/api/projects');
+                const projects = await response.json();
+                const project = projects.find(p => p.id == selectedId);
+                if (!project) {
+                    alert('Projet non trouvé !');
+                    return;
+                }
+                const aiResponse = await fetch('/api/project-analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectData: project })
+                });
+                const analysis = await aiResponse.json();
+                document.getElementById('aiAnalysis').innerHTML = `
+                    <h3 class="text-xl font-semibold mb-2">Analyse pour ${project.name}</h3>
+                    <p><strong>Avis :</strong> ${analysis.avis || 'N/A'}</p>
+                    <p><strong>Risques :</strong> ${analysis.risques ? analysis.risques.join(', ') : 'Aucun'}</p>
+                    <p><strong>Score :</strong> ${analysis.score || 0}/100</p>
+                    <p><strong>Suggestions :</strong> ${analysis.suggestions ? analysis.suggestions.join(', ') : 'Aucune'}</p>
+                `;
+            } catch (error) {
+                console.error('Erreur analyse AI:', error);
+                alert('Erreur analyse AI: ' + error.message);
+            }
+        }
+
+        // Load projects table
+        async function loadProjects() {
+            try {
+                const response = await fetch('/api/projects');
+                const projects = await response.json();
+                const tableBody = document.getElementById('projectsTableBody');
+                tableBody.innerHTML = '';
+                projects.forEach(p => {
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-gray-700';
+                    row.innerHTML = `
+                        <td class="p-3">${p.name}</td>
+                        <td class="p-3">${p.status}</td>
+                        <td class="p-3">
+                            BC: <input type="checkbox" ${p.business_case_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {business_case_approved: this.checked});"><br>
+                            PIP: <input type="checkbox" ${p.pip_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {pip_approved: this.checked});"><br>
+                            WBS: <input type="checkbox" ${p.wbs_created ? 'checked' : ''} onchange="updateProject(${p.id}, {wbs_created: this.checked});"><br>
+                            Commandes: <input type="checkbox" ${p.po_launched ? 'checked' : ''} onchange="updateProject(${p.id}, {po_launched: this.checked});"><br>
+                            Phase Projet: <input type="checkbox" ${p.project_phase_completed ? 'checked' : ''} onchange="updateProject(${p.id}, {project_phase_completed: this.checked});"><br>
+                            Réception: <input type="checkbox" ${p.reception_completed ? 'checked' : ''} onchange="updateProject(${p.id}, {reception_completed: this.checked});"><br>
+                            Clôture: <input type="checkbox" ${p.closure_completed ? 'checked' : ''} onchange="updateProject(${p.id}, {closure_completed: this.checked});">
+                        </td>
+                        <td class="p-3"><div class="gantt-container" id="gantt${p.id}"></div></td>
+                        <td class="p-3">
+                            <progress value="${parseFloat(p.budget_spent) || 0}" max="${parseFloat(p.budget_total) || 1}" class="${parseFloat(p.budget_spent) > parseFloat(p.budget_total) ? 'over' : ''}"></progress>
+                            <span class="${parseFloat(p.budget_spent) > parseFloat(p.budget_total) ? 'alert-over' : ''}">${parseFloat(p.budget_spent) || 0}/${parseFloat(p.budget_total) || 0}</span>
+                        </td>
+                        <td class="p-3"><button onclick="deleteProject(${p.id})" class="bg-red-500 text-white p-2 rounded">Supprimer</button></td>
                     `;
+                    tableBody.appendChild(row);
 
-                    const avgProgress = projects.length ? projects.reduce((sum, p) => {
-                        let progress = 0;
-                        if (p.business_case_approved) progress += 14.2857;
-                        if (p.pip_approved) progress += 14.2857;
-                        if (p.wbs_created) progress += 14.2857;
-                        if (p.po_launched) progress += 14.2857;
-                        if (p.project_phase_completed) progress += 14.2857;
-                        if (p.reception_completed) progress += 14.2857;
-                        if (p.closure_completed) progress += 14.2857;
-                        return sum + progress;
-                    }, 0) / projects.length : 0;
-                    document.getElementById('progressBarFill').style.width = `${avgProgress}%`;
-                    document.getElementById('progressText').textContent = `${avgProgress.toFixed(2)}% complété`;
-
-                    if (projects.length) {
-                        const estimatedMonths = Math.ceil((100 - avgProgress) / 10);
-                        const estimatedDate = new Date();
-                        estimatedDate.setMonth(estimatedDate.getMonth() + estimatedMonths);
-                        document.getElementById('forecastText').textContent = `Estimation : ${estimatedDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}`;
-                    } else {
-                        document.getElementById('forecastText').textContent = 'Estimation : -';
-                    }
-
-                    // Destroy existing charts
-                    if (statusPieChart) statusPieChart.destroy();
-                    if (budgetBarChart) budgetBarChart.destroy();
-
-                    // Pie Chart
-                    statusPieChart = new Chart(document.getElementById('statusPie'), {
-                        type: 'pie',
-                        data: {
-                            labels: Object.keys(stats.statusDistribution),
-                            datasets: [{ data: Object.values(stats.statusDistribution), backgroundColor: ['#007bff', '#28a745', '#ffc107', '#dc3545'] }]
-                        },
-                        options: { animation: { duration: 1000, easing: 'easeInOutQuart' } }
-                    });
-
-                    // Bar Chart
-                    budgetBarChart = new Chart(document.getElementById('budgetBar'), {
-                        type: 'bar',
-                        data: {
-                            labels: ['Total', 'Dépensé'],
-                            datasets: [{ data: [stats.totalBudget, stats.spentBudget], backgroundColor: stats.spentBudget > stats.totalBudget ? '#dc3545' : '#007bff' }]
-                        },
-                        options: { animation: { duration: 1000, easing: 'easeInOutQuart' } }
-                    });
-
-                    // Global Gantt
-                    let globalTasks = projects.flatMap(p => (p.gantt_data?.tasks || defaultGanttTasks).map(t => ({ ...t, name: `${p.name} - ${t.name}` })));
-                    globalTasks = globalTasks.map(t => ({
+                    let tasks = p.gantt_data?.tasks || defaultGanttTasks;
+                    tasks = tasks.map(t => ({
                         ...t,
                         start: t.start || '2025-07-10',
                         end: t.end && new Date(t.end) > new Date(t.start) ? t.end : new Date(new Date(t.start).getTime() + 86400000).toISOString().split('T')[0]
                     }));
-                    if (globalTasks.length === 0) {
-                        document.getElementById('globalGantt').innerHTML = '<p class="text-gray-400 text-center">Aucun projet avec tâches</p>';
+                    if (tasks.length === 0) {
+                        document.getElementById(`gantt${p.id}`).innerHTML = '<p class="text-gray-400 text-center">Aucune tâche</p>';
                     } else {
-                        new Gantt('#globalGantt', globalTasks, {
+                        new Gantt(`#gantt${p.id}`, tasks, {
+                            header_height: 50,
+                            column_width: 30,
+                            step: 24,
+                            view_modes: ['Day', 'Week', 'Month'],
+                            bar_height: 20,
+                            bar_corner_radius: 3,
+                            arrow_curve: 5,
+                            padding: 18,
                             view_mode: 'Month',
-                            language: 'fr'
+                            date_format: 'YYYY-MM-DD',
+                            language: 'fr',
+                            custom_popup_html: task => `<div class="p-2 bg-gray-800 rounded text-white">${task.name}<br>Progress: ${task.progress}%</div>`,
+                            on_date_change: (task, start, end) => {
+                                if (new Date(end) <= new Date(start)) end = new Date(new Date(start).getTime() + 86400000).toISOString().split('T')[0];
+                                const updatedTasks = tasks.map(t => t.id === task.id ? { ...t, start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] } : t);
+                                updateProject(p.id, { gantt_data: { tasks: updatedTasks } });
+                            },
+                            on_progress_change: (task, progress) => {
+                                const updatedTasks = tasks.map(t => t.id === task.id ? { ...t, progress } : t);
+                                updateProject(p.id, { gantt_data: { tasks: updatedTasks } });
+                            }
                         });
                     }
-                }).catch(error => console.error('Erreur stats:', error));
+                });
+                loadStats(projects);
+            } catch (error) {
+                console.error('Erreur load projects:', error);
+            }
+        }
+
+        // Delete project
+        async function deleteProject(id) {
+            if (confirm('Confirmer la suppression ?')) {
+                try {
+                    const response = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(errorText || 'Erreur suppression projet');
+                    }
+                    loadProjects();
+                } catch (error) {
+                    console.error('Erreur delete:', error);
+                    alert('Erreur lors de la suppression: ' + error.message);
+                }
+            }
+        }
+
+        // Load stats & graphs
+        async function loadStats(projects) {
+            try {
+                const response = await fetch('/api/project-stats');
+                const stats = await response.json();
+                document.getElementById('globalStats').innerHTML = `
+                    <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Projets Totaux</p><p class="text-2xl font-bold">${stats.totalProjects}</p></div>
+                    <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Business Cases Approuvés</p><p class="text-2xl font-bold">${stats.approvedBusinessCases}</p></div>
+                    <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Budget Global</p><p class="text-2xl font-bold">$${stats.totalBudget.toFixed(2)}</p></div>
+                    <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Budget Dépensé</p><p class="text-2xl font-bold">$${stats.spentBudget.toFixed(2)}</p></div>
+                `;
+
+                const avgProgress = projects.length ? projects.reduce((sum, p) => {
+                    let progress = 0;
+                    if (p.business_case_approved) progress += 14.2857;
+                    if (p.pip_approved) progress += 14.2857;
+                    if (p.wbs_created) progress += 14.2857;
+                    if (p.po_launched) progress += 14.2857;
+                    if (p.project_phase_completed) progress += 14.2857;
+                    if (p.reception_completed) progress += 14.2857;
+                    if (p.closure_completed) progress += 14.2857;
+                    return sum + progress;
+                }, 0) / projects.length : 0;
+                document.getElementById('progressBarFill').style.width = `${avgProgress}%`;
+                document.getElementById('progressText').textContent = `${avgProgress.toFixed(2)}% complété`;
+
+                if (projects.length) {
+                    const estimatedMonths = Math.ceil((100 - avgProgress) / 10);
+                    const estimatedDate = new Date();
+                    estimatedDate.setMonth(estimatedDate.getMonth() + estimatedMonths);
+                    document.getElementById('forecastText').textContent = `Estimation : ${estimatedDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}`;
+                } else {
+                    document.getElementById('forecastText').textContent = 'Estimation : -';
+                }
+
+                // Destroy existing charts
+                if (statusPieChart) statusPieChart.destroy();
+                if (budgetBarChart) budgetBarChart.destroy();
+
+                // Pie Chart
+                statusPieChart = new Chart(document.getElementById('statusPie'), {
+                    type: 'pie',
+                    data: {
+                        labels: Object.keys(stats.statusDistribution),
+                        datasets: [{ data: Object.values(stats.statusDistribution), backgroundColor: ['#007bff', '#28a745', '#ffc107', '#dc3545'] }]
+                    },
+                    options: { animation: { duration: 1000, easing: 'easeInOutQuart' } }
+                });
+
+                // Bar Chart
+                budgetBarChart = new Chart(document.getElementById('budgetBar'), {
+                    type: 'bar',
+                    data: {
+                        labels: ['Total', 'Dépensé'],
+                        datasets: [{ data: [stats.totalBudget, stats.spentBudget], backgroundColor: stats.spentBudget > stats.totalBudget ? '#dc3545' : '#007bff' }]
+                    },
+                    options: { animation: { duration: 1000, easing: 'easeInOutQuart' } }
+                });
+
+                // Global Gantt
+                let globalTasks = projects.flatMap(p => (p.gantt_data?.tasks || defaultGanttTasks).map(t => ({ ...t, name: `${p.name} - ${t.name}` })));
+                globalTasks = globalTasks.map(t => ({
+                    ...t,
+                    start: t.start || '2025-07-10',
+                    end: t.end && new Date(t.end) > new Date(t.start) ? t.end : new Date(new Date(t.start).getTime() + 86400000).toISOString().split('T')[0]
+                }));
+                if (globalTasks.length === 0) {
+                    document.getElementById('globalGantt').innerHTML = '<p class="text-gray-400 text-center">Aucun projet avec tâches</p>';
+                } else {
+                    new Gantt('#globalGantt', globalTasks, {
+                        view_mode: 'Month',
+                        language: 'fr'
+                    });
+                }
+            } catch (error) {
+                console.error('Erreur stats:', error);
+            }
         }
 
         // Form submit for final create
