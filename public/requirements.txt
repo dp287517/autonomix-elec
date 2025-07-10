@@ -4,3 +4,7 @@ pandas_ta==0.3.14b0  # Utilise la pré-version disponible
 psycopg2-binary
 flask
 numpy<2.0  # Garde numpy<2.0 pour compatibilité
+torch  # Ajout pour PyTorch (LSTM)
+scikit-learn  # Pour MinMaxScaler
+matplotlib  # Pour les plots (optionnel, mais utilisé)
+requests  # Pour les APIs externes
