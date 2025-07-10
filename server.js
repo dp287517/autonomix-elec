@@ -2537,16 +2537,102 @@ app.put('/api/projects/:id', async (req, res) => {
         const errors = validateProjectData(data);
         if (errors.length > 0) return res.status(400).json({ error: errors.join('; ') });
 
-        // Calcul budget spent : somme des montants devis approuvés
-        let budget_spent = 0;
+        // Calcul budget spent si quotes fourni
+        let budget_spent;
         if (Array.isArray(data.quotes)) {
             budget_spent = data.quotes.reduce((sum, q) => sum + (q.status === 'Approuvé' ? parseFloat(q.montant) || 0 : 0), 0);
         }
 
-        const result = await client.query(
-            'UPDATE projects SET name=$1, description=$2, business_case=$3, business_case_approved=$4, pip=$5, pip_approved=$6, wbs_created=$7, wbs_number=$8, po_requests=$9::jsonb, quotes=$10::jsonb, attachments=$11::jsonb, gantt_data=$12::jsonb, budget_total=$13, budget_spent=$14, status=$15, po_launched=$16, project_phase_completed=$17, reception_completed=$18, closure_completed=$19 WHERE id=$20 RETURNING *',
-            [data.name, data.description || '', data.business_case || '', !!data.business_case_approved, data.pip || '', !!data.pip_approved, !!data.wbs_created, data.wbs_number || '', JSON.stringify(data.po_requests || []), JSON.stringify(data.quotes || []), JSON.stringify(data.attachments || []), JSON.stringify(data.gantt_data || {}), parseFloat(data.budget_total) || 0, budget_spent, data.status || 'En cours', !!data.po_launched, !!data.project_phase_completed, !!data.reception_completed, !!data.closure_completed, id]
-        );
+        // Construire requête UPDATE dynamique
+        const setClauses = [];
+        const values = [];
+        let paramIndex = 1;
+
+        if ('name' in data) {
+            setClauses.push(`name = $${paramIndex++}`);
+            values.push(data.name);
+        }
+        if ('description' in data) {
+            setClauses.push(`description = $${paramIndex++}`);
+            values.push(data.description);
+        }
+        if ('business_case' in data) {
+            setClauses.push(`business_case = $${paramIndex++}`);
+            values.push(data.business_case);
+        }
+        if ('business_case_approved' in data) {
+            setClauses.push(`business_case_approved = $${paramIndex++}`);
+            values.push(!!data.business_case_approved);
+        }
+        if ('pip' in data) {
+            setClauses.push(`pip = $${paramIndex++}`);
+            values.push(data.pip);
+        }
+        if ('pip_approved' in data) {
+            setClauses.push(`pip_approved = $${paramIndex++}`);
+            values.push(!!data.pip_approved);
+        }
+        if ('wbs_created' in data) {
+            setClauses.push(`wbs_created = $${paramIndex++}`);
+            values.push(!!data.wbs_created);
+        }
+        if ('wbs_number' in data) {
+            setClauses.push(`wbs_number = $${paramIndex++}`);
+            values.push(data.wbs_number);
+        }
+        if ('po_requests' in data) {
+            setClauses.push(`po_requests = $${paramIndex++}::jsonb`);
+            values.push(JSON.stringify(data.po_requests || []));
+        }
+        if ('quotes' in data) {
+            setClauses.push(`quotes = $${paramIndex++}::jsonb`);
+            values.push(JSON.stringify(data.quotes || []));
+        }
+        if ('attachments' in data) {
+            setClauses.push(`attachments = $${paramIndex++}::jsonb`);
+            values.push(JSON.stringify(data.attachments || []));
+        }
+        if ('gantt_data' in data) {
+            setClauses.push(`gantt_data = $${paramIndex++}::jsonb`);
+            values.push(JSON.stringify(data.gantt_data || {}));
+        }
+        if ('budget_total' in data) {
+            setClauses.push(`budget_total = $${paramIndex++}`);
+            values.push(parseFloat(data.budget_total) || 0);
+        }
+        if (budget_spent !== undefined) {
+            setClauses.push(`budget_spent = $${paramIndex++}`);
+            values.push(budget_spent);
+        }
+        if ('status' in data) {
+            setClauses.push(`status = $${paramIndex++}`);
+            values.push(data.status);
+        }
+        if ('po_launched' in data) {
+            setClauses.push(`po_launched = $${paramIndex++}`);
+            values.push(!!data.po_launched);
+        }
+        if ('project_phase_completed' in data) {
+            setClauses.push(`project_phase_completed = $${paramIndex++}`);
+            values.push(!!data.project_phase_completed);
+        }
+        if ('reception_completed' in data) {
+            setClauses.push(`reception_completed = $${paramIndex++}`);
+            values.push(!!data.reception_completed);
+        }
+        if ('closure_completed' in data) {
+            setClauses.push(`closure_completed = $${paramIndex++}`);
+            values.push(!!data.closure_completed);
+        }
+
+        if (setClauses.length === 0) {
+            return res.status(400).json({ error: 'Aucune donnée à mettre à jour' });
+        }
+
+        const query = `UPDATE projects SET ${setClauses.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
+        values.push(id);
+
+        const result = await client.query(query, values);
         if (result.rows.length === 0) return res.status(404).json({ error: 'Projet non trouvé' });
         res.json(result.rows[0]);
     } catch (error) {
