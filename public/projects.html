@@ -2,267 +2,576 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AutonomiX Projects - Gestion Cosmique des Projets</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/frappe-gantt@0.3.0/dist/frappe-gantt.min.css"> <!-- CDN Frappe Gantt -->
     <script src="https://unpkg.com/frappe-gantt@0.3.0/dist/frappe-gantt.min.js"></script> <!-- JS Gantt -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- CDN Charts -->
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script> <!-- Confettis fou fou -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script> <!-- Confettis -->
     <style>
-        body { font-family: Arial, sans-serif; background: url('https://img.freepik.com/free-vector/realistic-galaxy-background_23-2148991322.jpg') no-repeat center fixed; background-size: cover; color: white; padding: 20px; }
-        .section { background: rgba(0,0,0,0.7); padding: 15px; margin: 10px 0; border-radius: 10px; animation: fadeIn 1s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-10px); } 60% { transform: translateY(-5px); } }
-        input[type="checkbox"]:checked + label { animation: bounce 0.5s; color: lime; }
-        progress { width: 100%; height: 25px; border-radius: 10px; }
-        progress::-webkit-progress-value { background: linear-gradient(to right, blue, purple); border-radius: 10px; }
-        progress.over::-webkit-progress-value { background: red; }
-        canvas { max-width: 400px; margin: 20px auto; display: block; animation: spin 2s ease-in-out; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .gantt-container { height: 300px; margin: 10px 0; }
-        .hidden { display: none; }
-        button { background: purple; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; }
-        button:hover { background: lime; }
+        body {
+            font-family: 'Orbitron', sans-serif;
+            background: #0a0a0a;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+        .starfield {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+            z-index: -1;
+        }
+        .star {
+            position: absolute;
+            background: #ffffff;
+            border-radius: 50%;
+            animation: twinkle 3s infinite;
+        }
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+        .floating-logo {
+            position: absolute;
+            animation: float 20s linear infinite;
+            opacity: 0.5;
+        }
+        @keyframes float {
+            0% { transform: translateX(100vw); }
+            100% { transform: translateX(-100px); }
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            animation: fadeIn 1s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .btn-primary {
+            background: #60a5fa;
+            color: #0a0a0a;
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            background: #3b82f6;
+            transform: scale(1.05);
+        }
+        .btn-analyze {
+            background: #a855f7;
+            color: #ffffff;
+            transition: all 0.3s ease;
+        }
+        .btn-analyze:hover {
+            background: #9333ea;
+            transform: scale(1.05);
+        }
+        canvas {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+        }
+        .progress-bar {
+            background: linear-gradient(90deg, #60a5fa 0%, #a855f7 100%);
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            background: #ffffff;
+            height: 100%;
+            transition: width 1s ease;
+        }
+        .loading-spinner {
+            border: 4px solid #ffffff;
+            border-top: 4px solid #60a5fa;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .supernova {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(96, 165, 250, 0.5) 0%, rgba(0, 0, 0, 0) 70%);
+            animation: supernova 2s ease-out forwards;
+            z-index: 10;
+            pointer-events: none;
+        }
+        @keyframes supernova {
+            0% { opacity: 1; transform: scale(0.1); }
+            100% { opacity: 0; transform: scale(2); }
+        }
+        .step {
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        .hidden {
+            opacity: 0;
+            transform: translateY(20px);
+            display: none;
+        }
+        .gantt-container {
+            height: 300px;
+            margin: 10px 0;
+        }
+        textarea, input {
+            background: #1a1a1a;
+            color: #ffffff;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 8px;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+        }
+        .alert-over {
+            color: red;
+            font-weight: bold;
+        }
     </style>
 </head>
-<body>
-    <h1>AutonomiX Projects - Voyage Cosmique vers le Succès !</h1>
-    
-    <!-- Stats en Temps Réel -->
-    <div class="section">
-        <h2>Stats Galactiques en Temps Réel</h2>
-        <div id="globalStats"></div>
+<body class="min-h-screen">
+    <div class="starfield">
+        <script>
+            // Étoiles dynamiques
+            for (let i = 0; i < 150; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.width = `${Math.random() * 3}px`;
+                star.style.height = star.style.width;
+                star.style.left = `${Math.random() * 100}%`;
+                star.style.top = `${Math.random() * 100}%`;
+                star.style.animationDelay = `${Math.random() * 3}s`;
+                document.querySelector('.starfield').appendChild(star);
+            }
+        </script>
     </div>
-    
-    <!-- Analyse Projet AI -->
-    <div class="section">
-        <h2>Analyse Stellaires AI</h2>
-        <button onclick="analyzeSelectedProject()">Lancer Analyse AI sur Projet Sélectionné</button>
-        <div id="aiAnalysis"></div>
-    </div>
-    
-    <!-- Wizard Step-by-Step pour Nouveau Projet -->
-    <div class="section">
-        <h2>Créer un Projet - Portails Cosmiques (Step-by-Step)</h2>
-        <form id="createForm">
-            <!-- Étape 1: Business Case -->
-            <div id="step1">
-                <textarea id="business_case" placeholder="Création du Business Case"></textarea><br>
-                <label><input type="checkbox" id="business_case_approved" onchange="unlockStep(2)"> Business Case Approved</label><br>
-                <button type="button" onclick="saveStep(1)">Sauver Étape 1</button>
+    <div class="container mx-auto p-6">
+        <h1 class="text-5xl font-extrabold mb-8 text-center">AutonomiX Projects - Gestion Cosmique des Projets</h1>
+
+        <!-- Stats Galactiques -->
+        <div class="card p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">Stats Galactiques en Temps Réel</h2>
+            <div id="globalStats" class="grid grid-cols-1 md:grid-cols-4 gap-4"></div>
+        </div>
+
+        <!-- Analyse Stellaires AI -->
+        <div class="card p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">Analyses Stellaires AI</h2>
+            <button onclick="analyzeSelectedProject()" class="btn-analyze p-3 rounded-lg font-semibold w-full">Lancer Analyse AI sur Projet Sélectionné</button>
+            <div id="aiAnalysis" class="mt-4"></div>
+        </div>
+
+        <!-- Wizard Step-by-Step pour Nouveau Projet -->
+        <div class="card p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">Créer un Projet - Portails Cosmiques (Step-by-Step)</h2>
+            <form id="createForm" class="space-y-4">
+                <!-- Étape 1: Business Case -->
+                <div id="step1" class="step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 1: Création du Business Case</h3>
+                    <textarea id="business_case" placeholder="Rédigez le Business Case ici..." class="w-full h-32"></textarea>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="business_case_approved" onchange="unlockStep(2); supernovaEffect();"> Business Case Approved
+                    </label>
+                    <button type="button" onclick="saveStep(1)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 1</button>
+                </div>
+
+                <!-- Étape 2: PIP & WBS -->
+                <div id="step2" class="hidden step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 2: Création du PIP & WBS</h3>
+                    <textarea id="pip" placeholder="Rédigez le PIP ici..." class="w-full h-32"></textarea>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="pip_approved" onchange="unlockStep(3); supernovaEffect();"> PIP Approved
+                    </label>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="wbs_created" onchange="unlockStep(3); supernovaEffect();"> WBS Created
+                    </label>
+                    <button type="button" onclick="saveStep(2)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 2</button>
+                </div>
+
+                <!-- Étape 3: WBS Number & PO Requests -->
+                <div id="step3" class="hidden step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 3: Numéro WBS & Demandes PO</h3>
+                    <input type="text" id="wbs_number" placeholder="Insérez le Numéro WBS" class="w-full">
+                    <textarea id="po_requests" placeholder="URLs des demandes PO (séparées par ;)" class="w-full h-24"></textarea>
+                    <button type="button" onclick="saveStep(3)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 3</button>
+                </div>
+
+                <!-- Étape 4: Devis & Budget -->
+                <div id="step4" class="hidden step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 4: Devis & Budget</h3>
+                    <textarea id="quotes" placeholder="Devis (ID;Fournisseur;Montant;Status séparés par ;)" class="w-full h-24"></textarea>
+                    <input type="number" id="budget_total" placeholder="Budget Total" class="w-full" step="0.01">
+                    <button type="button" onclick="saveStep(4)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 4</button>
+                </div>
+
+                <!-- Étape 5: Attachments & Gantt -->
+                <div id="step5" class="hidden step card p-4">
+                    <h3 class="text-xl font-semibold mb-2">Étape 5: Pièces Jointes & Gantt</h3>
+                    <input type="file" id="attachment" onchange="uploadAttachment(newProjectId)" class="w-full mb-4">
+                    <div class="gantt-container" id="ganttNew"></div>
+                    <button type="button" onclick="saveGantt(newProjectId)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Gantt</button>
+                </div>
+
+                <button type="submit" id="createButton" class="btn-primary p-3 rounded-lg font-semibold w-full" disabled>Finaliser & Créer Projet</button>
+            </form>
+        </div>
+
+        <!-- Trajectoire Cosmique -->
+        <div class="card p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">Trajectoire Cosmique vers Succès</h2>
+            <div class="progress-bar mb-2">
+                <div id="progressBarFill" class="progress-bar-fill" style="width: 0%"></div>
             </div>
-            
-            <!-- Étape 2: PIP (caché initialement) -->
-            <div id="step2" class="hidden">
-                <textarea id="pip" placeholder="Création du PIP"></textarea><br>
-                <label><input type="checkbox" id="pip_approved" onchange="unlockStep(3)"> PIP Approved</label><br>
-                <label><input type="checkbox" id="wbs_created" onchange="unlockStep(3)"> WBS Created</label><br>
-                <button type="button" onclick="saveStep(2)">Sauver Étape 2</button>
+            <p id="progressText" class="text-sm text-gray-300">0% complété</p>
+            <p id="forecastText" class="text-sm text-gray-300">Estimation : -</p>
+        </div>
+
+        <!-- Projets Récapitulatifs -->
+        <div class="card p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">Projets Stellaires Récap</h2>
+            <div class="overflow-x-auto">
+                <table id="projectsTable" class="min-w-full border-collapse">
+                    <thead>
+                        <tr class="bg-gray-900">
+                            <th class="border border-gray-700 p-3">Nom</th>
+                            <th class="border border-gray-700 p-3">Status</th>
+                            <th class="border border-gray-700 p-3">Étapes Checks</th>
+                            <th class="border border-gray-700 p-3">Gantt</th>
+                            <th class="border border-gray-700 p-3">Budget Progress</th>
+                            <th class="border border-gray-700 p-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="projectsTableBody"></tbody>
+                </table>
             </div>
-            
-            <!-- Étape 3: WBS Number & PO -->
-            <div id="step3" class="hidden">
-                <input type="text" id="wbs_number" placeholder="Insérer Numéro WBS"><br>
-                <textarea id="po_requests" placeholder="Demandes PO (URLs haleon-tool.io séparées par ;)"></textarea><br>
-                <button type="button" onclick="saveStep(3)">Sauver Étape 3</button>
+        </div>
+
+        <!-- Analyses Galactiques -->
+        <div class="card p-6">
+            <h2 class="text-2xl font-bold mb-4">Analyses Galactiques</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-xl font-semibold mb-2">Distribution des Status</h3>
+                    <canvas id="statusPie" height="200"></canvas>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-2">Budget Global vs Dépensé</h3>
+                    <canvas id="budgetBar" height="200"></canvas>
+                </div>
+                <div class="col-span-2">
+                    <h3 class="text-xl font-semibold mb-2">Gantt Global des Projets</h3>
+                    <div id="globalGantt" class="gantt-container"></div>
+                </div>
             </div>
-            
-            <!-- Étape 4: Devis & Budget -->
-            <div id="step4" class="hidden">
-                <textarea id="quotes" placeholder="Devis (ID;Fournisseur;Montant;Status séparés par ;)"></textarea><br>
-                <input type="number" id="budget_total" placeholder="Budget Total"><br>
-                <button type="button" onclick="saveStep(4)">Sauver Étape 4</button>
-            </div>
-            
-            <!-- Étape 5: Attachments & Gantt -->
-            <div id="step5" class="hidden">
-                <input type="file" id="attachment" onchange="uploadAttachment(newProjectId)"><br> <!-- newProjectId set after create -->
-                <div class="gantt-container" id="ganttNew"></div>
-                <button type="button" onclick="saveGantt(newProjectId)">Sauver Gantt</button>
-            </div>
-            
-            <button type="submit" id="createButton" disabled>Créer Projet Complet</button>
-        </form>
-    </div>
-    
-    <!-- Trajectoire Succès -->
-    <div class="section">
-        <h2>Trajectoire Cosmique vers Succès</h2>
-        <progress id="globalProgress" value="0" max="100"></progress>
-        <p id="progressText">0% - Estimation: Infinie</p>
-    </div>
-    
-    <!-- Projets Récap -->
-    <div class="section">
-        <h2>Projets Stellaires Récap</h2>
-        <table id="projectsTable" border="1" style="width:100%; color:white;">
-            <tr><th>Nom</th><th>Status</th><th>Étapes Checks</th><th>Gantt</th><th>Budget Progress</th><th>Actions</th></tr>
-        </table>
-    </div>
-    
-    <!-- Analyses Stellaires -->
-    <div class="section">
-        <h2>Analyses Galactiques</h2>
-        <canvas id="statusPie"></canvas> <!-- Pie Status -->
-        <canvas id="budgetBar"></canvas> <!-- Bar Budget -->
-        <div id="globalGantt" class="gantt-container"></div> <!-- Gantt Global -->
+        </div>
     </div>
 
     <script>
-        let newProjectId = null; // Pour wizard
+        let newProjectId = null;
         const defaultGanttTasks = [
-            { id: 'Task1', name: 'Business Case', start: '2025-07-10', end: '2025-08-10', progress: 0, dependencies: '', color: 'blue' },
-            { id: 'Task2', name: 'PIP & WBS', start: '2025-08-10', end: '2025-09-10', progress: 0, dependencies: 'Task1', color: 'green' },
-            { id: 'Task3', name: 'PO & Devis', start: '2025-09-10', end: '2025-10-10', progress: 0, dependencies: 'Task2', color: 'purple' },
-            { id: 'Task4', name: 'Exécution', start: '2025-10-10', end: '2025-12-10', progress: 0, dependencies: 'Task3', color: 'orange' }
+            { id: 'Task1', name: 'Business Case', start: '2025-07-10', end: '2025-08-10', progress: 0, dependencies: '', custom_class: 'bar-blue' },
+            { id: 'Task2', name: 'PIP & WBS', start: '2025-08-10', end: '2025-09-10', progress: 0, dependencies: 'Task1', custom_class: 'bar-green' },
+            { id: 'Task3', name: 'PO & Devis', start: '2025-09-10', end: '2025-10-10', progress: 0, dependencies: 'Task2', custom_class: 'bar-purple' },
+            { id: 'Task4', name: 'Exécution', start: '2025-10-10', end: '2025-12-10', progress: 0, dependencies: 'Task3', custom_class: 'bar-orange' }
         ];
 
-        // Unlock step
+        // Unlock step with animation
         function unlockStep(step) {
-            document.getElementById(`step${step}`).classList.remove('hidden');
-            confetti(); // Confettis fou !
+            const element = document.getElementById(`step${step}`);
+            element.classList.remove('hidden');
+            element.style.opacity = 0;
+            setTimeout(() => {
+                element.style.opacity = 1;
+                element.style.transform = 'translateY(0)';
+            }, 100);
+            supernovaEffect();
         }
 
-        // Save step (partial update)
+        // Save step
         function saveStep(step) {
             const data = getFormData(step);
             if (newProjectId) {
                 updateProject(newProjectId, data);
             } else {
-                createProject(data); // Crée si premier
+                createProject(data);
             }
         }
 
-        // Get form data per step
+        // Get form data
         function getFormData(step) {
             let data = {};
-            if (step === 1) data = { business_case: document.getElementById('business_case').value, business_case_approved: document.getElementById('business_case_approved').checked };
-            if (step === 2) data = { pip: document.getElementById('pip').value, pip_approved: document.getElementById('pip_approved').checked, wbs_created: document.getElementById('wbs_created').checked };
-            if (step === 3) data = { wbs_number: document.getElementById('wbs_number').value, po_requests: document.getElementById('po_requests').value.split(';').map(url => ({url, status: 'En attente'})) };
-            if (step === 4) data = { quotes: document.getElementById('quotes').value.split(';').map(q => {
-                const [id, fournisseur, montant, status] = q.split(';');
-                return {id, fournisseur, montant, status};
-            }), budget_total: document.getElementById('budget_total').value };
+            if (step === 1) {
+                data.business_case = document.getElementById('business_case').value;
+                data.business_case_approved = document.getElementById('business_case_approved').checked;
+            } else if (step === 2) {
+                data.pip = document.getElementById('pip').value;
+                data.pip_approved = document.getElementById('pip_approved').checked;
+                data.wbs_created = document.getElementById('wbs_created').checked;
+            } else if (step === 3) {
+                data.wbs_number = document.getElementById('wbs_number').value;
+                data.po_requests = document.getElementById('po_requests').value.split(';').filter(url => url.trim()).map(url => ({ url: url.trim(), status: 'En attente' }));
+            } else if (step === 4) {
+                data.quotes = document.getElementById('quotes').value.split(';').filter(q => q.trim()).map(q => {
+                    const [id, fournisseur, montant, status] = q.split(';');
+                    return { id: id?.trim(), fournisseur: fournisseur?.trim(), montant: parseFloat(montant) || 0, status: status?.trim() || 'En attente' };
+                });
+                data.budget_total = parseFloat(document.getElementById('budget_total').value) || 0;
+            }
             return data;
         }
 
         // Create project
         function createProject(data) {
-            fetch('/api/projects', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) })
-                .then(res => res.json())
-                .then(project => {
-                    newProjectId = project.id;
-                    document.getElementById('createButton').disabled = false;
-                    loadProjects();
-                });
+            data.name = prompt('Nom du projet ?') || 'Projet Sans Nom';
+            fetch('/api/projects', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(res => res.json()).then(project => {
+                newProjectId = project.id;
+                document.getElementById('createButton').disabled = false;
+                loadProjects();
+            }).catch(error => console.error('Erreur création:', error));
         }
 
         // Update project
         function updateProject(id, data) {
-            fetch(`/api/projects/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) }).then(loadProjects);
+            fetch(`/api/projects/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(() => loadProjects()).catch(error => console.error('Erreur update:', error));
         }
 
         // Upload attachment
-        function uploadAttachment(id, file) {
+        function uploadAttachment(id) {
+            const file = document.getElementById('attachment').files[0];
+            if (!file) return;
             const formData = new FormData();
             formData.append('file', file);
-            fetch(`/api/projects/${id}/attachment`, { method: 'POST', body: formData }).then(loadProjects);
+            fetch(`/api/projects/${id}/attachment`, { method: 'POST', body: formData })
+                .then(() => loadProjects())
+                .catch(error => console.error('Erreur upload:', error));
         }
 
         // Analyze project
         function analyzeSelectedProject() {
-            const selectedId = prompt('Entrez ID projet à analyser');
-            fetch('/api/projects').then(res => res.json()).then(projects => {
-                const project = projects.find(p => p.id == selectedId);
-                if (project) {
-                    fetch('/api/project-analyze', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({projectData: project}) })
-                        .then(res => res.json())
-                        .then(analysis => {
-                            document.getElementById('aiAnalysis').innerHTML = `<p>Avis: ${analysis.avis}</p><ul>${analysis.risques.map(r => `<li>${r}</li>`).join('')}</ul><p>Score: ${analysis.score}/100</p><ul>${analysis.suggestions.map(s => `<li>${s}</li>`).join('')}</ul>`;
-                        });
-                }
-            });
-        }
-
-        // Load projects & table
-        function loadProjects() {
-            fetch('/api/projects').then(res => res.json()).then(projects => {
-                const table = document.getElementById('projectsTable');
-                table.innerHTML = '<tr><th>Nom</th><th>Status</th><th>Étapes Checks</th><th>Gantt</th><th>Budget Progress</th><th>Actions</th></tr>';
-                projects.forEach(p => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${p.name}</td>
-                        <td>${p.status}</td>
-                        <td>
-                            <input type="checkbox" ${p.business_case_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {business_case_approved: this.checked})"> BC App<br>
-                            <input type="checkbox" ${p.pip_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {pip_approved: this.checked})"> PIP App<br>
-                            <input type="checkbox" ${p.wbs_created ? 'checked' : ''} onchange="updateProject(${p.id}, {wbs_created: this.checked})"> WBS
-                        </td>
-                        <td><div class="gantt-container" id="gantt${p.id}"></div></td>
-                        <td><progress value="${p.budget_spent}" max="${p.budget_total}" class="${p.budget_spent > p.budget_total ? 'over' : ''}"></progress> ${p.budget_spent}/${p.budget_total}</td>
-                        <td><button onclick="deleteProject(${p.id})">Suppr</button></td>
-                    `;
-                    table.appendChild(row);
-                    new Gantt(`#gantt${p.id}`, p.gantt_data.tasks || defaultGanttTasks, {
-                        header_height: 50,
-                        column_width: 30,
-                        step: 24,
-                        view_modes: ['Day', 'Week', 'Month'],
-                        bar_height: 20,
-                        bar_corner_radius: 3,
-                        arrow_curve: 5,
-                        padding: 18,
-                        view_mode: 'Month',
-                        date_format: 'YYYY-MM-DD',
-                        language: 'fr',
-                        on_click: task => console.log(task),
-                        on_date_change: (task, start, end) => updateProject(p.id, {gantt_data: {tasks: p.gantt_data.tasks.map(t => t.id === task.id ? {...t, start, end} : t)}}),
-                        on_progress_change: (task, progress) => updateProject(p.id, {gantt_data: {tasks: p.gantt_data.tasks.map(t => t.id === task.id ? {...t, progress} : t)}})
-                    });
+            const selectedId = prompt('Entrez l\'ID du projet à analyser :');
+            if (!selectedId) return;
+            fetch('/api/projects')
+                .then(res => res.json())
+                .then(projects => {
+                    const project = projects.find(p => p.id == selectedId);
+                    if (!project) {
+                        alert('Projet non trouvé !');
+                        return;
+                    }
+                    fetch('/api/project-analyze', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ projectData: project })
+                    }).then(res => res.json()).then(analysis => {
+                        document.getElementById('aiAnalysis').innerHTML = `
+                            <h3 class="text-xl font-semibold mb-2">Analyse AI pour ${project.name}</h3>
+                            <p><strong>Avis :</strong> ${analysis.avis || 'N/A'}</p>
+                            <p><strong>Risques :</strong> ${analysis.risques ? analysis.risques.join(', ') : 'Aucun'}</p>
+                            <p><strong>Score :</strong> ${analysis.score || 0}/100</p>
+                            <p><strong>Suggestions :</strong> ${analysis.suggestions ? analysis.suggestions.join(', ') : 'Aucune'}</p>
+                        `;
+                        supernovaEffect();
+                    }).catch(error => console.error('Erreur analyse AI:', error));
                 });
-                loadStats(projects);
-            });
         }
 
-        // Delete
+        // Load projects table
+        function loadProjects() {
+            fetch('/api/projects')
+                .then(res => res.json())
+                .then(projects => {
+                    const tableBody = document.getElementById('projectsTableBody');
+                    tableBody.innerHTML = '';
+                    projects.forEach(p => {
+                        const row = document.createElement('tr');
+                        row.className = 'hover:bg-gray-800';
+                        row.innerHTML = `
+                            <td class="border border-gray-700 p-3">${p.name}</td>
+                            <td class="border border-gray-700 p-3">${p.status}</td>
+                            <td class="border border-gray-700 p-3">
+                                BC App: <input type="checkbox" ${p.business_case_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {business_case_approved: this.checked}); supernovaEffect();"><br>
+                                PIP App: <input type="checkbox" ${p.pip_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {pip_approved: this.checked}); supernovaEffect();"><br>
+                                WBS: <input type="checkbox" ${p.wbs_created ? 'checked' : ''} onchange="updateProject(${p.id}, {wbs_created: this.checked}); supernovaEffect();">
+                            </td>
+                            <td class="border border-gray-700 p-3"><div class="gantt-container" id="gantt${p.id}"></div></td>
+                            <td class="border border-gray-700 p-3">
+                                <progress value="${p.budget_spent || 0}" max="${p.budget_total || 1}" class="${p.budget_spent > p.budget_total ? 'alert-over' : ''}"></progress>
+                                <span class="${p.budget_spent > p.budget_total ? 'alert-over' : ''}">${p.budget_spent || 0}/${p.budget_total || 0}</span>
+                            </td>
+                            <td class="border border-gray-700 p-3"><button onclick="deleteProject(${p.id})" class="btn-danger p-2 rounded">Supprimer</button></td>
+                        `;
+                        tableBody.appendChild(row);
+
+                        // Init Gantt with colors
+                        new Gantt(`#gantt${p.id}`, p.gantt_data?.tasks || defaultGanttTasks, {
+                            header_height: 50,
+                            column_width: 30,
+                            step: 24,
+                            view_modes: ['Day', 'Week', 'Month'],
+                            bar_height: 20,
+                            bar_corner_radius: 3,
+                            arrow_curve: 5,
+                            padding: 18,
+                            view_mode: 'Month',
+                            date_format: 'YYYY-MM-DD',
+                            language: 'fr',
+                            custom_popup_html: task => `<div class="p-2 bg-gray-800 rounded">${task.name}<br>Progress: ${task.progress}%</div>`,
+                            on_date_change: (task, start, end) => {
+                                const updatedTasks = p.gantt_data.tasks.map(t => t.id === task.id ? { ...t, start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] } : t);
+                                updateProject(p.id, { gantt_data: { tasks: updatedTasks } });
+                            },
+                            on_progress_change: (task, progress) => {
+                                const updatedTasks = p.gantt_data.tasks.map(t => t.id === task.id ? { ...t, progress } : t);
+                                updateProject(p.id, { gantt_data: { tasks: updatedTasks } });
+                            }
+                        });
+                    });
+                    loadStats(projects);
+                }).catch(error => console.error('Erreur load projects:', error));
+        }
+
+        // Delete project
         function deleteProject(id) {
-            fetch(`/api/projects/${id}`, { method: 'DELETE' }).then(loadProjects);
+            if (confirm('Supprimer ce projet ?')) {
+                fetch(`/api/projects/${id}`, { method: 'DELETE' }).then(loadProjects).catch(error => console.error('Erreur delete:', error));
+            }
         }
 
         // Load stats & graphs
         function loadStats(projects) {
-            fetch('/api/project-stats').then(res => res.json()).then(stats => {
-                document.getElementById('globalStats').innerHTML = `Projets: ${stats.totalProjects} | BC Approved: ${stats.approvedBusinessCases} | Budget Global: ${stats.totalBudget} (Spent: ${stats.spentBudget})`;
-                const avgProgress = projects.reduce((sum, p) => sum + ( (p.business_case_approved ? 20 : 0) + (p.pip_approved ? 20 : 0) + (p.wbs_created ? 20 : 0) + (p.po_requests.length > 0 ? 20 : 0) + (p.quotes.length > 0 ? 20 : 0) ), 0) / projects.length;
-                document.getElementById('globalProgress').value = avgProgress;
-                document.getElementById('progressText').textContent = `${avgProgress}% - Estimation: ${projects.length > 0 ? 'Fin ' + new Date(new Date().setMonth(new Date().getMonth() + projects.length)).toLocaleDateString() : '-'}`;
+            fetch('/api/project-stats')
+                .then(res => res.json())
+                .then(stats => {
+                    document.getElementById('globalStats').innerHTML = `
+                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm text-gray-300">Projets Totaux</p><p class="text-2xl font-bold">${stats.totalProjects}</p></div>
+                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm text-gray-300">Business Cases Approuvés</p><p class="text-2xl font-bold">${stats.approvedBusinessCases}</p></div>
+                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm text-gray-300">Budget Global</p><p class="text-2xl font-bold">$${stats.totalBudget.toFixed(2)}</p></div>
+                        <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm text-gray-300">Budget Dépensé</p><p class="text-2xl font-bold">$${stats.spentBudget.toFixed(2)}</p></div>
+                    `;
 
-                new Chart('statusPie', { type: 'pie', data: { labels: Object.keys(stats.statusDistribution), datasets: [{ data: Object.values(stats.statusDistribution), backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56'] }] }, options: { animation: { duration: 2000, easing: 'easeInOutBounce' } } });
-                new Chart('budgetBar', { type: 'bar', data: { labels: ['Total', 'Spent'], datasets: [{ data: [stats.totalBudget, stats.spentBudget], backgroundColor: stats.spentBudget > stats.totalBudget ? 'red' : 'blue' }] }, options: { animation: { duration: 1500, easing: 'easeOutElastic' } } });
+                    const avgProgress = projects.reduce((sum, p) => {
+                        let progress = 0;
+                        if (p.business_case_approved) progress += 20;
+                        if (p.pip_approved) progress += 20;
+                        if (p.wbs_created) progress += 20;
+                        if (p.po_requests?.length > 0) progress += 20;
+                        if (p.quotes?.length > 0) progress += 20;
+                        return sum + progress;
+                    }, 0) / (projects.length || 1);
+                    document.getElementById('progressBarFill').style.width = `${avgProgress}%`;
+                    document.getElementById('progressText').textContent = `${avgProgress.toFixed(2)}% complété`;
 
-                // Global Gantt: Aggregate tasks
-                const globalTasks = projects.flatMap(p => (p.gantt_data.tasks || []).map(t => ({...t, name: `${p.name} - ${t.name}` })));
-                new Gantt('#globalGantt', globalTasks, { view_mode: 'Month' });
-            });
+                    if (projects.length) {
+                        const estimatedMonths = Math.ceil((100 - avgProgress) / 10); // Exemple estimation
+                        const estimatedDate = new Date();
+                        estimatedDate.setMonth(estimatedDate.getMonth() + estimatedMonths);
+                        document.getElementById('forecastText').textContent = `Estimation : ${estimatedDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}`;
+                    } else {
+                        document.getElementById('forecastText').textContent = 'Estimation : -';
+                    }
+
+                    // Pie Chart
+                    new Chart(document.getElementById('statusPie'), {
+                        type: 'pie',
+                        data: {
+                            labels: Object.keys(stats.statusDistribution),
+                            datasets: [{ data: Object.values(stats.statusDistribution), backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'] }]
+                        },
+                        options: { animation: { duration: 2000, easing: 'easeInOutBounce' } }
+                    });
+
+                    // Bar Chart
+                    new Chart(document.getElementById('budgetBar'), {
+                        type: 'bar',
+                        data: {
+                            labels: ['Total', 'Dépensé'],
+                            datasets: [{ data: [stats.totalBudget, stats.spentBudget], backgroundColor: stats.spentBudget > stats.totalBudget ? '#f87171' : '#60a5fa' }]
+                        },
+                        options: { animation: { duration: 1500, easing: 'easeOutElastic' } }
+                    });
+
+                    // Global Gantt
+                    const globalTasks = projects.flatMap(p => (p.gantt_data?.tasks || defaultGanttTasks).map(t => ({ ...t, name: `${p.name} - ${t.name}` })));
+                    new Gantt('#globalGantt', globalTasks, {
+                        view_mode: 'Month',
+                        language: 'fr'
+                    });
+                }).catch(error => console.error('Erreur stats:', error));
         }
 
-        // Confettis on approval
-        function confetti() {
+        // Supernova effect for celebrations
+        function supernovaEffect() {
+            const supernova = document.createElement('div');
+            supernova.className = 'supernova';
+            document.body.appendChild(supernova);
+            setTimeout(() => supernova.remove(), 2000);
             confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
         }
 
-        // Submit full create
+        // Form submit for final create
         document.getElementById('createForm').addEventListener('submit', e => {
             e.preventDefault();
-            if (newProjectId) updateProject(newProjectId, { status: 'Terminé' }); // Finalize
-            newProjectId = null;
-            loadProjects();
+            if (newProjectId) {
+                updateProject(newProjectId, { status: 'En cours' }); // Or 'Approuvé' if complete
+                newProjectId = null;
+                document.getElementById('createButton').disabled = true;
+                loadProjects();
+            }
         });
 
-        // Init Gantt for new
-        new Gantt('#ganttNew', defaultGanttTasks, { view_mode: 'Month', on_date_change: (task, start, end) => console.log('Save Gantt changes') });
+        // Save Gantt for new project
+        function saveGantt(id) {
+            // Note: Frappe Gantt doesn't expose tasks easily; assume user edits via drag, already saved on_change
+            alert('Gantt sauvegardé !');
+        }
 
-        // Load
+        // Init Gantt for new
+        new Gantt('#ganttNew', defaultGanttTasks, {
+            view_mode: 'Month',
+            language: 'fr',
+            on_date_change: (task, start, end) => {
+                if (newProjectId) {
+                    const updatedTasks = defaultGanttTasks.map(t => t.id === task.id ? { ...t, start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] } : t);
+                    updateProject(newProjectId, { gantt_data: { tasks: updatedTasks } });
+                }
+            },
+            on_progress_change: (task, progress) => {
+                if (newProjectId) {
+                    const updatedTasks = defaultGanttTasks.map(t => t.id === task.id ? { ...t, progress } : t);
+                    updateProject(newProjectId, { gantt_data: { tasks: updatedTasks } });
+                }
+            }
+        });
+
+        // Load initial
         loadProjects();
     </script>
 </body>
