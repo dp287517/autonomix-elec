@@ -32,26 +32,29 @@
         .btn-primary {
             background: #007bff;
             color: #ffffff;
-            transition: background 0.3s ease;
+            transition: background 0.3s ease, transform 0.2s;
         }
         .btn-primary:hover {
             background: #0056b3;
+            transform: scale(1.05);
         }
         .btn-finalize {
             background: #28a745;
             color: #ffffff;
-            transition: background 0.3s ease;
+            transition: background 0.3s ease, transform 0.2s;
         }
         .btn-finalize:hover {
             background: #218838;
+            transform: scale(1.05);
         }
         .btn-analyze {
             background: #6f42c1;
             color: #ffffff;
-            transition: background 0.3s ease;
+            transition: background 0.3s ease, transform 0.2s;
         }
         .btn-analyze:hover {
             background: #5a32a3;
+            transform: scale(1.05);
         }
         canvas {
             background: #1a1a1a;
@@ -73,8 +76,9 @@
             transition: opacity 0.5s ease, transform 0.5s ease;
         }
         .hidden {
-            opacity: 0.5;
+            opacity: 0;
             pointer-events: none;
+            transform: scale(0.95);
         }
         .gantt-container {
             height: 400px;
@@ -82,12 +86,20 @@
             background: #1a1a1a;
             border: 1px solid #333;
         }
-        input[type="date"] {
+        input[type="text"], input[type="number"], input[type="date"], textarea {
             background: #1a1a1a;
             color: #ffffff;
             border: 1px solid #444;
             border-radius: 4px;
             padding: 8px;
+            transition: border-color 0.3s;
+        }
+        input:focus, textarea:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        input::placeholder, textarea::placeholder {
+            color: #aaa;
         }
         label {
             display: block;
@@ -129,6 +141,69 @@
             font-size: 0.8rem;
             color: #aaa;
         }
+        .stepper {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .stepper-item {
+            flex: 1;
+            text-align: center;
+            position: relative;
+        }
+        .stepper-item::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: -50%;
+            width: 100%;
+            height: 2px;
+            background: #444;
+            z-index: -1;
+        }
+        .stepper-item:first-child::before {
+            display: none;
+        }
+        .stepper-circle {
+            width: 30px;
+            height: 30px;
+            background: #444;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 5px;
+            transition: background 0.3s;
+        }
+        .stepper-active .stepper-circle {
+            background: #007bff;
+        }
+        .stepper-completed .stepper-circle {
+            background: #28a745;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+            animation: fadeIn 0.3s;
+        }
+        [title] {
+            cursor: help;
+        }
     </style>
 </head>
 <body class="min-h-screen">
@@ -152,107 +227,153 @@
         <div class="card p-6 mb-8">
             <h2 class="text-2xl font-bold mb-4">Créer un Nouveau Projet</h2>
             <form id="createForm" class="space-y-4">
+                <label for="project_name">Titre du Projet</label>
                 <input type="text" id="project_name" placeholder="Titre du Projet" class="w-full" required>
+                <label for="project_description">Description du Projet</label>
+                <textarea id="project_description" placeholder="Description du Projet" class="w-full h-24"></textarea>
+                <label for="budget_total">Budget Total (€)</label>
+                <input type="number" id="budget_total" placeholder="Budget Total (€)" class="w-full" step="0.01" min="0" required>
+
+                <!-- Stepper visuel -->
+                <div class="stepper">
+                    <div class="stepper-item stepper-active" id="stepper1"><div class="stepper-circle">1</div>BC</div>
+                    <div class="stepper-item" id="stepper2"><div class="stepper-circle">2</div>PIP</div>
+                    <div class="stepper-item" id="stepper3"><div class="stepper-circle">3</div>WBS</div>
+                    <div class="stepper-item" id="stepper4"><div class="stepper-circle">4</div>Commandes</div>
+                    <div class="stepper-item" id="stepper5"><div class="stepper-circle">5</div>Phase</div>
+                    <div class="stepper-item" id="stepper6"><div class="stepper-circle">6</div>Réception</div>
+                    <div class="stepper-item" id="stepper7"><div class="stepper-circle">7</div>Clôture</div>
+                </div>
+
                 <!-- Étape 1: Création Business Case -->
                 <div id="step1" class="step card p-4">
                     <h3 class="text-xl font-semibold mb-2">Étape 1: Création Business Case</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <input type="date" id="bc_start" placeholder="Date Début Prévisionnelle">
-                        <input type="date" id="bc_end" placeholder="Date Fin Prévisionnelle">
-                    </div>
-                    <p class="date-label">Format: AAAA-MM-JJ</p>
-                    <label class="flex items-center">
-                        <input type="checkbox" id="business_case_approved" onchange="checkAllStepsCompleted();"> Approuvé
+                    <label for="bc_start">Date Début Prévisionnelle</label>
+                    <input type="date" id="bc_start">
+                    <label for="bc_end">Date Fin Prévisionnelle</label>
+                    <input type="date" id="bc_end">
+                    <p class="date-label">Format: AAAA-MM-JJ (Fin > Début)</p>
+                    <label class="flex items-center" title="Marquer le Business Case comme approuvé">
+                        <input type="checkbox" id="business_case_approved" onchange="checkAllStepsCompleted(); updateStepper(1, this.checked);"> Approuvé
                     </label>
-                    <button type="button" onclick="saveStep(1)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 1</button>
+                    <div class="flex justify-between mt-4">
+                        <button type="button" onclick="saveStep(1)" class="btn-primary p-2 rounded-lg flex-1 mr-2">Sauvegarder</button>
+                        <button type="button" onclick="nextStep(1)" class="btn-primary p-2 rounded-lg flex-1">Suivant</button>
+                    </div>
                 </div>
 
                 <!-- Étape 2: Création PIP -->
-                <div id="step2" class="step card p-4">
+                <div id="step2" class="step card p-4 hidden">
                     <h3 class="text-xl font-semibold mb-2">Étape 2: Création PIP</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <input type="date" id="pip_start" placeholder="Date Début Prévisionnelle">
-                        <input type="date" id="pip_end" placeholder="Date Fin Prévisionnelle">
-                    </div>
-                    <p class="date-label">Format: AAAA-MM-JJ</p>
-                    <label class="flex items-center">
-                        <input type="checkbox" id="pip_approved" onchange="checkAllStepsCompleted();"> Approuvé
+                    <label for="pip_start">Date Début Prévisionnelle</label>
+                    <input type="date" id="pip_start">
+                    <label for="pip_end">Date Fin Prévisionnelle</label>
+                    <input type="date" id="pip_end">
+                    <p class="date-label">Format: AAAA-MM-JJ (Fin > Début)</p>
+                    <label class="flex items-center" title="Marquer le PIP comme approuvé">
+                        <input type="checkbox" id="pip_approved" onchange="checkAllStepsCompleted(); updateStepper(2, this.checked);"> Approuvé
                     </label>
-                    <button type="button" onclick="saveStep(2)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 2</button>
+                    <div class="flex justify-between mt-4">
+                        <button type="button" onclick="prevStep(2)" class="btn-primary p-2 rounded-lg flex-1 mr-2">Précédent</button>
+                        <button type="button" onclick="saveStep(2)" class="btn-primary p-2 rounded-lg flex-1 mr-2">Sauvegarder</button>
+                        <button type="button" onclick="nextStep(2)" class="btn-primary p-2 rounded-lg flex-1">Suivant</button>
+                    </div>
                 </div>
 
                 <!-- Étape 3: WBS Créé -->
-                <div id="step3" class="step card p-4">
+                <div id="step3" class="step card p-4 hidden">
                     <h3 class="text-xl font-semibold mb-2">Étape 3: WBS Créé</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <input type="date" id="wbs_start" placeholder="Date Début Prévisionnelle">
-                        <input type="date" id="wbs_end" placeholder="Date Fin Prévisionnelle">
-                    </div>
-                    <p class="date-label">Format: AAAA-MM-JJ</p>
-                    <label class="flex items-center">
-                        <input type="checkbox" id="wbs_created" onchange="checkAllStepsCompleted();"> Créé
+                    <label for="wbs_start">Date Début Prévisionnelle</label>
+                    <input type="date" id="wbs_start">
+                    <label for="wbs_end">Date Fin Prévisionnelle</label>
+                    <input type="date" id="wbs_end">
+                    <p class="date-label">Format: AAAA-MM-JJ (Fin > Début)</p>
+                    <label class="flex items-center" title="Marquer le WBS comme créé">
+                        <input type="checkbox" id="wbs_created" onchange="checkAllStepsCompleted(); updateStepper(3, this.checked);"> Créé
                     </label>
+                    <label for="wbs_number">Numéro WBS</label>
                     <input type="text" id="wbs_number" placeholder="Numéro WBS" class="w-full mt-2">
-                    <button type="button" onclick="saveStep(3)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 3</button>
+                    <div class="flex justify-between mt-4">
+                        <button type="button" onclick="prevStep(3)" class="btn-primary p-2 rounded-lg flex-1 mr-2">Précédent</button>
+                        <button type="button" onclick="saveStep(3)" class="btn-primary p-2 rounded-lg flex-1 mr-2">Sauvegarder</button>
+                        <button type="button" onclick="nextStep(3)" class="btn-primary p-2 rounded-lg flex-1">Suivant</button>
+                    </div>
                 </div>
 
                 <!-- Étape 4: Lancement des Commandes -->
-                <div id="step4" class="step card p-4">
+                <div id="step4" class="step card p-4 hidden">
                     <h3 class="text-xl font-semibold mb-2">Étape 4: Lancement des Commandes</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <input type="date" id="po_start" placeholder="Date Début Prévisionnelle">
-                        <input type="date" id="po_end" placeholder="Date Fin Prévisionnelle">
-                    </div>
-                    <p class="date-label">Format: AAAA-MM-JJ</p>
-                    <label class="flex items-center">
-                        <input type="checkbox" id="po_launched" onchange="checkAllStepsCompleted();"> Lancé
+                    <label for="po_start">Date Début Prévisionnelle</label>
+                    <input type="date" id="po_start">
+                    <label for="po_end">Date Fin Prévisionnelle</label>
+                    <input type="date" id="po_end">
+                    <p class="date-label">Format: AAAA-MM-JJ (Fin > Début)</p>
+                    <label class="flex items-center" title="Marquer les commandes comme lancées">
+                        <input type="checkbox" id="po_launched" onchange="checkAllStepsCompleted(); updateStepper(4, this.checked);"> Lancé
                     </label>
+                    <label for="po_requests">URLs PO (séparées par ;)</label>
                     <textarea id="po_requests" placeholder="URLs PO (séparées par ;)" class="w-full h-24 mt-2"></textarea>
-                    <button type="button" onclick="saveStep(4)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 4</button>
+                    <div class="flex justify-between mt-4">
+                        <button type="button" onclick="prevStep(4)" class="btn-primary p-2 rounded-lg flex-1 mr-2">Précédent</button>
+                        <button type="button" onclick="saveStep(4)" class="btn-primary p-2 rounded-lg flex-1 mr-2">Sauvegarder</button>
+                        <button type="button" onclick="nextStep(4)" class="btn-primary p-2 rounded-lg flex-1">Suivant</button>
+                    </div>
                 </div>
 
                 <!-- Étape 5: Phase Projet -->
-                <div id="step5" class="step card p-4">
+                <div id="step5" class="step card p-4 hidden">
                     <h3 class="text-xl font-semibold mb-2">Étape 5: Phase Projet</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <input type="date" id="project_phase_start" placeholder="Date Début Prévisionnelle">
-                        <input type="date" id="project_phase_end" placeholder="Date Fin Prévisionnelle">
-                    </div>
-                    <p class="date-label">Format: AAAA-MM-JJ</p>
-                    <label class="flex items-center">
-                        <input type="checkbox" id="project_phase_completed" onchange="checkAllStepsCompleted();"> Complété
+                    <label for="project_phase_start">Date Début Prévisionnelle</label>
+                    <input type="date" id="project_phase_start">
+                    <label for="project_phase_end">Date Fin Prévisionnelle</label>
+                    <input type="date" id="project_phase_end">
+                    <p class="date-label">Format: AAAA-MM-JJ (Fin > Début)</p>
+                    <label class="flex items-center" title="Marquer la phase projet comme complétée">
+                        <input type="checkbox" id="project_phase_completed" onchange="checkAllStepsCompleted(); updateStepper(5, this.checked);"> Complété
                     </label>
                     <div class="gantt-container" id="ganttNew"></div>
-                    <button type="button" onclick="saveStep(5)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 5</button>
+                    <div class="flex justify-between mt-4">
+                        <button type="button" onclick="prevStep(5)" class="btn-primary p-2 rounded-lg flex-1 mr-2">Précédent</button>
+                        <button type="button" onclick="saveStep(5)" class="btn-primary p-2 rounded-lg flex-1 mr-2">Sauvegarder</button>
+                        <button type="button" onclick="nextStep(5)" class="btn-primary p-2 rounded-lg flex-1">Suivant</button>
+                    </div>
                 </div>
 
                 <!-- Étape 6: Réception de Projet -->
-                <div id="step6" class="step card p-4">
+                <div id="step6" class="step card p-4 hidden">
                     <h3 class="text-xl font-semibold mb-2">Étape 6: Réception de Projet</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <input type="date" id="reception_start" placeholder="Date Début Prévisionnelle">
-                        <input type="date" id="reception_end" placeholder="Date Fin Prévisionnelle">
-                    </div>
-                    <p class="date-label">Format: AAAA-MM-JJ</p>
-                    <label class="flex items-center">
-                        <input type="checkbox" id="reception_completed" onchange="checkAllStepsCompleted();"> Complété
+                    <label for="reception_start">Date Début Prévisionnelle</label>
+                    <input type="date" id="reception_start">
+                    <label for="reception_end">Date Fin Prévisionnelle</label>
+                    <input type="date" id="reception_end">
+                    <p class="date-label">Format: AAAA-MM-JJ (Fin > Début)</p>
+                    <label class="flex items-center" title="Marquer la réception comme complétée">
+                        <input type="checkbox" id="reception_completed" onchange="checkAllStepsCompleted(); updateStepper(6, this.checked);"> Complété
                     </label>
-                    <button type="button" onclick="saveStep(6)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 6</button>
+                    <div class="flex justify-between mt-4">
+                        <button type="button" onclick="prevStep(6)" class="btn-primary p-2 rounded-lg flex-1 mr-2">Précédent</button>
+                        <button type="button" onclick="saveStep(6)" class="btn-primary p-2 rounded-lg flex-1 mr-2">Sauvegarder</button>
+                        <button type="button" onclick="nextStep(6)" class="btn-primary p-2 rounded-lg flex-1">Suivant</button>
+                    </div>
                 </div>
 
                 <!-- Étape 7: Clôture du Projet -->
-                <div id="step7" class="step card p-4">
+                <div id="step7" class="step card p-4 hidden">
                     <h3 class="text-xl font-semibold mb-2">Étape 7: Clôture du Projet</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <input type="date" id="closure_start" placeholder="Date Début Prévisionnelle">
-                        <input type="date" id="closure_end" placeholder="Date Fin Prévisionnelle">
-                    </div>
-                    <p class="date-label">Format: AAAA-MM-JJ</p>
-                    <label class="flex items-center">
-                        <input type="checkbox" id="closure_completed" onchange="checkAllStepsCompleted();"> Complété
+                    <label for="closure_start">Date Début Prévisionnelle</label>
+                    <input type="date" id="closure_start">
+                    <label for="closure_end">Date Fin Prévisionnelle</label>
+                    <input type="date" id="closure_end">
+                    <p class="date-label">Format: AAAA-MM-JJ (Fin > Début)</p>
+                    <label class="flex items-center" title="Marquer la clôture comme complétée">
+                        <input type="checkbox" id="closure_completed" onchange="checkAllStepsCompleted(); updateStepper(7, this.checked);"> Complété
                     </label>
+                    <label for="attachment">Pièce Jointe</label>
                     <input type="file" id="attachment" onchange="uploadAttachment(newProjectId)" class="w-full mt-2">
-                    <button type="button" onclick="saveStep(7)" class="btn-primary p-2 rounded-lg w-full">Sauvegarder Étape 7</button>
+                    <div class="flex justify-between mt-4">
+                        <button type="button" onclick="prevStep(7)" class="btn-primary p-2 rounded-lg flex-1 mr-2">Précédent</button>
+                        <button type="button" onclick="saveStep(7)" class="btn-primary p-2 rounded-lg flex-1">Sauvegarder</button>
+                    </div>
                 </div>
 
                 <button type="submit" id="createButton" class="btn-primary p-3 rounded-lg font-semibold w-full" disabled>Finaliser le Projet</button>
@@ -269,6 +390,11 @@
             <p id="forecastText" class="text-sm">Estimation : -</p>
         </div>
 
+        <!-- Recherche pour table -->
+        <div class="mb-4">
+            <input type="text" id="searchInput" placeholder="Rechercher un projet..." class="w-full" oninput="filterTable()">
+        </div>
+
         <!-- Tableau des Projets -->
         <div class="card p-6 mb-8">
             <h2 class="text-2xl font-bold mb-4">Récapitulatif des Projets</h2>
@@ -277,10 +403,11 @@
                     <thead>
                         <tr class="bg-gray-800">
                             <th class="p-3">Nom</th>
+                            <th class="p-3">Description</th>
                             <th class="p-3">Status</th>
                             <th class="p-3">Étapes</th>
                             <th class="p-3">Gantt</th>
-                            <th class="p-3">Budget</th>
+                            <th class="p-3">Budget (Total / Dépensé)</th>
                             <th class="p-3">Actions</th>
                         </tr>
                     </thead>
@@ -294,23 +421,47 @@
             <h2 class="text-2xl font-bold mb-4">Analyses des Projets</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <h3 class="text-xl font-semibold mb-2">Distribution des Status</h3>
-                    <canvas id="statusPie" height="200"></canvas>
+                    <h3 class="text-xl font-semibold mb-2">Répartition des Status (Doughnut)</h3>
+                    <canvas id="statusDoughnut" height="200"></canvas>
                 </div>
                 <div>
                     <h3 class="text-xl font-semibold mb-2">Budget Global vs Dépensé</h3>
                     <canvas id="budgetBar" height="200"></canvas>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-2">Budgets par Projet</h3>
+                    <canvas id="budgetPerProject" height="200"></canvas>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-2">Évolution de la Progression</h3>
+                    <canvas id="progressLine" height="200"></canvas>
                 </div>
                 <div class="col-span-2">
                     <h3 class="text-xl font-semibold mb-2">Gantt Global</h3>
                     <div id="globalGantt" class="gantt-container"></div>
                 </div>
             </div>
+            <button onclick="exportToPDF()" class="btn-primary p-3 rounded-lg font-semibold w-full mt-4">Exporter Stats en PDF</button>
+        </div>
+
+        <!-- Modal pour détails projet -->
+        <div id="projectModal" class="modal">
+            <div class="modal-content">
+                <h2 id="modalTitle" class="text-2xl font-bold mb-4"></h2>
+                <label for="modalDescription">Description</label>
+                <textarea id="modalDescription" class="w-full h-24 mb-4"></textarea>
+                <label for="modalBudgetTotal">Budget Total</label>
+                <input type="number" id="modalBudgetTotal" class="w-full mb-4" step="0.01">
+                <button onclick="saveModalChanges()" class="btn-primary p-2 rounded-lg w-full">Sauvegarder</button>
+                <button onclick="closeModal()" class="btn-primary p-2 rounded-lg w-full mt-2">Fermer</button>
+            </div>
         </div>
     </div>
 
     <script>
         let newProjectId = null;
+        let currentStep = 1;
+        let selectedProjectId = null;
         const defaultGanttTasks = [
             { id: 'Task1', name: 'Business Case', start: '2025-07-10', end: '2025-08-10', progress: 0, dependencies: '' },
             { id: 'Task2', name: 'PIP', start: '2025-08-10', end: '2025-09-10', progress: 0, dependencies: 'Task1' },
@@ -321,8 +472,10 @@
             { id: 'Task7', name: 'Clôture', start: '2026-02-10', end: '2026-03-10', progress: 0, dependencies: 'Task6' }
         ];
 
-        let statusPieChart = null;
+        let statusDoughnutChart = null;
         let budgetBarChart = null;
+        let budgetPerProjectChart = null;
+        let progressLineChart = null;
 
         // Check if all steps completed to enable finalize
         function checkAllStepsCompleted() {
@@ -349,8 +502,8 @@
 
         // Save step
         function saveStep(step) {
+            if (!validateDates(step)) return;
             const data = getFormData(step);
-            data.description = data.description || ''; // Ensure description is defined
             if (newProjectId) {
                 updateProject(newProjectId, data);
             } else {
@@ -363,7 +516,8 @@
         function getFormData(step) {
             let data = {};
             data.name = document.getElementById('project_name').value || 'Projet Sans Nom';
-            data.description = ''; // Default empty string
+            data.description = document.getElementById('project_description').value || '';
+            data.budget_total = parseFloat(document.getElementById('budget_total').value) || 0;
             let progress = 0;
             if (step === 1) {
                 data.business_case_approved = document.getElementById('business_case_approved').checked;
@@ -420,7 +574,7 @@
                 });
                 if (!response.ok) {
                     const errorText = await response.text();
-                    throw new Error(errorText || 'Erreur création projet');
+                    throw new Error(errorText || 'Erreur lors de la création du projet');
                 }
                 const project = await response.json();
                 newProjectId = project.id;
@@ -443,11 +597,11 @@
                 });
                 if (!response.ok) {
                     const errorText = await response.text();
-                    throw new Error(errorText || 'Erreur mise à jour projet');
+                    throw new Error(errorText || 'Erreur lors de la mise à jour du projet');
                 }
                 loadProjects();
             } catch (error) {
-                console.error('Erreur update:', error);
+                console.error('Erreur mise à jour:', error);
                 alert('Erreur lors de la mise à jour: ' + error.message);
             }
         }
@@ -460,7 +614,7 @@
             formData.append('file', file);
             try {
                 const response = await fetch(`/api/projects/${id}/attachment`, { method: 'POST', body: formData });
-                if (!response.ok) throw new Error('Erreur upload');
+                if (!response.ok) throw new Error('Erreur lors de l\'upload');
                 loadProjects();
             } catch (error) {
                 console.error('Erreur upload:', error);
@@ -485,6 +639,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ projectData: project })
                 });
+                if (!aiResponse.ok) throw new Error('Erreur analyse AI');
                 const analysis = await aiResponse.json();
                 document.getElementById('aiAnalysis').innerHTML = `
                     <h3 class="text-xl font-semibold mb-2">Analyse pour ${project.name}</h3>
@@ -495,7 +650,7 @@
                 `;
             } catch (error) {
                 console.error('Erreur analyse AI:', error);
-                alert('Erreur analyse AI: ' + error.message);
+                alert('Erreur lors de l\'analyse AI: ' + error.message);
             }
         }
 
@@ -510,7 +665,8 @@
                     const row = document.createElement('tr');
                     row.className = 'hover:bg-gray-700';
                     row.innerHTML = `
-                        <td class="p-3">${p.name}</td>
+                        <td class="p-3 cursor-pointer" onclick="openModal(${p.id}, '${p.name}', '${p.description}', ${p.budget_total})">${p.name}</td>
+                        <td class="p-3">${p.description || 'Aucune description'}</td>
                         <td class="p-3">${p.status}</td>
                         <td class="p-3">
                             BC: <input type="checkbox" ${p.business_case_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {business_case_approved: this.checked});"><br>
@@ -566,22 +722,23 @@
                 });
                 loadStats(projects);
             } catch (error) {
-                console.error('Erreur load projects:', error);
+                console.error('Erreur chargement projets:', error);
+                alert('Erreur lors du chargement des projets: ' + error.message);
             }
         }
 
         // Delete project
         async function deleteProject(id) {
-            if (confirm('Confirmer la suppression ?')) {
+            if (confirm('Confirmer la suppression du projet ?')) {
                 try {
                     const response = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
                     if (!response.ok) {
                         const errorText = await response.text();
-                        throw new Error(errorText || 'Erreur suppression projet');
+                        throw new Error(errorText || 'Erreur lors de la suppression du projet');
                     }
                     loadProjects();
                 } catch (error) {
-                    console.error('Erreur delete:', error);
+                    console.error('Erreur suppression:', error);
                     alert('Erreur lors de la suppression: ' + error.message);
                 }
             }
@@ -595,8 +752,8 @@
                 document.getElementById('globalStats').innerHTML = `
                     <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Projets Totaux</p><p class="text-2xl font-bold">${stats.totalProjects}</p></div>
                     <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Business Cases Approuvés</p><p class="text-2xl font-bold">${stats.approvedBusinessCases}</p></div>
-                    <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Budget Global</p><p class="text-2xl font-bold">$${stats.totalBudget.toFixed(2)}</p></div>
-                    <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Budget Dépensé</p><p class="text-2xl font-bold">$${stats.spentBudget.toFixed(2)}</p></div>
+                    <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Budget Global</p><p class="text-2xl font-bold">${stats.totalBudget.toFixed(2)} €</p></div>
+                    <div class="p-4 bg-gray-800 rounded-lg"><p class="text-sm">Budget Dépensé</p><p class="text-2xl font-bold">${stats.spentBudget.toFixed(2)} €</p></div>
                 `;
 
                 const avgProgress = projects.length ? projects.reduce((sum, p) => {
@@ -622,28 +779,81 @@
                     document.getElementById('forecastText').textContent = 'Estimation : -';
                 }
 
-                // Destroy existing charts
-                if (statusPieChart) statusPieChart.destroy();
+                // Destroy existing charts if they exist
+                if (statusDoughnutChart) statusDoughnutChart.destroy();
                 if (budgetBarChart) budgetBarChart.destroy();
+                if (budgetPerProjectChart) budgetPerProjectChart.destroy();
+                if (progressLineChart) progressLineChart.destroy();
 
-                // Pie Chart
-                statusPieChart = new Chart(document.getElementById('statusPie'), {
-                    type: 'pie',
+                // Doughnut Chart for status distribution
+                statusDoughnutChart = new Chart(document.getElementById('statusDoughnut'), {
+                    type: 'doughnut',
                     data: {
                         labels: Object.keys(stats.statusDistribution),
                         datasets: [{ data: Object.values(stats.statusDistribution), backgroundColor: ['#007bff', '#28a745', '#ffc107', '#dc3545'] }]
                     },
-                    options: { animation: { duration: 1000, easing: 'easeInOutQuart' } }
+                    options: {
+                        animation: { duration: 1000, easing: 'easeInOutQuart' },
+                        plugins: { zoom: { zoom: { mode: 'xy' } } }
+                    }
                 });
 
-                // Bar Chart
+                // Bar Chart for global budget
                 budgetBarChart = new Chart(document.getElementById('budgetBar'), {
                     type: 'bar',
                     data: {
                         labels: ['Total', 'Dépensé'],
                         datasets: [{ data: [stats.totalBudget, stats.spentBudget], backgroundColor: stats.spentBudget > stats.totalBudget ? '#dc3545' : '#007bff' }]
                     },
-                    options: { animation: { duration: 1000, easing: 'easeInOutQuart' } }
+                    options: {
+                        animation: { duration: 1000, easing: 'easeInOutQuart' },
+                        plugins: { zoom: { zoom: { mode: 'xy' } } }
+                    }
+                });
+
+                // Bar Chart for budgets per project
+                budgetPerProjectChart = new Chart(document.getElementById('budgetPerProject'), {
+                    type: 'bar',
+                    data: {
+                        labels: projects.map(p => p.name),
+                        datasets: [{
+                            label: 'Total',
+                            data: projects.map(p => parseFloat(p.budget_total) || 0),
+                            backgroundColor: '#007bff'
+                        }, {
+                            label: 'Dépensé',
+                            data: projects.map(p => parseFloat(p.budget_spent) || 0),
+                            backgroundColor: '#28a745'
+                        }]
+                    },
+                    options: {
+                        animation: { duration: 1000, easing: 'easeInOutQuart' },
+                        plugins: { zoom: { zoom: { mode: 'xy' } } }
+                    }
+                });
+
+                // Line Chart for progress evolution (simple estimation)
+                const progressData = projects.map(p => {
+                    let prog = 0;
+                    if (p.business_case_approved) prog += 14.2857;
+                    if (p.pip_approved) prog += 14.2857;
+                    if (p.wbs_created) prog += 14.2857;
+                    if (p.po_launched) prog += 14.2857;
+                    if (p.project_phase_completed) prog += 14.2857;
+                    if (p.reception_completed) prog += 14.2857;
+                    if (p.closure_completed) prog += 14.2857;
+                    return prog;
+                });
+                progressLineChart = new Chart(document.getElementById('progressLine'), {
+                    type: 'line',
+                    data: {
+                        labels: projects.map(p => p.name),
+                        datasets: [{ label: 'Progression (%)', data: progressData, borderColor: '#007bff', fill: false }]
+                    },
+                    options: {
+                        animation: { duration: 1000, easing: 'easeInOutQuart' },
+                        plugins: { zoom: { zoom: { mode: 'xy' } } }
+                    }
                 });
 
                 // Global Gantt
@@ -662,7 +872,8 @@
                     });
                 }
             } catch (error) {
-                console.error('Erreur stats:', error);
+                console.error('Erreur chargement stats:', error);
+                alert('Erreur lors du chargement des stats: ' + error.message);
             }
         }
 
@@ -677,12 +888,45 @@
             }
         });
 
-        // Save Gantt for new project
-        function saveGantt(id) {
-            alert('Gantt sauvegardé.');
+        // Filter table
+        function filterTable() {
+            const input = document.getElementById('searchInput').value.toLowerCase();
+            const rows = document.getElementById('projectsTableBody').rows;
+            Array.from(rows).forEach(row => {
+                const name = row.cells[0].textContent.toLowerCase();
+                row.style.display = name.includes(input) ? '' : 'none';
+            });
         }
 
-        // Init Gantt for new
+        // Modal functions
+        function openModal(id, name, description, budget_total) {
+            selectedProjectId = id;
+            document.getElementById('modalTitle').textContent = `Éditer ${name}`;
+            document.getElementById('modalDescription').value = description || '';
+            document.getElementById('modalBudgetTotal').value = budget_total || 0;
+            document.getElementById('projectModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('projectModal').style.display = 'none';
+        }
+
+        async function saveModalChanges() {
+            const data = {
+                description: document.getElementById('modalDescription').value,
+                budget_total: parseFloat(document.getElementById('modalBudgetTotal').value) || 0
+            };
+            await updateProject(selectedProjectId, data);
+            closeModal();
+            loadProjects();
+        }
+
+        // Export to PDF (using window.print as simple solution; can be improved with jsPDF)
+        function exportToPDF() {
+            window.print();
+        }
+
+        // Init Gantt for new project
         new Gantt('#ganttNew', defaultGanttTasks, {
             view_mode: 'Month',
             language: 'fr',
@@ -701,7 +945,7 @@
             }
         });
 
-        // Load initial
+        // Load initial data
         loadProjects();
     </script>
 </body>
