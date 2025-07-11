@@ -56,6 +56,15 @@
             background: #5a32a3;
             transform: scale(1.05);
         }
+        .btn-edit {
+            background: #ffc107;
+            color: #000;
+            transition: background 0.3s ease, transform 0.2s;
+        }
+        .btn-edit:hover {
+            background: #e0a800;
+            transform: scale(1.05);
+        }
         canvas {
             background: #1a1a1a;
             border: 1px solid #333;
@@ -204,6 +213,55 @@
         [title] {
             cursor: help;
         }
+        /* Custom toggle for checkboxes */
+        .toggle {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+            margin-left: 5px;
+        }
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 20px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .checkbox-label span {
+            margin-right: 10px;
+        }
     </style>
 </head>
 <body class="min-h-screen">
@@ -224,7 +282,7 @@
         </div>
 
         <!-- Wizard Step-by-Step pour Nouveau Projet -->
-        <div class="card p-6 mb-8">
+        <div class="card p-6 mb-8" id="createProjectCard">
             <h2 class="text-2xl font-bold mb-4">Créer un Nouveau Projet</h2>
             <form id="createForm" class="space-y-4">
                 <label for="project_name">Titre du Projet</label>
@@ -253,8 +311,12 @@
                     <label for="bc_end">Date Fin Prévisionnelle</label>
                     <input type="date" id="bc_end">
                     <p class="date-label">Format: AAAA-MM-JJ (Fin > Début)</p>
-                    <label class="flex items-center" title="Marquer le Business Case comme approuvé">
-                        <input type="checkbox" id="business_case_approved" onchange="checkAllStepsCompleted(); updateStepper(1, this.checked);"> Approuvé
+                    <label class="checkbox-label" title="Marquer le Business Case comme approuvé">
+                        <span>Approuvé</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="business_case_approved" onchange="checkAllStepsCompleted(); updateStepper(1, this.checked);">
+                            <span class="slider"></span>
+                        </label>
                     </label>
                     <div class="flex justify-between mt-4">
                         <button type="button" onclick="saveStep(1)" class="btn-primary p-2 rounded-lg flex-1 mr-2">Sauvegarder</button>
@@ -270,8 +332,12 @@
                     <label for="pip_end">Date Fin Prévisionnelle</label>
                     <input type="date" id="pip_end">
                     <p class="date-label">Format: AAAA-MM-JJ (Fin > Début)</p>
-                    <label class="flex items-center" title="Marquer le PIP comme approuvé">
-                        <input type="checkbox" id="pip_approved" onchange="checkAllStepsCompleted(); updateStepper(2, this.checked);"> Approuvé
+                    <label class="checkbox-label" title="Marquer le PIP comme approuvé">
+                        <span>Approuvé</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="pip_approved" onchange="checkAllStepsCompleted(); updateStepper(2, this.checked);">
+                            <span class="slider"></span>
+                        </label>
                     </label>
                     <div class="flex justify-between mt-4">
                         <button type="button" onclick="prevStep(2)" class="btn-primary p-2 rounded-lg flex-1 mr-2">Précédent</button>
@@ -288,8 +354,12 @@
                     <label for="wbs_end">Date Fin Prévisionnelle</label>
                     <input type="date" id="wbs_end">
                     <p class="date-label">Format: AAAA-MM-JJ (Fin > Début)</p>
-                    <label class="flex items-center" title="Marquer le WBS comme créé">
-                        <input type="checkbox" id="wbs_created" onchange="checkAllStepsCompleted(); updateStepper(3, this.checked);"> Créé
+                    <label class="checkbox-label" title="Marquer le WBS comme créé">
+                        <span>Créé</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="wbs_created" onchange="checkAllStepsCompleted(); updateStepper(3, this.checked);">
+                            <span class="slider"></span>
+                        </label>
                     </label>
                     <label for="wbs_number">Numéro WBS</label>
                     <input type="text" id="wbs_number" placeholder="Numéro WBS" class="w-full mt-2">
@@ -308,8 +378,12 @@
                     <label for="po_end">Date Fin Prévisionnelle</label>
                     <input type="date" id="po_end">
                     <p class="date-label">Format: AAAA-MM-JJ (Fin > Début)</p>
-                    <label class="flex items-center" title="Marquer les commandes comme lancées">
-                        <input type="checkbox" id="po_launched" onchange="checkAllStepsCompleted(); updateStepper(4, this.checked);"> Lancé
+                    <label class="checkbox-label" title="Marquer les commandes comme lancées">
+                        <span>Lancé</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="po_launched" onchange="checkAllStepsCompleted(); updateStepper(4, this.checked);">
+                            <span class="slider"></span>
+                        </label>
                     </label>
                     <label for="po_requests">URLs PO (séparées par ;)</label>
                     <textarea id="po_requests" placeholder="URLs PO (séparées par ;)" class="w-full h-24 mt-2"></textarea>
@@ -328,8 +402,12 @@
                     <label for="project_phase_end">Date Fin Prévisionnelle</label>
                     <input type="date" id="project_phase_end">
                     <p class="date-label">Format: AAAA-MM-JJ (Fin > Début)</p>
-                    <label class="flex items-center" title="Marquer la phase projet comme complétée">
-                        <input type="checkbox" id="project_phase_completed" onchange="checkAllStepsCompleted(); updateStepper(5, this.checked);"> Complété
+                    <label class="checkbox-label" title="Marquer la phase projet comme complétée">
+                        <span>Complété</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="project_phase_completed" onchange="checkAllStepsCompleted(); updateStepper(5, this.checked);">
+                            <span class="slider"></span>
+                        </label>
                     </label>
                     <div class="gantt-container" id="ganttNew"></div>
                     <div class="flex justify-between mt-4">
@@ -347,8 +425,12 @@
                     <label for="reception_end">Date Fin Prévisionnelle</label>
                     <input type="date" id="reception_end">
                     <p class="date-label">Format: AAAA-MM-JJ (Fin > Début)</p>
-                    <label class="flex items-center" title="Marquer la réception comme complétée">
-                        <input type="checkbox" id="reception_completed" onchange="checkAllStepsCompleted(); updateStepper(6, this.checked);"> Complété
+                    <label class="checkbox-label" title="Marquer la réception comme complétée">
+                        <span>Complété</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="reception_completed" onchange="checkAllStepsCompleted(); updateStepper(6, this.checked);">
+                            <span class="slider"></span>
+                        </label>
                     </label>
                     <div class="flex justify-between mt-4">
                         <button type="button" onclick="prevStep(6)" class="btn-primary p-2 rounded-lg flex-1 mr-2">Précédent</button>
@@ -365,8 +447,12 @@
                     <label for="closure_end">Date Fin Prévisionnelle</label>
                     <input type="date" id="closure_end">
                     <p class="date-label">Format: AAAA-MM-JJ (Fin > Début)</p>
-                    <label class="flex items-center" title="Marquer la clôture comme complétée">
-                        <input type="checkbox" id="closure_completed" onchange="checkAllStepsCompleted(); updateStepper(7, this.checked);"> Complété
+                    <label class="checkbox-label" title="Marquer la clôture comme complétée">
+                        <span>Complété</span>
+                        <label class="toggle">
+                            <input type="checkbox" id="closure_completed" onchange="checkAllStepsCompleted(); updateStepper(7, this.checked);">
+                            <span class="slider"></span>
+                        </label>
                     </label>
                     <label for="attachment">Pièce Jointe</label>
                     <input type="file" id="attachment" onchange="uploadAttachment(newProjectId)" class="w-full mt-2">
@@ -452,6 +538,8 @@
                 <textarea id="modalDescription" class="w-full h-24 mb-4"></textarea>
                 <label for="modalBudgetTotal">Budget Total</label>
                 <input type="number" id="modalBudgetTotal" class="w-full mb-4" step="0.01">
+                <label for="modalNotes">Notes</label>
+                <textarea id="modalNotes" class="w-full h-24 mb-4" placeholder="Notes supplémentaires..."></textarea>
                 <button onclick="saveModalChanges()" class="btn-primary p-2 rounded-lg w-full">Sauvegarder</button>
                 <button onclick="closeModal()" class="btn-primary p-2 rounded-lg w-full mt-2">Fermer</button>
             </div>
@@ -462,6 +550,8 @@
         let newProjectId = null;
         let currentStep = 1;
         let selectedProjectId = null;
+        let isEditMode = false;
+        let editProjectData = null;
         const defaultGanttTasks = [
             { id: 'Task1', name: 'Business Case', start: '2025-07-10', end: '2025-08-10', progress: 0, dependencies: '' },
             { id: 'Task2', name: 'PIP', start: '2025-08-10', end: '2025-09-10', progress: 0, dependencies: 'Task1' },
@@ -494,9 +584,11 @@
             if (allChecked) {
                 button.classList.remove('btn-primary');
                 button.classList.add('btn-finalize');
+                button.textContent = isEditMode ? 'Finaliser les Modifications' : 'Finaliser le Projet';
             } else {
                 button.classList.add('btn-primary');
                 button.classList.remove('btn-finalize');
+                button.textContent = isEditMode ? 'Finaliser les Modifications' : 'Finaliser le Projet';
             }
         }
 
@@ -504,7 +596,9 @@
         function saveStep(step) {
             if (!validateDates(step)) return;
             const data = getFormData(step);
-            if (newProjectId) {
+            if (isEditMode) {
+                updateProject(selectedProjectId, data);
+            } else if (newProjectId) {
                 updateProject(newProjectId, data);
             } else {
                 createProject(data);
@@ -665,24 +759,69 @@
                     const row = document.createElement('tr');
                     row.className = 'hover:bg-gray-700';
                     row.innerHTML = `
-                        <td class="p-3 cursor-pointer" onclick="openModal(${p.id}, '${p.name}', '${p.description}', ${p.budget_total})">${p.name}</td>
+                        <td class="p-3 cursor-pointer" onclick="openModal(${p.id}, '${p.name.replace(/'/g, "\\'")}', '${p.description.replace(/'/g, "\\'")}', ${p.budget_total})">${p.name}</td>
                         <td class="p-3">${p.description || 'Aucune description'}</td>
                         <td class="p-3">${p.status}</td>
                         <td class="p-3">
-                            BC: <input type="checkbox" ${p.business_case_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {business_case_approved: this.checked});"><br>
-                            PIP: <input type="checkbox" ${p.pip_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {pip_approved: this.checked});"><br>
-                            WBS: <input type="checkbox" ${p.wbs_created ? 'checked' : ''} onchange="updateProject(${p.id}, {wbs_created: this.checked});"><br>
-                            Commandes: <input type="checkbox" ${p.po_launched ? 'checked' : ''} onchange="updateProject(${p.id}, {po_launched: this.checked});"><br>
-                            Phase Projet: <input type="checkbox" ${p.project_phase_completed ? 'checked' : ''} onchange="updateProject(${p.id}, {project_phase_completed: this.checked});"><br>
-                            Réception: <input type="checkbox" ${p.reception_completed ? 'checked' : ''} onchange="updateProject(${p.id}, {reception_completed: this.checked});"><br>
-                            Clôture: <input type="checkbox" ${p.closure_completed ? 'checked' : ''} onchange="updateProject(${p.id}, {closure_completed: this.checked});">
+                            <div class="checkbox-label" title="Business Case approuvé">
+                                <span>BC</span>
+                                <label class="toggle">
+                                    <input type="checkbox" ${p.business_case_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {business_case_approved: this.checked});">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="checkbox-label" title="PIP approuvé">
+                                <span>PIP</span>
+                                <label class="toggle">
+                                    <input type="checkbox" ${p.pip_approved ? 'checked' : ''} onchange="updateProject(${p.id}, {pip_approved: this.checked});">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="checkbox-label" title="WBS créé">
+                                <span>WBS</span>
+                                <label class="toggle">
+                                    <input type="checkbox" ${p.wbs_created ? 'checked' : ''} onchange="updateProject(${p.id}, {wbs_created: this.checked});">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="checkbox-label" title="Commandes lancées">
+                                <span>Commandes</span>
+                                <label class="toggle">
+                                    <input type="checkbox" ${p.po_launched ? 'checked' : ''} onchange="updateProject(${p.id}, {po_launched: this.checked});">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="checkbox-label" title="Phase projet complétée">
+                                <span>Phase Projet</span>
+                                <label class="toggle">
+                                    <input type="checkbox" ${p.project_phase_completed ? 'checked' : ''} onchange="updateProject(${p.id}, {project_phase_completed: this.checked});">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="checkbox-label" title="Réception complétée">
+                                <span>Réception</span>
+                                <label class="toggle">
+                                    <input type="checkbox" ${p.reception_completed ? 'checked' : ''} onchange="updateProject(${p.id}, {reception_completed: this.checked});">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="checkbox-label" title="Clôture complétée">
+                                <span>Clôture</span>
+                                <label class="toggle">
+                                    <input type="checkbox" ${p.closure_completed ? 'checked' : ''} onchange="updateProject(${p.id}, {closure_completed: this.checked});">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
                         </td>
                         <td class="p-3"><div class="gantt-container" id="gantt${p.id}"></div></td>
                         <td class="p-3">
                             <progress value="${parseFloat(p.budget_spent) || 0}" max="${parseFloat(p.budget_total) || 1}" class="${parseFloat(p.budget_spent) > parseFloat(p.budget_total) ? 'over' : ''}"></progress>
                             <span class="${parseFloat(p.budget_spent) > parseFloat(p.budget_total) ? 'alert-over' : ''}">${parseFloat(p.budget_spent) || 0}/${parseFloat(p.budget_total) || 0}</span>
                         </td>
-                        <td class="p-3"><button onclick="deleteProject(${p.id})" class="bg-red-500 text-white p-2 rounded">Supprimer</button></td>
+                        <td class="p-3">
+                            <button onclick="editFullProject(${p.id})" class="btn-edit p-2 rounded mr-2">Éditer Complet</button>
+                            <button onclick="deleteProject(${p.id})" class="bg-red-500 text-white p-2 rounded">Supprimer</button>
+                        </td>
                     `;
                     tableBody.appendChild(row);
 
@@ -725,6 +864,69 @@
                 console.error('Erreur chargement projets:', error);
                 alert('Erreur lors du chargement des projets: ' + error.message);
             }
+        }
+
+        // Edit full project - load wizard with data
+        async function editFullProject(id) {
+            try {
+                const response = await fetch('/api/projects');
+                const projects = await response.json();
+                editProjectData = projects.find(p => p.id == id);
+                if (!editProjectData) {
+                    alert('Projet non trouvé !');
+                    return;
+                }
+                isEditMode = true;
+                selectedProjectId = id;
+                document.getElementById('createProjectCard').querySelector('h2').textContent = 'Modifier le Projet ' + editProjectData.name;
+                document.getElementById('project_name').value = editProjectData.name;
+                document.getElementById('project_description').value = editProjectData.description || '';
+                document.getElementById('budget_total').value = editProjectData.budget_total || 0;
+                document.getElementById('business_case_approved').checked = editProjectData.business_case_approved;
+                document.getElementById('pip_approved').checked = editProjectData.pip_approved;
+                document.getElementById('wbs_created').checked = editProjectData.wbs_created;
+                document.getElementById('po_launched').checked = editProjectData.po_launched;
+                document.getElementById('project_phase_completed').checked = editProjectData.project_phase_completed;
+                document.getElementById('reception_completed').checked = editProjectData.reception_completed;
+                document.getElementById('closure_completed').checked = editProjectData.closure_completed;
+                document.getElementById('wbs_number').value = editProjectData.wbs_number || '';
+                document.getElementById('po_requests').value = editProjectData.po_requests ? editProjectData.po_requests.map(r => r.url).join('; ') : '';
+                const tasks = editProjectData.gantt_data?.tasks || defaultGanttTasks;
+                localStorage.setItem('tempGanttTasks', JSON.stringify(tasks));
+                // Set dates from gantt
+                document.getElementById('bc_start').value = tasks[0].start;
+                document.getElementById('bc_end').value = tasks[0].end;
+                document.getElementById('pip_start').value = tasks[1].start;
+                document.getElementById('pip_end').value = tasks[1].end;
+                document.getElementById('wbs_start').value = tasks[2].start;
+                document.getElementById('wbs_end').value = tasks[2].end;
+                document.getElementById('po_start').value = tasks[3].start;
+                document.getElementById('po_end').value = tasks[3].end;
+                document.getElementById('project_phase_start').value = tasks[4].start;
+                document.getElementById('project_phase_end').value = tasks[4].end;
+                document.getElementById('reception_start').value = tasks[5].start;
+                document.getElementById('reception_end').value = tasks[5].end;
+                document.getElementById('closure_start').value = tasks[6].start;
+                document.getElementById('closure_end').value = tasks[6].end;
+                checkAllStepsCompleted();
+                updateAllStepper();
+                // Scroll to wizard
+                document.getElementById('createProjectCard').scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                console.error('Erreur chargement édition:', error);
+                alert('Erreur lors du chargement pour édition: ' + error.message);
+            }
+        }
+
+        // Update all stepper based on checkboxes
+        function updateAllStepper() {
+            updateStepper(1, document.getElementById('business_case_approved').checked);
+            updateStepper(2, document.getElementById('pip_approved').checked);
+            updateStepper(3, document.getElementById('wbs_created').checked);
+            updateStepper(4, document.getElementById('po_launched').checked);
+            updateStepper(5, document.getElementById('project_phase_completed').checked);
+            updateStepper(6, document.getElementById('reception_completed').checked);
+            updateStepper(7, document.getElementById('closure_completed').checked);
         }
 
         // Delete project
@@ -877,16 +1079,39 @@
             }
         }
 
-        // Form submit for final create
+        // Form submit for final create/edit
         document.getElementById('createForm').addEventListener('submit', e => {
             e.preventDefault();
-            if (newProjectId) {
+            if (isEditMode) {
+                // Reset to create mode after save
+                isEditMode = false;
+                selectedProjectId = null;
+                editProjectData = null;
+                document.getElementById('createProjectCard').querySelector('h2').textContent = 'Créer un Nouveau Projet';
+                document.getElementById('createButton').disabled = true;
+                resetForm();
+            } else if (newProjectId) {
                 updateProject(newProjectId, { status: 'En cours' });
                 newProjectId = null;
                 document.getElementById('createButton').disabled = true;
-                loadProjects();
             }
+            loadProjects();
         });
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('createForm').reset();
+            localStorage.removeItem('tempGanttTasks');
+            updateAllStepper();
+            currentStep = 1;
+            Array.from(document.querySelectorAll('.step')).forEach((s, index) => {
+                s.classList.toggle('hidden', index !== 0);
+            });
+            document.getElementById('stepper1').classList.add('stepper-active');
+            for (let i = 2; i <= 7; i++) {
+                document.getElementById(`stepper${i}`).classList.remove('stepper-active', 'stepper-completed');
+            }
+        }
 
         // Filter table
         function filterTable() {
@@ -899,11 +1124,12 @@
         }
 
         // Modal functions
-        function openModal(id, name, description, budget_total) {
+        function openModal(id, name, description, budget_total, notes = '') {
             selectedProjectId = id;
-            document.getElementById('modalTitle').textContent = `Éditer ${name}`;
+            document.getElementById('modalTitle').textContent = `Détails rapides pour ${name}`;
             document.getElementById('modalDescription').value = description || '';
             document.getElementById('modalBudgetTotal').value = budget_total || 0;
+            document.getElementById('modalNotes').value = notes;
             document.getElementById('projectModal').style.display = 'flex';
         }
 
@@ -914,34 +1140,33 @@
         async function saveModalChanges() {
             const data = {
                 description: document.getElementById('modalDescription').value,
-                budget_total: parseFloat(document.getElementById('modalBudgetTotal').value) || 0
+                budget_total: parseFloat(document.getElementById('modalBudgetTotal').value) || 0,
+                notes: document.getElementById('modalNotes').value // Assume server has notes field; if not, add in server.js
             };
             await updateProject(selectedProjectId, data);
             closeModal();
             loadProjects();
         }
 
-        // Export to PDF (using window.print as simple solution; can be improved with jsPDF)
+        // Export to PDF (using window.print as simple solution; can be improved with jsPDF if added)
         function exportToPDF() {
             window.print();
         }
 
-        // Init Gantt for new project
+        // Init Gantt for new/edit
         new Gantt('#ganttNew', defaultGanttTasks, {
             view_mode: 'Month',
             language: 'fr',
             on_date_change: (task, start, end) => {
                 if (new Date(end) <= new Date(start)) end = new Date(new Date(start).getTime() + 86400000).toISOString().split('T')[0];
-                if (newProjectId) {
-                    const updatedTasks = defaultGanttTasks.map(t => t.id === task.id ? { ...t, start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] } : t);
-                    updateProject(newProjectId, { gantt_data: { tasks: updatedTasks } });
-                }
+                const updatedTasks = defaultGanttTasks.map(t => t.id === task.id ? { ...t, start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] } : t);
+                const id = isEditMode ? selectedProjectId : newProjectId;
+                if (id) updateProject(id, { gantt_data: { tasks: updatedTasks } });
             },
             on_progress_change: (task, progress) => {
-                if (newProjectId) {
-                    const updatedTasks = defaultGanttTasks.map(t => t.id === task.id ? { ...t, progress } : t);
-                    updateProject(newProjectId, { gantt_data: { tasks: updatedTasks } });
-                }
+                const updatedTasks = defaultGanttTasks.map(t => t.id === task.id ? { ...t, progress } : t);
+                const id = isEditMode ? selectedProjectId : newProjectId;
+                if (id) updateProject(id, { gantt_data: { tasks: updatedTasks } });
             }
         });
 
