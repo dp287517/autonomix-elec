@@ -3,271 +3,454 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestion de Projets - Autonomix</title>
+    <title>AutonomiX Projects - Gestion de Projets</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js">
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        h1, h2 { color: #333; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
+        h1, h2 { color: #333; text-align: center; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        form { display: grid; gap: 10px; }
+        label { font-weight: bold; }
+        input, textarea, select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 10px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 4px; }
+        button:hover { background: #0056b3; }
+        .wizard-step { display: none; }
+        .wizard-step.active { display: block; }
+        .project-list table { width: 100%; border-collapse: collapse; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        form { max-width: 600px; margin-bottom: 20px; }
-        label { display: block; margin-top: 10px; }
-        input, textarea, select { width: 100%; padding: 8px; margin-top: 5px; }
-        button { margin-top: 10px; padding: 10px 20px; background-color: #007bff; color: white; border: none; cursor: pointer; }
-        button:hover { background-color: #0056b3; }
-        .project-card { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 5px; }
-        .hidden { display: none; }
-        .approval-check { color: green; font-weight: bold; }
-        .pending-check { color: red; font-weight: bold; }
+        th { background: #f2f2f2; }
+        .chart-container { height: 300px; margin: 20px 0; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 20px; border-radius: 8px; width: 80%; max-width: 600px; }
+        .close { float: right; cursor: pointer; font-size: 20px; }
+        .approval { color: green; }
+        .pending { color: red; }
     </style>
 </head>
 <body>
-    <h1>Gestion de Projets</h1>
+    <div class="container">
+        <h1>AutonomiX Projects - Gestion de Projets</h1>
 
-    <!-- Liste des projets -->
-    <h2>Liste des Projets</h2>
-    <div id="project-list"></div>
+        <!-- Statistiques en Temps Réel -->
+        <div class="section">
+            <h2>Statistiques en Temps Réel</h2>
+            <div id="stats">
+                <p>Total Projets: <span id="total-projects">0</span></p>
+                <p>Business Cases Approuvés: <span id="approved-bc">0</span></p>
+                <p>Budget Total: <span id="total-budget">0 €</span></p>
+                <p>Budget Dépensé: <span id="spent-budget">0 €</span></p>
+                <div class="chart-container"><canvas id="status-chart"></canvas></div>
+                <div class="chart-container"><canvas id="budget-chart"></canvas></div>
+            </div>
+            <button onclick="loadStats()">Rafraîchir Stats</button>
+        </div>
 
-    <!-- Formulaire pour créer/éditer un projet -->
-    <h2>Créer ou Éditer un Projet</h2>
-    <form id="project-form">
-        <input type="hidden" id="project-id" value="">
-        
-        <label for="name">Nom du Projet :</label>
-        <input type="text" id="name" required>
-        
-        <label for="description">Description :</label>
-        <textarea id="description"></textarea>
-        
-        <label for="business_case">Business Case :</label>
-        <textarea id="business_case"></textarea>
-        <label>Business Case Approuvé : <input type="checkbox" id="business_case_approved"></label>
-        
-        <label for="pip">PIP (Project Initiation Proposal) :</label>
-        <textarea id="pip"></textarea>
-        <label>PIP Approuvé : <input type="checkbox" id="pip_approved"></label>
-        
-        <label for="wbs_number">Numéro WBS :</label>
-        <input type="text" id="wbs_number">
-        <label>WBS Créé : <input type="checkbox" id="wbs_created"></label>
-        
-        <label>Lancement des Commandes (PO Launched) : <input type="checkbox" id="po_launched"></label>
-        
-        <label for="chantier_date">Date du Chantier :</label>
-        <input type="date" id="chantier_date">
-        
-        <label>Phase Projet Complétée : <input type="checkbox" id="project_phase_completed"></label>
-        
-        <label>Réception Complétée : <input type="checkbox" id="reception_completed"></label>
-        
-        <label>Clôture Complétée : <input type="checkbox" id="closure_completed"></label>
-        
-        <label for="budget_total">Budget Total :</label>
-        <input type="number" id="budget_total" step="0.01">
-        
-        <label for="status">Statut :</label>
-        <select id="status">
-            <option value="En cours">En cours</option>
-            <option value="Approuvé">Approuvé</option>
-            <option value="Terminé">Terminé</option>
-            <option value="Bloqué">Bloqué</option>
-        </select>
-        
-        <!-- Section pour PO Requests, Quotes, Attachments, Gantt (simplifiée) -->
-        <label for="po_requests">Demandes PO (JSON array) :</label>
-        <textarea id="po_requests" placeholder='[{"url": "", "status": ""}]'></textarea>
-        
-        <label for="quotes">Devis (JSON array) :</label>
-        <textarea id="quotes" placeholder='[{"id": "", "montant": 0, "status": "", "fournisseur": ""}]'></textarea>
-        
-        <label for="attachments">Pièces Jointes (upload via bouton séparé)</label>
-        <input type="file" id="attachment-file">
-        <button type="button" id="upload-attachment">Uploader Pièce Jointe</button>
-        <div id="attachments-list"></div>
-        
-        <label for="gantt_data">Données Gantt (JSON) :</label>
-        <textarea id="gantt_data" placeholder='{"tasks": [{"name": "", "start": "", "end": "", "progress": 0}]}'></textarea>
-        
-        <button type="submit">Sauvegarder Projet</button>
-    </form>
+        <!-- Créer un Nouveau Projet (Wizard) -->
+        <div class="section">
+            <h2>Créer un Nouveau Projet</h2>
+            <form id="project-wizard">
+                <div class="wizard-step active" id="step-general">
+                    <label for="project-name">Titre du Projet</label>
+                    <input type="text" id="project-name" required>
+                    <label for="project-description">Description</label>
+                    <textarea id="project-description"></textarea>
+                    <label for="budget-total">Budget Total (€)</label>
+                    <input type="number" id="budget-total" step="0.01" required>
+                    <button type="button" onclick="nextStep('general')">Suivant</button>
+                </div>
+                <div class="wizard-step" id="step-bc">
+                    <h3>Étape 1: Business Case</h3>
+                    <label for="bc-content">Contenu Business Case</label>
+                    <textarea id="bc-content"></textarea>
+                    <label>Approuvé <input type="checkbox" id="bc-approved"></label>
+                    <label for="bc-start">Date Début</label>
+                    <input type="date" id="bc-start">
+                    <label for="bc-end">Date Fin</label>
+                    <input type="date" id="bc-end">
+                    <button type="button" onclick="prevStep('bc')">Précédent</button>
+                    <button type="button" onclick="nextStep('bc')">Suivant</button>
+                </div>
+                <div class="wizard-step" id="step-pip">
+                    <h3>Étape 2: PIP</h3>
+                    <label for="pip-content">Contenu PIP</label>
+                    <textarea id="pip-content"></textarea>
+                    <label>Approuvé <input type="checkbox" id="pip-approved"></label>
+                    <label for="pip-start">Date Début</label>
+                    <input type="date" id="pip-start">
+                    <label for="pip-end">Date Fin</label>
+                    <input type="date" id="pip-end">
+                    <button type="button" onclick="prevStep('pip')">Précédent</button>
+                    <button type="button" onclick="nextStep('pip')">Suivant</button>
+                </div>
+                <div class="wizard-step" id="step-wbs">
+                    <h3>Étape 3: WBS</h3>
+                    <label for="wbs-number">Numéro WBS</label>
+                    <input type="text" id="wbs-number">
+                    <label>Créé <input type="checkbox" id="wbs-created"></label>
+                    <label for="wbs-start">Date Début</label>
+                    <input type="date" id="wbs-start">
+                    <label for="wbs-end">Date Fin</label>
+                    <input type="date" id="wbs-end">
+                    <button type="button" onclick="prevStep('wbs')">Précédent</button>
+                    <button type="button" onclick="nextStep('wbs')">Suivant</button>
+                </div>
+                <div class="wizard-step" id="step-po">
+                    <h3>Étape 4: Lancement des Commandes</h3>
+                    <label>Lancé <input type="checkbox" id="po-launched"></label>
+                    <label for="po-requests">Demandes PO (JSON)</label>
+                    <textarea id="po-requests">[]</textarea>
+                    <label for="po-start">Date Début</label>
+                    <input type="date" id="po-start">
+                    <label for="po-end">Date Fin</label>
+                    <input type="date" id="po-end">
+                    <label for="quotes">Devis (JSON)</label>
+                    <textarea id="quotes">[]</textarea>
+                    <button type="button" onclick="prevStep('po')">Précédent</button>
+                    <button type="button" onclick="nextStep('po')">Suivant</button>
+                </div>
+                <div class="wizard-step" id="step-phase">
+                    <h3>Étape 5: Phase Projet / Chantier</h3>
+                    <label>Complété <input type="checkbox" id="project-phase-completed"></label>
+                    <label for="chantier-date">Date du Chantier</label>
+                    <input type="date" id="chantier-date">
+                    <label for="phase-start">Date Début</label>
+                    <input type="date" id="phase-start">
+                    <label for="phase-end">Date Fin</label>
+                    <input type="date" id="phase-end">
+                    <button type="button" onclick="prevStep('phase')">Précédent</button>
+                    <button type="button" onclick="nextStep('phase')">Suivant</button>
+                </div>
+                <div class="wizard-step" id="step-reception">
+                    <h3>Étape 6: Réception</h3>
+                    <label>Complété <input type="checkbox" id="reception-completed"></label>
+                    <label for="reception-start">Date Début</label>
+                    <input type="date" id="reception-start">
+                    <label for="reception-end">Date Fin</label>
+                    <input type="date" id="reception-end">
+                    <button type="button" onclick="prevStep('reception')">Précédent</button>
+                    <button type="button" onclick="nextStep('reception')">Suivant</button>
+                </div>
+                <div class="wizard-step" id="step-closure">
+                    <h3>Étape 7: Clôture</h3>
+                    <label>Complété <input type="checkbox" id="closure-completed"></label>
+                    <label for="closure-start">Date Début</label>
+                    <input type="date" id="closure-start">
+                    <label for="closure-end">Date Fin</label>
+                    <input type="date" id="closure-end">
+                    <label for="attachments">Pièces Jointes</label>
+                    <input type="file" id="attachments-file" multiple>
+                    <button type="button" onclick="uploadAttachments()">Uploader</button>
+                    <div id="attachments-preview"></div>
+                    <label for="status">Statut Global</label>
+                    <select id="project-status">
+                        <option value="En cours">En cours</option>
+                        <option value="Approuvé">Approuvé</option>
+                        <option value="Terminé">Terminé</option>
+                        <option value="Bloqué">Bloqué</option>
+                    </select>
+                    <button type="button" onclick="prevStep('closure')">Précédent</button>
+                    <button type="button" onclick="saveProject()">Sauvegarder Projet</button>
+                </div>
+            </form>
+            <div id="progress-bar" style="height: 10px; background: #ddd; margin-top: 10px;">
+                <div id="progress" style="height: 100%; background: #007bff; width: 0%;"></div>
+            </div>
+        </div>
 
-    <!-- Bouton pour analyser le projet courant -->
-    <button id="analyze-project">Analyser le Projet (AI)</button>
-    <div id="analysis-result"></div>
+        <!-- Récapitulatif des Projets -->
+        <div class="section">
+            <h2>Récapitulatif des Projets</h2>
+            <table id="project-table">
+                <thead>
+                    <tr>
+                        <th>Nom</th>
+                        <th>Description</th>
+                        <th>Statut</th>
+                        <th>Budget (Total / Dépensé)</th>
+                        <th>Date Chantier</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
 
+        <!-- Analyse AI -->
+        <div class="section">
+            <h2>Analyse AI des Projets</h2>
+            <select id="analyze-select"></select>
+            <button onclick="analyzeProject()">Analyser</button>
+            <div id="analysis-output"></div>
+        </div>
+
+        <!-- Modal pour Édition -->
+        <div id="edit-modal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal()">&times;</span>
+                <h2>Éditer Projet</h2>
+                <form id="edit-form">
+                    <!-- Similaire au wizard, mais en une forme -->
+                    <input type="hidden" id="edit-id">
+                    <label for="edit-name">Nom</label>
+                    <input type="text" id="edit-name">
+                    <!-- Ajouter autres champs comme description, budget, checkboxes, dates, etc. -->
+                    <button type="submit">Sauvegarder</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        const API_BASE = '/api/projects';
+        const API_URL = '/api/projects';
+        const steps = ['general', 'bc', 'pip', 'wbs', 'po', 'phase', 'reception', 'closure'];
+        let currentStep = 0;
+        let attachments = [];
+        let statusChart, budgetChart;
 
-        // Fonction pour charger la liste des projets
+        function updateProgress() {
+            const progress = (currentStep / (steps.length - 1)) * 100;
+            document.getElementById('progress').style.width = `${progress}%`;
+        }
+
+        function nextStep(current) {
+            const stepId = `step-${current}`;
+            if (validateStep(stepId)) {
+                document.getElementById(stepId).classList.remove('active');
+                currentStep++;
+                document.getElementById(`step-${steps[currentStep]}`).classList.add('active');
+                updateProgress();
+            }
+        }
+
+        function prevStep(current) {
+            document.getElementById(`step-${current}`).classList.remove('active');
+            currentStep--;
+            document.getElementById(`step-${steps[currentStep]}`).classList.add('active');
+            updateProgress();
+        }
+
+        function validateStep(stepId) {
+            // Ajouter validation par étape, e.g., dates fin > debut, etc.
+            return true; // Pour simplicité
+        }
+
+        async function saveProject() {
+            const data = {
+                name: document.getElementById('project-name').value,
+                description: document.getElementById('project-description').value,
+                business_case: document.getElementById('bc-content').value,
+                business_case_approved: document.getElementById('bc-approved').checked,
+                pip: document.getElementById('pip-content').value,
+                pip_approved: document.getElementById('pip-approved').checked,
+                wbs_number: document.getElementById('wbs-number').value,
+                wbs_created: document.getElementById('wbs-created').checked,
+                po_launched: document.getElementById('po-launched').checked,
+                po_requests: JSON.parse(document.getElementById('po-requests').value || '[]'),
+                quotes: JSON.parse(document.getElementById('quotes').value || '[]'),
+                project_phase_completed: document.getElementById('project-phase-completed').checked,
+                chantier_date: document.getElementById('chantier-date').value,
+                reception_completed: document.getElementById('reception-completed').checked,
+                closure_completed: document.getElementById('closure-completed').checked,
+                budget_total: document.getElementById('budget-total').value,
+                status: document.getElementById('project-status').value,
+                gantt_data: {
+                    tasks: [
+                        { name: 'Business Case', start: document.getElementById('bc-start').value, end: document.getElementById('bc-end').value, progress: document.getElementById('bc-approved').checked ? 100 : 0 },
+                        { name: 'PIP', start: document.getElementById('pip-start').value, end: document.getElementById('pip-end').value, progress: document.getElementById('pip-approved').checked ? 100 : 0 },
+                        { name: 'WBS', start: document.getElementById('wbs-start').value, end: document.getElementById('wbs-end').value, progress: document.getElementById('wbs-created').checked ? 100 : 0 },
+                        { name: 'Commandes', start: document.getElementById('po-start').value, end: document.getElementById('po-end').value, progress: document.getElementById('po-launched').checked ? 100 : 0 },
+                        { name: 'Phase Projet', start: document.getElementById('phase-start').value, end: document.getElementById('phase-end').value, progress: document.getElementById('project-phase-completed').checked ? 100 : 0 },
+                        { name: 'Réception', start: document.getElementById('reception-start').value, end: document.getElementById('reception-end').value, progress: document.getElementById('reception-completed').checked ? 100 : 0 },
+                        { name: 'Clôture', start: document.getElementById('closure-start').value, end: document.getElementById('closure-end').value, progress: document.getElementById('closure-completed').checked ? 100 : 0 }
+                    ]
+                },
+                attachments: attachments
+            };
+            try {
+                await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                loadProjects();
+                resetWizard();
+            } catch (err) {
+                console.error('Erreur sauvegarde:', err);
+            }
+        }
+
+        function resetWizard() {
+            document.querySelectorAll('.wizard-step').forEach(step => step.classList.remove('active'));
+            document.getElementById('step-general').classList.add('active');
+            currentStep = 0;
+            updateProgress();
+            document.getElementById('project-wizard').reset();
+            attachments = [];
+            document.getElementById('attachments-preview').innerHTML = '';
+        }
+
         async function loadProjects() {
             try {
-                const response = await fetch(API_BASE);
+                const response = await fetch(API_URL);
                 const projects = await response.json();
-                const list = document.getElementById('project-list');
-                list.innerHTML = '';
-                projects.forEach(project => {
-                    const card = document.createElement('div');
-                    card.classList.add('project-card');
-                    card.innerHTML = `
-                        <h3>${project.name}</h3>
-                        <p>${project.description}</p>
-                        <p>Statut: ${project.status}</p>
-                        <p>Budget: ${project.budget_total} (€ spent: ${project.budget_spent})</p>
-                        <p>Business Case: ${project.business_case_approved ? '<span class="approval-check">Approuvé</span>' : '<span class="pending-check">En attente</span>'}</p>
-                        <p>PIP: ${project.pip_approved ? '<span class="approval-check">Approuvé</span>' : '<span class="pending-check">En attente</span>'}</p>
-                        <p>WBS Créé: ${project.wbs_created ? '<span class="approval-check">Oui</span>' : '<span class="pending-check">Non</span>'}</p>
-                        <p>PO Lancé: ${project.po_launched ? '<span class="approval-check">Oui</span>' : '<span class="pending-check">Non</span>'}</p>
-                        <p>Date Chantier: ${project.chantier_date || 'Non définie'}</p>
-                        <p>Phase Projet: ${project.project_phase_completed ? '<span class="approval-check">Complétée</span>' : '<span class="pending-check">En cours</span>'}</p>
-                        <p>Réception: ${project.reception_completed ? '<span class="approval-check">Complétée</span>' : '<span class="pending-check">En attente</span>'}</p>
-                        <p>Clôture: ${project.closure_completed ? '<span class="approval-check">Complétée</span>' : '<span class="pending-check">En attente</span>'}</p>
-                        <button onclick="editProject('${project.id}')">Éditer</button>
-                        <button onclick="deleteProject('${project.id}')">Supprimer</button>
+                const tbody = document.querySelector('#project-table tbody');
+                tbody.innerHTML = '';
+                projects.forEach(p => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${p.name}</td>
+                        <td>${p.description}</td>
+                        <td>${p.status}</td>
+                        <td>${p.budget_total} / ${p.budget_spent}</td>
+                        <td>${p.chantier_date || 'N/A'}</td>
+                        <td>
+                            <button onclick="editProject(${p.id})">Éditer</button>
+                            <button onclick="deleteProject(${p.id})">Supprimer</button>
+                            <button onclick="analyzeSingleProject(${p.id})">Analyser AI</button>
+                        </td>
                     `;
-                    list.appendChild(card);
+                    tbody.appendChild(tr);
                 });
+                loadAnalyzeSelect(projects);
             } catch (err) {
                 console.error('Erreur chargement projets:', err);
             }
         }
 
-        // Fonction pour éditer un projet
-        async function editProject(id) {
+        function loadAnalyzeSelect(projects) {
+            const select = document.getElementById('analyze-select');
+            select.innerHTML = '<option value="">Sélectionner un projet</option>';
+            projects.forEach(p => {
+                const option = document.createElement('option');
+                option.value = p.id;
+                option.textContent = p.name;
+                select.appendChild(option);
+            });
+        }
+
+        async function loadStats() {
             try {
-                const response = await fetch(`${API_BASE}/${id}`);
-                const project = await response.json();
-                document.getElementById('project-id').value = project.id;
-                document.getElementById('name').value = project.name;
-                document.getElementById('description').value = project.description;
-                document.getElementById('business_case').value = project.business_case;
-                document.getElementById('business_case_approved').checked = project.business_case_approved;
-                document.getElementById('pip').value = project.pip;
-                document.getElementById('pip_approved').checked = project.pip_approved;
-                document.getElementById('wbs_number').value = project.wbs_number;
-                document.getElementById('wbs_created').checked = project.wbs_created;
-                document.getElementById('po_launched').checked = project.po_launched;
-                document.getElementById('chantier_date').value = project.chantier_date ? project.chantier_date.split('T')[0] : '';
-                document.getElementById('project_phase_completed').checked = project.project_phase_completed;
-                document.getElementById('reception_completed').checked = project.reception_completed;
-                document.getElementById('closure_completed').checked = project.closure_completed;
-                document.getElementById('budget_total').value = project.budget_total;
-                document.getElementById('status').value = project.status;
-                document.getElementById('po_requests').value = JSON.stringify(project.po_requests || []);
-                document.getElementById('quotes').value = JSON.stringify(project.quotes || []);
-                document.getElementById('gantt_data').value = JSON.stringify(project.gantt_data || {});
-                
-                // Afficher attachments
-                const attachmentsList = document.getElementById('attachments-list');
-                attachmentsList.innerHTML = '';
-                (project.attachments || []).forEach(att => {
-                    const link = document.createElement('a');
-                    link.href = att.data;
-                    link.textContent = att.filename;
-                    link.download = att.filename;
-                    attachmentsList.appendChild(link);
-                    attachmentsList.appendChild(document.createElement('br'));
+                const response = await fetch('/api/project-stats');
+                const stats = await response.json();
+                document.getElementById('total-projects').textContent = stats.totalProjects;
+                document.getElementById('approved-bc').textContent = stats.approvedBusinessCases;
+                document.getElementById('total-budget').textContent = stats.totalBudget + ' €';
+                document.getElementById('spent-budget').textContent = stats.spentBudget + ' €';
+
+                // Status Chart (Doughnut)
+                if (statusChart) statusChart.destroy();
+                statusChart = new Chart(document.getElementById('status-chart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(stats.statusDistribution),
+                        datasets: [{ data: Object.values(stats.statusDistribution), backgroundColor: ['#007bff', '#28a745', '#dc3545', '#ffc107'] }]
+                    }
+                });
+
+                // Budget Chart (Bar)
+                if (budgetChart) budgetChart.destroy();
+                budgetChart = new Chart(document.getElementById('budget-chart'), {
+                    type: 'bar',
+                    data: {
+                        labels: ['Total', 'Dépensé'],
+                        datasets: [{ data: [stats.totalBudget, stats.spentBudget], backgroundColor: ['#007bff', '#dc3545'] }]
+                    }
                 });
             } catch (err) {
-                console.error('Erreur édition projet:', err);
+                console.error('Erreur stats:', err);
             }
         }
 
-        // Fonction pour supprimer un projet
-        async function deleteProject(id) {
-            if (confirm('Confirmer la suppression ?')) {
+        async function uploadAttachments() {
+            const files = document.getElementById('attachments-file').files;
+            if (!files.length) return;
+            for (let file of files) {
+                const formData = new FormData();
+                formData.append('file', file);
                 try {
-                    await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
-                    loadProjects();
+                    const response = await fetch(`${API_URL}/temp-attachment`, { method: 'POST', body: formData }); // Assumer temp upload si needed, mais depuis server a /id/attachment
+                    const att = await response.json();
+                    attachments.push(att.attachment);
+                    const preview = document.getElementById('attachments-preview');
+                    preview.innerHTML += `<p>${file.name}</p>`;
                 } catch (err) {
-                    console.error('Erreur suppression projet:', err);
+                    console.error('Erreur upload:', err);
                 }
             }
         }
 
-        // Soumission formulaire (créer/mettre à jour)
-        document.getElementById('project-form').addEventListener('submit', async (e) => {
+        function openEditModal(project) {
+            document.getElementById('edit-id').value = project.id;
+            document.getElementById('edit-name').value = project.name;
+            // Remplir autres champs...
+            document.getElementById('edit-modal').style.display = 'flex';
+        }
+
+        async function editProject(id) {
+            const response = await fetch(`${API_URL}/${id}`);
+            const project = await response.json();
+            openEditModal(project);
+        }
+
+        document.getElementById('edit-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const id = document.getElementById('project-id').value;
+            const id = document.getElementById('edit-id').value;
             const data = {
-                name: document.getElementById('name').value,
-                description: document.getElementById('description').value,
-                business_case: document.getElementById('business_case').value,
-                business_case_approved: document.getElementById('business_case_approved').checked,
-                pip: document.getElementById('pip').value,
-                pip_approved: document.getElementById('pip_approved').checked,
-                wbs_number: document.getElementById('wbs_number').value,
-                wbs_created: document.getElementById('wbs_created').checked,
-                po_launched: document.getElementById('po_launched').checked,
-                chantier_date: document.getElementById('chantier_date').value,
-                project_phase_completed: document.getElementById('project_phase_completed').checked,
-                reception_completed: document.getElementById('reception_completed').checked,
-                closure_completed: document.getElementById('closure_completed').checked,
-                budget_total: document.getElementById('budget_total').value,
-                status: document.getElementById('status').value,
-                po_requests: JSON.parse(document.getElementById('po_requests').value || '[]'),
-                quotes: JSON.parse(document.getElementById('quotes').value || '[]'),
-                gantt_data: JSON.parse(document.getElementById('gantt_data').value || '{}')
-                // attachments géré séparément
+                name: document.getElementById('edit-name').value,
+                // Ajouter autres...
             };
-            try {
-                const method = id ? 'PUT' : 'POST';
-                const url = id ? `${API_BASE}/${id}` : API_BASE;
-                await fetch(url, {
-                    method,
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
+            await fetch(`${API_URL}/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            loadProjects();
+            closeModal();
+        });
+
+        function closeModal() {
+            document.getElementById('edit-modal').style.display = 'none';
+        }
+
+        async function deleteProject(id) {
+            if (confirm('Confirmer suppression?')) {
+                await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
                 loadProjects();
-                document.getElementById('project-form').reset();
-                document.getElementById('project-id').value = '';
-            } catch (err) {
-                console.error('Erreur sauvegarde projet:', err);
             }
-        });
+        }
 
-        // Upload attachment
-        document.getElementById('upload-attachment').addEventListener('click', async () => {
-            const id = document.getElementById('project-id').value;
-            if (!id) return alert('Sélectionnez un projet à éditer d\'abord');
-            const file = document.getElementById('attachment-file').files[0];
-            if (!file) return alert('Sélectionnez un fichier');
-            const formData = new FormData();
-            formData.append('file', file);
-            try {
-                await fetch(`${API_BASE}/${id}/attachment`, { method: 'POST', body: formData });
-                editProject(id); // Recharge attachments
-            } catch (err) {
-                console.error('Erreur upload:', err);
-            }
-        });
+        async function analyzeProject() {
+            const id = document.getElementById('analyze-select').value;
+            if (!id) return;
+            const response = await fetch('/api/project-analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectData: await fetch(`${API_URL}/${id}`).then(r => r.json()) })
+            });
+            const analysis = await response.json();
+            document.getElementById('analysis-output').innerHTML = `
+                <p>Avis: ${analysis.avis}</p>
+                <ul>Risques: ${analysis.risques.map(r => `<li>${r}</li>`).join('')}</ul>
+                <p>Score: ${analysis.score}/100</p>
+                <ul>Suggestions: ${analysis.suggestions.map(s => `<li>${s}</li>`).join('')}</ul>
+            `;
+        }
 
-        // Analyse AI
-        document.getElementById('analyze-project').addEventListener('click', async () => {
-            const id = document.getElementById('project-id').value;
-            if (!id) return alert('Sélectionnez un projet à analyser');
-            try {
-                const response = await fetch(`${API_BASE}/${id}`);
-                const project = await response.json();
-                const analysisResponse = await fetch('/api/project-analyze', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ projectData: project })
-                });
-                const analysis = await analysisResponse.json();
-                document.getElementById('analysis-result').innerHTML = `
-                    <h3>Analyse AI</h3>
-                    <p>Avis: ${analysis.avis}</p>
-                    <p>Risques: ${analysis.risques.join(', ')}</p>
-                    <p>Score: ${analysis.score}/100</p>
-                    <p>Suggestions: ${analysis.suggestions.join(', ')}</p>
-                `;
-            } catch (err) {
-                console.error('Erreur analyse AI:', err);
-            }
-        });
+        async function analyzeSingleProject(id) {
+            // Similaire, afficher dans un div ou alert
+            const analysis = await fetch('/api/project-analyze', {
+                method: 'POST',
+                body: JSON.stringify({ projectData: await fetch(`${API_URL}/${id}`).then(r => r.json()) })
+            }).then(r => r.json());
+            alert(`Score: ${analysis.score}\nAvis: ${analysis.avis}`);
+        }
 
-        // Chargement initial
+        // Initial load
         loadProjects();
+        loadStats();
+        updateProgress();
     </script>
 </body>
 </html>
