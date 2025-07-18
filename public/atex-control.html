@@ -225,7 +225,6 @@
             tableBody.innerHTML = '';
             filtered.forEach(eq => {
                 const riskClass = eq.risque <= 1 ? 'risk-low' : eq.risque <= 3 ? 'risk-med' : 'risk-high';
-                const evolutionClass = eq.evolution === 'up' ? 'evolution-up' : eq.evolution === 'down' ? 'evolution-down' : 'evolution-stable'; // Suppose eq.evolution calculé
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${eq.id}</td>
@@ -236,16 +235,16 @@
                     <td>${eq.grade}/${eq.frequence}</td>
                     <td>${eq.last_inspection_date || 'N/A'}</td>
                     <td>${eq.next_inspection_date || 'N/A'}</td>
-                    <td><canvas class="sparkline" id="spark-${eq.id}"></canvas></td> <!-- Sparkline pour history -->
+                    <td><canvas class="sparkline" id="spark-${eq.id}"></canvas></td>
                     <td><img class="last-photo" src="${eq.photo || 'no-photo.jpg'}" alt="Photo"></td>
-                    <td class="${evolutionClass}">Evolution: ${eq.evolution || 'Stable'}</td> <!-- Calcule evolution basé sur history -->
+                    <td class="evolution-stable">${eq.evolution || 'Stable'}</td>
                     <td>
                         <button onclick="editEquipment(${eq.id})">Éditer</button>
                         <button onclick="deleteEquipment(${eq.id})">Supprimer</button>
                     </td>
                 `;
                 tableBody.appendChild(row);
-                // Sparkline (exemple avec Chart.js, fetch history si besoin)
+                // Sparkline
                 new Chart(document.getElementById(`spark-${eq.id}`), {
                     type: 'line',
                     data: { labels: ['1', '2', '3'], datasets: [{ data: [eq.risque - 1, eq.risque, eq.risque + 1], borderColor: 'blue', fill: false }] },
