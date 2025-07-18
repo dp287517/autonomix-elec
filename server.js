@@ -442,6 +442,19 @@ async function initDb() {
             );
         `);
 
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS atex_secteurs (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) UNIQUE
+            );
+        `);
+        const secteursCount = await client.query('SELECT COUNT(*) FROM atex_secteurs');
+        if (parseInt(secteursCount.rows[0].count) === 0) {
+            await client.query(`
+                INSERT INTO atex_secteurs (name) VALUES ('Métro'), ('Utilité'), ('Maintenance');
+            `);
+        }
+
         // Trigger pour updated_at
         await client.query(`
             CREATE OR REPLACE FUNCTION update_updated_at_projects()
@@ -2966,15 +2979,21 @@ app.post('/api/atex-equipments', async (req, res) => {
     let client;
     try {
         client = await pool.connect();
-        const result = await client.query(
-            'INSERT INTO atex_equipments (risque, secteur, batiment, local, composant, fournisseur, type, identifiant, interieur, exterieur, categorie_minimum, marquage_atex, photo, conformite, comments) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *',
-            [data.risque, data.secteur, data.batiment, data.local, data.composant, data.fournisseur, data.type, data.identifiant, data.interieur, data.exterieur, data.categorie_minimum, data.marquage_atex, data.photo, data.conformite, data.comments]
-        );
-        // Calcul auto next_inspection (ex. 3 ans par défaut)
-        const nextDate = new Date();
-        nextDate.setFullYear(nextDate.getFullYear() + 3);
-        await client.query('UPDATE atex_equipments SET next_inspection_date = $1 WHERE id = $2', [nextDate.toISOString().split('T')[0], result.rows[0].id]);
-        // Algo conformité auto
+        // Calcul auto catégorie min
+        function calculateMinCategory(zoneExt = '', zoneInt = '') {
+            const zone = zoneExt || zoneInt || '22';
+            let cat = '';
+            if (zone.startsWith('0')) cat = 'II 1G';
+            else if (zone.startsWith('1')) cat = 'II 2G';
+            else if (zone.startsWith('2')) cat = 'II 3G';
+            else if (zone.startsWith('20')) cat = 'II 1D';
+            else if (zone.startsWith('21')) cat = 'II 2D';
+            else cat = 'II 3D';
+            return cat + ' IIIB T135°C'; // Default group/temp, adjust as needed
+        }
+        data.categorie_minimum = data.categorie_minimum || calculateMinCategory(data.exterieur, data.interieur);
+
+        // Calcul auto conformité
         function checkAtexConformity(marquage, categorieMin, zoneExt = '', zoneInt = '') {
             if (!marquage || !categorieMin) return 'Non Conforme';
             const marquageParts = marquage.match(/II (\d)[GD] (II[A-C]|III[A-C])? T(\d+)/) || [];
@@ -2989,10 +3008,25 @@ app.post('/api/atex-equipments', async (req, res) => {
             if (tMarq < tMin) return 'Non Conforme';
             return 'Conforme';
         }
-        // Après INSERT :
-        const conformity = checkAtexConformity(data.marquage_atex, data.categorie_minimum, data.exterieur, data.interieur);
-        await client.query('UPDATE atex_equipments SET conformite = $1 WHERE id = $2', [conformity, result.rows[0].id]);
-        result.rows[0].conformite = conformity;
+        data.conformite = checkAtexConformity(data.marquage_atex, data.categorie_minimum, data.exterieur, data.interieur);
+
+        // Calcul auto risque (0-5)
+        function calculateRisk(zoneExt = '', zoneInt = '', conformity) {
+            const zone = zoneExt || zoneInt || '22';
+            let zoneScore = zone.startsWith('0') || zone.startsWith('20') ? 5 : (zone.startsWith('1') || zone.startsWith('21') ? 3 : 1);
+            const confScore = conformity !== 'Conforme' ? 2 : 0;
+            return Math.min(Math.max(zoneScore + confScore, 0), 5);
+        }
+        data.risque = calculateRisk(data.exterieur, data.interieur, data.conformite);
+
+        const result = await client.query(
+            'INSERT INTO atex_equipments (risque, secteur, batiment, local, composant, fournisseur, type, identifiant, interieur, exterieur, categorie_minimum, marquage_atex, photo, conformite, comments, grade, frequence) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *',
+            [data.risque, data.secteur, data.batiment, data.local, data.composant, data.fournisseur, data.type, data.identifiant, data.interieur, data.exterieur, data.categorie_minimum, data.marquage_atex, data.photo, data.conformite, data.comments, data.grade || 'V', data.frequence || 3]
+        );
+        // Calcul auto next_inspection
+        const nextDate = new Date();
+        nextDate.setFullYear(nextDate.getFullYear() + (data.frequence || 3));
+        await client.query('UPDATE atex_equipments SET next_inspection_date = $1 WHERE id = $2', [nextDate.toISOString().split('T')[0], result.rows[0].id]);
         res.json(result.rows[0]);
     } catch (error) {
         console.error('[Server] Erreur POST /api/atex-equipments:', error);
@@ -3009,12 +3043,20 @@ app.put('/api/atex-equipments/:id', async (req, res) => {
     let client;
     try {
         client = await pool.connect();
-        const result = await client.query(
-            'UPDATE atex_equipments SET risque=$1, secteur=$2, batiment=$3, local=$4, composant=$5, fournisseur=$6, type=$7, identifiant=$8, interieur=$9, exterieur=$10, categorie_minimum=$11, marquage_atex=$12, photo=$13, conformite=$14, comments=$15 WHERE id=$16 RETURNING *',
-            [data.risque, data.secteur, data.batiment, data.local, data.composant, data.fournisseur, data.type, data.identifiant, data.interieur, data.exterieur, data.categorie_minimum, data.marquage_atex, data.photo, data.conformite, data.comments, id]
-        );
-        if (result.rows.length === 0) return res.status(404).json({ error: 'Équipement non trouvé' });
-        // Algo conformité auto
+        // Recalcul autos (risque, catégorie, conformité)
+        function calculateMinCategory(zoneExt = '', zoneInt = '') {
+            const zone = zoneExt || zoneInt || '22';
+            let cat = '';
+            if (zone.startsWith('0')) cat = 'II 1G';
+            else if (zone.startsWith('1')) cat = 'II 2G';
+            else if (zone.startsWith('2')) cat = 'II 3G';
+            else if (zone.startsWith('20')) cat = 'II 1D';
+            else if (zone.startsWith('21')) cat = 'II 2D';
+            else cat = 'II 3D';
+            return cat + ' IIIB T135°C';
+        }
+        data.categorie_minimum = data.categorie_minimum || calculateMinCategory(data.exterieur, data.interieur);
+
         function checkAtexConformity(marquage, categorieMin, zoneExt = '', zoneInt = '') {
             if (!marquage || !categorieMin) return 'Non Conforme';
             const marquageParts = marquage.match(/II (\d)[GD] (II[A-C]|III[A-C])? T(\d+)/) || [];
@@ -3029,10 +3071,21 @@ app.put('/api/atex-equipments/:id', async (req, res) => {
             if (tMarq < tMin) return 'Non Conforme';
             return 'Conforme';
         }
-        // Après UPDATE :
-        const conformity = checkAtexConformity(data.marquage_atex, data.categorie_minimum, data.exterieur, data.interieur);
-        await client.query('UPDATE atex_equipments SET conformite = $1 WHERE id = $2', [conformity, id]);
-        result.rows[0].conformite = conformity;
+        data.conformite = checkAtexConformity(data.marquage_atex, data.categorie_minimum, data.exterieur, data.interieur);
+
+        function calculateRisk(zoneExt = '', zoneInt = '', conformity) {
+            const zone = zoneExt || zoneInt || '22';
+            let zoneScore = zone.startsWith('0') || zone.startsWith('20') ? 5 : (zone.startsWith('1') || zone.startsWith('21') ? 3 : 1);
+            const confScore = conformity !== 'Conforme' ? 2 : 0;
+            return Math.min(Math.max(zoneScore + confScore, 0), 5);
+        }
+        data.risque = calculateRisk(data.exterieur, data.interieur, data.conformite);
+
+        const result = await client.query(
+            'UPDATE atex_equipments SET risque=$1, secteur=$2, batiment=$3, local=$4, composant=$5, fournisseur=$6, type=$7, identifiant=$8, interieur=$9, exterieur=$10, categorie_minimum=$11, marquage_atex=$12, photo=$13, conformite=$14, comments=$15, grade=$16, frequence=$17 WHERE id=$18 RETURNING *',
+            [data.risque, data.secteur, data.batiment, data.local, data.composant, data.fournisseur, data.type, data.identifiant, data.interieur, data.exterieur, data.categorie_minimum, data.marquage_atex, data.photo, data.conformite, data.comments, data.grade || 'V', data.frequence || 3, id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Équipement non trouvé' });
         res.json(result.rows[0]);
     } catch (error) {
         console.error('[Server] Erreur PUT /api/atex-equipments/:id:', error);
@@ -3091,6 +3144,18 @@ app.post('/api/atex-import-excel', upload.single('excel'), async (req, res) => {
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1); // Skip header
 
+        function calculateMinCategory(zoneExt = '', zoneInt = '') {
+            const zone = zoneExt || zoneInt || '22';
+            let cat = '';
+            if (zone.startsWith('0')) cat = 'II 1G';
+            else if (zone.startsWith('1')) cat = 'II 2G';
+            else if (zone.startsWith('2')) cat = 'II 3G';
+            else if (zone.startsWith('20')) cat = 'II 1D';
+            else if (zone.startsWith('21')) cat = 'II 2D';
+            else cat = 'II 3D';
+            return cat + ' IIIB T135°C';
+        }
+
         function checkAtexConformity(marquage, categorieMin, zoneExt = '', zoneInt = '') {
             if (!marquage || !categorieMin) return 'Non Conforme';
             const marquageParts = marquage.match(/II (\d)[GD] (II[A-C]|III[A-C])? T(\d+)/) || [];
@@ -3106,18 +3171,23 @@ app.post('/api/atex-import-excel', upload.single('excel'), async (req, res) => {
             return 'Conforme';
         }
 
+        function calculateRisk(zoneExt = '', zoneInt = '', conformity) {
+            const zone = zoneExt || zoneInt || '22';
+            let zoneScore = zone.startsWith('0') || zone.startsWith('20') ? 5 : (zone.startsWith('1') || zone.startsWith('21') ? 3 : 1);
+            const confScore = conformity !== 'Conforme' ? 2 : 0;
+            return Math.min(Math.max(zoneScore + confScore, 0), 5);
+        }
+
         for (const row of rows) {
             if (row.length < 15) continue; // Skip incomplete
-            const [risque, secteur, batiment, local, composant, fournisseur, type, identifiant, interieur, exterieur, categorie_minimum, marquage_atex, , conformite, comments] = row;
+            let [risque, secteur, batiment, local, composant, fournisseur, type, identifiant, interieur, exterieur, categorie_minimum, marquage_atex, , conformite, comments] = row;
+            categorie_minimum = categorie_minimum || calculateMinCategory(exterieur, interieur);
+            conformite = checkAtexConformity(marquage_atex, categorie_minimum, exterieur, interieur);
+            risque = calculateRisk(exterieur, interieur, conformite);
             await client.query(
                 'INSERT INTO atex_equipments (risque, secteur, batiment, local, composant, fournisseur, type, identifiant, interieur, exterieur, categorie_minimum, marquage_atex, conformite, comments) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) ON CONFLICT (identifiant) DO UPDATE SET risque=EXCLUDED.risque, secteur=EXCLUDED.secteur, batiment=EXCLUDED.batiment, local=EXCLUDED.local, composant=EXCLUDED.composant, fournisseur=EXCLUDED.fournisseur, type=EXCLUDED.type, interieur=EXCLUDED.interieur, exterieur=EXCLUDED.exterieur, categorie_minimum=EXCLUDED.categorie_minimum, marquage_atex=EXCLUDED.marquage_atex, conformite=EXCLUDED.conformite, comments=EXCLUDED.comments',
                 [risque, secteur, batiment, local, composant, fournisseur, type, identifiant, interieur, exterieur, categorie_minimum, marquage_atex, conformite, comments]
             );
-            // Récup ID nouvel équipement (via identifiant)
-            const eqResult = await client.query('SELECT id, marquage_atex, categorie_minimum, exterieur, interieur FROM atex_equipments WHERE identifiant = $1', [identifiant]);
-            const eq = eqResult.rows[0];
-            const conformity = checkAtexConformity(eq.marquage_atex, eq.categorie_minimum, eq.exterieur, eq.interieur);
-            await client.query('UPDATE atex_equipments SET conformite = $1 WHERE id = $2', [conformity, eq.id]);
         }
         res.json({ success: true });
     } catch (error) {
@@ -3128,61 +3198,49 @@ app.post('/api/atex-import-excel', upload.single('excel'), async (req, res) => {
     }
 });
 
-app.post('/api/atex-suggest-replacement', async (req, res) => {
-    const { zone, categorieMin, composant } = req.body;
-    try {
-        const prompt = `Pour un équipement ${composant} en zone ATEX ${zone} avec catégorie minimum ${categorieMin}, suggère 3 alternatives conformes avec marques/modèles et pourquoi elles conviennent. Format JSON: {suggestions: [{nom: string, raison: string}]}`;
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [{ role: 'user', content: prompt }],
-            response_format: { type: 'json_object' }
-        });
-        res.json(JSON.parse(response.choices[0].message.content));
-    } catch (error) {
-        res.status(500).json({ error: 'Erreur suggestion' });
-    }
-});
-
-app.get('/api/atex-explain', (req, res) => {
-    const explanations = {
-        zones: 'Zones ATEX : 0/1/2 pour gaz (permanent/fréquent/rare), 20/21/22 pour poussières. Choisir équipement basé sur risque.',
-        categories: 'Catégories : 1 (très haute protection, Zone 0/20), 2 (haute, Zone 1/21), 3 (normale, Zone 2/22).',
-        marquages: 'Marquage ex. II 3G Ex nA IIA T4 : II=non-mines, 3=Cat3, G=gaz, Ex nA=non-étincelant, IIA=gaz type propane, T4=temp max 135°C.',
-        pointsEssentiels: 'Vérifiez : Marquage complet, IP (étanchéité), pas de dommages/mods, certificats. Inspections : Visual (V) tous 3 ans non-IC, Close (C) annuels IC, Detailed (D) initiaux.'
-    };
-    res.json(explanations);
-});
-
-app.get('/api/atex-risk-global', async (req, res) => {
+app.get('/api/atex-secteurs', async (req, res) => {
     let client;
     try {
         client = await pool.connect();
-        const result = await client.query('SELECT risque, conformite, next_inspection_date FROM atex_equipments');
-        const total = result.rows.length;
-        const conforme = result.rows.filter(r => r.conformite === 'Conforme').length;
-        const avgRisk = result.rows.reduce((sum, r) => sum + (parseInt(r.risque) || 0), 0) / total || 0;
-        const highRisk = result.rows.filter(r => (parseInt(r.risque) || 0) >= 4).length;
-        const lowRisk = result.rows.filter(r => (parseInt(r.risque) || 0) < 2).length;
-        const medRisk = total - highRisk - lowRisk;
-        res.json({ total, conformePercent: (conforme / total * 100).toFixed(1), avgRisk: avgRisk.toFixed(1), highRisk, medRisk, lowRisk });
-    } catch (error) {
-        res.status(500).json({ error: 'Erreur risk global' });
-    } finally {
-        if (client) client.release();
-    }
-});
-
-app.get('/api/atex-inspections', async (req, res) => {
-    const { equipment_id } = req.query;
-    let client;
-    try {
-        client = await pool.connect();
-        const result = await client.query('SELECT * FROM atex_inspections WHERE equipment_id = $1 ORDER BY inspection_date DESC', [equipment_id]);
+        const result = await client.query('SELECT name FROM atex_secteurs');
         res.json(result.rows);
     } catch (error) {
-        res.status(500).json({ error: 'Erreur historique inspections' });
+        res.status(500).json({ error: 'Erreur secteurs' });
     } finally {
         if (client) client.release();
+    }
+});
+
+app.get('/api/atex-analysis', async (req, res) => {
+    let client;
+    try {
+        client = await pool.connect();
+        const result = await client.query('SELECT * FROM atex_equipments');
+        const alerts = [];
+        const nonConforme = result.rows.filter(r => r.conformite !== 'Conforme').length;
+        if (nonConforme > 0) alerts.push({ text: `⚠️ ${nonConforme} équipements non conformes.` });
+        const overdue = result.rows.filter(r => new Date(r.next_inspection_date) < new Date()).length;
+        if (overdue > 0) alerts.push({ text: `⚠️ ${overdue} inspections en retard.` });
+        // Add more analysis...
+        res.json(alerts);
+    } catch (error) {
+        res.status(500).json({ error: 'Erreur analysis' });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+app.post('/api/atex-chat', async (req, res) => {
+    const { question } = req.body;
+    try {
+        const prompt = `Réponds à cette question sur ATEX/équipements : ${question}. Sois clair, pour novice.`;
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            messages: [{ role: 'user', content: prompt }]
+        });
+        res.json({ response: response.choices[0].message.content });
+    } catch (error) {
+        res.status(500).json({ error: 'Erreur chat' });
     }
 });
 
