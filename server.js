@@ -3112,6 +3112,22 @@ app.delete('/api/atex-equipments/:id', async (req, res) => {
     }
 });
 
+app.get('/api/atex-equipments/:id', async (req, res) => {
+    const { id } = req.params;
+    let client;
+    try {
+        client = await pool.connect();
+        const result = await client.query('SELECT * FROM atex_equipments WHERE id = $1', [id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Équipement non trouvé' });
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('[Server] Erreur GET /api/atex-equipments/:id:', error);
+        res.status(500).json({ error: 'Erreur récupération équipement' });
+    } finally {
+        if (client) client.release();
+    }
+});
+
 // POST inspection (avec photo, update dates)
 app.post('/api/atex-inspect', async (req, res) => {
     const { equipment_id, status, comment, photo, inspection_date } = req.body;
@@ -3158,15 +3174,28 @@ app.post('/api/atex-import-excel', upload.single('excel'), async (req, res) => {
 
         function checkAtexConformity(marquage, categorieMin, zoneExt = '', zoneInt = '') {
             if (!marquage || !categorieMin) return 'Non Conforme';
-            const marquageParts = marquage.match(/II (\d)[GD] (II[A-C]|III[A-C])? T(\d+)/) || [];
+            // Regex originale pour format 'II ... T135'
+            let marquageParts = marquage.match(/II (\d)[GD] (II[A-C]|III[A-C])? T(\d+)/) || [];
+            let catMarq = parseInt(marquageParts[1] || 3);
+            let tMarq = parseInt(marquageParts[4] || 6);
+
+            // Amélioration pour format 'Ex ... T4 Gc'
+            if (marquage.includes('Ga')) catMarq = 1;
+            else if (marquage.includes('Gb')) catMarq = 2;
+            else if (marquage.includes('Gc')) catMarq = 3;
+            if (marquage.includes('T1')) tMarq = 450;
+            else if (marquage.includes('T2')) tMarq = 300;
+            else if (marquage.includes('T3')) tMarq = 200;
+            else if (marquage.includes('T4')) tMarq = 135;
+            else if (marquage.includes('T5')) tMarq = 100;
+            else if (marquage.includes('T6')) tMarq = 85;
+
             const minParts = categorieMin.match(/II (\d)[GD] (III[A-C])? T(\d+)/) || [];
-            const catMarq = parseInt(marquageParts[1] || 3);
             const catMin = parseInt(minParts[1] || 3);
+            const tMin = parseInt(minParts[4] || 135);
             const zone = zoneExt || zoneInt || '22';
             const requiredCat = zone.startsWith('0') || zone.startsWith('20') ? 1 : (zone.startsWith('1') || zone.startsWith('21') ? 2 : 3);
             if (catMarq > requiredCat || catMarq > catMin) return 'Non Conforme';
-            const tMarq = parseInt(marquageParts[4] || 6);
-            const tMin = parseInt(minParts[4] || 135);
             if (tMarq < tMin) return 'Non Conforme';
             return 'Conforme';
         }
