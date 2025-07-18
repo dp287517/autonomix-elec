@@ -3,85 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Risk Assessment ATEX Global</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-    <link href="https://unpkg.com/lucide@latest/dist/umd/lucide.min.css" rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>Risk Assessment Global ATEX</title>
     <style>
-        body { background-color: #f8f9fa; font-family: 'Poppins', sans-serif; color: #333; }
-        .card { margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 15px; background: #fff; }
-        #riskChart { max-height: 400px; }
+        /* Ajoute du style basique pour la page et le chat */
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        #ia-chat-section { border: 1px solid #ccc; padding: 10px; margin-top: 20px; }
+        #ia-response { margin-top: 10px; }
+        button { margin-left: 5px; cursor: pointer; }
     </style>
 </head>
-<body class="container my-5">
-    <h1 class="text-center mb-4">Risk Assessment Global ATEX</h1>
-    <a href="atex-control.html" class="btn btn-info mb-4"><i data-lucide="arrow-left"></i> Retour à Contrôle</a>
+<body>
+    <h1>Risk Assessment Global ATEX</h1>
+    <a href="atex-control.html">Retour à Contrôle</a>
 
-    <div class="card">
-        <div class="card-header"><h4>Statistiques Globales</h4></div>
-        <div class="card-body">
-            <canvas id="riskChart"></canvas>
-            <div id="riskSummary" class="mt-3"></div>
-        </div>
-    </div>
+    <h2>Statistiques Globales</h2>
+    <table id="stats-table">
+        <thead>
+            <tr>
+                <th>Total Équipements</th>
+                <th>Conformes</th>
+                <th>Non Conformes</th>
+                <th>Risque Moyen</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Rempli dynamiquement par JS via /api/atex-risk-global -->
+        </tbody>
+    </table>
 
-    <div class="card">
-        <div class="card-header"><h4>Équipements High-Risk ou Overdue</h4></div>
-        <div class="card-body">
-            <table class="table table-striped">
-                <thead><tr><th>ID</th><th>Composant</th><th>Risk</th><th>Prochaine Inspection</th></tr></thead>
-                <tbody id="highRiskTable"></tbody>
-            </table>
-        </div>
-    </div>
+    <h2>Équipements High-Risk ou Overdue</h2>
+    <table id="high-risk-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Composant</th>
+                <th>Risk</th>
+                <th>Prochaine Inspection</th>
+                <th>Actions</th>  <!-- Colonne pour boutons IA -->
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Rempli dynamiquement par JS via /api/atex-risk-global, ex: <tr data-equipment='{"id":1,"composant":"Pompe X","risque":5,"next_inspection_date":"2025-06-01"}'>... -->
+        </tbody>
+    </table>
 
+    <!-- Section Chat IA Automatisé (uniquement sur cette page) -->
+    <section id="ia-chat-section">
+        <h2>Chat IA Automatisé pour Analyse & Corrections</h2>
+        <p>Posez une question générale sur ATEX, ou cliquez sur "Analyser" pour un équipement high-risk pour une analyse auto (corrections, liens commandes, coûts).</p>
+        
+        <!-- Input pour question manuelle -->
+        <input type="text" id="ia-question" placeholder="Posez une question sur ATEX...">
+        <button onclick="sendManualQuestion()">Envoyer</button>
+        
+        <!-- Zone d'affichage des réponses (avec historique) -->
+        <div id="ia-response" style="border: 1px solid #ccc; padding: 10px; margin-top: 10px; max-height: 300px; overflow-y: scroll;"></div>
+    </section>
+
+    <!-- Script JS pour le chat (avec multi-tour via localStorage) -->
     <script>
-        lucide.createIcons();
-        window.onload = () => loadRiskGlobal();
+        // Charger historique de localStorage
+        let chatHistory = JSON.parse(localStorage.getItem('atexChatHistory')) || [];
 
-        async function loadRiskGlobal() {
-            const response = await fetch('/api/atex-risk-global');
-            const data = await response.json();
-
-            document.getElementById('riskSummary').innerHTML = `
-                Total Équipements: ${data.total} | Conformes: ${data.conformePercent}% | Risk Moyen: ${data.avgRisk}/5 | High-Risk: ${data.highRisk}
-            `;
-
-            const ctx = document.getElementById('riskChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'pie',
-                data: {
-                    labels: ['Low Risk', 'Med Risk', 'High Risk'],
-                    datasets: [{ data: [data.lowRisk, data.medRisk, data.highRisk], backgroundColor: ['#28a745', '#ffc107', '#dc3545'] }]
-                },
-                options: { responsive: true }
+        // Afficher historique au chargement
+        window.addEventListener('load', () => {
+            displayHistory();
+            // Ajouter boutons "Analyser" à la table high-risk (après chargement des données)
+            const rows = document.querySelectorAll('#high-risk-table tr[data-equipment]');
+            rows.forEach(row => {
+                const equipment = JSON.parse(row.dataset.equipment);
+                const actionsCell = row.querySelector('td:last-child') || row.insertCell();
+                const btn = document.createElement('button');
+                btn.textContent = 'Analyser & Corriger';
+                btn.onclick = () => analyzeEquipment(equipment);
+                actionsCell.appendChild(btn);
             });
+        });
 
-            // Fetch full equipments for high-risk table
-            const eqResponse = await fetch('/api/atex-equipments');
-            const equipments = await eqResponse.json();
-            const highRiskEq = equipments.filter(eq => {
-                const risk = calculateRisk(eq);
-                const next = new Date(eq.next_inspection_date);
-                return risk.level === 'High' || next < new Date();
-            });
-
-            const tbody = document.getElementById('highRiskTable');
-            tbody.innerHTML = '';
-            highRiskEq.forEach(eq => {
-                const row = `<tr><td>${eq.identifiant}</td><td>${eq.composant}</td><td class="risk-${calculateRisk(eq).level.toLowerCase()}">${calculateRisk(eq).level}</td><td>${eq.next_inspection_date}</td></tr>`;
-                tbody.innerHTML += row;
-            });
+        // Fonction pour envoyer question manuelle (avec historique)
+        function sendManualQuestion() {
+            const question = document.getElementById('ia-question').value;
+            if (!question) return alert('Entrez une question');
+            chatHistory.push({ role: 'user', content: question });
+            sendToIA({ question, history: chatHistory });
+            document.getElementById('ia-question').value = '';  // Clear input
         }
 
-        // Réutiliser fonctions de calcul (copier de atex-control.html si besoin)
-        function calculateRisk(eq) {
-            let score = (eq.risque || 0) * 2;
-            if (eq.conformite !== 'Conforme') score += 4;
-            const level = score < 4 ? 'Low' : (score < 7 ? 'Med' : 'High');
-            return { score, level };
+        // Fonction pour analyser un équipement auto (avec historique)
+        function analyzeEquipment(equipment) {
+            const autoQuestion = `Analyse cet équipement ATEX high-risk: Composant: ${equipment.composant}, Risque: ${equipment.risque}, Prochaine inspection: ${equipment.next_inspection_date}.`;
+            chatHistory.push({ role: 'user', content: autoQuestion });
+            sendToIA({ equipment, history: chatHistory });
+        }
+
+        // Envoyer à l'API IA
+        function sendToIA(payload) {
+            fetch('/api/atex-chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).then(res => res.json()).then(data => {
+                chatHistory.push({ role: 'assistant', content: data.response });
+                saveHistory();
+                displayHistory();
+            }).catch(err => console.error('Erreur IA:', err));
+        }
+
+        // Afficher l'historique
+        function displayHistory() {
+            const responseDiv = document.getElementById('ia-response');
+            let html = '';
+            chatHistory.forEach(msg => {
+                html += `<p><strong>${msg.role === 'user' ? 'Vous' : 'IA'} :</strong> `;
+                if (typeof msg.content === 'object') {  // Réponse structurée
+                    html += `<br><strong>Analyse :</strong> ${msg.content.analysis || ''}<br>`;
+                    if (msg.content.corrections) html += `<strong>Corrections :</strong> <ul>${msg.content.corrections.map(c => `<li>${c}</li>`).join('')}</ul>`;
+                    if (msg.content.links) html += `<strong>Liens pour commandes :</strong> <ul>${msg.content.links.map(l => `<li><a href="${l}" target="_blank">${l}</a></li>`).join('')}</ul>`;
+                    if (msg.content.cost_estimate) html += `<strong>Coût estimé :</strong> ${msg.content.cost_estimate}`;
+                } else {  // Question manuelle simple
+                    html += msg.content;
+                }
+                html += '</p><hr>';
+            });
+            responseDiv.innerHTML = html;
+            responseDiv.scrollTop = responseDiv.scrollHeight;  // Scroll en bas
+        }
+
+        // Sauvegarder historique en localStorage
+        function saveHistory() {
+            localStorage.setItem('atexChatHistory', JSON.stringify(chatHistory));
+        }
+
+        // Bonus : Bouton pour effacer historique (optionnel, ajoute-le si tu veux)
+        // <button onclick="clearHistory()">Effacer Historique</button> dans HTML
+        function clearHistory() {
+            chatHistory = [];
+            saveHistory();
+            displayHistory();
         }
     </script>
 </body>
