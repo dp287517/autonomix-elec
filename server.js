@@ -3210,12 +3210,13 @@ app.post('/api/atex-import-excel', upload.single('excel'), async (req, res) => {
         for (const row of rows) {
             if (row.length < 15) continue; // Skip incomplete
             let [risque, secteur, batiment, local, composant, fournisseur, type, identifiant, interieur, exterieur, categorie_minimum, marquage_atex, , conformite, comments] = row;
+            let last_inspection_date = row.length > 15 ? row[15] : null;
             categorie_minimum = categorie_minimum || calculateMinCategory(exterieur, interieur);
             conformite = checkAtexConformity(marquage_atex, categorie_minimum, exterieur, interieur);
             risque = calculateRisk(exterieur, interieur, conformite);
             await client.query(
-                'INSERT INTO atex_equipments (risque, secteur, batiment, local, composant, fournisseur, type, identifiant, interieur, exterieur, categorie_minimum, marquage_atex, conformite, comments) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) ON CONFLICT (identifiant) DO UPDATE SET risque=EXCLUDED.risque, secteur=EXCLUDED.secteur, batiment=EXCLUDED.batiment, local=EXCLUDED.local, composant=EXCLUDED.composant, fournisseur=EXCLUDED.fournisseur, type=EXCLUDED.type, interieur=EXCLUDED.interieur, exterieur=EXCLUDED.exterieur, categorie_minimum=EXCLUDED.categorie_minimum, marquage_atex=EXCLUDED.marquage_atex, conformite=EXCLUDED.conformite, comments=EXCLUDED.comments',
-                [risque, secteur, batiment, local, composant, fournisseur, type, identifiant, interieur, exterieur, categorie_minimum, marquage_atex, conformite, comments]
+                'INSERT INTO atex_equipments (risque, secteur, batiment, local, composant, fournisseur, type, identifiant, interieur, exterieur, categorie_minimum, marquage_atex, conformite, comments, last_inspection_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) ON CONFLICT (identifiant) DO UPDATE SET risque=EXCLUDED.risque, secteur=EXCLUDED.secteur, batiment=EXCLUDED.batiment, local=EXCLUDED.local, composant=EXCLUDED.composant, fournisseur=EXCLUDED.fournisseur, type=EXCLUDED.type, interieur=EXCLUDED.interieur, exterieur=EXCLUDED.exterieur, categorie_minimum=EXCLUDED.categorie_minimum, marquage_atex=EXCLUDED.marquage_atex, conformite=EXCLUDED.conformite, comments=EXCLUDED.comments, last_inspection_date=EXCLUDED.last_inspection_date',
+                [risque, secteur, batiment, local, composant, fournisseur, type, identifiant, interieur, exterieur, categorie_minimum, marquage_atex, conformite, comments, last_inspection_date]
             );
         }
         res.json({ success: true });
@@ -3225,79 +3226,4 @@ app.post('/api/atex-import-excel', upload.single('excel'), async (req, res) => {
     } finally {
         if (client) client.release();
     }
-});
-
-app.get('/api/atex-secteurs', async (req, res) => {
-    let client;
-    try {
-        client = await pool.connect();
-        const result = await client.query('SELECT name FROM atex_secteurs');
-        res.json(result.rows);
-    } catch (error) {
-        res.status(500).json({ error: 'Erreur secteurs' });
-    } finally {
-        if (client) client.release();
-    }
-});
-
-app.get('/api/atex-analysis', async (req, res) => {
-    let client;
-    try {
-        client = await pool.connect();
-        const result = await client.query('SELECT * FROM atex_equipments');
-        const alerts = [];
-        const nonConforme = result.rows.filter(r => r.conformite !== 'Conforme').length;
-        if (nonConforme > 0) alerts.push({ text: `⚠️ ${nonConforme} équipements non conformes.` });
-        const overdue = result.rows.filter(r => new Date(r.next_inspection_date) < new Date()).length;
-        if (overdue > 0) alerts.push({ text: `⚠️ ${overdue} inspections en retard.` });
-        // Add more analysis...
-        res.json(alerts);
-    } catch (error) {
-        res.status(500).json({ error: 'Erreur analysis' });
-    } finally {
-        if (client) client.release();
-    }
-});
-
-app.post('/api/atex-chat', async (req, res) => {
-    const { question } = req.body;
-    try {
-        const prompt = `Réponds à cette question sur ATEX/équipements : ${question}. Sois clair, pour novice.`;
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [{ role: 'user', content: prompt }]
-        });
-        res.json({ response: response.choices[0].message.content });
-    } catch (error) {
-        res.status(500).json({ error: 'Erreur chat' });
-    }
-});
-
-// Démarrage du serveur
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`[Server] Serveur démarré sur le port ${PORT}`);
-});
-
-// Gestion de la fermeture propre
-process.on('SIGTERM', async () => {
-    console.log('[Server] Réception de SIGTERM, fermeture propre');
-    if (browser) {
-        await browser.close();
-        console.log('[Server] Navigateur Puppeteer fermé');
-    }
-    await pool.end();
-    console.log('[Server] Connexion à la base de données fermée');
-    process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-    console.log('[Server] Réception de SIGINT, fermeture propre');
-    if (browser) {
-        await browser.close();
-        console.log('[Server] Navigateur Puppeteer fermé');
-    }
-    await pool.end();
-    console.log('[Server] Connexion à la base de données fermée');
-    process.exit(0);
 });
