@@ -2973,6 +2973,56 @@ app.get('/api/atex-equipments', async (req, res) => {
     }
 });
 
+// Endpoint pour les risques globaux ATEX (stats et high-risk/overdue)
+app.get('/api/atex-risk-global', async (req, res) => {
+    console.log('[Server] GET /api/atex-risk-global');
+    let client;
+    try {
+        client = await pool.connect();
+        
+        // Récupérer les statistiques globales
+        const statsResult = await client.query(`
+            SELECT 
+                COUNT(*) as total_equipements,
+                SUM(CASE WHEN conformite = 'Conforme' THEN 1 ELSE 0 END) as conformes,
+                SUM(CASE WHEN conformite != 'Conforme' THEN 1 ELSE 0 END) as non_conformes,
+                AVG(risque)::numeric(3,1) as risque_moyen
+            FROM atex_equipments
+        `);
+        const stats = statsResult.rows[0] || {
+            total_equipements: 0,
+            conformes: 0,
+            non_conformes: 0,
+            risque_moyen: 0
+        };
+        
+        // Récupérer les équipements high-risk (risque >= 4) ou overdue (inspection en retard)
+        // Date actuelle : 18 juillet 2025 (comme indiqué dans ta requête)
+        const currentDate = '2025-07-18';
+        const highRiskResult = await client.query(`
+            SELECT id, composant, risque, next_inspection_date
+            FROM atex_equipments
+            WHERE risque >= 4 OR next_inspection_date < $1
+            ORDER BY risque DESC, next_inspection_date ASC
+        `, [currentDate]);
+        const highRisk = highRiskResult.rows;
+        
+        // Renvoi des données en JSON
+        res.json({
+            stats: stats,
+            highRisk: highRisk
+        });
+    } catch (error) {
+        console.error('[Server] Erreur GET /api/atex-risk-global:', {
+            message: error.message,
+            stack: error.stack
+        });
+        res.status(500).json({ error: 'Erreur lors de la récupération des données globales ATEX: ' + error.message });
+    } finally {
+        if (client) client.release();
+    }
+});
+
 // POST ajouter équipement ATEX
 app.post('/api/atex-equipments', async (req, res) => {
     const data = req.body;
