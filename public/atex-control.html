@@ -63,7 +63,7 @@
                                 <option value="Non Conforme">Non Conforme</option>
                             </select>
                         </div>
-                        <div class="col-md-3"><button onclick="loadEquipments()" class="btn btn-primary"><i data-lucide="search"></i> Appliquer</button></div>
+                        <div class="col-md-3"><button onclick="applyFilters()" class="btn btn-primary"><i data-lucide="search"></i> Appliquer</button></div>
                     </div>
                 </div>
             </div>
@@ -80,7 +80,7 @@
             </div>
         </div>
         <div class="tab-pane fade" id="add" role="tabpanel">
-            <!-- Formulaire (sans risque input) -->
+            <!-- Formulaire (sans risque input, complet avec tous les champs) -->
             <div class="card">
                 <div class="card-body">
                     <form id="equipForm">
@@ -88,13 +88,53 @@
                         <div class="row">
                             <div class="col-md-6">
                                 <label>Secteur</label>
-                                <select id="secteur" class="form-select" required></select>
+                                <select id="secteur-input" class="form-select" required></select>
                             </div>
                             <div class="col-md-6">
-                                <label>Bâtiment</label><input type="text" id="batiment" class="form-control" required>
+                                <label>Bâtiment</label><input type="text" id="batiment-input" class="form-control" required>
                             </div>
                         </div>
-                        <!-- ... (rest of form, remove risque input) -->
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label>Local</label><input type="text" id="local-input" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label>Composant</label><input type="text" id="composant-input" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label>Fournisseur</label><input type="text" id="fournisseur-input" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label>Type</label><input type="text" id="type-input" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label>Identifiant</label><input type="text" id="identifiant-input" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label>Intérieur</label><input type="text" id="interieur-input" class="form-control">
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label>Extérieur</label><input type="text" id="exterieur-input" class="form-control">
+                            </div>
+                            <div class="col-md-6">
+                                <label>Marquage ATEX</label><input type="text" id="marquage_atex-input" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label>Photo</label><input type="file" id="photo-input" class="form-control" accept="image/*">
+                            </div>
+                            <div class="col-md-6">
+                                <label>Commentaires</label><textarea id="comments-input" class="form-control"></textarea>
+                            </div>
+                        </div>
+                        <!-- Pas d'input pour risque, catégorie_min, conformite : auto-calculés par serveur -->
                         <button type="button" onclick="saveEquipment()" class="btn btn-success mt-4"><i data-lucide="save"></i> Enregistrer</button>
                         <button type="button" onclick="clearForm()" class="btn btn-secondary mt-4"><i data-lucide="x"></i> Annuler</button>
                     </form>
@@ -143,6 +183,9 @@
         let equipments = [];
         let globalChart;
 
+        // URL de l'API (change pour Render si hébergé)
+        const API_BASE_URL = 'http://localhost:3000'; // Ou 'https://ton-app.onrender.com'
+
         window.onload = () => {
             loadSecteurs(); // For dropdown
             loadEquipments();
@@ -150,35 +193,110 @@
         };
 
         async function loadSecteurs() {
-            const response = await fetch('/api/atex-secteurs');
-            const secteurs = await response.json();
-            const select = document.getElementById('secteur');
-            secteurs.forEach(s => {
-                const option = document.createElement('option');
-                option.value = s.name;
-                option.text = s.name;
-                select.appendChild(option);
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/atex-secteurs`);
+                const secteurs = await response.json();
+                const select = document.getElementById('secteur-input');
+                secteurs.forEach(s => {
+                    const option = document.createElement('option');
+                    option.value = s.name;
+                    option.text = s.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Erreur loadSecteurs:', error);
+            }
+        }
+
+        async function loadEquipments() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/atex-equipments`);
+                if (!response.ok) throw new Error('Erreur chargement liste');
+                equipments = await response.json();
+                renderTable();
+            } catch (error) {
+                console.error('Erreur loadEquipments:', error);
+                alert('Erreur chargement liste: ' + error.message);
+            }
+        }
+
+        function renderTable(filtered = equipments) {
+            const tableBody = document.getElementById('equipmentsTable');
+            tableBody.innerHTML = '';
+            filtered.forEach(eq => {
+                const riskClass = eq.risque <= 1 ? 'risk-low' : eq.risque <= 3 ? 'risk-med' : 'risk-high';
+                const evolutionClass = eq.evolution === 'up' ? 'evolution-up' : eq.evolution === 'down' ? 'evolution-down' : 'evolution-stable'; // Suppose eq.evolution calculé
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${eq.id}</td>
+                    <td>${eq.composant}</td>
+                    <td>${eq.interieur || eq.exterieur || 'N/A'}</td>
+                    <td>${eq.conformite}</td>
+                    <td class="${riskClass}">${eq.risque}</td>
+                    <td>${eq.grade}/${eq.frequence}</td>
+                    <td>${eq.last_inspection_date || 'N/A'}</td>
+                    <td>${eq.next_inspection_date || 'N/A'}</td>
+                    <td><canvas class="sparkline" id="spark-${eq.id}"></canvas></td> <!-- Sparkline pour history -->
+                    <td><img class="last-photo" src="${eq.photo || 'no-photo.jpg'}" alt="Photo"></td>
+                    <td class="${evolutionClass}">Evolution: ${eq.evolution || 'Stable'}</td> <!-- Calcule evolution basé sur history -->
+                    <td>
+                        <button onclick="editEquipment(${eq.id})">Éditer</button>
+                        <button onclick="deleteEquipment(${eq.id})">Supprimer</button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+                // Sparkline (exemple avec Chart.js, fetch history si besoin)
+                new Chart(document.getElementById(`spark-${eq.id}`), {
+                    type: 'line',
+                    data: { labels: ['1', '2', '3'], datasets: [{ data: [eq.risque - 1, eq.risque, eq.risque + 1], borderColor: 'blue', fill: false }] },
+                    options: { scales: { x: { display: false }, y: { display: false } }, elements: { point: { radius: 0 } }, plugins: { legend: { display: false } } }
+                });
             });
         }
 
-        // ... (rest of script from previous, with updates for no risk input, auto calls, sparklines, photos, evolution)
+        function applyFilters() {
+            const secteur = document.getElementById('filterSecteur').value.toLowerCase();
+            const batiment = document.getElementById('filterBatiment').value.toLowerCase();
+            const conformite = document.getElementById('filterConformite').value;
+            const filtered = equipments.filter(eq => 
+                (!secteur || eq.secteur.toLowerCase().includes(secteur)) &&
+                (!batiment || eq.batiment.toLowerCase().includes(batiment)) &&
+                (!conformite || eq.conformite === conformite)
+            );
+            renderTable(filtered);
+        }
+
         async function loadSmartAlerts() {
-            const response = await fetch('/api/atex-analysis');
-            const alerts = await response.json();
-            const alertsDiv = document.getElementById('smartAlerts');
-            alertsDiv.innerHTML = alerts.map(a => `<div class="alert-smart">${a.text}</div>`).join('');
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/atex-analysis`);
+                const alerts = await response.json();
+                const alertsDiv = document.getElementById('smartAlerts');
+                alertsDiv.innerHTML = alerts.map(a => `<div class="alert-smart">${a.text}</div>`).join('');
+            } catch (error) {
+                console.error('Erreur loadSmartAlerts:', error);
+            }
         }
 
         async function sendChat() {
             const input = document.getElementById('chatInput').value;
-            const response = await fetch('/api/atex-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: input }) });
-            const answer = await response.json();
-            document.getElementById('chatResponse').innerHTML = answer.response;
+            if (!input) return alert('Entrez une question');
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/atex-chat`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ question: input }) 
+                });
+                const answer = await response.json();
+                document.getElementById('chatResponse').innerHTML = answer.response;
+            } catch (error) {
+                alert('Erreur chat: ' + error.message);
+            }
         }
 
         function addNew() {
             document.getElementById('add-tab').click();
             clearForm();
+            document.getElementById('equipId').value = ''; // Pour ajout
         }
 
         function syncData() {
@@ -186,7 +304,115 @@
             alert('Données synchronisées !');
         }
 
-        // For sparkline: In renderTable, add <canvas id="spark-${eq.id}"></canvas>, then new Chart for line with risk history (fetch from inspections).
+        function clearForm() {
+            document.getElementById('equipId').value = '';
+            document.getElementById('secteur-input').value = '';
+            document.getElementById('batiment-input').value = '';
+            document.getElementById('local-input').value = '';
+            document.getElementById('composant-input').value = '';
+            document.getElementById('fournisseur-input').value = '';
+            document.getElementById('type-input').value = '';
+            document.getElementById('identifiant-input').value = '';
+            document.getElementById('interieur-input').value = '';
+            document.getElementById('exterieur-input').value = '';
+            document.getElementById('marquage_atex-input').value = '';
+            document.getElementById('photo-input').value = '';
+            document.getElementById('comments-input').value = '';
+        }
+
+        async function saveEquipment() {
+            const id = document.getElementById('equipId').value;
+            const data = {
+                secteur: document.getElementById('secteur-input').value,
+                batiment: document.getElementById('batiment-input').value,
+                local: document.getElementById('local-input').value,
+                composant: document.getElementById('composant-input').value,
+                fournisseur: document.getElementById('fournisseur-input').value,
+                type: document.getElementById('type-input').value,
+                identifiant: document.getElementById('identifiant-input').value,
+                interieur: document.getElementById('interieur-input').value,
+                exterieur: document.getElementById('exterieur-input').value,
+                marquage_atex: document.getElementById('marquage_atex-input').value,
+                comments: document.getElementById('comments-input').value,
+                photo: await getBase64(document.getElementById('photo-input').files[0])
+            };
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `${API_BASE_URL}/api/atex-equipments/${id}` : `${API_BASE_URL}/api/atex-equipments`;
+            try {
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (!response.ok) throw new Error('Erreur enregistrement');
+                alert('Équipement sauvegardé !');
+                loadEquipments();
+                clearForm();
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        function getBase64(file) {
+            return new Promise((resolve, reject) => {
+                if (!file) return resolve(null);
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        async function editEquipment(id) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/atex-equipments/${id}`);
+                if (!response.ok) throw new Error('Erreur chargement équipement');
+                const eq = await response.json();
+                document.getElementById('equipId').value = eq.id;
+                document.getElementById('secteur-input').value = eq.secteur;
+                document.getElementById('batiment-input').value = eq.batiment;
+                document.getElementById('local-input').value = eq.local;
+                document.getElementById('composant-input').value = eq.composant;
+                document.getElementById('fournisseur-input').value = eq.fournisseur;
+                document.getElementById('type-input').value = eq.type;
+                document.getElementById('identifiant-input').value = eq.identifiant;
+                document.getElementById('interieur-input').value = eq.interieur;
+                document.getElementById('exterieur-input').value = eq.exterieur;
+                document.getElementById('marquage_atex-input').value = eq.marquage_atex;
+                document.getElementById('comments-input').value = eq.comments;
+                // Photo non editable facilement, skip ou affiche preview si besoin
+                document.getElementById('add-tab').click();
+            } catch (error) {
+                alert('Erreur édition: ' + error.message);
+            }
+        }
+
+        async function deleteEquipment(id) {
+            if (!confirm('Confirmer suppression ?')) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/atex-equipments/${id}`, { method: 'DELETE' });
+                if (!response.ok) throw new Error('Erreur suppression');
+                alert('Supprimé !');
+                loadEquipments();
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        async function importExcel() {
+            const file = document.getElementById('excelFile').files[0];
+            if (!file) return alert('Sélectionnez un fichier Excel');
+            const formData = new FormData();
+            formData.append('excel', file);
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/atex-import-excel`, { method: 'POST', body: formData });
+                if (!response.ok) throw new Error('Erreur import');
+                alert('Import réussi !');
+                loadEquipments();
+            } catch (error) {
+                alert('Erreur import: ' + error.message);
+            }
+        }
     </script>
 </body>
 </html>
