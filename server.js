@@ -3277,3 +3277,48 @@ app.post('/api/atex-import-excel', upload.single('excel'), async (req, res) => {
         if (client) client.release();
     }
 });
+
+// Endpoint pour chat IA ATEX (amélioré pour analyses automatisées avec corrections, liens, coûts, et multi-tour via history)
+app.post('/api/atex-chat', async (req, res) => {
+    const { question, equipment, history = [] } = req.body;  // Accepte question, equipment, et history pour multi-tour
+    console.log('[Server] POST /api/atex-chat - Requête reçue:', { question, equipment, historyLength: history.length });
+    try {
+        let messages = history.map(msg => ({ role: msg.role, content: msg.content }));  // Historique pour contexte multi-tour
+        let prompt = question || '';  // Si question fournie, l'utiliser
+        if (equipment) {
+            // Génération auto de prompt pour analyse risque
+            prompt = `Analyse cet équipement ATEX high-risk en date du 18 juillet 2025: Composant: ${equipment.composant}, Risque: ${equipment.risque}, Prochaine inspection: ${equipment.next_inspection_date}.
+Fournis:
+- Analyse détaillée du risque (pour novice).
+- Corrections proposées (étapes pour fixer, ex: remplacement, maintenance).
+- Liens pour commander des pièces de remplacement (fournisseurs ATEX comme NETZSCH: https://pumps-systems.netzsch.com/en-US/applications-and-solutions/oil-gas-mid-downstream/explosives-atmospheres, Alfa Laval: https://www.alfalaval.com/products/fluid-handling/pumps/centrifugal-pumps/lkhex/, HYDAC: https://www.hydac.com/en-us/hydac-components-systems-for-maximum-explosion-protection/, Made-in-China: https://www.made-in-china.com/products-search/hot-china-products/Pump_Atex.html (prix 1000-2500 USD), Alibaba: https://www.alibaba.com/showroom/atex-pump.html (prix 733-750 USD), North Ridge Pumps UK: https://www.northridgepumps.com/sc_9_atex, Savino Barbera: https://savinobarbera.com/products/atex-certified-chemical-pumps/?lang=en, DirectIndustry: https://www.directindustry.com/industrial-manufacturer/intrinsically-safe-pump-132150-_3.html, Versamatic: https://www.versamatic.com/pumps/3-inch-aodd-pumps/3-clamped-metal-atex).
+- Coût estimé du remplacement (fourchette en EUR, basé sur exemples 2025: 500-2000€ pour pompes/moteurs ATEX chez fournisseurs comme Alibaba ou Made-in-China; ajuster pour composant spécifique).
+Sois clair, structuré en JSON: {analysis: string, corrections: array, links: array, cost_estimate: string}.`;
+            messages.push({ role: 'user', content: prompt });
+        } else {
+            messages.push({ role: 'user', content: prompt });
+        }
+        if (messages.length === 0) {
+            throw new Error('Question, équipement ou historique requis pour le chat');
+        }
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            messages: messages,
+            response_format: { type: 'json_object' }  // Force JSON structuré pour analyses
+        });
+        const data = JSON.parse(response.choices[0].message.content);
+        res.json({ response: data });
+    } catch (error) {
+        console.error('[Server] Erreur POST /api/atex-chat:', {
+            message: error.message,
+            stack: error.stack
+        });
+        res.status(500).json({ error: 'Erreur chat IA: ' + error.message });
+    }
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`[Server] Serveur démarré et à l'écoute sur le port ${PORT}`);
+});
