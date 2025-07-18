@@ -6,6 +6,7 @@ const fs = require('fs');
 const PDFDocument = require('pdfkit');
 const puppeteer = require('puppeteer');
 const multer = require('multer');
+const XLSX = require('xlsx');
 const upload = multer({ storage: multer.memoryStorage() });
 require('dotenv').config();
 
@@ -282,6 +283,9 @@ function validateProjectData(data) {
     if (data.budget_total && isNaN(parseFloat(data.budget_total))) {
         errors.push('Le budget total doit être un nombre.');
     }
+    if (data.chantier_date && !/^\d{4}-\d{2}-\d{2}$/.test(data.chantier_date)) {
+        errors.push('La date du chantier doit être au format YYYY-MM-DD.');
+    }
     return errors;
 }
 
@@ -389,15 +393,50 @@ async function initDb() {
                 reception_completed BOOLEAN DEFAULT FALSE,
                 closure_completed BOOLEAN DEFAULT FALSE,
                 wbs_number VARCHAR(50),
-                po_requests JSONB DEFAULT '[]'::jsonb,  -- Array de demandes PO {url: string, status: string}
-                quotes JSONB DEFAULT '[]'::jsonb,       -- Array de devis {id: string, montant: number, status: string, fournisseur: string}
-                attachments JSONB DEFAULT '[]'::jsonb,  -- Array de pièces jointes {filename: string, data: base64, type: string}
-                gantt_data JSONB,                      -- JSON pour Gantt {tasks: [{name, start, end, progress}]}
+                po_requests JSONB DEFAULT '[]'::jsonb,
+                quotes JSONB DEFAULT '[]'::jsonb,
+                attachments JSONB DEFAULT '[]'::jsonb,
+                gantt_data JSONB,
                 budget_total DECIMAL DEFAULT 0,
                 budget_spent DECIMAL DEFAULT 0,
-                status VARCHAR(20) DEFAULT 'En cours', -- En cours, Approuvé, Terminé, Bloqué
+                status VARCHAR(20) DEFAULT 'En cours',
+                chantier_date DATE,  // Ajout du champ date du chantier
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS atex_equipments (
+                id SERIAL PRIMARY KEY,
+                risque INTEGER,
+                secteur VARCHAR(100),
+                batiment VARCHAR(100),
+                local VARCHAR(100),
+                composant VARCHAR(100),
+                fournisseur VARCHAR(100),
+                type VARCHAR(100),
+                identifiant VARCHAR(100) UNIQUE,
+                interieur VARCHAR(50),
+                exterieur VARCHAR(50),
+                categorie_minimum VARCHAR(100),
+                marquage_atex VARCHAR(100),
+                photo TEXT,  -- Base64 de la photo
+                conformite VARCHAR(50),
+                comments TEXT,
+                last_inspection_date DATE,
+                next_inspection_date DATE,
+                risk_assessment TEXT
+            );
+        `);
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS atex_inspections (
+                id SERIAL PRIMARY KEY,
+                equipment_id INTEGER REFERENCES atex_equipments(id) ON DELETE CASCADE,
+                status VARCHAR(50),
+                comment TEXT,
+                photo TEXT,
+                inspection_date DATE DEFAULT CURRENT_DATE
             );
         `);
 
@@ -2901,6 +2940,131 @@ app.post('/api/analyze-trade', async (req, res) => {
             stack: error.stack
         });
         res.status(500).json({ error: 'Erreur lors de l\'analyse du trade: ' + error.message });
+    }
+});
+
+// GET tous les équipements ATEX
+app.get('/api/atex-equipments', async (req, res) => {
+    let client;
+    try {
+        client = await pool.connect();
+        const result = await client.query('SELECT * FROM atex_equipments');
+        res.json(result.rows);
+    } catch (error) {
+        console.error('[Server] Erreur GET /api/atex-equipments:', error);
+        res.status(500).json({ error: 'Erreur récupération équipements ATEX' });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+// POST ajouter équipement ATEX
+app.post('/api/atex-equipments', async (req, res) => {
+    const data = req.body;
+    let client;
+    try {
+        client = await pool.connect();
+        const result = await client.query(
+            'INSERT INTO atex_equipments (risque, secteur, batiment, local, composant, fournisseur, type, identifiant, interieur, exterieur, categorie_minimum, marquage_atex, photo, conformite, comments) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *',
+            [data.risque, data.secteur, data.batiment, data.local, data.composant, data.fournisseur, data.type, data.identifiant, data.interieur, data.exterieur, data.categorie_minimum, data.marquage_atex, data.photo, data.conformite, data.comments]
+        );
+        // Calcul auto next_inspection (ex. 3 ans par défaut)
+        const nextDate = new Date();
+        nextDate.setFullYear(nextDate.getFullYear() + 3);
+        await client.query('UPDATE atex_equipments SET next_inspection_date = $1 WHERE id = $2', [nextDate.toISOString().split('T')[0], result.rows[0].id]);
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('[Server] Erreur POST /api/atex-equipments:', error);
+        res.status(500).json({ error: 'Erreur ajout équipement ATEX' });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+// PUT updater équipement ATEX
+app.put('/api/atex-equipments/:id', async (req, res) => {
+    const { id } = req.params;
+    const data = req.body;
+    let client;
+    try {
+        client = await pool.connect();
+        const result = await client.query(
+            'UPDATE atex_equipments SET risque=$1, secteur=$2, batiment=$3, local=$4, composant=$5, fournisseur=$6, type=$7, identifiant=$8, interieur=$9, exterieur=$10, categorie_minimum=$11, marquage_atex=$12, photo=$13, conformite=$14, comments=$15 WHERE id=$16 RETURNING *',
+            [data.risque, data.secteur, data.batiment, data.local, data.composant, data.fournisseur, data.type, data.identifiant, data.interieur, data.exterieur, data.categorie_minimum, data.marquage_atex, data.photo, data.conformite, data.comments, id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Équipement non trouvé' });
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('[Server] Erreur PUT /api/atex-equipments/:id:', error);
+        res.status(500).json({ error: 'Erreur update équipement ATEX' });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+// DELETE équipement ATEX
+app.delete('/api/atex-equipments/:id', async (req, res) => {
+    const { id } = req.params;
+    let client;
+    try {
+        client = await pool.connect();
+        const result = await client.query('DELETE FROM atex_equipments WHERE id = $1 RETURNING *', [id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Équipement non trouvé' });
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[Server] Erreur DELETE /api/atex-equipments/:id:', error);
+        res.status(500).json({ error: 'Erreur suppression équipement ATEX' });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+// POST inspection (avec photo, update dates)
+app.post('/api/atex-inspect', async (req, res) => {
+    const { equipment_id, status, comment, photo, inspection_date } = req.body;
+    let client;
+    try {
+        client = await pool.connect();
+        await client.query(
+            'INSERT INTO atex_inspections (equipment_id, status, comment, photo, inspection_date) VALUES ($1, $2, $3, $4, $5)',
+            [equipment_id, status, comment, photo, inspection_date]
+        );
+        // Update last/next
+        const nextDate = new Date(inspection_date);
+        nextDate.setFullYear(nextDate.getFullYear() + 3); // Ex. 3 ans
+        await client.query('UPDATE atex_equipments SET last_inspection_date = $1, next_inspection_date = $2 WHERE id = $3', [inspection_date, nextDate.toISOString().split('T')[0], equipment_id]);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[Server] Erreur POST /api/atex-inspect:', error);
+        res.status(500).json({ error: 'Erreur enregistrement inspection' });
+    } finally {
+        if (client) client.release();
+    }
+});
+
+// POST import Excel
+app.post('/api/atex-import-excel', upload.single('excel'), async (req, res) => {
+    let client;
+    try {
+        client = await pool.connect();
+        const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1); // Skip header
+
+        for (const row of rows) {
+            if (row.length < 15) continue; // Skip incomplete
+            const [risque, secteur, batiment, local, composant, fournisseur, type, identifiant, interieur, exterieur, categorie_minimum, marquage_atex, , conformite, comments] = row;
+            await client.query(
+                'INSERT INTO atex_equipments (risque, secteur, batiment, local, composant, fournisseur, type, identifiant, interieur, exterieur, categorie_minimum, marquage_atex, conformite, comments) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) ON CONFLICT (identifiant) DO UPDATE SET risque=EXCLUDED.risque, secteur=EXCLUDED.secteur, batiment=EXCLUDED.batiment, local=EXCLUDED.local, composant=EXCLUDED.composant, fournisseur=EXCLUDED.fournisseur, type=EXCLUDED.type, interieur=EXCLUDED.interieur, exterieur=EXCLUDED.exterieur, categorie_minimum=EXCLUDED.categorie_minimum, marquage_atex=EXCLUDED.marquage_atex, conformite=EXCLUDED.conformite, comments=EXCLUDED.comments',
+                [risque, secteur, batiment, local, composant, fournisseur, type, identifiant, interieur, exterieur, categorie_minimum, marquage_atex, conformite, comments]
+            );
+        }
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[Server] Erreur POST /api/atex-import-excel:', error);
+        res.status(500).json({ error: 'Erreur import Excel' });
+    } finally {
+        if (client) client.release();
     }
 });
 
