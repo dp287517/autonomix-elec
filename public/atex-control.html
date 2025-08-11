@@ -51,7 +51,7 @@
 
     <!-- LISTE -->
     <div class="tab-pane fade show active" id="list" role="tabpanel">
-      <!-- Analyses (nouveaux graphiques) -->
+      <!-- Analyses (graphiques) -->
       <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
           <h4 class="mb-0">Analyses</h4>
@@ -183,9 +183,6 @@
               </div>
             </div>
 
-            <!-- NB: on supprime les champs 'Intérieur' et 'Extérieur' visibles côté UI
-                 mais le serveur sait gérer les zones si tu souhaites les remettre. -->
-
             <button type="button" onclick="saveEquipment()" class="btn btn-success mt-4">
               <i data-lucide="save"></i> Enregistrer
             </button>
@@ -231,16 +228,15 @@
       <div class="card">
         <div class="card-body">
           <textarea id="chatInput" class="form-control" placeholder="Posez une question sur l'ATEX..."></textarea>
-          <button onclick="sendChat()" class="btn btn-primary mt-2"><i data-lucide="send"></i> Envoyer</button>
+          <button class="btn btn-primary mt-2" id="btnSendChat"><i data-lucide="send"></i> Envoyer</button>
           <div id="chatResponse" class="mt-3"></div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Boutons fixes bas -->
+  <!-- Boutons fixes bas (on garde uniquement Sync) -->
   <div class="fixed-bottom-btns text-center">
-    <button onclick="addNew()" class="btn btn-success"><i data-lucide="plus"></i> Ajouter</button>
     <button onclick="syncData()" class="btn btn-info"><i data-lucide="refresh-cw"></i> Sync</button>
   </div>
 
@@ -262,49 +258,50 @@
   </div>
 
   <script>
-    lucide.createIcons();
+    // Icônes
+    if (window.lucide) { window.lucide.createIcons(); }
 
-    // URL de l'API (Render)
-    const API_BASE_URL = 'https://autonomix-elec.onrender.com';
+    // API : on passe en relatif (même host)
+    const API = {
+      secteurs: '/api/atex-secteurs',
+      equipments: '/api/atex-equipments',
+      equipment: (id) => '/api/atex-equipments/' + id,
+      importExcel: '/api/atex-import-excel',
+      analysis: '/api/atex-analysis',
+      riskGlobal: '/api/atex-risk-global',
+      chat: '/api/atex-chat'
+    };
 
-    // État
+    // État & Charts
     let equipments = [];
     let charts = {};
 
-    // Démarrage
-    window.onload = () => {
+    // Wiring au chargement
+    window.addEventListener('DOMContentLoaded', function(){
       loadSecteurs();
-      loadEquipments();
+      loadEquipments().then(loadStatsAndBuildCharts);
       loadSmartAlerts();
-      loadStatsAndBuildCharts();
-      wiringUI();
-    };
 
-    function wiringUI(){
-      document.getElementById('btnAddSecteur').addEventListener('click', ()=>{
-        const modal = new bootstrap.Modal(document.getElementById('modalSecteur'));
-        document.getElementById('newSecteurName').value = '';
-        document.getElementById('secteurSaveMsg').textContent = '';
-        modal.show();
-      });
+      document.getElementById('btnAddSecteur').addEventListener('click', openModalSecteur);
       document.getElementById('saveSecteurBtn').addEventListener('click', saveSecteur);
       document.getElementById('btnTemplateCSV').addEventListener('click', downloadTemplateCSV);
       document.getElementById('btnTemplateXLSX').addEventListener('click', downloadTemplateXLSX);
-    }
+      document.getElementById('btnSendChat').addEventListener('click', sendChat);
+    });
 
-    /* ========== LISTE / ANALYSES ========== */
+    /* ======= LISTE / ANALYSES ======= */
     async function loadSmartAlerts() {
       try {
-        const r = await fetch(\`\${API_BASE_URL}/api/atex-analysis\`);
+        const r = await fetch(API.analysis);
         const alerts = await r.json();
         document.getElementById('smartAlerts').innerHTML =
-          alerts.map(a => \`<div class="alert-smart">\${a.text}</div>\`).join('');
+          alerts.map(function(a){ return '<div class="alert-smart">'+a.text+'</div>'; }).join('');
       } catch(e){ console.error('Erreur loadSmartAlerts:', e); }
     }
 
     async function loadEquipments() {
       try {
-        const response = await fetch(\`\${API_BASE_URL}/api/atex-equipments\`);
+        const response = await fetch(API.equipments);
         if (!response.ok) throw new Error('Erreur chargement liste');
         equipments = await response.json();
         renderTable();
@@ -314,117 +311,120 @@
       }
     }
 
-    function renderTable(filtered = equipments) {
-      const tableBody = document.getElementById('equipmentsTable');
+    function renderTable(filtered) {
+      var list = Array.isArray(filtered) ? filtered : equipments;
+      var tableBody = document.getElementById('equipmentsTable');
       tableBody.innerHTML = '';
-      filtered.forEach(eq => {
-        const riskClass = eq.risque <= 1 ? 'risk-low' : (eq.risque <= 3 ? 'risk-med' : 'risk-high');
-        const tr = document.createElement('tr');
-        tr.innerHTML = \`
-          <td>\${eq.id}</td>
-          <td>\${eq.composant || ''}</td>
-          <td>\${eq.interieur || eq.exterieur || 'N/A'}</td>
-          <td>\${eq.conformite || ''}</td>
-          <td class="\${riskClass}">\${eq.risque ?? ''}</td>
-          <td>\${(eq.grade||'')+'/'+(eq.frequence||'')}</td>
-          <td>\${eq.last_inspection_date || 'N/A'}</td>
-          <td>\${eq.next_inspection_date || 'N/A'}</td>
-          <td><canvas class="sparkline" id="spark-\${eq.id}"></canvas></td>
-          <td><img class="last-photo" src="\${eq.photo || 'no-photo.jpg'}" alt="Photo"></td>
-          <td class="evolution-stable">\${eq.evolution || 'Stable'}</td>
-          <td>
-            <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(\${eq.id})">Éditer</button>
-            <button class="btn btn-sm btn-outline-danger" onclick="deleteEquipment(\${eq.id})">Supprimer</button>
-          </td>
-        \`;
+      list.forEach(function(eq){
+        var riskClass = (typeof eq.risque === 'number' && eq.risque <= 1) ? 'risk-low' : ((eq.risque <= 3) ? 'risk-med' : 'risk-high');
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td>'+ (eq.id||'') +'</td>'+
+          '<td>'+ (eq.composant||'') +'</td>'+
+          '<td>'+ (eq.interieur || eq.exterieur || 'N/A') +'</td>'+
+          '<td>'+ (eq.conformite||'') +'</td>'+
+          '<td class="'+riskClass+'">'+ (eq.risque!=null? eq.risque : '') +'</td>'+
+          '<td>'+ ((eq.grade||'')+'/'+(eq.frequence||'')) +'</td>'+
+          '<td>'+ (eq.last_inspection_date || 'N/A') +'</td>'+
+          '<td>'+ (eq.next_inspection_date || 'N/A') +'</td>'+
+          '<td><canvas class="sparkline" id="spark-'+eq.id+'"></canvas></td>'+
+          '<td><img class="last-photo" src="'+(eq.photo || 'no-photo.jpg')+'" alt="Photo"></td>'+
+          '<td class="evolution-stable">'+ (eq.evolution || 'Stable') +'</td>'+
+          '<td>'+
+            '<button class="btn btn-sm btn-outline-primary" onclick="editEquipment('+eq.id+')">Éditer</button> '+
+            '<button class="btn btn-sm btn-outline-danger" onclick="deleteEquipment('+eq.id+')">Supprimer</button>'+
+          '</td>';
         tableBody.appendChild(tr);
-        // mini spark (factice: risque+-1)
-        const ctx = document.getElementById(\`spark-\${eq.id}\`);
-        if (ctx) new Chart(ctx, {
-          type: 'line',
-          data: { labels: ['1','2','3'], datasets: [{ data: [eq.risque-1, eq.risque, Math.min((eq.risque||0)+1,5)], borderWidth: 1, fill: false }] },
-          options: { responsive:true, maintainAspectRatio:false, scales:{x:{display:false},y:{display:false}}, elements:{point:{radius:0}}, plugins:{legend:{display:false}} }
-        });
+        // spark
+        var canvas = document.getElementById('spark-'+eq.id);
+        if (canvas && typeof Chart !== 'undefined') {
+          var prev = (typeof eq.risque === 'number') ? Math.max(eq.risque - 1, 0) : 0;
+          var next = (typeof eq.risque === 'number') ? Math.min(eq.risque + 1, 5) : 0;
+          new Chart(canvas, {
+            type: 'line',
+            data: { labels: ['1','2','3'], datasets: [{ data: [prev, eq.risque||0, next], borderWidth: 1, fill: false }] },
+            options: { responsive:true, maintainAspectRatio:false, scales:{x:{display:false},y:{display:false}}, elements:{point:{radius:0}}, plugins:{legend:{display:false}} }
+          });
+        }
       });
     }
 
     function applyFilters() {
-      const s = (document.getElementById('filterSecteur').value || '').toLowerCase();
-      const b = (document.getElementById('filterBatiment').value || '').toLowerCase();
-      const c = document.getElementById('filterConformite').value;
-      const filtered = equipments.filter(eq =>
-        (!s || (eq.secteur||'').toLowerCase().includes(s)) &&
-        (!b || (eq.batiment||'').toLowerCase().includes(b)) &&
-        (!c || (eq.conformite||'') === c)
-      );
+      var s = (document.getElementById('filterSecteur').value || '').toLowerCase();
+      var b = (document.getElementById('filterBatiment').value || '').toLowerCase();
+      var c = document.getElementById('filterConformite').value;
+      var filtered = equipments.filter(function(eq){
+        var okS = !s || ((eq.secteur||'').toLowerCase().indexOf(s) >= 0);
+        var okB = !b || ((eq.batiment||'').toLowerCase().indexOf(b) >= 0);
+        var okC = !c || ((eq.conformite||'') === c);
+        return okS && okB && okC;
+      });
       renderTable(filtered);
     }
 
     async function loadStatsAndBuildCharts(){
       try{
-        // Stats globales
-        const r = await fetch(\`\${API_BASE_URL}/api/atex-risk-global\`);
-        const { stats, highRisk } = await r.json();
-
-        // Conformité (doughnut)
+        var r = await fetch(API.riskGlobal);
+        var json = await r.json();
+        var stats = json.stats || {};
+        // doughnut conformité
         buildOrUpdateChart('chartConformite', 'doughnut', {
           labels: ['Conformes','Non Conformes'],
           datasets: [{ data: [stats.conformes||0, stats.non_conformes||0] }]
+        }, {});
+        // répartition risques
+        var riskBuckets = [0,1,2,3,4,5].map(function(){return 0;});
+        equipments.forEach(function(e){
+          if (typeof e.risque === 'number' && e.risque>=0 && e.risque<=5) riskBuckets[e.risque]++;
         });
-
-        // Répartition risques (bar 0..5)
-        const riskBuckets = [0,1,2,3,4,5].map(()=>0);
-        equipments.forEach(e => { if (typeof e.risque === 'number' && e.risque>=0 && e.risque<=5) riskBuckets[e.risque]++; });
         buildOrUpdateChart('chartRisques', 'bar', {
           labels: ['0','1','2','3','4','5'],
           datasets: [{ label:'Nb', data: riskBuckets }]
-        }, { scales: { y: { beginAtZero: true }}});
-
-        // Répartition par secteur (bar)
-        const bySecteur = {};
-        equipments.forEach(e => { const k = e.secteur || 'N/A'; bySecteur[k] = (bySecteur[k]||0)+1; });
+        }, { scales: { y: { beginAtZero: true } }});
+        // par secteur
+        var bySecteur = {};
+        equipments.forEach(function(e){ var k = e.secteur || 'N/A'; bySecteur[k] = (bySecteur[k]||0)+1; });
         buildOrUpdateChart('chartSecteurs', 'bar', {
           labels: Object.keys(bySecteur),
           datasets: [{ label:'Équipements', data: Object.values(bySecteur) }]
-        }, { indexAxis: 'y', scales:{ x:{ beginAtZero: true }} });
-
-        // Échéances d’inspection (12 mois rolling)
-        const buckets = new Array(12).fill(0);
-        const now = new Date();
-        equipments.forEach(e => {
+        }, { indexAxis: 'y', scales:{ x:{ beginAtZero: true } }});
+        // échéances 12 mois
+        var buckets = new Array(12).fill(0);
+        var now = new Date();
+        equipments.forEach(function(e){
           if (!e.next_inspection_date) return;
-          const d = new Date(e.next_inspection_date);
-          const diffM = (d.getFullYear()-now.getFullYear())*12 + (d.getMonth()-now.getMonth());
+          var d = new Date(e.next_inspection_date);
+          var diffM = (d.getFullYear()-now.getFullYear())*12 + (d.getMonth()-now.getMonth());
           if (diffM>=0 && diffM<12) buckets[diffM]++;
         });
-        const labelsMonths = [...Array(12)].map((_,i)=> {
-          const dt = new Date(now.getFullYear(), now.getMonth()+i, 1);
-          return dt.toLocaleString('fr-FR', { month:'short' });
-        });
+        var labelsMonths = [];
+        for (var i=0;i<12;i++){
+          var dt = new Date(now.getFullYear(), now.getMonth()+i, 1);
+          labelsMonths.push(dt.toLocaleString('fr-FR', { month:'short' }));
+        }
         buildOrUpdateChart('chartEcheances', 'line', {
           labels: labelsMonths,
           datasets: [{ label:'Contrôles à venir', data: buckets, fill:false }]
-        });
-
+        }, {});
       } catch(e){ console.error('Erreur charts:', e); }
     }
 
-    function buildOrUpdateChart(id, type, data, options={}){
-      const ctx = document.getElementById(id);
-      if (!ctx) return;
+    function buildOrUpdateChart(id, type, data, options){
+      var ctx = document.getElementById(id);
+      if (!ctx || typeof Chart === 'undefined') return;
       if (charts[id]) { charts[id].data = data; charts[id].options = options; charts[id].update(); }
-      else { charts[id] = new Chart(ctx, { type, data, options }); }
+      else { charts[id] = new Chart(ctx, { type: type, data: data, options: options }); }
     }
 
-    /* ========== AJOUTER / ÉDITER ========== */
+    /* ======= AJOUTER / ÉDITER ======= */
     async function loadSecteurs() {
       try {
-        const response = await fetch(\`\${API_BASE_URL}/api/atex-secteurs\`);
+        const response = await fetch(API.secteurs);
         const secteurs = await response.json();
         const select = document.getElementById('secteur-input');
         select.innerHTML = '<option value="" disabled selected>— Sélectionner —</option>';
-        secteurs.forEach(s => {
-          const option = document.createElement('option');
+        secteurs.forEach(function(s){
+          var option = document.createElement('option');
           option.value = s.name;
           option.text = s.name;
           select.appendChild(option);
@@ -434,37 +434,33 @@
       }
     }
 
+    function openModalSecteur(){
+      var modal = new bootstrap.Modal(document.getElementById('modalSecteur'));
+      document.getElementById('newSecteurName').value = '';
+      document.getElementById('secteurSaveMsg').textContent = '';
+      modal.show();
+    }
+
     async function saveSecteur(){
-      const name = (document.getElementById('newSecteurName').value || '').trim();
-      if (!name) {
-        document.getElementById('secteurSaveMsg').textContent = 'Nom requis.';
-        return;
-      }
+      var name = (document.getElementById('newSecteurName').value || '').trim();
+      if (!name) { document.getElementById('secteurSaveMsg').textContent = 'Nom requis.'; return; }
       try{
-        const r = await fetch(\`\${API_BASE_URL}/api/atex-secteurs\`, {
+        var r = await fetch(API.secteurs, {
           method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ name })
+          body: JSON.stringify({ name: name })
         });
         if (!r.ok) throw new Error('Erreur API');
         await loadSecteurs();
-        const select = document.getElementById('secteur-input');
-        select.value = name;
+        document.getElementById('secteur-input').value = name;
         document.getElementById('secteurSaveMsg').textContent = 'Enregistré.';
-        setTimeout(()=> bootstrap.Modal.getInstance(document.getElementById('modalSecteur')).hide(), 500);
+        setTimeout(function(){ bootstrap.Modal.getInstance(document.getElementById('modalSecteur')).hide(); }, 500);
       } catch(e){
-        document.getElementById('secteurSaveMsg').textContent = 'Erreur: '+(e.message||e);
+        document.getElementById('secteurSaveMsg').textContent = 'Erreur: ' + (e.message||e);
       }
     }
 
-    function addNew() {
-      document.getElementById('add-tab').click();
-      clearForm();
-      document.getElementById('equipId').value = ''; // ajout
-    }
-
     function syncData() {
-      loadEquipments();
-      loadStatsAndBuildCharts();
+      loadEquipments().then(loadStatsAndBuildCharts);
       alert('Données synchronisées !');
     }
 
@@ -483,24 +479,24 @@
     }
 
     async function saveEquipment() {
-      const id = document.getElementById('equipId').value;
-      const data = {
+      var id = document.getElementById('equipId').value;
+      var data = {
         secteur: document.getElementById('secteur-input').value,
         batiment: document.getElementById('batiment-input').value,
         local: document.getElementById('local-input').value,
         composant: document.getElementById('composant-input').value,
-        fournisseur: document.getElementById('fournisseur-input').value, // backend garde 'fournisseur'
+        fournisseur: document.getElementById('fournisseur-input').value,
         type: document.getElementById('type-input').value,
         identifiant: document.getElementById('identifiant-input').value,
         marquage_atex: document.getElementById('marquage_atex-input').value,
         comments: document.getElementById('comments-input').value,
         photo: await getBase64(document.getElementById('photo-input').files[0])
       };
-      const method = id ? 'PUT' : 'POST';
-      const url = id ? \`\${API_BASE_URL}/api/atex-equipments/\${id}\` : \`\${API_BASE_URL}/api/atex-equipments\`;
+      var method = id ? 'PUT' : 'POST';
+      var url = id ? API.equipment(id) : API.equipments;
       try {
-        const response = await fetch(url, {
-          method,
+        var response = await fetch(url, {
+          method: method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
@@ -515,20 +511,20 @@
     }
 
     function getBase64(file) {
-      return new Promise((resolve, reject) => {
+      return new Promise(function(resolve, reject){
         if (!file) return resolve(null);
-        const reader = new FileReader();
+        var reader = new FileReader();
         reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
+        reader.onload = function(){ resolve(reader.result); };
+        reader.onerror = function(err){ reject(err); };
       });
     }
 
     async function editEquipment(id) {
       try {
-        const response = await fetch(\`\${API_BASE_URL}/api/atex-equipments/\${id}\`);
+        var response = await fetch(API.equipment(id));
         if (!response.ok) throw new Error('Erreur chargement équipement');
-        const eq = await response.json();
+        var eq = await response.json();
         document.getElementById('equipId').value = eq.id;
         document.getElementById('secteur-input').value = eq.secteur || '';
         document.getElementById('batiment-input').value = eq.batiment || '';
@@ -548,7 +544,7 @@
     async function deleteEquipment(id) {
       if (!confirm('Confirmer suppression ?')) return;
       try {
-        const response = await fetch(\`\${API_BASE_URL}/api/atex-equipments/\${id}\`, { method: 'DELETE' });
+        var response = await fetch(API.equipment(id), { method: 'DELETE' });
         if (!response.ok) throw new Error('Erreur suppression');
         alert('Supprimé !');
         await loadEquipments();
@@ -558,15 +554,14 @@
       }
     }
 
-    /* ========== IMPORTER ========== */
+    /* ======= IMPORTER ======= */
     async function importExcel() {
-      const file = document.getElementById('excelFile').files[0];
+      var file = document.getElementById('excelFile').files[0];
       if (!file) return alert('Sélectionnez un fichier (CSV ou Excel)');
-      // CSV → on passe par /api/atex-import-excel si tu préfères tout via XLSX
-      const formData = new FormData();
+      var formData = new FormData();
       formData.append('excel', file);
       try {
-        const response = await fetch(\`\${API_BASE_URL}/api/atex-import-excel\`, { method: 'POST', body: formData });
+        var response = await fetch(API.importExcel, { method: 'POST', body: formData });
         if (!response.ok) throw new Error('Erreur import');
         alert('Import réussi !');
         await loadEquipments();
@@ -577,36 +572,36 @@
     }
 
     function downloadTemplateCSV(){
-      const headers = ['Secteur de responsabilité','Local','Composant','Fabricant','Type','Identifiant','Marquage ATEX'];
-      const rows = [
+      var headers = ['Secteur de responsabilité','Local','Composant','Fabricant','Type','Identifiant','Marquage ATEX'];
+      var rows = [
         ['Utilities','L-203','Capteur','IFM','PN7092','CAPT-0123','II 3G IIA T4'],
         ['Maintenance','Salle compresseurs','Clapet','Siemens','3RW40 11-1BB14','CLAP-0007','II 3G IIB T3']
       ];
-      const csv = [headers.join(','), ...rows.map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(','))].join('\n');
-      const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob); const a = document.createElement('a');
-      a.href = url; a.download = 'modele-atex.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(url), 500);
+      var out = [headers.join(',')];
+      rows.forEach(function(r){
+        out.push(r.map(function(x){ return '"' + String(x).replace(/"/g,'""') + '"'; }).join(','));
+      });
+      var csv = out.join('\n');
+      var blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a'); a.href = url; a.download = 'modele-atex.csv'; a.click();
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 500);
     }
+    function downloadTemplateXLSX(){ downloadTemplateCSV(); } // simple fallback
 
-    function downloadTemplateXLSX(){
-      // sans dépendance XLSX → on fournit un CSV renommé .xlsx pour rester simple côté front
-      downloadTemplateCSV();
-    }
-
-    /* ========== CHAT IA ========== */
+    /* ======= CHAT IA ======= */
     async function sendChat() {
-      const input = (document.getElementById('chatInput').value || '').trim();
+      var input = (document.getElementById('chatInput').value || '').trim();
       if (!input) return alert('Entrez une question');
       try {
-        const response = await fetch(\`\${API_BASE_URL}/api/atex-chat\`, {
+        var response = await fetch(API.chat, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ question: input })
         });
-        const data = await response.json();
-        // supporte {response} ou {answer}
-        const text = data?.response || data?.answer || JSON.stringify(data);
-        document.getElementById('chatResponse').textContent = text;
+        var data = await response.json();
+        var text = data && (data.response || data.answer || JSON.stringify(data));
+        document.getElementById('chatResponse').textContent = text || '(réponse vide)';
       } catch (error) {
         document.getElementById('chatResponse').textContent = 'Erreur chat: ' + error.message;
       }
