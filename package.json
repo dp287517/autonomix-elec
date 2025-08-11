@@ -1,22 +1,23 @@
 {
-  "name": "autonomix_elec",
+  "name": "autonomix-elec-refactor",
   "version": "1.0.0",
-  "description": "Application pour gérer les tableaux électriques",
-  "main": "server.js",
+  "description": "Refactor modular d'un serveur Express pour Autonomix Elec",
+  "main": "app.js",
+  "type": "commonjs",
   "scripts": {
-    "start": "node server.js",
-    "postinstall": "pip3 install -r requirements.txt"
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "render-start": "node app.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "openai": "^4.24.1",
-    "pdfkit": "^0.17.1",
-    "pg": "^8.11.3",
-    "puppeteer": "^23.0.0",
-    "deepl-node": "^1.13.0",
-    "dotenv": "^16.0.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "multer": "^1.4.5-lts.1",
+    "openai": "^4.56.0",
+    "pdfkit": "^0.14.0",
+    "pg": "^8.12.0",
+    "puppeteer": "^22.13.1",
     "xlsx": "^0.18.5"
   }
 }
