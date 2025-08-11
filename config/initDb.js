@@ -116,6 +116,7 @@ async function initDb() {
       );
     `);
 
+    // --- ATEX tables ---
     await client.query(`
       CREATE TABLE IF NOT EXISTS atex_equipments (
         id SERIAL PRIMARY KEY,
