@@ -1,705 +1,618 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <title>ATEX — Contrôle</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Reset minimal -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contrôle ATEX - Équipements</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://unpkg.com/lucide@latest/dist/umd/lucide.min.css" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    :root{
-      --bg:#0f172a;      /* slate-900 */
-      --card:#111827;    /* gray-900 */
-      --muted:#334155;   /* slate-600 */
-      --text:#e5e7eb;    /* gray-200 */
-      --accent:#22c55e;  /* green-500 */
-      --warn:#f59e0b;    /* amber-500 */
-      --danger:#ef4444;  /* red-500 */
-      --border:#1f2937;  /* gray-800 */
-      --shadow: 0 8px 24px rgba(0,0,0,.35);
-      --radius: 16px;
-    }
-    html,body{height:100%}
-    body{
-      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      background:linear-gradient(180deg, #0b1022, #0f172a);
-      color:var(--text);
-    }
-    .container{max-width:1100px; margin:32px auto; padding:0 16px;}
-    h1{font-size:28px; margin:0 0 12px;}
-    p.lead{color:#cbd5e1; margin:0 0 24px;}
-    .tabs{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;}
-    .tab-btn{
-      border:1px solid var(--border); background:var(--card); color:var(--text);
-      padding:10px 14px; border-radius:999px; cursor:pointer; transition:.2s; box-shadow: var(--shadow);
-    }
-    .tab-btn.active{background:var(--accent); color:#06220f; border-color:transparent; font-weight:600;}
-    .card{
-      background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.005));
-      border:1px solid var(--border); border-radius:var(--radius); padding:18px; box-shadow: var(--shadow);
-    }
-    .grid{display:grid; gap:14px;}
-    @media(min-width:860px){ .grid-2{ grid-template-columns:1fr 1fr;} .grid-3{ grid-template-columns:repeat(3, 1fr);} }
-    label{display:block; font-size:14px; color:#d1d5db; margin-bottom:6px;}
-    .help{display:block; font-size:12px; color:#94a3b8; margin-top:6px;}
-    input[type="text"], input[type="file"], select, textarea{
-      width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--border);
-      background:#0b1224; color:var(--text); outline:none; transition:border-color .2s;
-    }
-    input::placeholder, textarea::placeholder{color:#64748b}
-    input:focus, select:focus, textarea:focus{border-color:#475569}
-    .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-    .btn{
-      display:inline-flex; align-items:center; gap:8px;
-      padding:10px 14px; border-radius:12px; border:1px solid var(--border);
-      background:#0b1224; color:var(--text); cursor:pointer; transition:.2s;
-    }
-    .btn:hover{transform:translateY(-1px)}
-    .btn-primary{ background:var(--accent); color:#06220f; border-color:transparent; font-weight:700;}
-    .btn-outline{ background:transparent }
-    .btn-danger{ background:var(--danger); color:#fff; border-color:transparent; }
-    .section-title{font-weight:700; margin:18px 0 8px; color:#cbd5e1}
-    .divider{height:1px; background:var(--border); margin:12px 0 18px}
-    .pill{display:inline-block; padding:4px 8px; border-radius:999px; background:#0b1224; border:1px solid var(--border); font-size:12px; color:#a3a3a3}
-    table{width:100%; border-collapse:collapse; overflow:auto; border-radius:12px;}
-    th, td{border-bottom:1px solid var(--border); padding:10px; text-align:left; font-size:13px;}
-    th{color:#cbd5e1; background:#0b1224}
-    .muted{color:#9aa4b2}
-    .success{color:#34d399}
-    .warning{color:var(--warn)}
-    .error{color:var(--danger)}
-    .hidden{display:none !important}
-    .notice{border-left:4px solid var(--accent); background:#06220f; padding:10px 12px; border-radius:10px; color:#c7ffd8}
-    .soft{opacity:.9}
-    .uploader{border:1px dashed #334155; padding:14px; border-radius:12px; text-align:center; background:#0b1224}
-    .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px; background:#0b1224; border:1px solid var(--border); padding:2px 6px; border-radius:6px; color:#cbd5e1}
-    .small{font-size:12px}
-    .right{float:right}
-    .link{color:#86efac; text-decoration:underline; cursor:pointer}
-    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    body { background-color: #f8f9fa; font-family: 'Poppins', sans-serif; color: #333; }
+    .card { margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 15px; background: #fff; }
+    .alert-overdue { background-color: #ffc107; color: #333; }
+    .risk-low { color: #28a745; } .risk-med { color: #ffc107; } .risk-high { color: #dc3545; }
+    .nav-tabs .nav-link { border-radius: 10px 10px 0 0; }
+    .fixed-bottom-btns { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; padding: 10px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 1000; }
+    .sparkline { width: 100px; height: 30px; }
+    .last-photo { max-width: 50px; border-radius: 5px; }
+    .evolution-up { color: green; } .evolution-down { color: red; } .evolution-stable { color: gray; }
+    .alert-smart { background-color: #e9ecef; border-left: 5px solid #007bff; margin-bottom: 10px; padding: 10px; border-radius: 5px; }
+    .small-muted { font-size: 12px; color: #6c757d; }
   </style>
-
-  <!-- CSV + XLSX libs (CDN). Ok en prod si internet est autorisé; sinon garde le CSV. -->
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
-<body>
-  <div class="container">
-    <h1>ATEX — Contrôle</h1>
-    <p class="lead soft">Gérer les équipements et leurs marquages ATEX. Ajouter/éditer un équipement unitaire, ou importer en masse.</p>
+<body class="container my-5">
+  <h1 class="text-center mb-4">Contrôle des Équipements ATEX</h1>
+  <p class="text-center lead">Outil pour inspecter, ajouter et suivre les conformités ATEX. Utilisez sur le terrain pour photos et checks automatisés.</p>
+  <a href="atex-risk.html" class="btn btn-info mb-4"><i data-lucide="bar-chart"></i> Voir Risk Assessment Global</a>
 
-    <!-- Onglets -->
-    <div class="tabs" role="tablist" aria-label="Sections ATEX">
-      <button class="tab-btn active" data-tab="addedit" role="tab" aria-selected="true">Ajouter / Éditer</button>
-      <button class="tab-btn" data-tab="import" role="tab" aria-selected="false">Importer</button>
-      <button class="tab-btn" data-tab="assistant" role="tab" aria-selected="false">Assistance IA</button>
+  <!-- Smart Alerts -->
+  <div id="smartAlerts" class="mb-4"></div>
+
+  <!-- Onglets -->
+  <ul class="nav nav-tabs" id="atexTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab"><i data-lucide="list"></i> Liste</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="add-tab" data-bs-toggle="tab" data-bs-target="#add" type="button" role="tab"><i data-lucide="plus"></i> Ajouter/Éditer</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="import-tab" data-bs-toggle="tab" data-bs-target="#import" type="button" role="tab"><i data-lucide="upload"></i> Importer</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="chat-tab" data-bs-toggle="tab" data-bs-target="#chat" type="button" role="tab"><i data-lucide="message-circle"></i> Chat IA</button>
+    </li>
+  </ul>
+
+  <div class="tab-content" id="atexTabContent">
+
+    <!-- LISTE -->
+    <div class="tab-pane fade show active" id="list" role="tabpanel">
+      <!-- Analyses (nouveaux graphiques) -->
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h4 class="mb-0">Analyses</h4>
+          <span class="small-muted">Données issues de /api/atex-risk-global et /api/atex-equipments</span>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <canvas id="chartConformite"></canvas>
+              <div class="text-center small-muted mt-2">Conformité (Conformes / Non)</div>
+            </div>
+            <div class="col-md-3">
+              <canvas id="chartRisques"></canvas>
+              <div class="text-center small-muted mt-2">Distribution des risques (0 → 5)</div>
+            </div>
+            <div class="col-md-3">
+              <canvas id="chartSecteurs"></canvas>
+              <div class="text-center small-muted mt-2">Répartition par secteur</div>
+            </div>
+            <div class="col-md-3">
+              <canvas id="chartEcheances"></canvas>
+              <div class="text-center small-muted mt-2">Échéances d’inspection (12 mois)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filtres -->
+      <div class="card mb-4">
+        <div class="card-header"><h4>Filtres</h4></div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-3"><input id="filterSecteur" class="form-control" placeholder="Secteur"></div>
+            <div class="col-md-3"><input id="filterBatiment" class="form-control" placeholder="Bâtiment"></div>
+            <div class="col-md-3">
+              <select id="filterConformite" class="form-select">
+                <option value="">Conformité (tous)</option>
+                <option value="Conforme">Conforme</option>
+                <option value="Non Conforme">Non Conforme</option>
+              </select>
+            </div>
+            <div class="col-md-3"><button onclick="applyFilters()" class="btn btn-primary"><i data-lucide="search"></i> Appliquer</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Liste -->
+      <div class="card">
+        <div class="card-header"><h4>Liste des Équipements</h4></div>
+        <div class="card-body">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>ID</th><th>Composant</th><th>Zone</th><th>Conformité</th><th>Risk</th>
+                <th>Grade/Fréq.</th><th>Dernière Inspection</th><th>Prochaine</th>
+                <th>Risk History</th><th>Last Photo</th><th>Évolution</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="equipmentsTable"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
-    <!-- Ajouter / Éditer -->
-    <section id="tab-addedit" class="card" role="tabpanel" aria-labelledby="Ajouter / Éditer">
-      <div class="grid grid-2">
-        <!-- Secteur de responsabilité -->
-        <div>
-          <label for="secteur">Secteur de responsabilité</label>
-          <div class="row">
-            <select id="secteur" aria-describedby="help-secteur">
-              <!-- Exemples; ces valeurs devraient venir de l’API -->
-              <option value="" disabled selected>— Sélectionner —</option>
-              <option>Production</option>
-              <option>Utilities</option>
-              <option>Maintenance</option>
-              <option data-create="true">➕ Ajouter un nouveau secteur…</option>
-            </select>
+    <!-- AJOUTER / ÉDITER -->
+    <div class="tab-pane fade" id="add" role="tabpanel">
+      <div class="card">
+        <div class="card-body">
+          <form id="equipForm">
+            <input type="hidden" id="equipId">
+            <div class="row">
+              <div class="col-md-6">
+                <label>Secteur de responsabilité</label>
+                <div class="input-group">
+                  <select id="secteur-input" class="form-select" required></select>
+                  <button class="btn btn-outline-secondary" type="button" id="btnAddSecteur" title="Ajouter un secteur">➕</button>
+                </div>
+                <div class="form-text">Clique sur ➕ pour créer un nouveau secteur.</div>
+              </div>
+              <div class="col-md-6">
+                <label>Bâtiment</label>
+                <input type="text" id="batiment-input" class="form-control" placeholder="Ex: B06, B11…" required>
+              </div>
+            </div>
+
+            <div class="row mt-3">
+              <div class="col-md-6">
+                <label>Local</label>
+                <input type="text" id="local-input" class="form-control" placeholder="Entrer le nom ou numéro du local" required>
+              </div>
+              <div class="col-md-6">
+                <label>Composant</label>
+                <input type="text" id="composant-input" class="form-control" placeholder="Type de composant (capteur, clapet, etc.)" required>
+              </div>
+            </div>
+
+            <div class="row mt-3">
+              <div class="col-md-6">
+                <label>Fabricant</label>
+                <input type="text" id="fournisseur-input" class="form-control" placeholder="Ex: IFM, E+H, Siemens…" required>
+              </div>
+              <div class="col-md-6">
+                <label>Type (référence fabricant)</label>
+                <input type="text" id="type-input" class="form-control" placeholder="Entrer la référence fabricant" required>
+              </div>
+            </div>
+
+            <div class="row mt-3">
+              <div class="col-md-6">
+                <label>Identifiant</label>
+                <input type="text" id="identifiant-input" class="form-control" placeholder="Entrer l’identifiant du capteur par exemple" required>
+              </div>
+              <div class="col-md-6">
+                <label>Marquage ATEX</label>
+                <input type="text" id="marquage_atex-input" class="form-control" placeholder="Ex : II 3G IIA T4" required>
+              </div>
+            </div>
+
+            <!-- Photo + Commentaires -->
+            <div class="row mt-3">
+              <div class="col-md-6">
+                <label>Photo / Document</label>
+                <input type="file" id="photo-input" class="form-control" accept="image/*,.pdf">
+                <div class="form-text">Tu peux ajouter une photo et/ou un document.</div>
+              </div>
+              <div class="col-md-6">
+                <label>Commentaires</label>
+                <textarea id="comments-input" class="form-control" placeholder="Note interne, contexte, etc."></textarea>
+              </div>
+            </div>
+
+            <!-- NB: on supprime les champs 'Intérieur' et 'Extérieur' visibles côté UI
+                 mais le serveur sait gérer les zones si tu souhaites les remettre. -->
+
+            <button type="button" onclick="saveEquipment()" class="btn btn-success mt-4">
+              <i data-lucide="save"></i> Enregistrer
+            </button>
+            <button type="button" onclick="clearForm()" class="btn btn-secondary mt-4">
+              <i data-lucide="x"></i> Annuler
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMPORTER -->
+    <div class="tab-pane fade" id="import" role="tabpanel">
+      <div class="card">
+        <div class="card-body">
+          <p><strong>Colonnes minimales requises</strong> pour un import à minima :</p>
+          <div class="mb-2">
+            <span class="badge bg-light text-dark">Secteur de responsabilité</span>
+            <span class="badge bg-light text-dark">Local</span>
+            <span class="badge bg-light text-dark">Composant</span>
+            <span class="badge bg-light text-dark">Fabricant</span>
+            <span class="badge bg-light text-dark">Type</span>
+            <span class="badge bg-light text-dark">Identifiant</span>
+            <span class="badge bg-light text-dark">Marquage ATEX</span>
           </div>
-          <span id="help-secteur" class="help">Sélectionnez le secteur responsable. Cliquez “Ajouter un nouveau secteur…” pour en créer un.</span>
-          <div id="new-secteur-row" class="row hidden" style="margin-top:8px">
-            <input type="text" id="new-secteur" placeholder="Nom du nouveau secteur" />
-            <button class="btn" id="save-secteur">Enregistrer le secteur</button>
-            <button class="btn btn-outline" id="cancel-secteur">Annuler</button>
+          <p class="small-muted">Les autres colonnes sont ignorées si non reconnues. Vous pouvez importer beaucoup de lignes en une fois.</p>
+
+          <div class="mb-3 d-flex gap-2">
+            <button id="btnTemplateCSV" class="btn btn-outline-secondary btn-sm">Télécharger modèle CSV</button>
+            <button id="btnTemplateXLSX" class="btn btn-outline-secondary btn-sm">Télécharger modèle XLSX</button>
           </div>
-        </div>
 
-        <!-- Local -->
-        <div>
-          <label for="local">Local</label>
-          <input id="local" type="text" placeholder="Entrer le nom ou numéro du local" aria-describedby="help-local" />
-          <span id="help-local" class="help">Exemples : “L-203”, “Salle compresseurs”, “Bât. B06 — LT-12”.</span>
-        </div>
-
-        <!-- Composant -->
-        <div>
-          <label for="composant">Composant</label>
-          <select id="composant" aria-describedby="help-composant">
-            <option value="" disabled selected>— Sélectionner —</option>
-            <option>Capteur</option>
-            <option>Clapet</option>
-            <option>Moteur</option>
-            <option>Vanne</option>
-            <option>Boîtier de jonction</option>
-            <option>Autre</option>
-          </select>
-          <span id="help-composant" class="help">Type de composant (capteur, clapet, etc.).</span>
-        </div>
-
-        <!-- Fabricant -->
-        <div>
-          <label for="fabricant">Fabricant</label>
-          <input id="fabricant" type="text" placeholder="Ex : IFM, Endress+Hauser, Siemens…" aria-describedby="help-fabricant" />
-          <span id="help-fabricant" class="help">Ancien libellé “Fournisseur”. Indiquez le nom du <strong>fabricant</strong>.</span>
-        </div>
-
-        <!-- Type (référence fabricant) -->
-        <div>
-          <label for="typeRef">Type (référence fabricant)</label>
-          <input id="typeRef" type="text" placeholder="Entrer la référence fabricant" aria-describedby="help-typeRef" />
-          <span id="help-typeRef" class="help">Ex : “PN7092”, “E2E-X5ME1”, “3RW40 11-1BB14”.</span>
-        </div>
-
-        <!-- Identifiant -->
-        <div>
-          <label for="identifiant">Identifiant</label>
-          <input id="identifiant" type="text" placeholder="Entrer l’identifiant du capteur par exemple" aria-describedby="help-identifiant" />
-          <span id="help-identifiant" class="help">Ex : “CAPT-0123”, “MOT-AX07”, “VAN-15A”.</span>
-        </div>
-
-        <!-- Marquage ATEX -->
-        <div>
-          <label for="atex">Marquage ATEX</label>
-          <input id="atex" type="text" placeholder="Ex : II 3G IIA T4" aria-describedby="help-atex" />
-          <span id="help-atex" class="help">Inscrire ici le marquage ATEX (exemple : <span class="kbd">II 3G IIA T4</span>).</span>
-        </div>
-
-        <!-- Photo / Document -->
-        <div>
-          <label for="files">Photo / Document</label>
-          <div class="uploader">
-            <input id="files" type="file" multiple aria-describedby="help-files" />
-            <div class="small muted" style="margin-top:8px">Formats acceptés : images (PNG/JPG/WebP), PDF, etc. (max ~10 Mo par fichier selon serveur).</div>
-          </div>
-          <span id="help-files" class="help">Ajoutez une ou plusieurs photos / documents liés au composant.</span>
+          <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" class="form-control mb-2">
+          <button onclick="importExcel()" class="btn btn-primary">
+            <i data-lucide="upload"></i> Importer
+          </button>
         </div>
       </div>
+    </div>
 
-      <div class="divider"></div>
-
-      <div class="row">
-        <button class="btn btn-primary" id="save-one">Enregistrer</button>
-        <button class="btn btn-outline" id="reset-one">Réinitialiser</button>
-        <span id="save-one-status" class="help"></span>
-      </div>
-    </section>
-
-    <!-- Importer -->
-    <section id="tab-import" class="card hidden" role="tabpanel" aria-labelledby="Importer">
-      <div class="notice" style="margin-bottom:12px">
-        <strong>Colonnes minimales requises</strong> pour un import qui fonctionne :
-        <div class="grid" style="margin-top:8px">
-          <span class="pill">Secteur de responsabilité</span>
-          <span class="pill">Local</span>
-          <span class="pill">Composant</span>
-          <span class="pill">Fabricant</span>
-          <span class="pill">Type</span>
-          <span class="pill">Identifiant</span>
-          <span class="pill">Marquage ATEX</span>
-        </div>
-        <div class="small" style="margin-top:8px">Les autres colonnes éventuelles sont <em>ignorées</em> si non reconnues. Vous pouvez importer un grand nombre de lignes d’un coup.</div>
-      </div>
-
-      <div class="row" style="margin-bottom:10px">
-        <button class="btn" id="download-template-csv">Télécharger le modèle CSV</button>
-        <button class="btn" id="download-template-xlsx">Télécharger le modèle XLSX</button>
-        <span class="help">Utilisez ces modèles pour être sûr d’avoir la bonne trame.</span>
-      </div>
-
-      <div class="grid grid-2" style="align-items:start">
-        <div>
-          <label for="import-file">Fichier à importer (CSV ou XLSX)</label>
-          <input id="import-file" type="file" accept=".csv,.xlsx,.xls" />
-          <span class="help">Le fichier peut contenir plus de colonnes : seules celles reconnues seront utilisées.</span>
-          <div class="row" style="margin-top:12px">
-            <button class="btn btn-primary" id="parse-file">Prévisualiser</button>
-            <button class="btn btn-outline" id="clear-preview">Vider la prévisualisation</button>
-          </div>
-        </div>
-
-        <div>
-          <div class="section-title">État</div>
-          <div id="import-status" class="help muted">Aucun fichier chargé.</div>
-          <div class="section-title">Validation</div>
-          <div id="import-validation" class="help"></div>
+    <!-- CHAT IA -->
+    <div class="tab-pane fade" id="chat" role="tabpanel">
+      <div class="card">
+        <div class="card-body">
+          <textarea id="chatInput" class="form-control" placeholder="Posez une question sur l'ATEX..."></textarea>
+          <button onclick="sendChat()" class="btn btn-primary mt-2"><i data-lucide="send"></i> Envoyer</button>
+          <div id="chatResponse" class="mt-3"></div>
         </div>
       </div>
+    </div>
+  </div>
 
-      <div class="divider"></div>
+  <!-- Boutons fixes bas -->
+  <div class="fixed-bottom-btns text-center">
+    <button onclick="addNew()" class="btn btn-success"><i data-lucide="plus"></i> Ajouter</button>
+    <button onclick="syncData()" class="btn btn-info"><i data-lucide="refresh-cw"></i> Sync</button>
+  </div>
 
-      <div id="preview-wrap" class="hidden">
-        <div class="row" style="justify-content:space-between; margin-bottom:8px">
-          <div class="section-title">Aperçu des données</div>
-          <div class="small muted right">Colonnes supplémentaires ignorées automatiquement.</div>
+  <!-- Modal Ajout Secteur -->
+  <div class="modal fade" id="modalSecteur" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Nouveau secteur</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <input id="newSecteurName" class="form-control" placeholder="Nom du secteur">
+          <div id="secteurSaveMsg" class="small-muted mt-2"></div>
         </div>
-        <div style="overflow:auto">
-          <table id="preview-table" aria-label="Aperçu des données importées"></table>
-        </div>
-        <div class="row" style="margin-top:12px">
-          <button class="btn btn-primary" id="send-import">Importer maintenant</button>
-          <button class="btn btn-outline" id="download-errors" disabled>Télécharger erreurs CSV</button>
-          <span id="send-status" class="help"></span>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-primary" id="saveSecteurBtn">Enregistrer</button>
         </div>
       </div>
-    </section>
-
-    <!-- Assistance IA -->
-    <section id="tab-assistant" class="card hidden" role="tabpanel" aria-labelledby="Assistance IA">
-      <div class="grid">
-        <div>
-          <label for="ia-question">Question</label>
-          <textarea id="ia-question" rows="3" placeholder="Pose ta question sur ATEX, procédures, etc."></textarea>
-          <span class="help">Ex : “Quels sont les marquages ATEX typiques pour les zones 2 ?”</span>
-        </div>
-        <div class="row" style="margin-top:10px">
-          <button class="btn btn-primary" id="ask-ia">Envoyer</button>
-          <button class="btn btn-outline" id="clear-ia">Effacer</button>
-          <span id="ia-status" class="help"></span>
-        </div>
-        <div class="divider"></div>
-        <div>
-          <div class="section-title">Réponse</div>
-          <div id="ia-answer" class="muted">—</div>
-        </div>
-      </div>
-      <div class="divider"></div>
-      <div class="small muted">
-        <strong>Note backend (pour corriger l’erreur “undefined”)</strong> : l’API <span class="kbd">POST /api/atex-chat</span> doit renvoyer un JSON
-        <span class="kbd">{ "answer": "..." }</span>. Si le serveur renvoie 500, le message d’erreur s’affiche proprement ici.
-        Exemple Express (à adapter) :
-        <pre class="small" style="white-space:pre-wrap;background:#0b1224;padding:8px;border-radius:8px;border:1px solid var(--border)">
-app.post('/api/atex-chat', async (req, res) =&gt; {
-  try {
-    const { question } = req.body ?? {};
-    if (!question) return res.status(400).json({ error: 'question manquante' });
-    // TODO: appeler ton module openai.js et récupérer le texte
-    const answer = await askOpenAI(question); // doit retourner une string
-    return res.json({ answer });
-  } catch (e) {
-    console.error('atex-chat error:', e);
-    return res.status(500).json({ error: 'internal_error', detail: String(e?.message || e) });
-  }
-});
-        </pre>
-      </div>
-    </section>
+    </div>
   </div>
 
   <script>
-    // -----------------------
-    // Gestion des onglets
-    // -----------------------
-    const tabButtons = document.querySelectorAll('.tab-btn');
-    const panels = {
-      'addedit': document.getElementById('tab-addedit'),
-      'import': document.getElementById('tab-import'),
-      'assistant': document.getElementById('tab-assistant'),
+    lucide.createIcons();
+
+    // URL de l'API (Render)
+    const API_BASE_URL = 'https://autonomix-elec.onrender.com';
+
+    // État
+    let equipments = [];
+    let charts = {};
+
+    // Démarrage
+    window.onload = () => {
+      loadSecteurs();
+      loadEquipments();
+      loadSmartAlerts();
+      loadStatsAndBuildCharts();
+      wiringUI();
     };
-    tabButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        tabButtons.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const key = btn.dataset.tab;
-        Object.values(panels).forEach(p => p.classList.add('hidden'));
-        panels[key].classList.remove('hidden');
+
+    function wiringUI(){
+      document.getElementById('btnAddSecteur').addEventListener('click', ()=>{
+        const modal = new bootstrap.Modal(document.getElementById('modalSecteur'));
+        document.getElementById('newSecteurName').value = '';
+        document.getElementById('secteurSaveMsg').textContent = '';
+        modal.show();
       });
-    });
-
-    // -----------------------
-    // Ajouter / Éditer
-    // -----------------------
-    const secteurSelect = document.getElementById('secteur');
-    const newSecteurRow = document.getElementById('new-secteur-row');
-    const newSecteurInput = document.getElementById('new-secteur');
-    const saveSecteurBtn = document.getElementById('save-secteur');
-    const cancelSecteurBtn = document.getElementById('cancel-secteur');
-
-    secteurSelect.addEventListener('change', () => {
-      const opt = secteurSelect.selectedOptions[0];
-      if (opt && opt.dataset.create === 'true') {
-        newSecteurRow.classList.remove('hidden');
-        newSecteurInput.focus();
-      }
-    });
-    saveSecteurBtn.addEventListener('click', () => {
-      const val = (newSecteurInput.value || '').trim();
-      if (!val) return;
-      // Ajouter localement dans la liste (en prod, POST /api/secteurs puis recharger)
-      const newOpt = document.createElement('option');
-      newOpt.textContent = val;
-      newOpt.value = val;
-      secteurSelect.insertBefore(newOpt, secteurSelect.querySelector('option[data-create="true"]'));
-      secteurSelect.value = val;
-      newSecteurInput.value = '';
-      newSecteurRow.classList.add('hidden');
-    });
-    cancelSecteurBtn.addEventListener('click', () => {
-      newSecteurInput.value = '';
-      newSecteurRow.classList.add('hidden');
-      secteurSelect.value = '';
-    });
-
-    const saveOneBtn = document.getElementById('save-one');
-    const resetOneBtn = document.getElementById('reset-one');
-    const saveOneStatus = document.getElementById('save-one-status');
-
-    function gatherOnePayload() {
-      return {
-        secteur: (document.getElementById('secteur').value || '').trim(),
-        local: (document.getElementById('local').value || '').trim(),
-        composant: (document.getElementById('composant').value || '').trim(),
-        fabricant: (document.getElementById('fabricant').value || '').trim(),
-        type: (document.getElementById('typeRef').value || '').trim(),
-        identifiant: (document.getElementById('identifiant').value || '').trim(),
-        marquage_atex: (document.getElementById('atex').value || '').trim(),
-      };
-    }
-    function validateOne(p) {
-      const missing = [];
-      if (!p.secteur) missing.push('Secteur de responsabilité');
-      if (!p.local) missing.push('Local');
-      if (!p.composant) missing.push('Composant');
-      if (!p.fabricant) missing.push('Fabricant');
-      if (!p.type) missing.push('Type');
-      if (!p.identifiant) missing.push('Identifiant');
-      if (!p.marquage_atex) missing.push('Marquage ATEX');
-      return missing;
+      document.getElementById('saveSecteurBtn').addEventListener('click', saveSecteur);
+      document.getElementById('btnTemplateCSV').addEventListener('click', downloadTemplateCSV);
+      document.getElementById('btnTemplateXLSX').addEventListener('click', downloadTemplateXLSX);
     }
 
-    saveOneBtn.addEventListener('click', async () => {
-      saveOneStatus.textContent = '';
-      const payload = gatherOnePayload();
-      const missing = validateOne(payload);
-      if (missing.length) {
-        saveOneStatus.innerHTML = 'Champs manquants : <span class="warning">' + missing.join(', ') + '</span>';
-        return;
-      }
-
-      // Préparer FormData pour joindre les fichiers
-      const filesInput = document.getElementById('files');
-      const fd = new FormData();
-      fd.append('data', new Blob([JSON.stringify(payload)], { type: 'application/json'}));
-      if (filesInput?.files?.length) {
-        [...filesInput.files].forEach((f, i) => fd.append('files', f, f.name));
-      }
-
-      // Envoi API (adapter l’URL selon ton backend)
+    /* ========== LISTE / ANALYSES ========== */
+    async function loadSmartAlerts() {
       try {
-        const res = await fetch('/api/atex', { method:'POST', body: fd });
-        if (!res.ok) {
-          const errText = await res.text().catch(()=> '');
-          throw new Error('HTTP ' + res.status + (errText ? (' – '+ errText) : ''));
-        }
-        saveOneStatus.innerHTML = '<span class="success">Équipement enregistré.</span>';
-      } catch(e) {
-        console.error(e);
-        saveOneStatus.innerHTML = '<span class="error">Erreur lors de l’enregistrement : ' + (e?.message || e) + '</span>';
+        const r = await fetch(\`\${API_BASE_URL}/api/atex-analysis\`);
+        const alerts = await r.json();
+        document.getElementById('smartAlerts').innerHTML =
+          alerts.map(a => \`<div class="alert-smart">\${a.text}</div>\`).join('');
+      } catch(e){ console.error('Erreur loadSmartAlerts:', e); }
+    }
+
+    async function loadEquipments() {
+      try {
+        const response = await fetch(\`\${API_BASE_URL}/api/atex-equipments\`);
+        if (!response.ok) throw new Error('Erreur chargement liste');
+        equipments = await response.json();
+        renderTable();
+      } catch (error) {
+        console.error('Erreur loadEquipments:', error);
+        alert('Erreur chargement liste: ' + error.message);
       }
-    });
-
-    resetOneBtn.addEventListener('click', () => {
-      ['secteur','local','composant','fabricant','typeRef','identifiant','atex','files'].forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        if (el.tagName === 'SELECT') el.value = '';
-        if (el.type === 'file') el.value = '';
-        else el.value = '';
-      });
-      saveOneStatus.textContent = '';
-    });
-
-    // -----------------------
-    // Importer
-    // -----------------------
-    const REQUIRED = ['Secteur de responsabilité','Local','Composant','Fabricant','Type','Identifiant','Marquage ATEX'];
-    const KEYMAP = { // mapping tolerant pour noms de colonnes variés
-      'secteur de responsabilité':'Secteur de responsabilité',
-      'secteur':'Secteur de responsabilité',
-      'local':'Local',
-      'composant':'Composant',
-      'fabricant':'Fabricant',
-      'fournisseur':'Fabricant',
-      'type':'Type',
-      'référence':'Type',
-      'reference':'Type',
-      'identifiant':'Identifiant',
-      'marquage atex':'Marquage ATEX',
-      'atex':'Marquage ATEX'
-    };
-
-    const importFile = document.getElementById('import-file');
-    const parseBtn = document.getElementById('parse-file');
-    const clearPreviewBtn = document.getElementById('clear-preview');
-    const previewWrap = document.getElementById('preview-wrap');
-    const previewTable = document.getElementById('preview-table');
-    const importStatus = document.getElementById('import-status');
-    const importValidation = document.getElementById('import-validation');
-    const sendBtn = document.getElementById('send-import');
-    const sendStatus = document.getElementById('send-status');
-    const downloadErrorsBtn = document.getElementById('download-errors');
-
-    let parsedRows = [];
-    let invalidRows = [];
-
-    function normalizeHeader(h){
-      return (h||'').toString().trim().toLowerCase().replace(/\s+/g,' ');
     }
-    function mapHeaders(cols){
-      const result = {};
-      cols.forEach(c => {
-        const n = normalizeHeader(c);
-        const mapped = KEYMAP[n] || c; // si pas dans map, garder tel quel
-        result[c] = mapped;
-      });
-      return result;
-    }
-    function projectRow(row, headerMap){
-      // Construit un objet avec uniquement les colonnes supportées (REQUIRED, le reste ignoré)
-      const out = {};
-      Object.entries(row).forEach(([k,v])=>{
-        const dst = headerMap[k] || k;
-        if (REQUIRED.includes(dst)) out[dst] = (v ?? '').toString().trim();
-      });
-      return out;
-    }
-    function validateRows(rows){
-      invalidRows = [];
-      const valid = [];
-      rows.forEach((r, idx)=>{
-        const miss = REQUIRED.filter(k => !(r[k] && r[k].length));
-        if (miss.length){ invalidRows.push({index: idx+1, missing: miss}); }
-        else valid.push(r);
-      });
-      return { valid, invalid: invalidRows };
-    }
-    function renderPreview(rows){
-      previewTable.innerHTML = '';
-      if (!rows.length){ previewWrap.classList.add('hidden'); return; }
-      // header
-      const thead = document.createElement('thead');
-      const trh = document.createElement('tr');
-      REQUIRED.forEach(h=>{
-        const th = document.createElement('th'); th.textContent = h; trh.appendChild(th);
-      });
-      thead.appendChild(trh);
-      previewTable.appendChild(thead);
-      // body
-      const tbody = document.createElement('tbody');
-      rows.forEach((r,i)=>{
+
+    function renderTable(filtered = equipments) {
+      const tableBody = document.getElementById('equipmentsTable');
+      tableBody.innerHTML = '';
+      filtered.forEach(eq => {
+        const riskClass = eq.risque <= 1 ? 'risk-low' : (eq.risque <= 3 ? 'risk-med' : 'risk-high');
         const tr = document.createElement('tr');
-        REQUIRED.forEach(h=>{
-          const td = document.createElement('td'); td.textContent = r[h] || '';
-          tr.appendChild(td);
+        tr.innerHTML = \`
+          <td>\${eq.id}</td>
+          <td>\${eq.composant || ''}</td>
+          <td>\${eq.interieur || eq.exterieur || 'N/A'}</td>
+          <td>\${eq.conformite || ''}</td>
+          <td class="\${riskClass}">\${eq.risque ?? ''}</td>
+          <td>\${(eq.grade||'')+'/'+(eq.frequence||'')}</td>
+          <td>\${eq.last_inspection_date || 'N/A'}</td>
+          <td>\${eq.next_inspection_date || 'N/A'}</td>
+          <td><canvas class="sparkline" id="spark-\${eq.id}"></canvas></td>
+          <td><img class="last-photo" src="\${eq.photo || 'no-photo.jpg'}" alt="Photo"></td>
+          <td class="evolution-stable">\${eq.evolution || 'Stable'}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(\${eq.id})">Éditer</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteEquipment(\${eq.id})">Supprimer</button>
+          </td>
+        \`;
+        tableBody.appendChild(tr);
+        // mini spark (factice: risque+-1)
+        const ctx = document.getElementById(\`spark-\${eq.id}\`);
+        if (ctx) new Chart(ctx, {
+          type: 'line',
+          data: { labels: ['1','2','3'], datasets: [{ data: [eq.risque-1, eq.risque, Math.min((eq.risque||0)+1,5)], borderWidth: 1, fill: false }] },
+          options: { responsive:true, maintainAspectRatio:false, scales:{x:{display:false},y:{display:false}}, elements:{point:{radius:0}}, plugins:{legend:{display:false}} }
         });
-        tbody.appendChild(tr);
       });
-      previewTable.appendChild(tbody);
-      previewWrap.classList.remove('hidden');
-    }
-    function setValidationMessage(colsPresent){
-      const missingCols = REQUIRED.filter(k => !colsPresent.includes(k));
-      if (missingCols.length){
-        importValidation.innerHTML = 'Colonnes manquantes dans le fichier : <span class="warning">'+missingCols.join(', ')+'</span>';
-      } else {
-        importValidation.innerHTML = '<span class="success">Colonnes minimales présentes.</span>';
-      }
     }
 
-    parseBtn.addEventListener('click', async () => {
-      importStatus.textContent = 'Lecture du fichier…';
-      sendStatus.textContent = '';
-      parsedRows = []; invalidRows = [];
-      const file = importFile.files?.[0];
-      if (!file){ importStatus.innerHTML = '<span class="warning">Aucun fichier sélectionné.</span>'; return; }
+    function applyFilters() {
+      const s = (document.getElementById('filterSecteur').value || '').toLowerCase();
+      const b = (document.getElementById('filterBatiment').value || '').toLowerCase();
+      const c = document.getElementById('filterConformite').value;
+      const filtered = equipments.filter(eq =>
+        (!s || (eq.secteur||'').toLowerCase().includes(s)) &&
+        (!b || (eq.batiment||'').toLowerCase().includes(b)) &&
+        (!c || (eq.conformite||'') === c)
+      );
+      renderTable(filtered);
+    }
 
-      const name = file.name.toLowerCase();
+    async function loadStatsAndBuildCharts(){
       try{
-        if (name.endsWith('.csv')){
-          await new Promise((resolve, reject)=>{
-            Papa.parse(file, {
-              header:true,
-              skipEmptyLines:'greedy',
-              transformHeader: (h)=>h,
-              complete: (res)=>{ resolve(res); parsedRows = res.data; },
-              error: (err)=> reject(err)
-            });
-          });
-        } else if (name.endsWith('.xlsx') || name.endsWith('.xls')){
-          const buf = await file.arrayBuffer();
-          const wb = XLSX.read(buf, { type:'array' });
-          const ws = wb.Sheets[wb.SheetNames[0]];
-          parsedRows = XLSX.utils.sheet_to_json(ws, { defval:'' });
-        } else {
-          throw new Error('Format non supporté');
-        }
-        // Mapping d’en-têtes + projection
-        const headers = Object.keys(parsedRows[0] || {});
-        const headerMap = mapHeaders(headers);
-        const projected = parsedRows.map(r=> projectRow(r, headerMap));
-        setValidationMessage(Object.values(headerMap));
-        const { valid, invalid } = validateRows(projected);
-        renderPreview(valid);
-        if (invalid.length){
-          importStatus.innerHTML = '<span class="warning">'+invalid.length+' ligne(s) incomplète(s) seront ignorées.</span>';
-          downloadErrorsBtn.disabled = false;
-          downloadErrorsBtn.onclick = () => downloadErrorsCSV(invalid);
-        } else {
-          importStatus.innerHTML = '<span class="success">Prévisualisation prête. '+valid.length+' ligne(s) valide(s).</span>';
-          downloadErrorsBtn.disabled = true;
-        }
-        // Conserve en mémoire seulement les valides pour l’envoi
-        parsedRows = valid;
-      } catch(e){
-        console.error(e);
-        importStatus.innerHTML = '<span class="error">Erreur de lecture : '+(e?.message || e)+'</span>';
-        previewWrap.classList.add('hidden');
-      }
-    });
+        // Stats globales
+        const r = await fetch(\`\${API_BASE_URL}/api/atex-risk-global\`);
+        const { stats, highRisk } = await r.json();
 
-    clearPreviewBtn.addEventListener('click', ()=>{
-      parsedRows = []; invalidRows = [];
-      previewWrap.classList.add('hidden');
-      previewTable.innerHTML = '';
-      importStatus.textContent = 'Aucun fichier chargé.';
-      importValidation.textContent = '';
-      sendStatus.textContent = '';
-      downloadErrorsBtn.disabled = true;
-    });
+        // Conformité (doughnut)
+        buildOrUpdateChart('chartConformite', 'doughnut', {
+          labels: ['Conformes','Non Conformes'],
+          datasets: [{ data: [stats.conformes||0, stats.non_conformes||0] }]
+        });
 
-    function chunk(array, size){
-      const out = [];
-      for (let i=0;i<array.length;i+=size) out.push(array.slice(i, i+size));
-      return out;
+        // Répartition risques (bar 0..5)
+        const riskBuckets = [0,1,2,3,4,5].map(()=>0);
+        equipments.forEach(e => { if (typeof e.risque === 'number' && e.risque>=0 && e.risque<=5) riskBuckets[e.risque]++; });
+        buildOrUpdateChart('chartRisques', 'bar', {
+          labels: ['0','1','2','3','4','5'],
+          datasets: [{ label:'Nb', data: riskBuckets }]
+        }, { scales: { y: { beginAtZero: true }}});
+
+        // Répartition par secteur (bar)
+        const bySecteur = {};
+        equipments.forEach(e => { const k = e.secteur || 'N/A'; bySecteur[k] = (bySecteur[k]||0)+1; });
+        buildOrUpdateChart('chartSecteurs', 'bar', {
+          labels: Object.keys(bySecteur),
+          datasets: [{ label:'Équipements', data: Object.values(bySecteur) }]
+        }, { indexAxis: 'y', scales:{ x:{ beginAtZero: true }} });
+
+        // Échéances d’inspection (12 mois rolling)
+        const buckets = new Array(12).fill(0);
+        const now = new Date();
+        equipments.forEach(e => {
+          if (!e.next_inspection_date) return;
+          const d = new Date(e.next_inspection_date);
+          const diffM = (d.getFullYear()-now.getFullYear())*12 + (d.getMonth()-now.getMonth());
+          if (diffM>=0 && diffM<12) buckets[diffM]++;
+        });
+        const labelsMonths = [...Array(12)].map((_,i)=> {
+          const dt = new Date(now.getFullYear(), now.getMonth()+i, 1);
+          return dt.toLocaleString('fr-FR', { month:'short' });
+        });
+        buildOrUpdateChart('chartEcheances', 'line', {
+          labels: labelsMonths,
+          datasets: [{ label:'Contrôles à venir', data: buckets, fill:false }]
+        });
+
+      } catch(e){ console.error('Erreur charts:', e); }
     }
 
-    sendBtn.addEventListener('click', async ()=>{
-      sendStatus.textContent = '';
-      if (!parsedRows.length){
-        sendStatus.innerHTML = '<span class="warning">Rien à importer.</span>';
+    function buildOrUpdateChart(id, type, data, options={}){
+      const ctx = document.getElementById(id);
+      if (!ctx) return;
+      if (charts[id]) { charts[id].data = data; charts[id].options = options; charts[id].update(); }
+      else { charts[id] = new Chart(ctx, { type, data, options }); }
+    }
+
+    /* ========== AJOUTER / ÉDITER ========== */
+    async function loadSecteurs() {
+      try {
+        const response = await fetch(\`\${API_BASE_URL}/api/atex-secteurs\`);
+        const secteurs = await response.json();
+        const select = document.getElementById('secteur-input');
+        select.innerHTML = '<option value="" disabled selected>— Sélectionner —</option>';
+        secteurs.forEach(s => {
+          const option = document.createElement('option');
+          option.value = s.name;
+          option.text = s.name;
+          select.appendChild(option);
+        });
+      } catch (error) {
+        console.error('Erreur loadSecteur:', error);
+      }
+    }
+
+    async function saveSecteur(){
+      const name = (document.getElementById('newSecteurName').value || '').trim();
+      if (!name) {
+        document.getElementById('secteurSaveMsg').textContent = 'Nom requis.';
         return;
       }
-      sendStatus.textContent = 'Import en cours…';
       try{
-        // Envoi par paquets (éviter payload trop gros)
-        const batches = chunk(parsedRows, 500);
-        let imported = 0;
-        for (let i=0;i<batches.length;i++){
-          const res = await fetch('/api/atex/import', {
-            method:'POST',
-            headers:{ 'Content-Type':'application/json' },
-            body: JSON.stringify({ rows: batches[i] })
-          });
-          if (!res.ok){
-            const t = await res.text().catch(()=> '');
-            throw new Error('HTTP '+res.status+(t?(' – '+t):''));
-          }
-          const json = await res.json().catch(()=> ({}));
-          imported += (json?.imported ?? batches[i].length);
-        }
-        sendStatus.innerHTML = '<span class="success">Import terminé : '+imported+' ligne(s) importée(s).</span>';
-      } catch(e){
-        console.error(e);
-        sendStatus.innerHTML = '<span class="error">Erreur pendant l’import : '+(e?.message || e)+'</span>';
-      }
-    });
-
-    function downloadErrorsCSV(errs){
-      const rows = [['ligne','champs_manquants']];
-      errs.forEach(e => rows.push([e.index, e.missing.join('|')]));
-      const csv = rows.map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
-      const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'import-erreurs.csv'; a.click();
-      setTimeout(()=> URL.revokeObjectURL(url), 1000);
-    }
-
-    // Modèles à télécharger
-    const MODEL_HEADERS = REQUIRED;
-    function generateCSVTemplate(){
-      const head = MODEL_HEADERS.join(',');
-      const example = [
-        'Utilities,L-203,Capteur,IFM,PN7092,CAPT-0123,II 3G IIA T4',
-        'Maintenance,Salle compresseurs,Clapet,Siemens,3RW40 11-1BB14,CLAP-0007,II 3G IIB T3'
-      ].join('\n');
-      return head + '\n' + example + '\n';
-    }
-    function generateXLSXTemplate(){
-      const data = [
-        MODEL_HEADERS,
-        ['Utilities','L-203','Capteur','IFM','PN7092','CAPT-0123','II 3G IIA T4'],
-        ['Maintenance','Salle compresseurs','Clapet','Siemens','3RW40 11-1BB14','CLAP-0007','II 3G IIB T3'],
-      ];
-      const ws = XLSX.utils.aoa_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'ATEX-Import');
-      return XLSX.write(wb, { type:'array', bookType:'xlsx' });
-    }
-
-    document.getElementById('download-template-csv').addEventListener('click', ()=>{
-      const csv = generateCSVTemplate();
-      const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'modele-atex.csv'; a.click();
-      setTimeout(()=> URL.revokeObjectURL(url), 1000);
-    });
-    document.getElementById('download-template-xlsx').addEventListener('click', ()=>{
-      const arr = generateXLSXTemplate();
-      const blob = new Blob([arr], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'modele-atex.xlsx'; a.click();
-      setTimeout(()=> URL.revokeObjectURL(url), 1000);
-    });
-
-    // -----------------------
-    // Assistance IA
-    // -----------------------
-    const askBtn = document.getElementById('ask-ia');
-    const clearIaBtn = document.getElementById('clear-ia');
-    const iaQuestion = document.getElementById('ia-question');
-    const iaAnswer = document.getElementById('ia-answer');
-    const iaStatus = document.getElementById('ia-status');
-
-    askBtn.addEventListener('click', async ()=>{
-      iaStatus.textContent = 'Envoi…';
-      iaAnswer.textContent = '—';
-      try{
-        const q = (iaQuestion.value || '').trim();
-        if (!q){ iaStatus.innerHTML = '<span class="warning">Écris une question.</span>'; return; }
-        const res = await fetch('/api/atex-chat', {
-          method:'POST',
-          headers:{ 'Content-Type':'application/json' },
-          body: JSON.stringify({ question: q })
+        const r = await fetch(\`\${API_BASE_URL}/api/atex-secteurs\`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ name })
         });
-        const text = await res.text();
-        let json = {};
-        try { json = JSON.parse(text); } catch {}
-        if (!res.ok){
-          const msg = json?.error || text || ('HTTP '+res.status);
-          throw new Error(msg);
-        }
-        const answer = json?.answer;
-        if (!answer) {
-          // éviter “undefined”
-          iaAnswer.innerHTML = '<span class="warning">Réponse vide reçue. Vérifier que l’API renvoie { "answer": "..." }.</span>';
-        } else {
-          iaAnswer.textContent = answer;
-        }
-        iaStatus.innerHTML = '<span class="success">OK</span>';
+        if (!r.ok) throw new Error('Erreur API');
+        await loadSecteurs();
+        const select = document.getElementById('secteur-input');
+        select.value = name;
+        document.getElementById('secteurSaveMsg').textContent = 'Enregistré.';
+        setTimeout(()=> bootstrap.Modal.getInstance(document.getElementById('modalSecteur')).hide(), 500);
       } catch(e){
-        console.error(e);
-        iaStatus.innerHTML = '<span class="error">Erreur : '+(e?.message || e)+'</span>';
+        document.getElementById('secteurSaveMsg').textContent = 'Erreur: '+(e.message||e);
       }
-    });
-    clearIaBtn.addEventListener('click', ()=>{
-      iaQuestion.value = '';
-      iaAnswer.textContent = '—';
-      iaStatus.textContent = '';
-    });
+    }
+
+    function addNew() {
+      document.getElementById('add-tab').click();
+      clearForm();
+      document.getElementById('equipId').value = ''; // ajout
+    }
+
+    function syncData() {
+      loadEquipments();
+      loadStatsAndBuildCharts();
+      alert('Données synchronisées !');
+    }
+
+    function clearForm() {
+      document.getElementById('equipId').value = '';
+      document.getElementById('secteur-input').value = '';
+      document.getElementById('batiment-input').value = '';
+      document.getElementById('local-input').value = '';
+      document.getElementById('composant-input').value = '';
+      document.getElementById('fournisseur-input').value = '';
+      document.getElementById('type-input').value = '';
+      document.getElementById('identifiant-input').value = '';
+      document.getElementById('marquage_atex-input').value = '';
+      document.getElementById('photo-input').value = '';
+      document.getElementById('comments-input').value = '';
+    }
+
+    async function saveEquipment() {
+      const id = document.getElementById('equipId').value;
+      const data = {
+        secteur: document.getElementById('secteur-input').value,
+        batiment: document.getElementById('batiment-input').value,
+        local: document.getElementById('local-input').value,
+        composant: document.getElementById('composant-input').value,
+        fournisseur: document.getElementById('fournisseur-input').value, // backend garde 'fournisseur'
+        type: document.getElementById('type-input').value,
+        identifiant: document.getElementById('identifiant-input').value,
+        marquage_atex: document.getElementById('marquage_atex-input').value,
+        comments: document.getElementById('comments-input').value,
+        photo: await getBase64(document.getElementById('photo-input').files[0])
+      };
+      const method = id ? 'PUT' : 'POST';
+      const url = id ? \`\${API_BASE_URL}/api/atex-equipments/\${id}\` : \`\${API_BASE_URL}/api/atex-equipments\`;
+      try {
+        const response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (!response.ok) throw new Error('Erreur enregistrement');
+        alert('Équipement sauvegardé !');
+        await loadEquipments();
+        await loadStatsAndBuildCharts();
+        clearForm();
+      } catch (error) {
+        alert('Erreur: ' + error.message);
+      }
+    }
+
+    function getBase64(file) {
+      return new Promise((resolve, reject) => {
+        if (!file) return resolve(null);
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+      });
+    }
+
+    async function editEquipment(id) {
+      try {
+        const response = await fetch(\`\${API_BASE_URL}/api/atex-equipments/\${id}\`);
+        if (!response.ok) throw new Error('Erreur chargement équipement');
+        const eq = await response.json();
+        document.getElementById('equipId').value = eq.id;
+        document.getElementById('secteur-input').value = eq.secteur || '';
+        document.getElementById('batiment-input').value = eq.batiment || '';
+        document.getElementById('local-input').value = eq.local || '';
+        document.getElementById('composant-input').value = eq.composant || '';
+        document.getElementById('fournisseur-input').value = eq.fournisseur || '';
+        document.getElementById('type-input').value = eq.type || '';
+        document.getElementById('identifiant-input').value = eq.identifiant || '';
+        document.getElementById('marquage_atex-input').value = eq.marquage_atex || '';
+        document.getElementById('comments-input').value = eq.comments || '';
+        document.getElementById('add-tab').click();
+      } catch (error) {
+        alert('Erreur édition: ' + error.message);
+      }
+    }
+
+    async function deleteEquipment(id) {
+      if (!confirm('Confirmer suppression ?')) return;
+      try {
+        const response = await fetch(\`\${API_BASE_URL}/api/atex-equipments/\${id}\`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Erreur suppression');
+        alert('Supprimé !');
+        await loadEquipments();
+        await loadStatsAndBuildCharts();
+      } catch (error) {
+        alert('Erreur: ' + error.message);
+      }
+    }
+
+    /* ========== IMPORTER ========== */
+    async function importExcel() {
+      const file = document.getElementById('excelFile').files[0];
+      if (!file) return alert('Sélectionnez un fichier (CSV ou Excel)');
+      // CSV → on passe par /api/atex-import-excel si tu préfères tout via XLSX
+      const formData = new FormData();
+      formData.append('excel', file);
+      try {
+        const response = await fetch(\`\${API_BASE_URL}/api/atex-import-excel\`, { method: 'POST', body: formData });
+        if (!response.ok) throw new Error('Erreur import');
+        alert('Import réussi !');
+        await loadEquipments();
+        await loadStatsAndBuildCharts();
+      } catch (error) {
+        alert('Erreur import: ' + error.message);
+      }
+    }
+
+    function downloadTemplateCSV(){
+      const headers = ['Secteur de responsabilité','Local','Composant','Fabricant','Type','Identifiant','Marquage ATEX'];
+      const rows = [
+        ['Utilities','L-203','Capteur','IFM','PN7092','CAPT-0123','II 3G IIA T4'],
+        ['Maintenance','Salle compresseurs','Clapet','Siemens','3RW40 11-1BB14','CLAP-0007','II 3G IIB T3']
+      ];
+      const csv = [headers.join(','), ...rows.map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(','))].join('\n');
+      const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob); const a = document.createElement('a');
+      a.href = url; a.download = 'modele-atex.csv'; a.click(); setTimeout(()=>URL.revokeObjectURL(url), 500);
+    }
+
+    function downloadTemplateXLSX(){
+      // sans dépendance XLSX → on fournit un CSV renommé .xlsx pour rester simple côté front
+      downloadTemplateCSV();
+    }
+
+    /* ========== CHAT IA ========== */
+    async function sendChat() {
+      const input = (document.getElementById('chatInput').value || '').trim();
+      if (!input) return alert('Entrez une question');
+      try {
+        const response = await fetch(\`\${API_BASE_URL}/api/atex-chat\`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: input })
+        });
+        const data = await response.json();
+        // supporte {response} ou {answer}
+        const text = data?.response || data?.answer || JSON.stringify(data);
+        document.getElementById('chatResponse').textContent = text;
+      } catch (error) {
+        document.getElementById('chatResponse').textContent = 'Erreur chat: ' + error.message;
+      }
+    }
   </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
