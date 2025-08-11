@@ -1,237 +1,270 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>EPD Builder — Document Relatif à la Protection Contre les Explosions</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EPD Builder - DRPCE / Explosion Protection Document</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
   <style>
-    :root { --bg:#0b1220; --card:#11182a; --muted:#8fa0b4; --ink:#e7efff; --acc:#58c4ff; --acc2:#59ffa2; }
-    body{background:linear-gradient(180deg,#0b1220 0%,#0e1626 100%); color:var(--ink); font-family:'Poppins',sans-serif;}
-    .card{background:rgba(17,24,42,.8); border:1px solid rgba(88,196,255,.15); border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,.25)}
-    .step{display:flex; align-items:center; gap:.5rem; color:var(--muted)}
-    .step.is-active{color:var(--ink)}
-    .step .dot{width:28px; height:28px; border:2px solid var(--muted); border-radius:999px; display:grid; place-items:center}
-    .step.is-active .dot{border-color:var(--acc); background:rgba(88,196,255,.1)}
-    .ghost-input{background:#0e1a2f; border:1px solid rgba(88,196,255,.15); color:var(--ink)}
-    .ghost-input:focus{border-color:var(--acc); box-shadow:0 0 0 .2rem rgba(88,196,255,.15)}
-    .btn-glow{background:linear-gradient(90deg,var(--acc),var(--acc2)); border:none; color:#001222; font-weight:700}
-    .btn-glow:hover{filter:brightness(1.05)}
-    .pill{border:1px solid rgba(255,255,255,.1); border-radius:999px; padding:.25rem .6rem; font-size:.8rem; color:var(--muted)}
-    .table-dark th,.table-dark td{vertical-align:middle}
-    .code{font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
-    .right-rail{position:sticky; top:1rem}
-    .markdown-preview{background:#0f1b31; border:1px dashed rgba(255,255,255,.15); padding:1rem; border-radius:12px; max-height:50vh; overflow:auto}
-    .badge-zone{background:#122341; border:1px solid rgba(88,196,255,.25)}
+    :root{
+      --actions-min-width: 240px;
+      --offcanvas-w: clamp(420px, 40vw, 560px);
+    }
+    body{ background:#f8f9fa; font-family:'Poppins',sans-serif; color:#333; }
+    .card{ border-radius:14px; box-shadow:0 4px 10px rgba(0,0,0,.06); }
+    .table-responsive{ overflow-x:auto; }
+    .small-muted{ font-size:.9rem; color:#6c757d; }
+    .form-text{ color:#6c757d; }
+    .offcanvas-ia{ --bs-offcanvas-width: var(--offcanvas-w); }
+    #iaPanel{ border-left:1px solid #e5e7eb; }
+    #iaPanel .offcanvas-body{ display:flex; flex-direction:column; gap:1rem; padding-top:.75rem; }
+    .ia-details{ border:1px solid #e9ecef; border-radius:10px; background:#fff; max-height: 55vh; overflow:auto; padding:1rem; }
+    .markdown-preview{ border:1px solid #e9ecef; border-radius:10px; background:#fff; padding:1rem; min-height:220px; max-height:55vh; overflow:auto; }
+    .pill{border:1px solid #e9ecef; border-radius:999px; padding:.15rem .6rem; font-size:.8rem; color:#6c757d; background:#fff;}
+    .code{ font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace }
   </style>
 </head>
-<body class="container py-4">
-  <header class="d-flex align-items-center justify-content-between mb-4">
-    <div>
-      <h1 class="h3 mb-1">EPD Builder <span class="pill ms-2">ATEX • EPD</span></h1>
-      <div class="text-secondary">Crée un <strong>Document Relatif à la Protection Contre les Explosions</strong> dynamique, assisté par IA.</div>
-    </div>
-    <div class="d-flex gap-2">
-      <button id="btnExportMD" class="btn btn-outline-light">Exporter .md</button>
-      <button id="btnExportJSON" class="btn btn-outline-light">Exporter .json</button>
-      <button id="btnSaveServer" class="btn btn-outline-success">Enregistrer serveur</button>
-      <button id="btnReset" class="btn btn-outline-warning">Réinitialiser</button>
-    </div>
-  </header>
+<body class="container my-5">
 
-  <!-- Steps Nav -->
-  <nav class="row g-3 mb-3">
-    <div class="col-12 col-lg-9">
-      <div class="card p-3">
-        <div class="d-flex flex-wrap gap-3">
-          <div class="step is-active" data-step="1"><div class="dot">1</div><div>Contexte & Site</div></div>
-          <div class="step" data-step="2"><div class="dot">2</div><div>Zonage ATEX</div></div>
-          <div class="step" data-step="3"><div class="dot">3</div><div>Équipements</div></div>
-          <div class="step" data-step="4"><div class="dot">4</div><div>Mesures</div></div>
-          <div class="step" data-step="5"><div class="dot">5</div><div>Formation & Maintenance</div></div>
-          <div class="step" data-step="6"><div class="dot">6</div><div>Revue & Génération</div></div>
+  <h1 class="text-center mb-2">EPD / DRPCE — Constructeur</h1>
+  <p class="text-center lead mb-4">Créer, documenter et exporter un <strong>Document Relatif à la Protection Contre les Explosions</strong>.</p>
+
+  <ul class="nav nav-tabs" id="epdTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="context-tab" data-bs-toggle="tab" data-bs-target="#context" type="button" role="tab">
+        <i data-lucide="building-2"></i> Contexte
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="zoning-tab" data-bs-toggle="tab" data-bs-target="#zoning" type="button" role="tab">
+        <i data-lucide="map"></i> Zonage ATEX
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="equip-tab" data-bs-toggle="tab" data-bs-target="#equip" type="button" role="tab">
+        <i data-lucide="cpu"></i> Équipements
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="measures-tab" data-bs-toggle="tab" data-bs-target="#measures" type="button" role="tab">
+        <i data-lucide="shield-check"></i> Mesures
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="build-tab" data-bs-toggle="tab" data-bs-target="#build" type="button" role="tab">
+        <i data-lucide="file-text"></i> Génération
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content mt-3" id="epdTabContent">
+    <!-- Contexte -->
+    <div class="tab-pane fade show active" id="context" role="tabpanel">
+      <div class="card">
+        <div class="card-header"><h5 class="mb-0">Informations générales</h5></div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Entreprise</label>
+              <input class="form-control" id="org" placeholder="Nom de l'entreprise">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Site / Installation</label>
+              <input class="form-control" id="site" placeholder="Ex: STEP B06">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Adresse</label>
+              <input class="form-control" id="address">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Rédacteur</label>
+              <input class="form-control" id="author">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Portée / Description du procédé</label>
+              <textarea class="form-control" id="processDesc" rows="3" placeholder="Décris le procédé, les substances manipulées, conditions T/P, ventilation…"></textarea>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-    <div class="col-12 col-lg-3">
-      <div class="card p-3 right-rail">
-        <div class="d-flex align-items-center gap-2 mb-2"><i data-lucide="sparkles"></i><strong>AutonomiX IA</strong></div>
-        <div class="small text-secondary mb-2">Demande une rédaction ou une vérification.</div>
-        <textarea id="aiQuestion" class="form-control ghost-input mb-2" rows="3" placeholder="Ex: propose le texte d'introduction et les responsabilités"></textarea>
-        <button id="btnAskAI" class="btn btn-glow w-100 mb-2"><i data-lucide="send"></i> Demander</button>
-        <div id="aiReply" class="markdown-preview small"></div>
-      </div>
-    </div>
-  </nav>
 
-  <!-- Step 1: Contexte & Site -->
-  <section class="card p-3 mb-4 step-pane" data-step="1">
-    <h2 class="h5 mb-3">1) Contexte & Informations Générales</h2>
-    <div class="row g-3">
-      <div class="col-md-6">
-        <label class="form-label">Entreprise</label>
-        <input class="form-control ghost-input" id="org" placeholder="Nom de l'entreprise" />
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Site / Installation</label>
-        <input class="form-control ghost-input" id="site" placeholder="Ex: STEP B06" />
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Adresse</label>
-        <input class="form-control ghost-input" id="address" />
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Rédacteur</label>
-        <input class="form-control ghost-input" id="author" />
-      </div>
-      <div class="col-12">
-        <label class="form-label">Portée / Description du procédé</label>
-        <textarea class="form-control ghost-input" id="processDesc" rows="3" placeholder="Décris le procédé, les substances manipulées, conditions T/P, ventilation…"></textarea>
-      </div>
-    </div>
-  </section>
-
-  <!-- Step 2: Zonage ATEX -->
-  <section class="card p-3 mb-4 step-pane d-none" data-step="2">
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 class="h5 mb-0">2) Zonage ATEX</h2>
-      <button class="btn btn-outline-light btn-sm" id="btnAIIntroZoning">IA : Expliquer les zones</button>
-    </div>
-    <div class="row g-3">
-      <div class="col-md-4">
-        <label class="form-label">Type d'atmosphère</label>
-        <select class="form-select ghost-input" id="atexType">
-          <option value="gaz">Gaz / Vapeurs</option>
-          <option value="poussiere">Poussières combustibles</option>
-        </select>
-      </div>
-      <div class="col-md-8">
-        <label class="form-label">Zones présentes</label>
-        <div class="d-flex flex-wrap gap-2">
-          <label class="pill badge-zone"><input class="form-check-input me-1" type="checkbox" value="0"> Zone 0</label>
-          <label class="pill badge-zone"><input class="form-check-input me-1" type="checkbox" value="1"> Zone 1</label>
-          <label class="pill badge-zone"><input class="form-check-input me-1" type="checkbox" value="2"> Zone 2</label>
-          <label class="pill badge-zone"><input class="form-check-input me-1" type="checkbox" value="20"> Zone 20</label>
-          <label class="pill badge-zone"><input class="form-check-input me-1" type="checkbox" value="21"> Zone 21</label>
-          <label class="pill badge-zone"><input class="form-check-input me-1" type="checkbox" value="22"> Zone 22</label>
+    <!-- Zonage -->
+    <div class="tab-pane fade" id="zoning" role="tabpanel">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Zonage ATEX</h5>
+          <button class="btn btn-sm btn-outline-primary" id="btnAIIntroZoning"><i data-lucide="sparkles"></i> IA : Expliquer</button>
         </div>
-      </div>
-      <div class="col-12">
-        <label class="form-label">Plans / commentaires de zonage</label>
-        <textarea class="form-control ghost-input" id="zoningNotes" rows="3" placeholder="Lien vers plans, critères de classification IEC 60079-10-x, etc."></textarea>
-      </div>
-      <div class="col-12 small text-secondary">Astuce : la catégorie minimale conseillée par zone sera calculée automatiquement dans l'étape Équipements.</div>
-    </div>
-  </section>
-
-  <!-- Step 3: Équipements -->
-  <section class="card p-3 mb-4 step-pane d-none" data-step="3">
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 class="h5 mb-0">3) Équipements & Conformité</h2>
-      <div class="d-flex gap-2">
-        <button class="btn btn-outline-light btn-sm" id="btnSyncEquip">Recharger</button>
-        <button class="btn btn-outline-light btn-sm" id="btnAIEq">IA : analyser la sélection</button>
-      </div>
-    </div>
-    <div class="row g-3 align-items-end">
-      <div class="col-md-3">
-        <label class="form-label">Filtre secteur</label>
-        <input id="fSecteur" class="form-control ghost-input" placeholder="ex: Utilité" />
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Filtre bâtiment</label>
-        <input id="fBat" class="form-control ghost-input" placeholder="ex: B06" />
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Conformité</label>
-        <select id="fConf" class="form-select ghost-input">
-          <option value="">Toutes</option>
-          <option value="Conforme">Conforme</option>
-          <option value="Non Conforme">Non Conforme</option>
-        </select>
-      </div>
-      <div class="col-md-3 text-end">
-        <span class="pill">Source : /api/atex-equipments</span>
-      </div>
-    </div>
-    <div class="table-responsive mt-3">
-      <table class="table table-dark table-striped align-middle" id="equipTable">
-        <thead>
-          <tr>
-            <th><input type="checkbox" id="checkAll"></th>
-            <th>ID</th><th>Composant</th><th>Secteur</th><th>Bât.</th><th>Local</th><th>Zone</th>
-            <th>Marquage</th><th>Cat. min</th><th>Conformité</th><th>Risque</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- Step 4: Mesures -->
-  <section class="card p-3 mb-4 step-pane d-none" data-step="4">
-    <h2 class="h5 mb-3">4) Mesures de Prévention & Protection</h2>
-    <div class="row g-3">
-      <div class="col-md-6">
-        <label class="form-label">Prévention (éviter ATEX / ignition)</label>
-        <textarea id="measuresPrev" class="form-control ghost-input" rows="6" placeholder="Ventilation, inertage, contrôle ESD, procédures de nettoyage…"></textarea>
-        <div class="mt-2 d-flex gap-2">
-          <button class="btn btn-outline-light btn-sm" data-ai="prev">IA : proposer</button>
-          <button class="btn btn-outline-light btn-sm" data-ai="prev-check">IA : vérifier</button>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Protection (limiter les effets)</label>
-        <textarea id="measuresProt" class="form-control ghost-input" rows="6" placeholder="Évents, découplage, cloisonnement, arrêt d'urgence…"></textarea>
-        <div class="mt-2 d-flex gap-2">
-          <button class="btn btn-outline-light btn-sm" data-ai="prot">IA : proposer</button>
-          <button class="btn btn-outline-light btn-sm" data-ai="prot-check">IA : vérifier</button>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">Type d'atmosphère</label>
+              <select class="form-select" id="atexType">
+                <option value="gaz">Gaz / Vapeurs</option>
+                <option value="poussiere">Poussières combustibles</option>
+              </select>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label">Zones présentes</label>
+              <div class="d-flex flex-wrap gap-2">
+                <label class="pill"><input class="form-check-input me-1" type="checkbox" value="0"> Zone 0</label>
+                <label class="pill"><input class="form-check-input me-1" type="checkbox" value="1"> Zone 1</label>
+                <label class="pill"><input class="form-check-input me-1" type="checkbox" value="2"> Zone 2</label>
+                <label class="pill"><input class="form-check-input me-1" type="checkbox" value="20"> Zone 20</label>
+                <label class="pill"><input class="form-check-input me-1" type="checkbox" value="21"> Zone 21</label>
+                <label class="pill"><input class="form-check-input me-1" type="checkbox" value="22"> Zone 22</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Plans / commentaires</label>
+              <textarea class="form-control" id="zoningNotes" rows="3" placeholder="Lien vers plans, critères IEC 60079-10-x, etc."></textarea>
+            </div>
+            <div class="col-12 small-muted">Astuce : la catégorie minimale conseillée par zone sera calculée automatiquement dans l’onglet Équipements.</div>
+          </div>
         </div>
       </div>
     </div>
-  </section>
 
-  <!-- Step 5: Formation & Maintenance -->
-  <section class="card p-3 mb-4 step-pane d-none" data-step="5">
-    <h2 class="h5 mb-3">5) Formation & Maintenance</h2>
-    <div class="row g-3">
-      <div class="col-md-6">
-        <label class="form-label">Programme de formation</label>
-        <textarea id="training" class="form-control ghost-input" rows="6" placeholder="Public cible, périodicité, supports, habilitations…"></textarea>
-        <div class="mt-2"><button class="btn btn-outline-light btn-sm" data-ai="training">IA : générer</button></div>
+    <!-- Équipements -->
+    <div class="tab-pane fade" id="equip" role="tabpanel">
+      <div class="card mb-3">
+        <div class="card-header"><h5 class="mb-0">Filtres</h5></div>
+        <div class="card-body">
+          <div class="row g-2">
+            <div class="col-md-3"><input id="fSecteur" class="form-control" placeholder="Secteur"></div>
+            <div class="col-md-3"><input id="fBat" class="form-control" placeholder="Bâtiment"></div>
+            <div class="col-md-3">
+              <select id="fConf" class="form-select">
+                <option value="">Conformité (tous)</option>
+                <option value="Conforme">Conforme</option>
+                <option value="Non Conforme">Non Conforme</option>
+              </select>
+            </div>
+            <div class="col-md-3 d-grid d-md-block">
+              <button id="btnSyncEquip" class="btn btn-primary"><i data-lucide="refresh-cw"></i> Charger</button>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="col-md-6">
-        <label class="form-label">Plan de maintenance / contrôles</label>
-        <textarea id="maintenance" class="form-control ghost-input" rows="6" placeholder="Périodicité contrôles, inspections, métrologie détecteurs…"></textarea>
-        <div class="mt-2"><button class="btn btn-outline-light btn-sm" data-ai="maintenance">IA : générer</button></div>
+
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Sélection d’équipements</h5>
+          <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-outline-secondary btn-sm" id="btnAIEq"><i data-lucide="bot"></i> IA : analyser</button>
+            <span class="pill">Source : /api/atex-equipments</span>
+          </div>
+        </div>
+        <div class="card-body table-responsive">
+          <table class="table table-striped align-middle" id="equipTable">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="checkAll"></th>
+                <th>ID</th><th>Composant</th><th>Secteur</th><th>Bâtiment</th><th>Local</th><th>Zone</th><th>Marquage</th><th>Cat. min</th><th>Conformité</th><th>Risque</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
     </div>
-  </section>
 
-  <!-- Step 6: Revue & Génération -->
-  <section class="card p-3 mb-4 step-pane d-none" data-step="6">
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <h2 class="h5 mb-0">6) Revue & Génération</h2>
-      <button id="btnBuild" class="btn btn-glow"><i data-lucide="wand-2"></i> Générer l'EPD</button>
-    </div>
-    <div class="row g-4">
-      <div class="col-lg-6">
-        <h6 class="text-secondary">Aperçu Markdown</h6>
-        <div id="mdPreview" class="markdown-preview"></div>
+    <!-- Mesures -->
+    <div class="tab-pane fade" id="measures" role="tabpanel">
+      <div class="card">
+        <div class="card-header"><h5 class="mb-0">Mesures de prévention & protection</h5></div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Prévention (éviter ATEX / ignition)</label>
+              <textarea id="measuresPrev" class="form-control" rows="7" placeholder="Ventilation, inertage, contrôle ESD, procédures de nettoyage…"></textarea>
+              <div class="mt-2 d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary" data-ai="prev"><i data-lucide="sparkles"></i> IA : proposer</button>
+                <button class="btn btn-sm btn-outline-secondary" data-ai="prev-check"><i data-lucide="shield"></i> IA : vérifier</button>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Protection (limiter les effets)</label>
+              <textarea id="measuresProt" class="form-control" rows="7" placeholder="Évents, découplage, cloisonnement, arrêt d'urgence…"></textarea>
+              <div class="mt-2 d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary" data-ai="prot"><i data-lucide="sparkles"></i> IA : proposer</button>
+                <button class="btn btn-sm btn-outline-secondary" data-ai="prot-check"><i data-lucide="shield"></i> IA : vérifier</button>
+              </div>
+            </div>
+          </div>
+
+          <hr class="my-4">
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Programme de formation</label>
+              <textarea id="training" class="form-control" rows="6" placeholder="Public cible, périodicité, supports, habilitations…"></textarea>
+              <div class="mt-2"><button class="btn btn-sm btn-outline-primary" data-ai="training"><i data-lucide="sparkles"></i> IA : générer</button></div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Plan de maintenance / contrôles</label>
+              <textarea id="maintenance" class="form-control" rows="6" placeholder="Périodicité contrôles, inspections, métrologie détecteurs…"></textarea>
+              <div class="mt-2"><button class="btn btn-sm btn-outline-primary" data-ai="maintenance"><i data-lucide="sparkles"></i> IA : générer</button></div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="col-lg-6">
-        <h6 class="text-secondary">HTML (lecture seule)</h6>
-        <div id="htmlPreview" class="markdown-preview"></div>
+    </div>
+
+    <!-- Génération -->
+    <div class="tab-pane fade" id="build" role="tabpanel">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Générer & Exporter</h5>
+          <div class="d-flex gap-2 flex-wrap">
+            <button id="btnBuild" class="btn btn-primary"><i data-lucide="wand-2"></i> Générer</button>
+            <button id="btnExportMD" class="btn btn-outline-secondary"><i data-lucide="download"></i> Exporter .md</button>
+            <button id="btnExportJSON" class="btn btn-outline-secondary"><i data-lucide="download"></i> Exporter .json</button>
+            <button id="btnSaveServer" class="btn btn-success"><i data-lucide="save"></i> Enregistrer serveur</button>
+            <button id="btnReset" class="btn btn-warning"><i data-lucide="erase"></i> Réinitialiser</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-lg-6">
+              <div class="small-muted mb-1">Aperçu Markdown</div>
+              <pre id="mdPreview" class="markdown-preview"></pre>
+            </div>
+            <div class="col-lg-6">
+              <div class="small-muted mb-1">Aperçu HTML</div>
+              <div id="htmlPreview" class="markdown-preview"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-  </section>
 
-  <footer class="text-center text-secondary mt-4 small">EPD Builder • AutonomiX</footer>
+  </div>
 
-  <!-- ⬇️ JS FRONT servi par /js/epd.js (fichier rangé dans main/routes/epd.js) -->
+  <!-- Offcanvas IA global -->
+  <div class="offcanvas offcanvas-end offcanvas-ia" tabindex="-1" id="iaPanel" data-bs-scroll="true" data-bs-backdrop="false" aria-labelledby="iaPanelLabel">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title" id="iaPanelLabel"><i data-lucide="bot"></i> AutonomiX IA</h5>
+      <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body">
+      <div id="iaLoading" class="text-center text-muted" style="display:none">
+        <div class="spinner-border" role="status" aria-hidden="true"></div>
+        <div class="mt-2">Analyse en cours…</div>
+      </div>
+      <div id="iaDetails" class="ia-details" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="toast-container position-fixed top-0 end-0 p-3" id="toasts" style="z-index: 2000;"></div>
+
+  <!-- JS FRONT servi par /js/epd.js (fichier rangé dans main/routes/epd.js) -->
   <script src="/js/epd.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
