@@ -2,55 +2,102 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Contrôle ATEX - Équipements</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Design conservé -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/lucide@latest"></script>
+
   <style>
-    body { background-color: #f8f9fa; font-family: 'Poppins', sans-serif; color: #333; }
-    .card { margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 15px; background: #fff; }
-    .risk-low { color: #28a745; } .risk-med { color: #ffc107; } .risk-high { color: #dc3545; }
-    .nav-tabs .nav-link { border-radius: 10px 10px 0 0; }
-    .small-muted { font-size: 12px; color: #6c757d; }
-    .last-photo { max-width: 50px; border-radius: 5px; cursor: zoom-in; }
-    .toast-container { position: fixed; top: 16px; right: 16px; z-index: 2000; }
-    /* Offcanvas IA - responsive */
-    .offcanvas-ia { width: min(860px, 100vw); }
-    @media (max-width: 992px){
-      .offcanvas-ia { width: 100vw; }
+    :root{
+      --actions-min-width: 280px;
+      --offcanvas-w: clamp(400px, 38vw, 560px);
     }
-    .ia-history-item { cursor:pointer; }
-    .ia-history-item.active { background: #f1f3f5; border-left: 3px solid #0d6efd; }
-    .ia-badge { font-size: .75rem; }
-    .table-responsive { overflow-x: auto; }
+    body{ background:#f8f9fa; font-family:'Poppins',sans-serif; color:#333; }
+    .card{ border-radius:14px; box-shadow:0 4px 10px rgba(0,0,0,.06); }
+    .table-responsive{ overflow-x:auto; }
+    .last-photo{ max-width:52px; border-radius:6px; cursor:zoom-in; }
+
+    /* Actions en tableau : aucune superposition */
+    td.actions{
+      min-width:var(--actions-min-width);
+    }
+    @media (max-width: 992px){
+      td.actions{
+        display:grid;
+        grid-template-columns: 1fr 1fr;
+        gap:.5rem;
+      }
+      td.actions .btn{ width:100%; }
+    }
+    @media (max-width: 576px){
+      td.actions{ grid-template-columns: 1fr; }
+    }
+
+    /* Offcanvas IA : lisible + scrollable, sans backdrop pour garder la visu de la ligne */
+    .offcanvas-ia{
+      --bs-offcanvas-width: var(--offcanvas-w);
+    }
+    #iaPanel{
+      border-left:1px solid #e5e7eb;
+    }
+    #iaPanel .offcanvas-body{
+      display:flex; flex-direction:column; gap:1rem;
+      padding-top:.75rem;
+    }
+    .ia-history{
+      border:1px solid #e9ecef; border-radius:10px; overflow:hidden;
+      max-height: 55vh; overflow-y: auto; background:#fff;
+    }
+    .ia-item{ cursor:pointer; }
+    .ia-item.active{ background:#eef2ff; border-left:3px solid #0d6efd; }
+    .ia-details{
+      border:1px solid #e9ecef; border-radius:10px; background:#fff;
+      max-height: 55vh; overflow:auto; padding:1rem;
+    }
+    .ia-badges .badge{ margin-left:.25rem; }
+
+    /* Petites améliorations lisibilité */
+    .small-muted{ font-size:.85rem; color:#6c757d; }
+    .form-text{ color:#6c757d; }
   </style>
 </head>
 <body class="container my-5">
-  <h1 class="text-center mb-4">Contrôle des Équipements ATEX</h1>
-  <p class="text-center lead">Outil pour inspecter, ajouter et suivre les conformités ATEX.</p>
 
-  <!-- Onglets (Chat IA retiré de la navigation pour éviter le switch forcé) -->
+  <h1 class="text-center mb-2">Contrôle des Équipements ATEX</h1>
+  <p class="text-center lead mb-4">Inspecter, ajouter et suivre les conformités ATEX.</p>
+
+  <!-- Onglets -->
   <ul class="nav nav-tabs" id="atexTabs" role="tablist">
     <li class="nav-item" role="presentation">
-      <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab"><i data-lucide="list"></i> Liste</button>
+      <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab">
+        <i data-lucide="list"></i> Liste
+      </button>
     </li>
     <li class="nav-item" role="presentation">
-      <button class="nav-link" id="add-tab" data-bs-toggle="tab" data-bs-target="#add" type="button" role="tab"><i data-lucide="plus"></i> Ajouter/Éditer</button>
+      <button class="nav-link" id="add-tab" data-bs-toggle="tab" data-bs-target="#add" type="button" role="tab">
+        <i data-lucide="plus"></i> Ajouter/Éditer
+      </button>
     </li>
     <li class="nav-item" role="presentation">
-      <button class="nav-link" id="import-tab" data-bs-toggle="tab" data-bs-target="#import" type="button" role="tab"><i data-lucide="upload"></i> Importer</button>
+      <button class="nav-link" id="chat-tab" data-bs-toggle="tab" data-bs-target="#chat" type="button" role="tab">
+        <i data-lucide="bot"></i> Chat IA
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="import-tab" data-bs-toggle="tab" data-bs-target="#import" type="button" role="tab">
+        <i data-lucide="upload"></i> Importer
+      </button>
     </li>
   </ul>
 
-  <div class="tab-content" id="atexTabContent">
-
+  <div class="tab-content mt-3" id="atexTabContent">
     <!-- LISTE -->
     <div class="tab-pane fade show active" id="list" role="tabpanel">
-
-      <!-- Filtres -->
-      <div class="card mb-4">
-        <div class="card-header"><h4>Filtres</h4></div>
+      <div class="card mb-3">
+        <div class="card-header"><h5 class="mb-0">Filtres</h5></div>
         <div class="card-body">
           <div class="row g-2">
             <div class="col-md-3"><input id="filterSecteur" class="form-control" placeholder="Secteur"></div>
@@ -69,20 +116,20 @@
         </div>
       </div>
 
-      <!-- Liste -->
       <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <h4 class="mb-0">Liste des Équipements</h4>
-          <button id="btnSync" class="btn btn-info"><i data-lucide="refresh-cw"></i> Sync</button>
+          <h5 class="mb-0">Liste des Équipements</h5>
+          <div class="d-flex gap-2 flex-wrap">
+            <button id="btnSync" class="btn btn-info"><i data-lucide="refresh-cw"></i> Sync</button>
+          </div>
         </div>
         <div class="card-body table-responsive">
           <table class="table table-striped align-middle">
             <thead>
               <tr>
-                <th>ID</th><th>Composant</th><th>Secteur</th><th>Bâtiment</th><th>Local</th><th>Zone</th>
-                <th>Conformité</th><th>Risque</th>
-                <th>Dernière Insp.</th><th>Prochaine</th>
-                <th>Photo</th><th style="min-width:260px">Actions</th>
+                <th>ID</th><th>Composant</th><th>Secteur</th><th>Bâtiment</th>
+                <th>Local</th><th>Zone</th><th>Conformité</th><th>Risque</th>
+                <th>Dernière</th><th>Prochaine</th><th>Photo</th><th style="min-width:var(--actions-min-width)">Actions</th>
               </tr>
             </thead>
             <tbody id="equipmentsTable"></tbody>
@@ -99,7 +146,7 @@
             <input type="hidden" id="equipId">
             <div class="row">
               <div class="col-md-6">
-                <label class="form-label">Secteur de responsabilité</label>
+                <label class="form-label">Secteur</label>
                 <div class="input-group">
                   <select id="secteur-input" class="form-select" required></select>
                   <button class="btn btn-outline-secondary" type="button" id="btnAddSecteur" title="Ajouter un secteur">➕</button>
@@ -108,17 +155,17 @@
               </div>
               <div class="col-md-6">
                 <label class="form-label">Bâtiment</label>
-                <input type="text" id="batiment-input" class="form-control" placeholder="Ex: B06, B11…" required>
+                <input id="batiment-input" class="form-control" required placeholder="Ex: B06, B11…">
               </div>
             </div>
 
             <div class="row mt-3">
               <div class="col-md-6">
                 <label class="form-label">Local</label>
-                <input type="text" id="local-input" class="form-control" placeholder="Entrer le nom ou numéro du local" required>
+                <input id="local-input" class="form-control" required>
               </div>
               <div class="col-md-6">
-                <label class="form-label">Type de zone (ATEX)</label>
+                <label class="form-label">Zone ATEX</label>
                 <select id="zone-input" class="form-select" required>
                   <option value="" disabled selected>— Sélectionner —</option>
                   <option value="0">0 (Gaz)</option>
@@ -128,58 +175,55 @@
                   <option value="21">21 (Poussières)</option>
                   <option value="22">22 (Poussières)</option>
                 </select>
-                <div class="form-text">Utilisé pour déterminer la catégorie minimale requise.</div>
               </div>
             </div>
 
             <div class="row mt-3">
               <div class="col-md-6">
                 <label class="form-label">Composant*</label>
-                <input type="text" id="composant-input" class="form-control" placeholder="Type de composant (capteur, clapet, etc.)" required>
+                <input id="composant-input" class="form-control" required>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Fabricant*</label>
-                <input type="text" id="fournisseur-input" class="form-control" placeholder="Ex: IFM, E+H, Siemens…" required>
+                <input id="fournisseur-input" class="form-control" required>
               </div>
             </div>
 
             <div class="row mt-3">
               <div class="col-md-6">
-                <label class="form-label">Type (référence fabricant)*</label>
-                <input type="text" id="type-input" class="form-control" placeholder="Entrer la référence fabricant" required>
+                <label class="form-label">Type (référence)*</label>
+                <input id="type-input" class="form-control" required>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Identifiant</label>
-                <input type="text" id="identifiant-input" class="form-control" placeholder="Entrer l’identifiant du capteur par exemple">
+                <input id="identifiant-input" class="form-control">
               </div>
             </div>
 
             <div class="row mt-3">
               <div class="col-md-6">
                 <label class="form-label">Marquage ATEX*</label>
-                <input type="text" id="marquage_atex-input" class="form-control" placeholder="Ex : II 3G IIA T4" required>
+                <input id="marquage_atex-input" class="form-control" placeholder="II 3G IIA T4" required>
               </div>
               <div class="col-md-6">
-                <label class="form-label">Date de dernière inspection</label>
+                <label class="form-label">Dernière inspection</label>
                 <input type="date" id="last-inspection-input" class="form-control">
-                <div class="form-text">Si renseignée, la prochaine inspection sera recalculée.</div>
+                <div class="form-text">La prochaine sera recalculée.</div>
               </div>
             </div>
 
-            <!-- Photo + Commentaires -->
             <div class="row mt-3">
               <div class="col-md-6">
-                <label class="form-label">Photo / Document</label>
+                <label class="form-label">Photo / Doc</label>
                 <input type="file" id="photo-input" class="form-control" accept="image/*,.pdf">
-                <div class="form-text">Ajoutez une photo et/ou un document.</div>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Commentaires</label>
-                <textarea id="comments-input" class="form-control" placeholder="Note interne, contexte, etc."></textarea>
+                <textarea id="comments-input" class="form-control" rows="2"></textarea>
               </div>
             </div>
 
-            <div class="mt-4 d-flex gap-2">
+            <div class="mt-4 d-flex gap-2 flex-wrap">
               <button type="button" id="btnSave" class="btn btn-success"><i data-lucide="save"></i> Enregistrer</button>
               <button type="button" id="btnClear" class="btn btn-secondary"><i data-lucide="x"></i> Annuler</button>
             </div>
@@ -188,11 +232,81 @@
       </div>
     </div>
 
-    <!-- IMPORTER -->
+    <!-- CHAT IA (lecture confortable) -->
+    <div class="tab-pane fade" id="chat" role="tabpanel">
+      <div class="row g-3">
+        <div class="col-lg-4">
+          <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <strong><i data-lucide="history"></i> Historique</strong>
+              <button class="btn btn-sm btn-outline-secondary" id="btnClearChat"><i data-lucide="eraser"></i> Effacer</button>
+            </div>
+            <div class="card-body p-0">
+              <ul class="list-group list-group-flush" id="iaHistoryListChat" style="max-height:60vh; overflow:auto"></ul>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-8">
+          <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <strong><i data-lucide="bot"></i> Aide AutonomiX IA</strong>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary" id="btnReanalyse"><i data-lucide="sparkles"></i> Ré‑analyser</button>
+                <button class="btn btn-sm btn-outline-secondary" id="btnCopier"><i data-lucide="copy"></i> Copier</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div id="chatLoading" class="text-center text-muted" style="display:none">
+                <div class="spinner-border" role="status" aria-hidden="true"></div>
+                <div class="mt-2">Analyse en cours…</div>
+              </div>
+              <div id="chatHeader" class="mb-2 small-muted"></div>
+              <div id="chatHtml" class="border rounded p-3" style="min-height:220px"></div>
+              <hr>
+              <div id="chatEnriched" class="mt-3" style="display:none">
+                <h6>Synthèse actionnable</h6>
+                <div id="chatWhy" class="mb-2"></div>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                      <strong>Mesures palliatives</strong>
+                      <ul id="chatPalliative" class="mb-0"></ul>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                      <strong>Mesures préventives</strong>
+                      <ul id="chatPreventive" class="mb-0"></ul>
+                    </div>
+                  </div>
+                </div>
+                <div class="row g-3 mt-1">
+                  <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                      <strong>Références & changements</strong>
+                      <ul id="chatRefs" class="mb-0"></ul>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                      <strong>Estimation des coûts</strong>
+                      <ul id="chatCosts" class="mb-0"></ul>
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-2"><span class="badge text-bg-light">Conseils générés à partir des données actuelles</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMPORT -->
     <div class="tab-pane fade" id="import" role="tabpanel">
       <div class="card">
         <div class="card-body">
-          <p><strong>Colonnes minimales requises</strong> (dans le bon ordre) pour que l’import fonctionne :</p>
+          <p><strong>Colonnes minimales requises</strong> (ordre attendu) :</p>
           <div class="mb-2">
             <span class="badge bg-light text-dark">secteur</span>
             <span class="badge bg-light text-dark">batiment</span>
@@ -205,17 +319,8 @@
             <span class="badge bg-light text-dark">marquage_atex</span>
             <span class="badge bg-light text-dark">last_inspection_date</span>
           </div>
-          <p class="small-muted">Le modèle fourni aligne ces champs sur l’ordre attendu par l’API d’import Excel.</p>
-
-          <div class="mb-3 d-flex gap-2">
-            <button id="btnTemplateCSV" class="btn btn-outline-secondary btn-sm">Télécharger modèle CSV</button>
-            <button id="btnTemplateXLSX" class="btn btn-outline-secondary btn-sm">Télécharger modèle XLSX</button>
-          </div>
-
-          <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" class="form-control mb-2">
-          <button id="btnImport" class="btn btn-primary">
-            <i data-lucide="upload"></i> Importer
-          </button>
+          <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" class="form-control mb-3">
+          <button id="btnImport" class="btn btn-primary"><i data-lucide="upload"></i> Importer</button>
         </div>
       </div>
     </div>
@@ -225,31 +330,20 @@
   <div class="modal fade" id="photoModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Photo</h5>
-          <button class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body text-center">
-          <img id="photoModalImg" src="" alt="Photo équipement" class="img-fluid">
-        </div>
-        <div class="modal-footer">
-          <a id="photoDownload" class="btn btn-outline-secondary" download>Télécharger</a>
-          <button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-        </div>
+        <div class="modal-header"><h5 class="modal-title">Photo</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body text-center"><img id="photoModalImg" src="" class="img-fluid" alt="Photo équipement"></div>
+        <div class="modal-footer"><a id="photoDownload" class="btn btn-outline-secondary" download>Télécharger</a><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
       </div>
     </div>
   </div>
 
-  <!-- Modal Confirmation Suppression (remplace window.confirm) -->
+  <!-- Modal Suppression -->
   <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title text-danger"><i data-lucide="trash-2"></i> Confirmer la suppression</h5>
-          <button class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
+        <div class="modal-header"><h5 class="modal-title text-danger"><i data-lucide="trash-2"></i> Confirmer la suppression</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
-          <p>Voulez-vous vraiment supprimer cet équipement ATEX ? Cette action est irréversible.</p>
+          <p>Voulez-vous vraiment supprimer cet équipement ATEX ?</p>
           <div id="deleteMeta" class="small-muted"></div>
         </div>
         <div class="modal-footer">
@@ -260,164 +354,134 @@
     </div>
   </div>
 
-  <!-- Offcanvas latéral AutonomiX IA -->
-  <div class="offcanvas offcanvas-end offcanvas-ia" tabindex="-1" id="iaPanel">
+  <!-- Offcanvas IA (latéral, lecture rapide). Aucun chevauchement, boutons rangés. -->
+  <div class="offcanvas offcanvas-end offcanvas-ia" tabindex="-1" id="iaPanel" data-bs-scroll="true" data-bs-backdrop="false" aria-labelledby="iaPanelLabel">
     <div class="offcanvas-header">
-      <h5 class="offcanvas-title"><i data-lucide="bot"></i> Aide AutonomiX IA</h5>
+      <h5 class="offcanvas-title" id="iaPanelLabel"><i data-lucide="bot"></i> Aide AutonomiX IA</h5>
       <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
     </div>
     <div class="offcanvas-body">
-      <div class="row">
-        <!-- Historique à gauche -->
-        <div class="col-lg-4 mb-3 mb-lg-0">
-          <div class="card h-100">
-            <div class="card-header d-flex align-items-center justify-content-between">
-              <div><i data-lucide="history"></i> Historique</div>
-              <button class="btn btn-sm btn-outline-secondary" id="btnClearChat"><i data-lucide="eraser"></i> Effacer</button>
-            </div>
-            <div class="card-body p-0" style="max-height: 60vh; overflow:auto">
-              <ul class="list-group list-group-flush" id="iaHistoryList"></ul>
-            </div>
+      <div class="row g-3">
+        <div class="col-12">
+          <div id="iaHeader" class="small-muted"></div>
+          <div class="ia-badges mb-2"></div>
+        </div>
+        <div class="col-12">
+          <div class="ia-history">
+            <ul class="list-group list-group-flush" id="iaHistoryList"></ul>
           </div>
         </div>
-        <!-- Contenu IA à droite -->
-        <div class="col-lg-8">
-          <div id="iaContent" class="card">
-            <div class="card-body">
-              <div id="iaLoading" class="text-center text-muted" style="display:none">
-                <div class="spinner-border" role="status" aria-hidden="true"></div>
-                <div class="mt-2">Analyse en cours…</div>
-              </div>
-              <div id="iaDetails" style="display:none"></div>
-
-              <hr>
-              <!-- Bloc d’analyse enrichie locale (palliatif, préventif, coûts, réf) -->
-              <div id="iaEnriched" style="display:none">
-                <h5 class="mb-3">Synthèse actionnable</h5>
-                <div id="iaWhy" class="mb-3"></div>
-                <div class="row g-3">
-                  <div class="col-md-6">
-                    <div class="border rounded p-3 h-100">
-                      <h6>Mesures palliatives (immédiat)</h6>
-                      <ul id="iaPalliative" class="mb-0"></ul>
-                    </div>
-                  </div>
-                  <div class="col-md-6">
-                    <div class="border rounded p-3 h-100">
-                      <h6>Mesures préventives (durable)</h6>
-                      <ul id="iaPreventive" class="mb-0"></ul>
-                    </div>
-                  </div>
-                </div>
-                <div class="row g-3 mt-1">
-                  <div class="col-md-6">
-                    <div class="border rounded p-3 h-100">
-                      <h6>Références & changements</h6>
-                      <ul id="iaRefs" class="mb-0"></ul>
-                    </div>
-                  </div>
-                  <div class="col-md-6">
-                    <div class="border rounded p-3 h-100">
-                      <h6>Estimation des coûts</h6>
-                      <ul id="iaCosts" class="mb-0"></ul>
-                    </div>
-                  </div>
-                </div>
-                <div class="mt-3">
-                  <span class="badge text-bg-light ia-badge">Conseils générés à partir des données actuelles</span>
-                </div>
-              </div>
-              <!-- /Bloc enrichi -->
-            </div>
+        <div class="col-12">
+          <div id="iaLoading" class="text-center text-muted" style="display:none">
+            <div class="spinner-border" role="status" aria-hidden="true"></div>
+            <div class="mt-2">Analyse en cours…</div>
           </div>
+          <div id="iaDetails" class="ia-details" style="display:none"></div>
+        </div>
+        <div class="col-12 d-flex gap-2 flex-wrap">
+          <button class="btn btn-outline-primary" id="btnOpenInChat"><i data-lucide="panel-right-open"></i> Ouvrir dans Chat IA</button>
+          <button class="btn btn-outline-secondary" id="btnClearChat2"><i data-lucide="eraser"></i> Effacer historique</button>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Toasts -->
-  <div class="toast-container" id="toasts"></div>
+  <div class="toast-container position-fixed top-0 end-0 p-3" id="toasts" style="z-index: 2000;"></div>
 
   <script>
-    if (window.lucide) { window.lucide.createIcons(); }
+    if (window.lucide){ window.lucide.createIcons(); }
 
-    // API endpoints (relatifs)
+    // ================== API ==================
     const API = {
       secteurs: '/api/atex-secteurs',
       equipments: '/api/atex-equipments',
       equipment: (id) => '/api/atex-equipments/' + id,
       importExcel: '/api/atex-import-excel',
-      chat: '/api/atex-chat',         // conservé si besoin plus tard
       inspect: '/api/atex-inspect',
       help: (id) => '/api/atex-help/' + id
     };
 
-    // État
+    // ================== STATE ==================
     let equipments = [];
-    const toastsEl = document.getElementById('toasts');
+    let currentIA = null; // équipement courant pour IA
+    const CHAT_KEY = 'atexIAHistoryV3';
 
-    // Helpers UI
-    function showToast(message, variant='primary') {
-      const id = 't' + Date.now();
+    // ================== HELPERS ==================
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+    function showToast(message, variant='primary'){
+      const id='t'+Date.now();
       const html = `
-        <div id="${id}" class="toast align-items-center text-bg-${variant} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true">
+        <div id="${id}" class="toast text-bg-${variant} border-0 mb-2" role="alert">
           <div class="d-flex">
             <div class="toast-body">${message}</div>
             <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
           </div>
         </div>`;
-      toastsEl.insertAdjacentHTML('beforeend', html);
-      const t = new bootstrap.Toast(document.getElementById(id), { delay: 3000 });
-      t.show();
-      setTimeout(() => { document.getElementById(id)?.remove(); }, 3500);
+      $('#toasts').insertAdjacentHTML('beforeend', html);
+      const t = new bootstrap.Toast($('#'+id), {delay:3000}); t.show();
+      setTimeout(()=> $('#'+id)?.remove(), 3500);
     }
 
-    function fmtDate(d) {
-      if (!d) return 'N/A';
-      const date = new Date(d);
-      if (isNaN(date)) return d;
-      const dd = String(date.getDate()).padStart(2,'0');
-      const mm = String(date.getMonth()+1).padStart(2,'0');
-      const yyyy = date.getFullYear();
+    function fmtDate(d){
+      if(!d) return 'N/A';
+      const date = new Date(d); if(isNaN(date)) return d;
+      const dd=String(date.getDate()).padStart(2,'0'), mm=String(date.getMonth()+1).padStart(2,'0'), yyyy=date.getFullYear();
       return `${dd}-${mm}-${yyyy}`;
     }
 
-    // Démarrage
+    function getChatHistory(){ try{ return JSON.parse(localStorage.getItem(CHAT_KEY) || '[]'); }catch{return []} }
+    function setChatHistory(h){ localStorage.setItem(CHAT_KEY, JSON.stringify(h)); }
+    function addToHistory(item){
+      const h=getChatHistory();
+      h.unshift(item);
+      setChatHistory(h.slice(0,100));
+      renderHistory(); renderHistoryChat();
+    }
+
+    // ================== STARTUP ==================
     document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('btnApplyFilters').addEventListener('click', applyFilters);
-      document.getElementById('btnSync').addEventListener('click', syncData);
-      document.getElementById('btnAddSecteur').addEventListener('click', openModalSecteur);
-      document.getElementById('btnSave').addEventListener('click', saveEquipment);
-      document.getElementById('btnClear').addEventListener('click', clearForm);
-      document.getElementById('btnTemplateCSV').addEventListener('click', downloadTemplateCSV);
-      document.getElementById('btnTemplateXLSX').addEventListener('click', downloadTemplateXLSX);
-      document.getElementById('btnImport').addEventListener('click', importExcel);
-      document.getElementById('btnClearChat').addEventListener('click', clearChatHistory);
+      // liste
+      $('#btnApplyFilters').addEventListener('click', applyFilters);
+      $('#btnSync').addEventListener('click', loadEquipments);
+      // form
+      $('#btnSave').addEventListener('click', saveEquipment);
+      $('#btnClear').addEventListener('click', clearForm);
+      $('#btnAddSecteur').addEventListener('click', openModalSecteur);
+      // import
+      $('#btnImport').addEventListener('click', importExcel);
+      // chat onglet
+      $('#btnClearChat').addEventListener('click', clearChatHistory);
+      $('#btnReanalyse').addEventListener('click', () => currentIA && openIA(currentIA, {forceReload:true, openChat:true}));
+      $('#btnCopier').addEventListener('click', copyChat);
+      // offcanvas
+      $('#btnOpenInChat').addEventListener('click', ()=> { bootstrap.Offcanvas.getOrCreateInstance($('#iaPanel')).hide(); $('#chat-tab').click(); });
+      $('#btnClearChat2').addEventListener('click', clearChatHistory);
 
       loadSecteurs();
       loadEquipments();
+      renderHistory(); renderHistoryChat();
     });
 
-    /* ======= LISTE ======= */
-    async function loadEquipments() {
-      try {
-        const response = await fetch(API.equipments);
-        if (!response.ok) throw new Error('Erreur chargement liste');
-        equipments = await response.json();
+    // ================== LISTE ==================
+    async function loadEquipments(){
+      try{
+        const r = await fetch(API.equipments);
+        if(!r.ok) throw new Error('Erreur chargement');
+        equipments = await r.json();
         renderTable();
-      } catch (error) {
-        console.error('Erreur loadEquipments:', error);
-        showToast('Erreur chargement liste: ' + error.message, 'danger');
-      }
+        showToast('Données synchronisées','info');
+      }catch(e){ showToast('Erreur: '+(e.message||e),'danger'); }
     }
 
-    function renderTable(list = equipments) {
-      const tbody = document.getElementById('equipmentsTable');
-      tbody.innerHTML = '';
-      list.forEach(eq => {
-        const riskClass = (typeof eq.risque === 'number' && eq.risque <= 1) ? 'risk-low' : ((eq.risque <= 3) ? 'risk-med' : 'risk-high');
-        const zone = eq.zone_type || eq.exterieur || eq.interieur || 'N/A';
-        const isNonConf = (eq.conformite || '').toLowerCase().includes('non');
+    function renderTable(list=equipments){
+      const tbody = $('#equipmentsTable'); tbody.innerHTML='';
+      list.forEach(eq=>{
+        const zone = eq.zone_type || eq.exterieur || eq.interieur || '—';
+        const risk = eq.risque ?? '—';
+        const isNC = String(eq.conformite||'').toLowerCase().includes('non');
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -428,29 +492,25 @@
           <td>${eq.local || ''}</td>
           <td>${zone}</td>
           <td>${eq.conformite || ''}</td>
-          <td class="${riskClass}">${eq.risque ?? ''}</td>
+          <td>${risk}</td>
           <td>${fmtDate(eq.last_inspection_date)}</td>
           <td>${fmtDate(eq.next_inspection_date)}</td>
-          <td>
-            ${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" onclick="openPhoto('${encodeURIComponent(eq.photo)}')">` : '<span class="text-muted">—</span>'}
-          </td>
-          <td class="d-flex flex-wrap gap-2">
+          <td>${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" onclick="openPhoto('${encodeURIComponent(eq.photo)}')">` : '<span class="text-muted">—</span>'}</td>
+          <td class="actions">
             <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(${eq.id})"><i data-lucide="edit-3"></i> Éditer</button>
-            <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${eq.id}, '${(eq.composant||'').replace(/'/g,'\\\'')}')"><i data-lucide="trash-2"></i> Supprimer</button>
-            <button class="btn btn-sm ${isNonConf ? 'btn-warning' : 'btn-outline-secondary'}" onclick="openIA(${eq.id})">
-              <i data-lucide="sparkles"></i> Aide AutonomiX IA
-            </button>
+            <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${eq.id}, '${(eq.composant||'').replace(/'/g,"\\'")}')"><i data-lucide="trash-2"></i> Supprimer</button>
+            <button class="btn btn-sm ${isNC?'btn-warning':'btn-outline-secondary'}" onclick="openIA(${eq.id})"><i data-lucide="sparkles"></i> Aide AutonomiX IA</button>
           </td>
         `;
         tbody.appendChild(tr);
       });
-      if (window.lucide) window.lucide.createIcons();
+      window.lucide?.createIcons();
     }
 
-    function applyFilters() {
-      const s = (document.getElementById('filterSecteur').value || '').toLowerCase();
-      const b = (document.getElementById('filterBatiment').value || '').toLowerCase();
-      const c = document.getElementById('filterConformite').value;
+    function applyFilters(){
+      const s = ($('#filterSecteur').value||'').toLowerCase();
+      const b = ($('#filterBatiment').value||'').toLowerCase();
+      const c = $('#filterConformite').value;
       const filtered = equipments.filter(eq =>
         (!s || (eq.secteur||'').toLowerCase().includes(s)) &&
         (!b || (eq.batiment||'').toLowerCase().includes(b)) &&
@@ -459,34 +519,29 @@
       renderTable(filtered);
     }
 
-    /* ======= PHOTO ======= */
-    function openPhoto(encodedSrc){
-      const src = decodeURIComponent(encodedSrc);
-      const img = document.getElementById('photoModalImg');
-      const a = document.getElementById('photoDownload');
-      img.src = src; a.href = src;
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('photoModal')).show();
+    // ================== PHOTO ==================
+    function openPhoto(encoded){
+      const src = decodeURIComponent(encoded);
+      $('#photoModalImg').src = src;
+      $('#photoDownload').href = src;
+      bootstrap.Modal.getOrCreateInstance($('#photoModal')).show();
     }
     window.openPhoto = openPhoto;
 
-    /* ======= SECTEURS ======= */
-    async function loadSecteurs() {
-      try {
-        const response = await fetch(API.secteurs);
-        const secteurs = await response.json();
-        const select = document.getElementById('secteur-input');
-        select.innerHTML = '<option value="" disabled selected>— Sélectionner —</option>';
-        secteurs.forEach(s => {
-          const option = document.createElement('option');
-          option.value = s.name; option.text = s.name;
-          select.appendChild(option);
+    // ================== SECTEURS ==================
+    async function loadSecteurs(){
+      try{
+        const r = await fetch(API.secteurs);
+        const secteurs = await r.json();
+        const sel = $('#secteur-input');
+        sel.innerHTML = '<option value="" disabled selected>— Sélectionner —</option>';
+        secteurs.forEach(s=>{
+          const o=document.createElement('option'); o.value=s.name; o.text=s.name; sel.appendChild(o);
         });
-      } catch (error) {
-        console.error('Erreur loadSecteur:', error);
-      }
+      }catch(e){}
     }
     function openModalSecteur(){
-      const modalHtml = `
+      const html=`
       <div class="modal fade" id="modalSecteur" tabindex="-1">
         <div class="modal-dialog"><div class="modal-content">
           <div class="modal-header"><h5 class="modal-title">Nouveau secteur</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -500,343 +555,302 @@
           </div>
         </div></div>
       </div>`;
-      document.body.insertAdjacentHTML('beforeend', modalHtml);
-      const modalEl = document.getElementById('modalSecteur');
-      const modal = new bootstrap.Modal(modalEl);
-      modal.show();
-      modalEl.querySelector('#saveSecteurBtn').addEventListener('click', async ()=>{
-        const name = (modalEl.querySelector('#newSecteurName').value || '').trim();
-        if (!name) { modalEl.querySelector('#secteurSaveMsg').textContent = 'Nom requis.'; return; }
+      document.body.insertAdjacentHTML('beforeend', html);
+      const el = $('#modalSecteur'), modal = new bootstrap.Modal(el); modal.show();
+      el.querySelector('#saveSecteurBtn').addEventListener('click', async ()=>{
+        const name=(el.querySelector('#newSecteurName').value||'').trim();
+        if(!name){ el.querySelector('#secteurSaveMsg').textContent='Nom requis.'; return; }
         try{
-          const r = await fetch(API.secteurs, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name }) });
-          if (!r.ok) throw new Error('Erreur API');
-          await loadSecteurs();
-          document.getElementById('secteur-input').value = name;
-          showToast('Secteur enregistré', 'success');
-          modal.hide(); modalEl.remove();
-        } catch(e){ modalEl.querySelector('#secteurSaveMsg').textContent = 'Erreur: '+(e.message||e); }
-      }, { once:true });
-      modalEl.addEventListener('hidden.bs.modal', ()=> modalEl.remove(), { once:true });
+          const r = await fetch(API.secteurs,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+          if(!r.ok) throw new Error('Erreur API');
+          await loadSecteurs(); $('#secteur-input').value=name; showToast('Secteur enregistré','success'); modal.hide(); el.remove();
+        }catch(err){ el.querySelector('#secteurSaveMsg').textContent='Erreur: '+(err.message||err); }
+      }, {once:true});
+      el.addEventListener('hidden.bs.modal', ()=> el.remove(), {once:true});
     }
 
-    /* ======= FORMULAIRE ======= */
-    function clearForm() {
-      document.getElementById('equipId').value = '';
-      ['secteur-input','batiment-input','local-input','zone-input','composant-input','fournisseur-input','type-input','identifiant-input','marquage_atex-input','photo-input','comments-input','last-inspection-input'].forEach(id=>{
-        const el = document.getElementById(id);
-        if (!el) return;
-        if (el.type === 'file') el.value = '';
-        else el.value = '';
+    // ================== FORM ==================
+    function clearForm(){
+      $('#equipId').value='';
+      ['secteur-input','batiment-input','local-input','zone-input','composant-input','fournisseur-input','type-input','identifiant-input','marquage_atex-input','photo-input','comments-input','last-inspection-input']
+      .forEach(id=>{ const el=$('#'+id); if(!el) return; el.value = (el.type==='file') ? '' : ''; });
+    }
+
+    async function getBase64(file){
+      return await new Promise((res,rej)=>{
+        if(!file) return res(null);
+        const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file);
       });
     }
 
-    async function saveEquipment() {
-      // Validation minimale
-      const requiredIds = ['secteur-input','local-input','zone-input','composant-input','fournisseur-input','type-input','marquage_atex-input'];
-      const missing = requiredIds.filter(id => !document.getElementById(id).value);
-      if (missing.length) { showToast('Champs manquants : ' + missing.join(', '), 'warning'); return; }
+    async function saveEquipment(){
+      const required=['secteur-input','local-input','zone-input','composant-input','fournisseur-input','type-input','marquage_atex-input'];
+      const missing=required.filter(id=>!$('#'+id).value);
+      if(missing.length){ showToast('Champs manquants : '+missing.join(', '),'warning'); return; }
 
-      const id = document.getElementById('equipId').value || null;
-      const zone = document.getElementById('zone-input').value;
+      const id = $('#equipId').value || null;
+      const zone = $('#zone-input').value;
       const data = {
-        secteur: document.getElementById('secteur-input').value,
-        batiment: document.getElementById('batiment-input').value,
-        local: document.getElementById('local-input').value,
-        composant: document.getElementById('composant-input').value,
-        fournisseur: document.getElementById('fournisseur-input').value,
-        type: document.getElementById('type-input').value,
-        identifiant: document.getElementById('identifiant-input').value,
-        marquage_atex: document.getElementById('marquage_atex-input').value,
-        comments: document.getElementById('comments-input').value,
+        secteur: $('#secteur-input').value,
+        batiment: $('#batiment-input').value,
+        local: $('#local-input').value,
+        composant: $('#composant-input').value,
+        fournisseur: $('#fournisseur-input').value,
+        type: $('#type-input').value,
+        identifiant: $('#identifiant-input').value,
+        marquage_atex: $('#marquage_atex-input').value,
+        comments: $('#comments-input').value,
         exterieur: zone,
         interieur: '',
-        photo: await getBase64(document.getElementById('photo-input').files[0])
+        photo: await getBase64($('#photo-input').files[0])
       };
 
       const method = id ? 'PUT' : 'POST';
       const url = id ? API.equipment(id) : API.equipments;
 
-      try {
-        const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-        if (!response.ok) throw new Error('Erreur enregistrement');
-        const saved = await response.json();
-
-        // si date de dernière inspection renseignée -> /api/atex-inspect
-        const last = document.getElementById('last-inspection-input').value;
-        if (last) {
-          await fetch(API.inspect, {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ equipment_id: saved.id, status: 'done', inspection_date: last })
-          });
+      try{
+        const r = await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+        if(!r.ok) throw new Error('Erreur enregistrement');
+        const saved = await r.json();
+        const last = $('#last-inspection-input').value;
+        if(last){
+          await fetch(API.inspect,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({equipment_id:saved.id,status:'done',inspection_date:last})});
         }
-
-        showToast('Équipement sauvegardé.', 'success');
-        await loadEquipments();
-        clearForm();
-        document.getElementById('list-tab').click();
-      } catch (error) {
-        showToast('Erreur: ' + error.message, 'danger');
-      }
+        showToast('Équipement sauvegardé.','success');
+        await loadEquipments(); clearForm(); $('#list-tab').click();
+      }catch(e){ showToast('Erreur: '+(e.message||e),'danger'); }
     }
 
-    function getBase64(file) {
-      return new Promise((resolve, reject) => {
-        if (!file) return resolve(null);
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = err => reject(err);
-      });
+    async function editEquipment(id){
+      try{
+        const r = await fetch(API.equipment(id)); if(!r.ok) throw new Error('Erreur chargement équipement');
+        const eq = await r.json();
+        $('#equipId').value = eq.id;
+        $('#secteur-input').value = eq.secteur || '';
+        $('#batiment-input').value = eq.batiment || '';
+        $('#local-input').value = eq.local || '';
+        $('#zone-input').value = (eq.exterieur || eq.interieur || '');
+        $('#composant-input').value = eq.composant || '';
+        $('#fournisseur-input').value = eq.fournisseur || '';
+        $('#type-input').value = eq.type || '';
+        $('#identifiant-input').value = eq.identifiant || '';
+        $('#marquage_atex-input').value = eq.marquage_atex || '';
+        $('#comments-input').value = eq.comments || '';
+        $('#last-inspection-input').value = eq.last_inspection_date ? new Date(eq.last_inspection_date).toISOString().slice(0,10) : '';
+        $('#add-tab').click();
+      }catch(e){ showToast('Erreur édition: '+(e.message||e),'danger'); }
     }
 
-    async function editEquipment(id) {
-      try {
-        const response = await fetch(API.equipment(id));
-        if (!response.ok) throw new Error('Erreur chargement équipement');
-        const eq = await response.json();
-        document.getElementById('equipId').value = eq.id;
-        document.getElementById('secteur-input').value = eq.secteur || '';
-        document.getElementById('batiment-input').value = eq.batiment || '';
-        document.getElementById('local-input').value = eq.local || '';
-        document.getElementById('zone-input').value = (eq.exterieur || eq.interieur || '');
-        document.getElementById('composant-input').value = eq.composant || '';
-        document.getElementById('fournisseur-input').value = eq.fournisseur || '';
-        document.getElementById('type-input').value = eq.type || '';
-        document.getElementById('identifiant-input').value = eq.identifiant || '';
-        document.getElementById('marquage_atex-input').value = eq.marquage_atex || '';
-        document.getElementById('comments-input').value = eq.comments || '';
-        document.getElementById('last-inspection-input').value = eq.last_inspection_date ? new Date(eq.last_inspection_date).toISOString().slice(0,10) : '';
-        document.getElementById('add-tab').click();
-      } catch (error) {
-        showToast('Erreur édition: ' + error.message, 'danger');
-      }
-    }
-
-    /* ======= SUPPRESSION (modal) ======= */
+    // ================== SUPPRESSION ==================
     let toDeleteId = null;
     function openDeleteModal(id, label=''){
-      toDeleteId = id;
-      const meta = document.getElementById('deleteMeta');
-      meta.textContent = label ? 'Équipement : ' + label + ' (ID ' + id + ')' : 'ID ' + id;
-      const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteModal'));
-      modal.show();
-      const btn = document.getElementById('confirmDeleteBtn');
-      btn.onclick = confirmDelete;
+      toDeleteId=id;
+      $('#deleteMeta').textContent = label ? `Équipement : ${label} (ID ${id})` : `ID ${id}`;
+      bootstrap.Modal.getOrCreateInstance($('#deleteModal')).show();
+      $('#confirmDeleteBtn').onclick = confirmDelete;
     }
     async function confirmDelete(){
-      if (!toDeleteId) return;
-      try {
-        const response = await fetch(API.equipment(toDeleteId), { method: 'DELETE' });
-        if (!response.ok) throw new Error('Erreur suppression');
-        showToast('Supprimé !', 'success');
-        await loadEquipments();
-      } catch (error) {
-        showToast('Erreur: ' + error.message, 'danger');
-      } finally {
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteModal')).hide();
-        toDeleteId = null;
+      if(!toDeleteId) return;
+      try{
+        const r = await fetch(API.equipment(toDeleteId), {method:'DELETE'});
+        if(!r.ok) throw new Error('Erreur suppression');
+        showToast('Supprimé !','success'); await loadEquipments();
+      }catch(e){ showToast('Erreur: '+(e.message||e),'danger'); }
+      finally{
+        bootstrap.Modal.getOrCreateInstance($('#deleteModal')).hide(); toDeleteId=null;
       }
     }
     window.openDeleteModal = openDeleteModal;
 
-    function syncData() {
-      loadEquipments();
-      showToast('Données synchronisées !', 'info');
+    // ================== IMPORT ==================
+    async function importExcel(){
+      const f = $('#excelFile').files[0];
+      if(!f) return showToast('Sélectionnez un fichier (CSV/Excel)','warning');
+      const fd = new FormData(); fd.append('excel', f);
+      try{
+        const r = await fetch(API.importExcel,{method:'POST',body:fd});
+        if(!r.ok) throw new Error('Erreur import');
+        showToast('Import réussi !','success'); await loadEquipments();
+      }catch(e){ showToast('Erreur import: '+(e.message||e),'danger'); }
     }
 
-    /* ======= IMPORT ======= */
-    function downloadTemplateCSV(){
-      const head = ['risque','secteur','batiment','local','composant','fournisseur','type','identifiant','interieur','exterieur','categorie_minimum','marquage_atex','photo','conformite','comments','last_inspection_date'];
-      const rows = [
-        ['', 'Utilities','B06','L-203','Capteur','IFM','PN7092','CAPT-0123','', '22','', 'II 3G IIA T4','', '', '', '2025-06-01'],
-        ['', 'Maintenance','B11','Salle compresseurs','Clapet','Siemens','3RW40 11-1BB14','CLAP-0007','', '21','', 'II 2G IIB T3','', '', 'à contrôler', '2025-04-10']
-      ];
-      const csv = [head.join(','), ...rows.map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(','))].join('\n');
-      const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob); const a = document.createElement('a');
-      a.href = url; a.download = 'modele-atex.csv'; a.click();
-      setTimeout(()=> URL.revokeObjectURL(url), 500);
-      showToast('Modèle CSV téléchargé', 'success');
-    }
-    function downloadTemplateXLSX(){ downloadTemplateCSV(); }
-
-    async function importExcel() {
-      const file = document.getElementById('excelFile').files[0];
-      if (!file) return showToast('Sélectionnez un fichier (CSV ou Excel)', 'warning');
-      const formData = new FormData();
-      formData.append('excel', file);
-      try {
-        const response = await fetch(API.importExcel, { method: 'POST', body: formData });
-        if (!response.ok) throw new Error('Erreur import');
-        showToast('Import réussi !', 'success');
-        await loadEquipments();
-      } catch (error) {
-        showToast('Erreur import: ' + error.message, 'danger');
-      }
+    // ================== IA (offcanvas + chat tab) ==================
+    function renderBadges(eq){
+      const box = document.querySelector('#iaPanel .ia-badges'); box.innerHTML='';
+      const wrap = document.createElement('div');
+      wrap.className='ia-badges';
+      wrap.innerHTML = `
+        <span class="badge ${String(eq.conformite||'').toLowerCase().includes('non')?'text-bg-danger':'text-bg-success'}">${eq.conformite||'N/A'}</span>
+        <span class="badge text-bg-secondary">Risque ${eq.risque ?? '-'}</span>
+        <span class="badge text-bg-secondary">Zone ${eq.zone_type || eq.exterieur || eq.interieur || '-'}</span>
+      `;
+      document.querySelector('#iaPanel .ia-badges').replaceWith(wrap);
     }
 
-    /* ======= Aide AutonomiX IA — Offcanvas latéral avec historique ======= */
-    const CHAT_KEY = 'atexIAHistoryV2';
-    function getChatHistory(){ try{ return JSON.parse(localStorage.getItem(CHAT_KEY) || '[]'); }catch{return []} }
-    function setChatHistory(h){ localStorage.setItem(CHAT_KEY, JSON.stringify(h)); }
-    function clearChatHistory(){
-      setChatHistory([]);
-      renderHistory();
-      document.getElementById('iaDetails').innerHTML = '';
-      document.getElementById('iaEnriched').style.display = 'none';
-      showToast('Historique effacé', 'info');
-    }
+    async function openIA(id, opts={}){
+      currentIA = id;
+      const off = bootstrap.Offcanvas.getOrCreateInstance($('#iaPanel')); off.show();
 
-    async function openIA(id){
-      // Ouvre le panneau latéral
-      const panel = document.getElementById('iaPanel');
-      const off = bootstrap.Offcanvas.getOrCreateInstance(panel);
-      off.show();
+      // état de chargement
+      $('#iaHeader').textContent = '';
+      $('#iaDetails').style.display='none';
+      $('#iaLoading').style.display='block';
 
-      // Charge équipement + aide back `/api/atex-help/:id`
-      const loading = document.getElementById('iaLoading');
-      const details = document.getElementById('iaDetails');
-      const enriched = document.getElementById('iaEnriched');
-      loading.style.display = 'block';
-      details.style.display = 'none';
-      enriched.style.display = 'none';
-      details.innerHTML = '';
+      try{
+        const [eqR, helpR] = await Promise.all([ fetch(API.equipment(id)), fetch(API.help(id)) ]);
+        if(!eqR.ok) throw new Error('Équipement introuvable');
+        const eq = await eqR.json();
+        const help = await helpR.json();
 
-      try {
-        const [eqResp, helpResp] = await Promise.all([
-          fetch(API.equipment(id)),
-          fetch(API.help(id))
-        ]);
-        if (!eqResp.ok) throw new Error('Équipement introuvable');
-        const eq = await eqResp.json();
-        const help = await helpResp.json();
+        $('#iaHeader').textContent = `${eq.composant || 'Équipement'} — ID ${eq.id} • Dernière: ${fmtDate(eq.last_inspection_date)} • Prochaine: ${fmtDate(eq.next_inspection_date)}`;
+        renderBadges(eq);
 
-        const htmlAide = help?.response || '<p class="text-muted">Aucune analyse IA disponible.</p>';
-        details.innerHTML = `
-          <div class="d-flex align-items-center justify-content-between">
-            <h5 class="mb-3">${eq.composant || 'Équipement'} <span class="badge text-bg-light">ID ${eq.id}</span></h5>
-            <div>
-              <span class="badge ${String(eq.conformite).toLowerCase().includes('non')?'text-bg-danger':'text-bg-success'}">${eq.conformite || 'N/A'}</span>
-              <span class="badge text-bg-secondary">Risque ${eq.risque ?? '-'}</span>
-              <span class="badge text-bg-secondary">Zone ${eq.zone_type || eq.exterieur || eq.interieur || '-'}</span>
-            </div>
-          </div>
-          <div class="small-muted mb-2">Dernière inspection : ${fmtDate(eq.last_inspection_date)} — Prochaine : ${fmtDate(eq.next_inspection_date)}</div>
-          <div class="border rounded p-3 mb-3" id="iaHtml">${htmlAide}</div>
-        `;
+        const htmlAide = help?.response || '<p class="text-muted mb-0">Aucune analyse IA disponible.</p>';
+        $('#iaDetails').innerHTML = htmlAide;
 
-        // Enrichissement local : "Pourquoi non conforme", palliatif/préventif, refs, coûts.
-        buildLocalEnrichment(eq);
-
-        // Historique
-        const item = {
+        // Historique partagé
+        addToHistory({
           id: eq.id,
           composant: eq.composant || 'Équipement',
           date: new Date().toISOString(),
-          content: details.querySelector('#iaHtml').innerHTML
-        };
-        const hist = getChatHistory();
-        hist.unshift(item);
-        setChatHistory(hist.slice(0, 50)); // limite
-        renderHistory(eq.id);
+          content: htmlAide,
+          meta: {
+            conformite: eq.conformite || 'N/A',
+            risque: eq.risque ?? '-',
+            zone: eq.zone_type || eq.exterieur || eq.interieur || '-',
+            last: fmtDate(eq.last_inspection_date),
+            next: fmtDate(eq.next_inspection_date)
+          }
+        });
 
-        loading.style.display = 'none';
-        details.style.display = 'block';
-        enriched.style.display = 'block';
-      } catch(e){
-        loading.style.display = 'none';
-        details.style.display = 'block';
-        details.innerHTML = `<div class="alert alert-danger">Erreur IA: ${e.message || e}</div>`;
+        // Affichage
+        $('#iaLoading').style.display='none';
+        $('#iaDetails').style.display='block';
+
+        // Option : ouvrir directement l’onglet chat
+        if(opts.openChat){ $('#chat-tab').click(); selectHistoryChat(0); }
+
+        // Option : forcer rechargement (déjà fait ici)
+        if(opts.forceReload){ /* noop, on vient de recharger */ }
+
+        // Enrichissement dans l’onglet Chat
+        buildLocalEnrichmentChat(eq);
+      }catch(e){
+        $('#iaLoading').style.display='none';
+        $('#iaDetails').style.display='block';
+        $('#iaDetails').innerHTML = `<div class="alert alert-danger">Erreur IA: ${e.message||e}</div>`;
       }
     }
     window.openIA = openIA;
 
     function renderHistory(activeId=null){
-      const list = document.getElementById('iaHistoryList');
-      const h = getChatHistory();
-      list.innerHTML = '';
-      if (!h.length){
-        list.innerHTML = '<li class="list-group-item text-muted">Aucun historique.</li>';
-        return;
-      }
-      h.forEach((it, idx) => {
-        const d = new Date(it.date);
-        const label = (it.composant || 'Équipement') + ' • ' + d.toLocaleString('fr-FR');
-        const li = document.createElement('li');
-        li.className = 'list-group-item ia-history-item' + (it.id===activeId?' active':'');
-        li.textContent = label;
-        li.title = 'Réouvrir cette analyse';
-        li.onclick = () => {
-          document.getElementById('iaHtml').innerHTML = it.content;
-          // highlight actif
-          [...list.children].forEach(c=>c.classList.remove('active'));
+      const list = $('#iaHistoryList'); list.innerHTML='';
+      const h=getChatHistory(); if(!h.length){ list.innerHTML='<li class="list-group-item text-muted">Aucun historique.</li>'; return; }
+      h.forEach((it,idx)=>{
+        const li=document.createElement('li');
+        li.className='list-group-item ia-item'+(it.id===activeId?' active':'');
+        li.textContent = `${it.composant || 'Équipement'} • ${new Date(it.date).toLocaleString('fr-FR')}`;
+        li.title='Réouvrir cette analyse';
+        li.onclick = ()=> {
+          $('#iaDetails').innerHTML = it.content;
+          $$('#iaHistoryList .ia-item').forEach(x=>x.classList.remove('active'));
           li.classList.add('active');
+          currentIA = it.id;
+          $('#chat-tab').click(); // en plus, ouvre la vue lecture si souhaité
+          selectHistoryChat(idx);
         };
         list.appendChild(li);
       });
     }
 
-    function buildLocalEnrichment(eq){
-      const why = document.getElementById('iaWhy');
-      const pal = document.getElementById('iaPalliative');
-      const prev = document.getElementById('iaPreventive');
-      const refs = document.getElementById('iaRefs');
-      const costs = document.getElementById('iaCosts');
+    function renderHistoryChat(){
+      const list = $('#iaHistoryListChat'); list.innerHTML='';
+      const h=getChatHistory(); if(!h.length){ list.innerHTML='<li class="list-group-item text-muted">Aucun historique.</li>'; return; }
+      h.forEach((it,idx)=>{
+        const li=document.createElement('li');
+        li.className='list-group-item d-flex flex-column';
+        li.style.cursor='pointer';
+        li.innerHTML = `
+          <div><strong>${it.composant || 'Équipement'}</strong></div>
+          <div class="small-muted">${new Date(it.date).toLocaleString('fr-FR')}</div>
+        `;
+        li.onclick = ()=> selectHistoryChat(idx);
+        list.appendChild(li);
+      });
+    }
 
+    function selectHistoryChat(index){
+      const h=getChatHistory(); const it=h[index]; if(!it) return;
+      currentIA = it.id;
+      $('#chatHeader').textContent = `${it.composant || 'Équipement'} — ID ${it.id} • Dernière: ${it.meta?.last||'-'} • Prochaine: ${it.meta?.next||'-'}`;
+      $('#chatHtml').innerHTML = it.content || '<p class="text-muted mb-0">—</p>';
+      $('#chatEnriched').style.display='block';
+    }
+
+    function clearChatHistory(){
+      setChatHistory([]); renderHistory(); renderHistoryChat();
+      $('#iaDetails').innerHTML=''; $('#chatHtml').innerHTML='';
+      $('#chatHeader').textContent=''; $('#chatEnriched').style.display='none';
+      showToast('Historique effacé','info');
+    }
+
+    function copyChat(){
+      const html = $('#chatHtml').innerText || '';
+      navigator.clipboard.writeText(html).then(()=>showToast('Contenu copié','success'));
+    }
+
+    // Enrichissement (onglet Chat)
+    function buildLocalEnrichmentChat(eq){
       const zone = String(eq.zone_type || eq.exterieur || eq.interieur || '22');
       const conf = String(eq.conformite || 'N/A');
       const marq = String(eq.marquage_atex || '');
       const catNeeded = zone.startsWith('0')||zone.startsWith('20') ? '1' : (zone.startsWith('1')||zone.startsWith('21') ? '2' : '3');
 
-      // Pourquoi non conforme (règles simples, côté front)
-      let reasons = [];
-      if (conf.toLowerCase().includes('non')) {
-        if (marq && !/G|D/i.test(marq)) reasons.push('Marquage ATEX incomplet ou invalide.');
-        if (catNeeded === '1' && !/G[a]|D[a]/.test(marq)) reasons.push('Catégorie requise 1 (Ga/Da) non respectée pour la zone.');
-        if (catNeeded === '2' && !/G[b]|D[b]/.test(marq)) reasons.push('Catégorie requise 2 (Gb/Db) non respectée pour la zone.');
-        if (!/T[1-6]/i.test(marq)) reasons.push('Classe de température (T1..T6) absente : risque de dépassement thermique.');
-        if (!reasons.length) reasons.push('Écart entre catégorie minimale requise et le marquage de l’équipement.');
-      } else {
-        reasons.push('Équipement déclaré conforme. Vérifier tout de même la documentation constructeur et la zone.');
+      // Pourquoi / non conformité
+      let reasons=[];
+      if(conf.toLowerCase().includes('non')){
+        if(marq && !/G|D/i.test(marq)) reasons.push('Marquage ATEX incomplet ou invalide.');
+        if(catNeeded==='1' && !/G[a]|D[a]/.test(marq)) reasons.push('Catégorie requise 1 (Ga/Da) non respectée pour la zone.');
+        if(catNeeded==='2' && !/G[b]|D[b]/.test(marq)) reasons.push('Catégorie requise 2 (Gb/Db) non respectée pour la zone.');
+        if(!/T[1-6]/i.test(marq)) reasons.push('Classe de température (T1..T6) absente.');
+        if(!reasons.length) reasons.push('Écart entre catégorie minimale requise et marquage.');
+      }else{
+        reasons.push('Équipement déclaré conforme. Vérifier doc constructeur & adéquation à la zone.');
       }
 
-      // Palliatives
-      const palliatives = [
-        'Mettre en place une signalisation temporaire et limiter l’accès à la zone.',
-        'Réduire les sources d’inflammation (débranchements non essentiels, contrôle ESD).',
-        'Planifier une inspection rapprochée (< 1 mois) pour confirmer l’état réel.'
+      const palliatives=[
+        'Mettre une signalisation temporaire et limiter l’accès.',
+        'Réduire les sources d’inflammation (ESD, débranchements non essentiels).',
+        'Inspection rapprochée (< 1 mois) pour confirmer l’état réel.'
       ];
-      if (zone.startsWith('1') || zone.startsWith('21')) palliatives.push('Réduire la présence de mélange explosif (ventilation provisoire, nettoyage).');
+      if(zone.startsWith('1')||zone.startsWith('21')) palliatives.push('Réduire la présence de mélange explosif (ventilation provisoire, nettoyage).');
 
-      // Préventives
-      const preventives = [
-        'Standardiser le marquage : ex. II ' + (catNeeded) + (zone.startsWith('2')||zone.startsWith('22')? 'G' : (zone.includes('0')||zone.includes('1')?'G':'D')) + ' T4 min.',
-        'Mettre à jour la base de données ATEX (photos, plaques signalétiques, certificats).',
-        'Former le personnel à l’identification des marquages et à la classe T pertinente.'
+      const preventives=[
+        `Standardiser le marquage : II ${catNeeded}${(zone.includes('0')||zone.includes('1')||zone.includes('2'))?'G':'D'} T4 min.`,
+        'Mettre à jour la base de données ATEX (photos, plaques, certificats).',
+        'Former le personnel à l’identification des marquages & classe T.'
       ];
 
-      // Références & changements
-      const refList = [
-        'Mettre à jour la fiche d’équipement avec certificat CE de type.',
-        'Aligner la catégorie minimale avec la zone (' + zone + ') dans la GED.',
-        'Tracer la décision (changement matériel / dérogation) dans le registre sécurité.'
+      const refs=[
+        'Joindre le certificat CE de type à la fiche.',
+        `Aligner la catégorie minimale avec la zone (${zone}) dans la GED.`,
+        'Tracer la décision (remplacement/dérogation) dans le registre sécurité.'
       ];
 
-      // Coûts (ordre de grandeur indicatif)
-      const costList = [
-        'Remplacement capteur/équipement certifié : 300–1’500 € selon fabricant.',
-        'Main-d’œuvre (pose, test) : 2–6 h.',
+      const costs=[
+        'Remplacement capteur/équipement : 300–1’500 € selon fabricant.',
+        'Main‑d’œuvre (pose, test) : 2–6 h.',
         'Inspection tierce partie (si requis) : 300–900 €.'
       ];
 
-      why.innerHTML = '<strong>Pourquoi ' + (conf.toLowerCase().includes('non')? 'non conforme':'/ points de vigilance') + ' ?</strong><ul>' + reasons.map(r=>'<li>'+r+'</li>').join('') + '</ul>';
-      pal.innerHTML = palliatives.map(x=>'<li>'+x+'</li>').join('');
-      prev.innerHTML = preventives.map(x=>'<li>'+x+'</li>').join('');
-      refs.innerHTML = refList.map(x=>'<li>'+x+'</li>').join('');
-      costs.innerHTML = costList.map(x=>'<li>'+x+'</li>').join('');
+      $('#chatWhy').innerHTML = '<ul>'+reasons.map(r=>`<li>${r}</li>`).join('')+'</ul>';
+      $('#chatPalliative').innerHTML = palliatives.map(x=>`<li>${x}</li>`).join('');
+      $('#chatPreventive').innerHTML = preventives.map(x=>`<li>${x}</li>`).join('');
+      $('#chatRefs').innerHTML = refs.map(x=>`<li>${x}</li>`).join('');
+      $('#chatCosts').innerHTML = costs.map(x=>`<li>${x}</li>`).join('');
     }
   </script>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
