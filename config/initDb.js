@@ -9,7 +9,9 @@ async function initDb() {
     client = await pool.connect();
     await client.query('SELECT 1');
 
-    // Tables existantes inchangées (électricité, projets, etc.)
+    // === Schémas existants (inchangés) ===
+    // ... (tes CREATE TABLE existants)
+    // ------------------ (début existant) ------------------
     await client.query(`
       CREATE TABLE IF NOT EXISTS tableaux (
         id VARCHAR(50) PRIMARY KEY,
@@ -117,7 +119,7 @@ async function initDb() {
       );
     `);
 
-    // --- ATEX tables ---
+    // --- ATEX existant ---
     await client.query(`
       CREATE TABLE IF NOT EXISTS atex_equipments (
         id SERIAL PRIMARY KEY,
@@ -144,7 +146,6 @@ async function initDb() {
         frequence INTEGER DEFAULT 3
       );
     `);
-    // Migrations idempotentes
     await client.query(`ALTER TABLE atex_equipments ADD COLUMN IF NOT EXISTS zone_type VARCHAR(10);`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_atex_identifiant ON atex_equipments (identifiant);`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_atex_next_inspection ON atex_equipments (next_inspection_date);`);
@@ -165,12 +166,50 @@ async function initDb() {
         name VARCHAR(100) UNIQUE
       );
     `);
-    const secteursCount = await client.query('SELECT COUNT(*) FROM atex_secteurs');
-    if (parseInt(secteursCount.rows[0].count, 10) === 0) {
-      await client.query(`INSERT INTO atex_secteurs (name) VALUES ('Métro'), ('Utilité'), ('Maintenance');`);
-    }
+    // ------------------ (fin existant) ------------------
 
-    // Trigger updated_at (projets)
+    // === NOUVEAU : modèles et historiques de calcul “boucles Ex i” ===
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS atex_exi_loops (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(120),
+        zone_type VARCHAR(10),
+
+        -- Barrière (source Ex i)
+        barrier_uo NUMERIC,   -- Uo (V)
+        barrier_io NUMERIC,   -- Io (A)
+        barrier_po NUMERIC,   -- Po (W)
+        barrier_co NUMERIC,   -- Co (µF) capacité max autorisée
+        barrier_lo NUMERIC,   -- Lo (mH) inductance max autorisée
+
+        -- Appareil de terrain (apparatus)
+        dev_ui NUMERIC,       -- Ui (V)
+        dev_ii NUMERIC,       -- Ii (A)
+        dev_pi NUMERIC,       -- Pi (W)
+        dev_ci NUMERIC,       -- Ci (µF)
+        dev_li NUMERIC,       -- Li (mH)
+
+        -- Câble
+        cable_length NUMERIC, -- m
+        cable_c_per_m NUMERIC, -- µF/m
+        cable_l_per_m NUMERIC, -- mH/m
+
+        -- Résultats calculés
+        total_c NUMERIC,      -- µF
+        total_l NUMERIC,      -- mH
+        margin_c NUMERIC,     -- %
+        margin_l NUMERIC,     -- %
+        margin_u NUMERIC,     -- %
+        margin_i NUMERIC,     -- %
+        margin_p NUMERIC,     -- %
+        conformity VARCHAR(20), -- Conforme / Non conforme
+
+        report_html TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Trigger mise à jour projets (existant)
     await client.query(`
       CREATE OR REPLACE FUNCTION update_updated_at_projects()
       RETURNS TRIGGER AS $$
@@ -186,7 +225,7 @@ async function initDb() {
       FOR EACH ROW EXECUTE PROCEDURE update_updated_at_projects();
     `);
 
-    // Normalisation disjoncteurs existants (élec)
+    // Normalisation existante des disjoncteurs...
     const result = await client.query('SELECT id, disjoncteurs FROM tableaux');
     for (const row of result.rows) {
       if (!Array.isArray(row.disjoncteurs)) {
