@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Contrôle ATEX - Équipements</title>
 
-  <!-- Design conservé -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -19,49 +18,23 @@
     .card{ border-radius:14px; box-shadow:0 4px 10px rgba(0,0,0,.06); }
     .table-responsive{ overflow-x:auto; }
     .last-photo{ max-width:52px; border-radius:6px; cursor:zoom-in; }
-
-    /* Actions en tableau : aucune superposition */
-    td.actions{
-      min-width:var(--actions-min-width);
-    }
+    td.actions{ min-width:var(--actions-min-width); }
     @media (max-width: 992px){
-      td.actions{
-        display:grid;
-        grid-template-columns: 1fr 1fr;
-        gap:.5rem;
-      }
+      td.actions{ display:grid; grid-template-columns: 1fr 1fr; gap:.5rem; }
       td.actions .btn{ width:100%; }
     }
-    @media (max-width: 576px){
-      td.actions{ grid-template-columns: 1fr; }
-    }
-
-    /* Offcanvas IA : lisible + scrollable, sans backdrop pour garder la visu de la ligne */
-    .offcanvas-ia{
-      --bs-offcanvas-width: var(--offcanvas-w);
-    }
-    #iaPanel{
-      border-left:1px solid #e5e7eb;
-    }
-    #iaPanel .offcanvas-body{
-      display:flex; flex-direction:column; gap:1rem;
-      padding-top:.75rem;
-    }
-    .ia-history{
-      border:1px solid #e9ecef; border-radius:10px; overflow:hidden;
-      max-height: 55vh; overflow-y: auto; background:#fff;
-    }
+    @media (max-width: 576px){ td.actions{ grid-template-columns: 1fr; } }
+    .offcanvas-ia{ --bs-offcanvas-width: var(--offcanvas-w); }
+    #iaPanel{ border-left:1px solid #e5e7eb; }
+    #iaPanel .offcanvas-body{ display:flex; flex-direction:column; gap:1rem; padding-top:.75rem; }
+    .ia-history{ border:1px solid #e9ecef; border-radius:10px; overflow:hidden; max-height: 55vh; overflow-y: auto; background:#fff; }
     .ia-item{ cursor:pointer; }
     .ia-item.active{ background:#eef2ff; border-left:3px solid #0d6efd; }
-    .ia-details{
-      border:1px solid #e9ecef; border-radius:10px; background:#fff;
-      max-height: 55vh; overflow:auto; padding:1rem;
-    }
+    .ia-details{ border:1px solid #e9ecef; border-radius:10px; background:#fff; max-height: 55vh; overflow:auto; padding:1rem; }
     .ia-badges .badge{ margin-left:.25rem; }
-
-    /* Petites améliorations lisibilité */
     .small-muted{ font-size:.85rem; color:#6c757d; }
     .form-text{ color:#6c757d; }
+    .link-list a{ text-decoration:none; }
   </style>
 </head>
 <body class="container my-5">
@@ -69,7 +42,6 @@
   <h1 class="text-center mb-2">Contrôle des Équipements ATEX</h1>
   <p class="text-center lead mb-4">Inspecter, ajouter et suivre les conformités ATEX.</p>
 
-  <!-- Onglets -->
   <ul class="nav nav-tabs" id="atexTabs" role="tablist">
     <li class="nav-item" role="presentation">
       <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab">
@@ -94,7 +66,6 @@
   </ul>
 
   <div class="tab-content mt-3" id="atexTabContent">
-    <!-- LISTE -->
     <div class="tab-pane fade show active" id="list" role="tabpanel">
       <div class="card mb-3">
         <div class="card-header"><h5 class="mb-0">Filtres</h5></div>
@@ -138,7 +109,6 @@
       </div>
     </div>
 
-    <!-- AJOUTER / ÉDITER -->
     <div class="tab-pane fade" id="add" role="tabpanel">
       <div class="card">
         <div class="card-body">
@@ -232,7 +202,6 @@
       </div>
     </div>
 
-    <!-- CHAT IA (lecture confortable) -->
     <div class="tab-pane fade" id="chat" role="tabpanel">
       <div class="row g-3">
         <div class="col-lg-4">
@@ -294,7 +263,29 @@
                     </div>
                   </div>
                 </div>
-                <div class="mt-2"><span class="badge text-bg-light">Conseils générés à partir des données actuelles</span></div>
+
+                <!-- Sélecteur de pièces & liens d'achat -->
+                <div class="mt-3">
+                  <h6>Pièces & Liens d'achat (indicatifs)</h6>
+                  <div class="row g-2 align-items-end">
+                    <div class="col-md-7">
+                      <label class="form-label">Type de pièce</label>
+                      <select id="partType" class="form-select">
+                        <option value="capteur">Capteur de pression ATEX (ex: IFM PN7092)</option>
+                        <option value="boite_e">Boîte de jonction Ex e (R. STAHL)</option>
+                        <option value="boite_d">Boîte de jonction Ex d (R. STAHL)</option>
+                        <option value="formation">Formation / Audit ATEX</option>
+                      </select>
+                    </div>
+                    <div class="col-md-5">
+                      <button id="btnPartLinks" class="btn btn-outline-primary w-100"><i data-lucide="link"></i> Proposer des liens</button>
+                    </div>
+                  </div>
+                  <div class="mt-2 small-muted">Les liens ouvrent des pages fabricants/distributeurs : comparer pour obtenir un prix marché réel.</div>
+                  <div id="partLinks" class="mt-2 link-list"></div>
+                </div>
+
+                <div class="mt-3"><span class="badge text-bg-light">Conseils générés à partir des données actuelles</span></div>
               </div>
             </div>
           </div>
@@ -302,7 +293,6 @@
       </div>
     </div>
 
-    <!-- IMPORT -->
     <div class="tab-pane fade" id="import" role="tabpanel">
       <div class="card">
         <div class="card-body">
@@ -326,7 +316,6 @@
     </div>
   </div>
 
-  <!-- Modal Photo -->
   <div class="modal fade" id="photoModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content">
@@ -337,7 +326,6 @@
     </div>
   </div>
 
-  <!-- Modal Suppression -->
   <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
@@ -354,7 +342,6 @@
     </div>
   </div>
 
-  <!-- Offcanvas IA (latéral, lecture rapide). Aucun chevauchement, boutons rangés. -->
   <div class="offcanvas offcanvas-end offcanvas-ia" tabindex="-1" id="iaPanel" data-bs-scroll="true" data-bs-backdrop="false" aria-labelledby="iaPanelLabel">
     <div class="offcanvas-header">
       <h5 class="offcanvas-title" id="iaPanelLabel"><i data-lucide="bot"></i> Aide AutonomiX IA</h5>
@@ -386,13 +373,11 @@
     </div>
   </div>
 
-  <!-- Toasts -->
   <div class="toast-container position-fixed top-0 end-0 p-3" id="toasts" style="z-index: 2000;"></div>
 
   <script>
     if (window.lucide){ window.lucide.createIcons(); }
 
-    // ================== API ==================
     const API = {
       secteurs: '/api/atex-secteurs',
       equipments: '/api/atex-equipments',
@@ -402,24 +387,22 @@
       help: (id) => '/api/atex-help/' + id
     };
 
-    // ================== STATE ==================
     let equipments = [];
-    let currentIA = null; // équipement courant pour IA
+    let currentIA = null;
     const CHAT_KEY = 'atexIAHistoryV3';
 
-    // ================== HELPERS ==================
     const $ = sel => document.querySelector(sel);
     const $$ = sel => Array.from(document.querySelectorAll(sel));
 
     function showToast(message, variant='primary'){
       const id='t'+Date.now();
-      const html = `
-        <div id="${id}" class="toast text-bg-${variant} border-0 mb-2" role="alert">
+      const html = \`
+        <div id="\${id}" class="toast text-bg-\${variant} border-0 mb-2" role="alert">
           <div class="d-flex">
-            <div class="toast-body">${message}</div>
+            <div class="toast-body">\${message}</div>
             <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
           </div>
-        </div>`;
+        </div>\`;
       $('#toasts').insertAdjacentHTML('beforeend', html);
       const t = new bootstrap.Toast($('#'+id), {delay:3000}); t.show();
       setTimeout(()=> $('#'+id)?.remove(), 3500);
@@ -429,7 +412,7 @@
       if(!d) return 'N/A';
       const date = new Date(d); if(isNaN(date)) return d;
       const dd=String(date.getDate()).padStart(2,'0'), mm=String(date.getMonth()+1).padStart(2,'0'), yyyy=date.getFullYear();
-      return `${dd}-${mm}-${yyyy}`;
+      return \`\${dd}-\${mm}-\${yyyy}\`;
     }
 
     function getChatHistory(){ try{ return JSON.parse(localStorage.getItem(CHAT_KEY) || '[]'); }catch{return []} }
@@ -441,31 +424,26 @@
       renderHistory(); renderHistoryChat();
     }
 
-    // ================== STARTUP ==================
     document.addEventListener('DOMContentLoaded', () => {
-      // liste
       $('#btnApplyFilters').addEventListener('click', applyFilters);
       $('#btnSync').addEventListener('click', loadEquipments);
-      // form
       $('#btnSave').addEventListener('click', saveEquipment);
       $('#btnClear').addEventListener('click', clearForm);
       $('#btnAddSecteur').addEventListener('click', openModalSecteur);
-      // import
       $('#btnImport').addEventListener('click', importExcel);
-      // chat onglet
       $('#btnClearChat').addEventListener('click', clearChatHistory);
       $('#btnReanalyse').addEventListener('click', () => currentIA && openIA(currentIA, {forceReload:true, openChat:true}));
       $('#btnCopier').addEventListener('click', copyChat);
-      // offcanvas
       $('#btnOpenInChat').addEventListener('click', ()=> { bootstrap.Offcanvas.getOrCreateInstance($('#iaPanel')).hide(); $('#chat-tab').click(); });
       $('#btnClearChat2').addEventListener('click', clearChatHistory);
+      // liens pièces
+      $('#btnPartLinks').addEventListener('click', (e)=>{ e.preventDefault(); buildPartLinks(); });
 
       loadSecteurs();
       loadEquipments();
       renderHistory(); renderHistoryChat();
     });
 
-    // ================== LISTE ==================
     async function loadEquipments(){
       try{
         const r = await fetch(API.equipments);
@@ -482,26 +460,25 @@
         const zone = eq.zone_type || eq.exterieur || eq.interieur || '—';
         const risk = eq.risque ?? '—';
         const isNC = String(eq.conformite||'').toLowerCase().includes('non');
-
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${eq.id ?? ''}</td>
-          <td>${eq.composant || ''}</td>
-          <td>${eq.secteur || ''}</td>
-          <td>${eq.batiment || ''}</td>
-          <td>${eq.local || ''}</td>
-          <td>${zone}</td>
-          <td>${eq.conformite || ''}</td>
-          <td>${risk}</td>
-          <td>${fmtDate(eq.last_inspection_date)}</td>
-          <td>${fmtDate(eq.next_inspection_date)}</td>
-          <td>${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" onclick="openPhoto('${encodeURIComponent(eq.photo)}')">` : '<span class="text-muted">—</span>'}</td>
+        tr.innerHTML = \`
+          <td>\${eq.id ?? ''}</td>
+          <td>\${eq.composant || ''}</td>
+          <td>\${eq.secteur || ''}</td>
+          <td>\${eq.batiment || ''}</td>
+          <td>\${eq.local || ''}</td>
+          <td>\${zone}</td>
+          <td>\${eq.conformite || ''}</td>
+          <td>\${risk}</td>
+          <td>\${fmtDate(eq.last_inspection_date)}</td>
+          <td>\${fmtDate(eq.next_inspection_date)}</td>
+          <td>\${eq.photo ? \`<img class="last-photo" src="\${eq.photo}" alt="Photo" onclick="openPhoto('\${encodeURIComponent(eq.photo)}')">\` : '<span class="text-muted">—</span>'}</td>
           <td class="actions">
-            <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(${eq.id})"><i data-lucide="edit-3"></i> Éditer</button>
-            <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${eq.id}, '${(eq.composant||'').replace(/'/g,"\\'")}')"><i data-lucide="trash-2"></i> Supprimer</button>
-            <button class="btn btn-sm ${isNC?'btn-warning':'btn-outline-secondary'}" onclick="openIA(${eq.id})"><i data-lucide="sparkles"></i> Aide AutonomiX IA</button>
+            <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(\${eq.id})"><i data-lucide="edit-3"></i> Éditer</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(\${eq.id}, '\${(eq.composant||'').replace(/'/g,"\\\\'")}')"><i data-lucide="trash-2"></i> Supprimer</button>
+            <button class="btn btn-sm \${isNC?'btn-warning':'btn-outline-secondary'}" onclick="openIA(\${eq.id})"><i data-lucide="sparkles"></i> Aide AutonomiX IA</button>
           </td>
-        `;
+        \`;
         tbody.appendChild(tr);
       });
       window.lucide?.createIcons();
@@ -519,7 +496,6 @@
       renderTable(filtered);
     }
 
-    // ================== PHOTO ==================
     function openPhoto(encoded){
       const src = decodeURIComponent(encoded);
       $('#photoModalImg').src = src;
@@ -528,7 +504,6 @@
     }
     window.openPhoto = openPhoto;
 
-    // ================== SECTEURS ==================
     async function loadSecteurs(){
       try{
         const r = await fetch(API.secteurs);
@@ -541,7 +516,7 @@
       }catch(e){}
     }
     function openModalSecteur(){
-      const html=`
+      const html=\`
       <div class="modal fade" id="modalSecteur" tabindex="-1">
         <div class="modal-dialog"><div class="modal-content">
           <div class="modal-header"><h5 class="modal-title">Nouveau secteur</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -554,7 +529,7 @@
             <button class="btn btn-primary" id="saveSecteurBtn">Enregistrer</button>
           </div>
         </div></div>
-      </div>`;
+      </div>\`;
       document.body.insertAdjacentHTML('beforeend', html);
       const el = $('#modalSecteur'), modal = new bootstrap.Modal(el); modal.show();
       el.querySelector('#saveSecteurBtn').addEventListener('click', async ()=>{
@@ -569,7 +544,6 @@
       el.addEventListener('hidden.bs.modal', ()=> el.remove(), {once:true});
     }
 
-    // ================== FORM ==================
     function clearForm(){
       $('#equipId').value='';
       ['secteur-input','batiment-input','local-input','zone-input','composant-input','fournisseur-input','type-input','identifiant-input','marquage_atex-input','photo-input','comments-input','last-inspection-input']
@@ -641,11 +615,10 @@
       }catch(e){ showToast('Erreur édition: '+(e.message||e),'danger'); }
     }
 
-    // ================== SUPPRESSION ==================
     let toDeleteId = null;
     function openDeleteModal(id, label=''){
       toDeleteId=id;
-      $('#deleteMeta').textContent = label ? `Équipement : ${label} (ID ${id})` : `ID ${id}`;
+      $('#deleteMeta').textContent = label ? \`Équipement : \${label} (ID \${id})\` : \`ID \${id}\`;
       bootstrap.Modal.getOrCreateInstance($('#deleteModal')).show();
       $('#confirmDeleteBtn').onclick = confirmDelete;
     }
@@ -662,7 +635,6 @@
     }
     window.openDeleteModal = openDeleteModal;
 
-    // ================== IMPORT ==================
     async function importExcel(){
       const f = $('#excelFile').files[0];
       if(!f) return showToast('Sélectionnez un fichier (CSV/Excel)','warning');
@@ -674,24 +646,21 @@
       }catch(e){ showToast('Erreur import: '+(e.message||e),'danger'); }
     }
 
-    // ================== IA (offcanvas + chat tab) ==================
     function renderBadges(eq){
       const box = document.querySelector('#iaPanel .ia-badges'); box.innerHTML='';
       const wrap = document.createElement('div');
       wrap.className='ia-badges';
-      wrap.innerHTML = `
-        <span class="badge ${String(eq.conformite||'').toLowerCase().includes('non')?'text-bg-danger':'text-bg-success'}">${eq.conformite||'N/A'}</span>
-        <span class="badge text-bg-secondary">Risque ${eq.risque ?? '-'}</span>
-        <span class="badge text-bg-secondary">Zone ${eq.zone_type || eq.exterieur || eq.interieur || '-'}</span>
-      `;
+      wrap.innerHTML = \`
+        <span class="badge \${String(eq.conformite||'').toLowerCase().includes('non')?'text-bg-danger':'text-bg-success'}">\${eq.conformite||'N/A'}</span>
+        <span class="badge text-bg-secondary">Risque \${eq.risque ?? '-'}</span>
+        <span class="badge text-bg-secondary">Zone \${eq.zone_type || eq.exterieur || eq.interieur || '-'}</span>
+      \`;
       document.querySelector('#iaPanel .ia-badges').replaceWith(wrap);
     }
 
     async function openIA(id, opts={}){
       currentIA = id;
-      const off = bootstrap.Offcanvas.getOrCreateInstance($('#iaPanel')); off.show();
-
-      // état de chargement
+      const off = new bootstrap.Offcanvas($('#iaPanel')); off.show();
       $('#iaHeader').textContent = '';
       $('#iaDetails').style.display='none';
       $('#iaLoading').style.display='block';
@@ -702,13 +671,12 @@
         const eq = await eqR.json();
         const help = await helpR.json();
 
-        $('#iaHeader').textContent = `${eq.composant || 'Équipement'} — ID ${eq.id} • Dernière: ${fmtDate(eq.last_inspection_date)} • Prochaine: ${fmtDate(eq.next_inspection_date)}`;
+        $('#iaHeader').textContent = \`\${eq.composant || 'Équipement'} — ID \${eq.id} • Dernière: \${fmtDate(eq.last_inspection_date)} • Prochaine: \${fmtDate(eq.next_inspection_date)}\`;
         renderBadges(eq);
 
         const htmlAide = help?.response || '<p class="text-muted mb-0">Aucune analyse IA disponible.</p>';
         $('#iaDetails').innerHTML = htmlAide;
 
-        // Historique partagé
         addToHistory({
           id: eq.id,
           composant: eq.composant || 'Équipement',
@@ -723,22 +691,15 @@
           }
         });
 
-        // Affichage
         $('#iaLoading').style.display='none';
         $('#iaDetails').style.display='block';
 
-        // Option : ouvrir directement l’onglet chat
         if(opts.openChat){ $('#chat-tab').click(); selectHistoryChat(0); }
-
-        // Option : forcer rechargement (déjà fait ici)
-        if(opts.forceReload){ /* noop, on vient de recharger */ }
-
-        // Enrichissement dans l’onglet Chat
         buildLocalEnrichmentChat(eq);
       }catch(e){
         $('#iaLoading').style.display='none';
         $('#iaDetails').style.display='block';
-        $('#iaDetails').innerHTML = `<div class="alert alert-danger">Erreur IA: ${e.message||e}</div>`;
+        $('#iaDetails').innerHTML = \`<div class="alert alert-danger">Erreur IA: \${e.message||e}</div>\`;
       }
     }
     window.openIA = openIA;
@@ -749,14 +710,14 @@
       h.forEach((it,idx)=>{
         const li=document.createElement('li');
         li.className='list-group-item ia-item'+(it.id===activeId?' active':'');
-        li.textContent = `${it.composant || 'Équipement'} • ${new Date(it.date).toLocaleString('fr-FR')}`;
+        li.textContent = \`\${it.composant || 'Équipement'} • \${new Date(it.date).toLocaleString('fr-FR')}\`;
         li.title='Réouvrir cette analyse';
         li.onclick = ()=> {
           $('#iaDetails').innerHTML = it.content;
           $$('#iaHistoryList .ia-item').forEach(x=>x.classList.remove('active'));
           li.classList.add('active');
           currentIA = it.id;
-          $('#chat-tab').click(); // en plus, ouvre la vue lecture si souhaité
+          $('#chat-tab').click();
           selectHistoryChat(idx);
         };
         list.appendChild(li);
@@ -770,10 +731,10 @@
         const li=document.createElement('li');
         li.className='list-group-item d-flex flex-column';
         li.style.cursor='pointer';
-        li.innerHTML = `
-          <div><strong>${it.composant || 'Équipement'}</strong></div>
-          <div class="small-muted">${new Date(it.date).toLocaleString('fr-FR')}</div>
-        `;
+        li.innerHTML = \`
+          <div><strong>\${it.composant || 'Équipement'}</strong></div>
+          <div class="small-muted">\${new Date(it.date).toLocaleString('fr-FR')}</div>
+        \`;
         li.onclick = ()=> selectHistoryChat(idx);
         list.appendChild(li);
       });
@@ -782,7 +743,7 @@
     function selectHistoryChat(index){
       const h=getChatHistory(); const it=h[index]; if(!it) return;
       currentIA = it.id;
-      $('#chatHeader').textContent = `${it.composant || 'Équipement'} — ID ${it.id} • Dernière: ${it.meta?.last||'-'} • Prochaine: ${it.meta?.next||'-'}`;
+      $('#chatHeader').textContent = \`\${it.composant || 'Équipement'} — ID \${it.id} • Dernière: \${it.meta?.last||'-'} • Prochaine: \${it.meta?.next||'-'}\`;
       $('#chatHtml').innerHTML = it.content || '<p class="text-muted mb-0">—</p>';
       $('#chatEnriched').style.display='block';
     }
@@ -799,14 +760,12 @@
       navigator.clipboard.writeText(html).then(()=>showToast('Contenu copié','success'));
     }
 
-    // Enrichissement (onglet Chat)
     function buildLocalEnrichmentChat(eq){
       const zone = String(eq.zone_type || eq.exterieur || eq.interieur || '22');
       const conf = String(eq.conformite || 'N/A');
       const marq = String(eq.marquage_atex || '');
       const catNeeded = zone.startsWith('0')||zone.startsWith('20') ? '1' : (zone.startsWith('1')||zone.startsWith('21') ? '2' : '3');
 
-      // Pourquoi / non conformité
       let reasons=[];
       if(conf.toLowerCase().includes('non')){
         if(marq && !/G|D/i.test(marq)) reasons.push('Marquage ATEX incomplet ou invalide.');
@@ -826,28 +785,78 @@
       if(zone.startsWith('1')||zone.startsWith('21')) palliatives.push('Réduire la présence de mélange explosif (ventilation provisoire, nettoyage).');
 
       const preventives=[
-        `Standardiser le marquage : II ${catNeeded}${(zone.includes('0')||zone.includes('1')||zone.includes('2'))?'G':'D'} T4 min.`,
+        \`Standardiser le marquage : II \${catNeeded}\${(zone.includes('0')||zone.includes('1')||zone.includes('2'))?'G':'D'} T4 min.\`,
         'Mettre à jour la base de données ATEX (photos, plaques, certificats).',
         'Former le personnel à l’identification des marquages & classe T.'
       ];
 
       const refs=[
         'Joindre le certificat CE de type à la fiche.',
-        `Aligner la catégorie minimale avec la zone (${zone}) dans la GED.`,
-        'Tracer la décision (remplacement/dérogation) dans le registre sécurité.'
+        \`Aligner la catégorie minimale avec la zone (\${zone}) dans la GED.\`,
+        'Tracer la décision (remplacement/dérogation) dans le registre sécurité.',
+        '<a href="https://eur-lex.europa.eu/legal-content/FR/TXT/?uri=CELEX%3A32014L0034" target="_blank" rel="noopener">Directive 2014/34/UE (EUR-Lex)</a>',
+        '<a href="https://portail-qualite.public.lu/dam-assets/fr/publications/surveillance-marche/guides/atex-guide-2014-34-ue/ATEX-2014-34-EU-Guidelines-3rd-Edition-December-2020-VA-VF-clean.pdf" target="_blank" rel="noopener">Lignes directrices ATEX 2020 (PDF)</a>'
       ];
 
       const costs=[
         'Remplacement capteur/équipement : 300–1’500 € selon fabricant.',
         'Main‑d’œuvre (pose, test) : 2–6 h.',
-        'Inspection tierce partie (si requis) : 300–900 €.'
+        'Inspection tierce partie (si requis) : 300–900 € (voir tarifs ISSeP).'
       ];
 
-      $('#chatWhy').innerHTML = '<ul>'+reasons.map(r=>`<li>${r}</li>`).join('')+'</ul>';
-      $('#chatPalliative').innerHTML = palliatives.map(x=>`<li>${x}</li>`).join('');
-      $('#chatPreventive').innerHTML = preventives.map(x=>`<li>${x}</li>`).join('');
-      $('#chatRefs').innerHTML = refs.map(x=>`<li>${x}</li>`).join('');
-      $('#chatCosts').innerHTML = costs.map(x=>`<li>${x}</li>`).join('');
+      $('#chatWhy').innerHTML = '<ul>'+reasons.map(r=>\`<li>\${r}</li>\`).join('')+'</ul>';
+      $('#chatPalliative').innerHTML = palliatives.map(x=>\`<li>\${x}</li>\`).join('');
+      $('#chatPreventive').innerHTML = preventives.map(x=>\`<li>\${x}</li>\`).join('');
+      $('#chatRefs').innerHTML = refs.map(x=>\`<li>\${x}</li>\`).join('');
+      $('#chatCosts').innerHTML = costs.map(x=>\`<li>\${x}</li>\`).join('');
+    }
+
+    // --- Sélecteur de pièces : liens externes (constructeur/distributeur/formation) ---
+    function buildPartLinks(){
+      const type = $('#partType').value;
+      const wrap = $('#partLinks');
+      let html='';
+      if(type==='capteur'){
+        html = `
+          <div class="alert alert-light border">
+            <div><strong>Capteur de pression ATEX (ex: IFM PN7092)</strong></div>
+            <ul class="mb-0">
+              <li><a href="https://www.ifm.com/fr/fr/product/PN7092" target="_blank" rel="noopener">Fiche produit constructeur (IFM)</a></li>
+              <li><a href="https://www.automation24.fr/capteur-de-pression-electronique-ifm-electronic-pn7092" target="_blank" rel="noopener">Automation24 – PN7092</a></li>
+              <li><a href="https://fr.rs-online.com/web/p/capteurs-de-pression/1251269" target="_blank" rel="noopener">RS Components – PN7092</a></li>
+              <li class="small-muted">Astuce : comparer aussi la <a href="https://media.automation24.com/datasheet/fr/PN7092.pdf" target="_blank" rel="noopener">datasheet</a> pour vérifier le marquage ATEX & la classe T.</li>
+            </ul>
+          </div>`;
+      } else if(type==='boite_e'){
+        html = `
+          <div class="alert alert-light border">
+            <div><strong>Boîte de jonction Ex e</strong></div>
+            <ul class="mb-0">
+              <li><a href="https://r-stahl.com/fr/fr/produits/boites-de-derivation-et-boites-de-jonction/" target="_blank" rel="noopener">R. STAHL – Gamme boîtes Ex e/Ex d</a></li>
+              <li><a href="https://rstahl-wca.com/pub/media/mageplaza/product_attachments/attachment_file/r/-/r-stahl-junction-boxes-133218.pdf" target="_blank" rel="noopener">Catalogue technique (PDF)</a></li>
+            </ul>
+          </div>`;
+      } else if(type==='boite_d'){
+        html = `
+          <div class="alert alert-light border">
+            <div><strong>Boîte de jonction Ex d</strong></div>
+            <ul class="mb-0">
+              <li><a href="https://r-stahl.com/fr/fr/produits/boites-de-derivation-et-boites-de-jonction/" target="_blank" rel="noopener">R. STAHL – Sélection Ex d</a></li>
+              <li><a href="https://r-stahl.com/en/global/products/junction-and-terminal-boxes/" target="_blank" rel="noopener">R. STAHL – Overview (EN)</a></li>
+            </ul>
+          </div>`;
+      } else if(type==='formation'){
+        html = `
+          <div class="alert alert-light border">
+            <div><strong>Formation / Audit ATEX</strong></div>
+            <ul class="mb-0">
+              <li><a href="https://www.issep.be/wp-content/uploads/Tarif-ATEX.pdf" target="_blank" rel="noopener">ISSeP – Tarif prestations ATEX (PDF)</a></li>
+              <li><a href="https://france.apave.com/Vos-besoins/Former-vos-equipes/Atmosphere-explosive-ATEX" target="_blank" rel="noopener">Apave – Formations ATEX</a></li>
+              <li><a href="https://apuissance3.com/wp-content/uploads/2024/07/01-FORATEX2E-V2-2024-06-17.pdf" target="_blank" rel="noopener">Programme formation Ism ATEX 2E (PDF)</a></li>
+            </ul>
+          </div>`;
+      }
+      wrap.innerHTML = html;
     }
   </script>
 
