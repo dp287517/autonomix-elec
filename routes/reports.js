@@ -1,107 +1,160 @@
-const PDFDocument = require('pdfkit');
-const fs = require('fs');
-const { captureChart } = require('../utils/capture');
+// routes/reports.js
+const express = require('express');
+const router = express.Router();
+const { pool } = require('../config/db');
+const { buildReportsPDF } = require('../services/reports');
+const { getRecommendedSection, normalizeIcn } = require('../utils/electric');
+const { calculateAdjustedLifespan } = require('../services/obsolescence');
 
-async function buildReportsPDF({
-  res,
-  reportType,
-  tableauxData,
-  selectivityReportData,
-  obsolescenceReportData,
-  faultLevelReportData,
-  safetyReportData
-}) {
-  const doc = new PDFDocument({ margin: 50 });
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader(
-    'Content-Disposition',
-    `attachment; filename=rapport_${reportType}_${new Date().toISOString().split('T')[0]}.pdf`
-  );
-  doc.pipe(res);
+// Petit endpoint santé pour vérifier que le router est bien monté
+router.get('/reports/health', (req, res) => {
+  res.json({ ok: true, at: 'routes/reports.js' });
+});
 
-  const logoPath = 'logo.png';
-  if (fs.existsSync(logoPath)) doc.image(logoPath, 450, 30, { width: 100 });
+// Génération PDF
+router.post('/reports', async (req, res) => {
+  const { reportType = 'all', filters } = req.body || {};
+  let client;
+  try {
+    client = await pool.connect();
 
-  doc.fontSize(20).text("Rapport Autonomix Elec", 50, 50);
-  doc.moveDown(2);
+    // Données de base
+    const tableauxResult = await client.query(
+      'SELECT id, disjoncteurs, issitemain, ishta, htadata FROM tableaux'
+    );
+    const equipementsResult = await client.query(
+      'SELECT tableau_id, equipment_id, equipment_type, data FROM equipements'
+    );
 
-  if (reportType === 'all' || reportType === 'tableaux') {
-    doc.fontSize(16).text("Rapport des Tableaux", 50, doc.y).moveDown();
-    doc.fontSize(12).text("Tableau | Bâtiment | Disjoncteurs | Autres Équipements");
-    doc.moveDown(0.5);
-    tableauxData.forEach(t => {
-      doc.text(`${t.id} | ${t.building} | ${t.disjoncteurs.length} | ${t.autresEquipements.length}`);
-      t.autresEquipements.forEach(e => {
-        const typeText = e.equipmentType || 'Inconnu';
-        doc.moveDown(0.2).text(`  - ${e.id} | ${typeText} | ${e.marque || 'N/A'} | ${e.ref || 'N/A'}`);
+    let tableauxData = tableauxResult.rows.map(row => {
+      const autresEquipements = equipementsResult.rows
+        .filter(e => e.tableau_id === row.id)
+        .map(e => ({ id: e.equipment_id, equipmentType: e.equipment_type, ...e.data }));
+
+      return {
+        id: row.id,
+        disjoncteurs: Array.isArray(row.disjoncteurs) ? row.disjoncteurs : [],
+        autresEquipements,
+        building: row.id.split('-')[0] || 'Inconnu',
+        issitemain: !!row.issitemain,
+        ishta: !!row.ishta,
+        htadata: row.htadata || null
+      };
+    });
+
+    // Filtres optionnels
+    if (filters) {
+      tableauxData = tableauxData.filter(t => {
+        if (filters.building && t.building !== filters.building) return false;
+        if (filters.tableau && t.id !== filters.tableau) return false;
+        return true;
       });
-      doc.moveDown(0.4);
-    });
-    doc.moveDown();
-  }
+    }
 
-  if (reportType === 'all' || reportType === 'selectivity') {
-    doc.fontSize(16).text("Rapport de Sélectivité", 50, doc.y).moveDown();
-    doc.fontSize(12).text("Tableau | Disjoncteur Principal | Statut").moveDown(0.5);
-    selectivityReportData.forEach(t => {
-      const principal = t.disjoncteurs.find(d => d.isPrincipal || d.isHTAFeeder) || {};
-      doc.text(`${t.id} | ${principal.id || 'N/A'} | ${principal.selectivityStatus || 'N/A'}`);
-    });
-    try {
-      const schemaImage = await captureChart('http://localhost:3000/selectivity.html', '#network-schema');
-      doc.addPage().fontSize(16).text("Schéma Électrique", 50, 50);
-      doc.image(schemaImage, 50, 100, { width: 500 });
-    } catch {}
-  }
+    // Jeux de données pour le PDF
+    const selectivityReportData = tableauxData.map(t => ({
+      id: t.id,
+      building: t.building,
+      disjoncteurs: t.disjoncteurs.map(d => ({
+        ...d,
+        isPrincipal: !!d.isPrincipal,
+        isHTAFeeder: !!d.isHTAFeeder
+      }))
+    }));
 
-  if (reportType === 'all' || reportType === 'obsolescence') {
-    doc.fontSize(16).text("Rapport d'Obsolescence", 50, doc.y).moveDown();
-    doc.fontSize(12).text("Tableau | Équipement | Type | Âge | Statut | Date de remplacement").moveDown(0.5);
-    obsolescenceReportData.forEach(t => {
-      t.disjoncteurs.forEach(d => {
-        doc.text(`${t.id} | ${d.id} | Disjoncteur | ${d.age || 'N/A'} | ${d.status} | ${d.replacementDate || 'N/A'}`);
+    const obsolescenceReportData = tableauxData.map(t => {
+      const disjoncteurs = t.disjoncteurs.map(d => {
+        const date = d.date ? new Date(d.date) : null;
+        const manufactureYear = date ? date.getFullYear() : null;
+        const age = manufactureYear != null ? (new Date().getFullYear() - manufactureYear) : null;
+        const { adjustedLifespan, isCritical, criticalReason } = calculateAdjustedLifespan(d);
+        const status = age != null && adjustedLifespan != null && age >= adjustedLifespan ? 'Obsolète' : 'OK';
+        let replacementDate = d.replacementDate || null;
+        if (!replacementDate) {
+          if (status === 'Obsolète') replacementDate = `${new Date().getFullYear() + 1}-01-01`;
+          else if (!manufactureYear) replacementDate = `${new Date().getFullYear() + 2}-01-01`;
+        }
+        return { ...d, manufactureYear, age, status, replacementDate, adjustedLifespan, isCritical, criticalReason };
       });
-      t.autresEquipements.forEach(e => {
-        doc.text(`${t.id} | ${e.id} | ${e.equipmentType || 'Inconnu'} | ${e.age || 'N/A'} | ${e.status} | ${e.replacementDate || 'N/A'}`);
+
+      const autresEquipements = t.autresEquipements.map(e => {
+        const date = e.date ? new Date(e.date) : null;
+        const manufactureYear = date ? date.getFullYear() : null;
+        const age = manufactureYear != null ? (new Date().getFullYear() - manufactureYear) : null;
+        const status = age != null && age >= 30 ? 'Obsolète' : 'OK';
+        let replacementDate = e.replacementDate || null;
+        if (!replacementDate && status === 'Obsolète') replacementDate = `${new Date().getFullYear() + 1}-01-01`;
+        return { ...e, manufactureYear, age, status, replacementDate };
       });
-    });
-    try {
-      const capexImage = await captureChart('http://localhost:3000/obsolescence.html', '#gantt-table');
-      doc.addPage().fontSize(16).text("Prévision CAPEX", 50, 50);
-      doc.image(capexImage, 50, 100, { width: 500 });
-    } catch {}
-  }
 
-  if (reportType === 'all' || reportType === 'fault_level') {
-    doc.fontSize(16).text("Rapport d'Évaluation du Niveau de Défaut", 50, doc.y).moveDown();
-    doc.fontSize(12).text("Tableau | Disjoncteur | Ik (kA) | Icn (kA) | Statut").moveDown(0.5);
-    faultLevelReportData.forEach(t => {
-      t.disjoncteurs.forEach(d => {
-        const statut = d.ik && d.icn ? (d.ik > d.icn ? 'KO' : 'OK') : 'N/A';
-        doc.text(`${t.id} | ${d.id} | ${d.ik || 'N/A'} | ${d.icn || 'N/A'} | ${statut}`);
+      return { id: t.id, building: t.building, disjoncteurs, autresEquipements, isSiteMain: t.issitemain };
+    });
+
+    const faultLevelReportData = tableauxData.map(t => {
+      const disjoncteurs = t.disjoncteurs.map(d => {
+        let ik = null;
+        try {
+          if (d.ue && (d.impedance || d.section)) {
+            const ueMatch = String(d.ue).match(/[\d.]+/);
+            const ue = ueMatch ? parseFloat(ueMatch[0]) : 400;
+
+            let L = isNaN(parseFloat(d.cableLength))
+              ? (d.isPrincipal || d.isHTAFeeder) ? 0 : 20
+              : parseFloat(d.cableLength);
+            if ((d.isPrincipal || d.isHTAFeeder) && L < 0) L = 0;
+            else if (!d.isPrincipal && !d.isHTAFeeder && L < 20) L = 20;
+
+            let z;
+            if (d.impedance) {
+              z = Math.max(parseFloat(d.impedance), 0.05);
+            } else {
+              const rho = 0.0175;
+              const sectionMatch = d.section ? String(d.section).match(/[\d.]+/) : null;
+              const S = sectionMatch ? parseFloat(sectionMatch[0]) : getRecommendedSection(d.in);
+              const Z_cable = (rho * L * 2) / S;
+              const Z_network = 0.01;
+              z = Math.max(Z_cable + Z_network, 0.05);
+            }
+            ik = (ue / (Math.sqrt(3) * z)) / 1000;
+            if (ik > 100) ik = null;
+          }
+        } catch {}
+        return { ...d, ik, icn: normalizeIcn(d.icn), tableauId: t.id };
       });
+
+      return { id: t.id, building: t.building, disjoncteurs, isSiteMain: t.issitemain };
     });
-    try {
-      const bubbleImage = await captureChart('http://localhost:3000/fault_level_assessment.html', '#bubble-chart');
-      doc.addPage().fontSize(16).text("Graphique Ik vs Icn", 50, 50);
-      doc.image(bubbleImage, 50, 100, { width: 500 });
-    } catch {}
-  }
 
-  if (reportType === 'all' || reportType === 'safety') {
-    doc.fontSize(16).text("Rapport de Sécurité Électrique", 50, doc.y).moveDown();
-    doc.fontSize(12).text("Type | Description | Bâtiment | Tableau | Statut").moveDown(0.5);
-    safetyReportData.forEach(a => {
-      doc.text(`${a.type} | ${a.description} | ${a.building} | ${a.tableau || 'N/A'} | ${a.status}`);
+    // Safety
+    let safetyReportData = [];
+    if (reportType === 'all' || reportType === 'safety') {
+      const s = await client.query('SELECT * FROM safety_actions');
+      safetyReportData = s.rows.map(r => ({
+        id: r.id,
+        type: r.type,
+        description: r.description,
+        building: r.building,
+        tableau: r.tableau_id,
+        status: r.status,
+        date: r.date ? r.date.toISOString().split('T')[0] : null
+      }));
+    }
+
+    // Génère le PDF
+    await buildReportsPDF({
+      res,
+      reportType,
+      tableauxData,
+      selectivityReportData,
+      obsolescenceReportData,
+      faultLevelReportData,
+      safetyReportData
     });
-    try {
-      const statusImage = await captureChart('http://localhost:3000/electrical_safety_program.html', '#status-chart');
-      doc.addPage().fontSize(16).text("Répartition des Statuts", 50, 50);
-      doc.image(statusImage, 50, 100, { width: 500 });
-    } catch {}
+  } catch (e) {
+    res.status(500).json({ error: 'Erreur lors de la génération du rapport: ' + e.message });
+  } finally {
+    if (client) client.release();
   }
+});
 
-  doc.end();
-}
-
-module.exports = { buildReportsPDF };
+module.exports = router;
