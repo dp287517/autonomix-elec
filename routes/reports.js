@@ -104,5 +104,4 @@ async function buildReportsPDF({
   doc.end();
 }
 
-module.exports = router;
-
+module.exports = { buildReportsPDF };
