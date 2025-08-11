@@ -1,756 +1,340 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Contrôle ATEX - Équipements</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ATEX — Gestion des équipements</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    body { background-color: #f8f9fa; font-family: 'Poppins', sans-serif; color: #333; }
-    .card { margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 15px; background: #fff; }
-    .risk-low { color: #28a745; } .risk-med { color: #ffc107; } .risk-high { color: #dc3545; }
-    .nav-tabs .nav-link { border-radius: 10px 10px 0 0; }
-    .small-muted { font-size: 12px; color: #6c757d; }
-    .last-photo { max-width: 50px; border-radius: 5px; cursor: zoom-in; }
-    .toast-container { position: fixed; top: 16px; right: 16px; z-index: 2000; }
+    :root { --brand:#0d6efd; --bg:#0b1320; --card:#121a2a; --muted:#8aa4c0; }
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:#eaf2ff}
+    .navbar{background:linear-gradient(180deg,rgba(13,110,253,.12),rgba(13,110,253,0))}
+    .brand{font-weight:700;letter-spacing:.3px}
+    .btn-brand{background:var(--brand);border:none}
+    .btn-brand:hover{filter:brightness(1.08)}
+    .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,.12)}
+    .card{background:var(--card);border:1px solid rgba(255,255,255,.08)}
+    .table thead th{color:#cfe1ff;border-bottom:1px solid rgba(255,255,255,.12)}
+    .table td,.table th{color:#eaf2ff;border-bottom-color:rgba(255,255,255,.06)}
+    .badge-soft{background:rgba(13,110,253,.15);color:#b8d2ff;border:1px solid rgba(13,110,253,.25)}
+    .badge-danger-soft{background:rgba(220,53,69,.15);color:#ffc6cd;border:1px solid rgba(220,53,69,.25)}
+    .badge-success-soft{background:rgba(25,135,84,.15);color:#c6ffea;border:1px solid rgba(25,135,84,.25)}
+    .form-label{color:#cfe1ff}
+    .form-control,.form-select{background:#0f1726;border:1px solid rgba(255,255,255,.12);color:#eaf2ff}
+    .form-control:focus,.form-select:focus{border-color:#77aaff;box-shadow:0 0 0 .2rem rgba(13,110,253,.15)}
+    .snackbar{position:fixed;right:16px;bottom:16px;z-index:1200;display:none}
+    .snackbar.show{display:block}
+    /* Drawer IA */
+    .drawer{position:fixed;top:0;right:-480px;width:480px;max-width:90vw;height:100%;background:#0f1726;border-left:1px solid rgba(255,255,255,.08);box-shadow:-24px 0 64px rgba(0,0,0,.35);transition:right .28s ease;z-index:1100;display:flex;flex-direction:column}
+    .drawer.open{right:0}
+    .drawer-header{padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:10px}
+    .drawer-body{padding:16px;overflow:auto;flex:1}
+    .drawer-footer{padding:12px;border-top:1px solid rgba(255,255,255,.08)}
+    .chat-msg{padding:10px 12px;border-radius:10px;margin-bottom:10px;max-width:85%}
+    .chat-me{background:#0d6efd1a;border:1px solid rgba(13,110,253,.35);margin-left:auto}
+    .chat-ai{background:#17233a;border:1px solid rgba(255,255,255,.08)}
+    .list-actions .btn{padding:4px 8px;font-size:.8rem}
+    .col-required:after{content:" *";color:#ff8a8a}
+    .link-like{all:unset;cursor:pointer;color:#b8d2ff;text-decoration:underline}
   </style>
 </head>
-<body class="container my-5">
-  <h1 class="text-center mb-4">Contrôle des Équipements ATEX</h1>
-  <p class="text-center lead">Outil pour inspecter, ajouter et suivre les conformités ATEX.</p>
-  <a href="atex-risk.html" class="btn btn-info mb-4"><i data-lucide="bar-chart"></i> Voir Risk Assessment Global</a>
-
-  <!-- Smart Alerts -->
-  <div id="smartAlerts" class="mb-4"></div>
-
-  <!-- Onglets -->
-  <ul class="nav nav-tabs" id="atexTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-      <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab"><i data-lucide="list"></i> Liste</button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="add-tab" data-bs-toggle="tab" data-bs-target="#add" type="button" role="tab"><i data-lucide="plus"></i> Ajouter/Éditer</button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="import-tab" data-bs-toggle="tab" data-bs-target="#import" type="button" role="tab"><i data-lucide="upload"></i> Importer</button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="chat-tab" data-bs-toggle="tab" data-bs-target="#chat" type="button" role="tab"><i data-lucide="message-circle"></i> Chat IA</button>
-    </li>
-  </ul>
-
-  <div class="tab-content" id="atexTabContent">
-
-    <!-- LISTE -->
-    <div class="tab-pane fade show active" id="list" role="tabpanel">
-      <!-- Analyses -->
-      <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h4 class="mb-0">Analyses</h4>
-          <span class="small-muted">Données /api/atex-risk-global & /api/atex-equipments</span>
-        </div>
-        <div class="card-body">
-          <div class="row g-3">
-            <div class="col-md-3">
-              <canvas id="chartConformite"></canvas>
-              <div class="text-center small-muted mt-2">Conformes / Non conformes</div>
-            </div>
-            <div class="col-md-3">
-              <canvas id="chartRisques"></canvas>
-              <div class="text-center small-muted mt-2">Distribution des risques</div>
-            </div>
-            <div class="col-md-3">
-              <canvas id="chartSecteurs"></canvas>
-              <div class="text-center small-muted mt-2">Par secteur</div>
-            </div>
-            <div class="col-md-3">
-              <canvas id="chartEcheances"></canvas>
-              <div class="text-center small-muted mt-2">Échéances (12 mois)</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Filtres -->
-      <div class="card mb-4">
-        <div class="card-header"><h4>Filtres</h4></div>
-        <div class="card-body">
-          <div class="row">
-            <div class="col-md-3"><input id="filterSecteur" class="form-control" placeholder="Secteur"></div>
-            <div class="col-md-3"><input id="filterBatiment" class="form-control" placeholder="Bâtiment"></div>
-            <div class="col-md-3">
-              <select id="filterConformite" class="form-select">
-                <option value="">Conformité (tous)</option>
-                <option value="Conforme">Conforme</option>
-                <option value="Non Conforme">Non Conforme</option>
-              </select>
-            </div>
-            <div class="col-md-3"><button id="btnApplyFilters" class="btn btn-primary"><i data-lucide="search"></i> Appliquer</button></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Liste -->
-      <div class="card">
-        <div class="card-header"><h4>Liste des Équipements</h4></div>
-        <div class="card-body">
-          <table class="table table-striped align-middle">
-            <thead>
-              <tr>
-                <th>ID</th><th>Composant</th><th>Secteur</th><th>Zone</th>
-                <th>Conformité</th><th>Risque</th>
-                <th>Dernière Insp.</th><th>Prochaine</th>
-                <th>Photo</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="equipmentsTable"></tbody>
-          </table>
-        </div>
+<body>
+  <nav class="navbar navbar-expand-lg border-bottom border-opacity-10 border-white">
+    <div class="container-fluid">
+      <span class="navbar-brand text-white brand">AutonomiX • ATEX</span>
+      <div class="d-flex gap-2 ms-auto">
+        <button id="btnRisk" class="btn btn-ghost btn-sm" onclick="openRisk()">Voir Risk assessment global</button>
+        <button id="btnSync" class="btn btn-ghost btn-sm" onclick="syncData()">Sync</button>
+        <button id="btnIA" class="btn btn-brand btn-sm" onclick="toggleDrawer(true)">Assistant IA</button>
       </div>
     </div>
+  </nav>
 
-    <!-- AJOUTER / ÉDITER -->
-    <div class="tab-pane fade" id="add" role="tabpanel">
-      <div class="card">
-        <div class="card-body">
-          <form id="equipForm" novalidate>
-            <input type="hidden" id="equipId">
-            <div class="row">
-              <div class="col-md-6">
-                <label class="form-label">Secteur de responsabilité</label>
-                <div class="input-group">
-                  <select id="secteur-input" class="form-select" required></select>
-                  <button class="btn btn-outline-secondary" type="button" id="btnAddSecteur" title="Ajouter un secteur">➕</button>
-                </div>
-                <div class="form-text">Clique sur ➕ pour créer un nouveau secteur.</div>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Bâtiment</label>
-                <input type="text" id="batiment-input" class="form-control" placeholder="Ex: B06, B11…" required>
-              </div>
-            </div>
+  <main class="container py-3">
+    <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+      <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-liste" type="button" role="tab">Liste</button></li>
+      <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-form" type="button" role="tab">Ajouter / Éditer</button></li>
+      <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-import" type="button" role="tab">Importer</button></li>
+    </ul>
 
-            <div class="row mt-3">
-              <div class="col-md-6">
-                <label class="form-label">Local</label>
-                <input type="text" id="local-input" class="form-control" placeholder="Entrer le nom ou numéro du local" required>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Type de zone (ATEX)</label>
-                <select id="zone-input" class="form-select" required>
-                  <option value="" disabled selected>— Sélectionner —</option>
-                  <option value="0">0 (Gaz)</option>
-                  <option value="1">1 (Gaz)</option>
-                  <option value="2">2 (Gaz)</option>
-                  <option value="20">20 (Poussières)</option>
-                  <option value="21">21 (Poussières)</option>
-                  <option value="22">22 (Poussières)</option>
+    <div class="tab-content pt-3">
+      <!-- Liste -->
+      <div class="tab-pane fade show active" id="tab-liste" role="tabpanel">
+        <div class="card p-3">
+          <div class="table-responsive">
+            <table class="table align-middle" id="tblEquip">
+              <thead><tr>
+                <th>#</th><th>Secteur</th><th>Bâtiment</th><th>Local</th>
+                <th>Composant</th><th>Fabricant</th><th>Type</th><th>Marquage</th>
+                <th>Risque</th><th>Conformité</th><th>Dern. insp.</th><th>Proch. insp.</th><th>Photo</th><th>Actions</th>
+              </tr></thead>
+              <tbody id="equipBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Formulaire -->
+      <div class="tab-pane fade" id="tab-form" role="tabpanel">
+        <div class="card p-3">
+          <form id="equipForm" onsubmit="saveEquipment(event)">
+            <input type="hidden" id="id" />
+            <div class="row g-3">
+              <div class="col-md-3"><label class="form-label">Secteur</label><select id="secteur" class="form-select"></select></div>
+              <div class="col-md-3"><label class="form-label">Bâtiment</label><input id="batiment" class="form-control" /></div>
+              <div class="col-md-3"><label class="form-label">Local</label><input id="local" class="form-control" /></div>
+              <div class="col-md-3"><label class="form-label col-required">Composant</label><input id="composant" class="form-control" required /></div>
+
+              <div class="col-md-3"><label class="form-label col-required">Fabricant</label><input id="fournisseur" class="form-control" required /></div>
+              <div class="col-md-3"><label class="form-label col-required">Type</label><input id="type" class="form-control" required /></div>
+              <div class="col-md-3"><label class="form-label">Identifiant</label><input id="identifiant" class="form-control" /></div>
+              <div class="col-md-3"><label class="form-label">Grade</label><select id="grade" class="form-select"><option>V</option><option>IV</option><option>III</option><option>II</option><option>I</option></select></div>
+
+              <div class="col-md-3"><label class="form-label">Fréquence (ans)</label><input id="frequence" type="number" min="1" class="form-control" value="3" /></div>
+              <div class="col-md-3"><label class="form-label">Type de zone</label>
+                <select id="zone_type" class="form-select">
+                  <option value="">—</option>
+                  <option>Zone 0</option><option>Zone 1</option><option>Zone 2</option>
+                  <option>Zone 20</option><option>Zone 21</option><option>Zone 22</option>
                 </select>
-                <div class="form-text">Utilisé pour déterminer la catégorie minimale requise.</div>
               </div>
-            </div>
+              <div class="col-md-3"><label class="form-label col-required">Marquage ATEX</label><input id="marquage_atex" class="form-control" required placeholder="Ex: Ex II 2G Ex d IIC T6 Gb"/></div>
+              <div class="col-md-3"><label class="form-label">Catégorie minimum</label><input id="categorie_minimum" class="form-control" placeholder="Ex: II 3G/3D T135°C" /></div>
 
-            <div class="row mt-3">
-              <div class="col-md-6">
-                <label class="form-label">Composant*</label>
-                <input type="text" id="composant-input" class="form-control" placeholder="Type de composant (capteur, clapet, etc.)" required>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Fabricant*</label>
-                <input type="text" id="fournisseur-input" class="form-control" placeholder="Ex: IFM, E+H, Siemens…" required>
-              </div>
-            </div>
+              <div class="col-md-3"><label class="form-label">Date dernière inspection</label><input id="last_inspection_date" type="date" class="form-control" /></div>
+              <div class="col-md-3"><label class="form-label">Photo (URL ou data:)</label><input id="photo" class="form-control" /></div>
+              <div class="col-md-6"><label class="form-label">Commentaires</label><textarea id="comments" rows="2" class="form-control"></textarea></div>
 
-            <div class="row mt-3">
-              <div class="col-md-6">
-                <label class="form-label">Type (référence fabricant)*</label>
-                <input type="text" id="type-input" class="form-control" placeholder="Entrer la référence fabricant" required>
+              <div class="col-12 d-flex gap-2">
+                <button class="btn btn-brand" type="submit">Enregistrer</button>
+                <button class="btn btn-ghost" type="button" onclick="resetForm()">Nouveau</button>
               </div>
-              <div class="col-md-6">
-                <label class="form-label">Identifiant</label>
-                <input type="text" id="identifiant-input" class="form-control" placeholder="Entrer l’identifiant du capteur par exemple">
-              </div>
-            </div>
-
-            <div class="row mt-3">
-              <div class="col-md-6">
-                <label class="form-label">Marquage ATEX*</label>
-                <input type="text" id="marquage_atex-input" class="form-control" placeholder="Ex : II 3G IIA T4" required>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Date de dernière inspection</label>
-                <input type="date" id="last-inspection-input" class="form-control">
-                <div class="form-text">Si renseignée, la prochaine inspection sera recalculée.</div>
-              </div>
-            </div>
-
-            <!-- Photo + Commentaires -->
-            <div class="row mt-3">
-              <div class="col-md-6">
-                <label class="form-label">Photo / Document</label>
-                <input type="file" id="photo-input" class="form-control" accept="image/*,.pdf">
-                <div class="form-text">Ajoutez une photo et/ou un document.</div>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Commentaires</label>
-                <textarea id="comments-input" class="form-control" placeholder="Note interne, contexte, etc."></textarea>
-              </div>
-            </div>
-
-            <div class="mt-4 d-flex gap-2">
-              <button type="button" id="btnSave" class="btn btn-success"><i data-lucide="save"></i> Enregistrer</button>
-              <button type="button" id="btnClear" class="btn btn-secondary"><i data-lucide="x"></i> Annuler</button>
             </div>
           </form>
         </div>
       </div>
-    </div>
 
-    <!-- IMPORTER -->
-    <div class="tab-pane fade" id="import" role="tabpanel">
-      <div class="card">
-        <div class="card-body">
-          <p><strong>Colonnes minimales requises</strong> (dans le bon ordre) pour que l’import fonctionne :</p>
-          <div class="mb-2">
-            <span class="badge bg-light text-dark">secteur</span>
-            <span class="badge bg-light text-dark">batiment</span>
-            <span class="badge bg-light text-dark">local</span>
-            <span class="badge bg-light text-dark">composant</span>
-            <span class="badge bg-light text-dark">fournisseur</span>
-            <span class="badge bg-light text-dark">type</span>
-            <span class="badge bg-light text-dark">identifiant</span>
-            <span class="badge bg-light text-dark">type_de_zone</span>
-            <span class="badge bg-light text-dark">marquage_atex</span>
-            <span class="badge bg-light text-dark">last_inspection_date</span>
+      <!-- Importer -->
+      <div class="tab-pane fade" id="tab-import" role="tabpanel">
+        <div class="card p-3">
+          <p class="text-muted">Importer depuis Excel/CSV. Colonnes supportées : <code>secteur, batiment, local, composant, fournisseur, type, identifiant, marquage_atex, categorie_minimum, zone_type, last_inspection_date</code>.</p>
+          <div class="d-flex gap-2 align-items-center">
+            <input type="file" id="fileImport" class="form-control" accept=".csv,.xlsx" style="max-width:360px">
+            <button class="btn btn-brand" onclick="importFile()">Importer</button>
           </div>
-          <p class="small-muted">Le modèle fourni aligne ces champs sur l’ordre attendu par l’API d’import Excel.</p>
-
-          <div class="mb-3 d-flex gap-2">
-            <button id="btnTemplateCSV" class="btn btn-outline-secondary btn-sm">Télécharger modèle CSV</button>
-            <button id="btnTemplateXLSX" class="btn btn-outline-secondary btn-sm">Télécharger modèle XLSX</button>
-          </div>
-
-          <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" class="form-control mb-2">
-          <button id="btnImport" class="btn btn-primary">
-            <i data-lucide="upload"></i> Importer
-          </button>
         </div>
       </div>
     </div>
+  </main>
 
-    <!-- CHAT IA -->
-    <div class="tab-pane fade" id="chat" role="tabpanel">
-      <div class="card">
-        <div class="card-body">
-          <div class="mb-2 small-muted">Historique conservé localement. Identité : “AutonomiX IA”.</div>
-          <textarea id="chatInput" class="form-control" placeholder="Posez une question sur l'ATEX..."></textarea>
-          <div class="d-flex gap-2 mt-2">
-            <button class="btn btn-primary" id="btnSendChat"><i data-lucide="send"></i> Envoyer</button>
-            <button class="btn btn-outline-secondary" id="btnClearChat">Effacer l’historique</button>
-          </div>
-          <div id="chatResponse" class="mt-3" style="white-space:pre-wrap"></div>
-        </div>
+  <!-- Drawer IA -->
+  <div id="iaDrawer" class="drawer" aria-hidden="true">
+    <div class="drawer-header">
+      <strong>AutonomiX IA</strong>
+      <span id="iaEquipTitle" class="ms-2 small text-secondary"></span>
+      <button class="btn btn-sm btn-ghost ms-auto" onclick="toggleDrawer(false)">Fermer</button>
+    </div>
+    <div class="drawer-body">
+      <div id="iaEquipBadge" class="mb-2"></div>
+      <div id="chatBox"></div>
+    </div>
+    <div class="drawer-footer">
+      <div class="d-flex gap-2">
+        <input id="chatInput" class="form-control" placeholder="Demandez de l'aide… (ex: pourquoi non conforme ?)" onkeydown="if(event.key==='Enter'){sendChat()}" />
+        <button class="btn btn-brand" onclick="sendChat()">Envoyer</button>
       </div>
     </div>
   </div>
 
-  <!-- Bouton Sync -->
-  <div class="text-center mt-3">
-    <button id="btnSync" class="btn btn-info"><i data-lucide="refresh-cw"></i> Sync</button>
+  <!-- Snackbar -->
+  <div id="snackbar" class="snackbar">
+    <div class="card p-3">✅ Enregistré</div>
   </div>
-
-  <!-- Modal Photo -->
-  <div class="modal fade" id="photoModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Photo</h5>
-          <button class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body text-center">
-          <img id="photoModalImg" src="" alt="Photo équipement" class="img-fluid">
-        </div>
-        <div class="modal-footer">
-          <a id="photoDownload" class="btn btn-outline-secondary" download>Télécharger</a>
-          <button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Toasts -->
-  <div class="toast-container" id="toasts"></div>
 
   <script>
-    if (window.lucide) { window.lucide.createIcons(); }
+    const api = (p, opt={}) => fetch('/api'+p, {headers:{'Content-Type':'application/json'}, credentials:'same-origin', ...opt}).then(r=>{if(!r.ok) throw new Error('HTTP '+r.status); return r.json()});
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => Array.from(document.querySelectorAll(sel));
+    const fmtDate = v => { if(!v) return ''; const d = new Date(v); if(Number.isNaN(d)) return ''; return d.toLocaleDateString('fr-FR'); };
+    const toast = (msg='Enregistré') => { $('#snackbar').firstElementChild.textContent=msg; $('#snackbar').classList.add('show'); setTimeout(()=>$('#snackbar').classList.remove('show'), 1600)};
 
-    // API endpoints (relatifs)
-    const API = {
-      secteurs: '/api/atex-secteurs',
-      equipments: '/api/atex-equipments',
-      equipment: (id) => '/api/atex-equipments/' + id,
-      importExcel: '/api/atex-import-excel',
-      analysis: '/api/atex-analysis',
-      riskGlobal: '/api/atex-risk-global',
-      chat: '/api/atex-chat',
-      inspect: '/api/atex-inspect'
-    };
-
-    // État
+    let secteurs = [];
     let equipments = [];
-    let charts = {};
-    const toastsEl = document.getElementById('toasts');
+    let selectedId = null;
 
-    // Helpers UI
-    function showToast(message, variant='primary') {
-      const id = 't' + Date.now();
-      const html = `
-        <div id="${id}" class="toast align-items-center text-bg-${variant} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true">
-          <div class="d-flex">
-            <div class="toast-body">${message}</div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-          </div>
-        </div>`;
-      toastsEl.insertAdjacentHTML('beforeend', html);
-      const t = new bootstrap.Toast(document.getElementById(id), { delay: 3000 });
-      t.show();
-      setTimeout(() => { document.getElementById(id)?.remove(); }, 3500);
-    }
-
-    function fmtDate(d) {
-      if (!d) return 'N/A';
-      const date = new Date(d);
-      if (isNaN(date)) return d; // déjà formaté
-      const dd = String(date.getDate()).padStart(2,'0');
-      const mm = String(date.getMonth()+1).padStart(2,'0');
-      const yyyy = date.getFullYear();
-      return `${dd}-${mm}-${yyyy}`;
-    }
-
-    // Démarrage
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('btnApplyFilters').addEventListener('click', applyFilters);
-      document.getElementById('btnSync').addEventListener('click', syncData);
-      document.getElementById('btnAddSecteur').addEventListener('click', openModalSecteur);
-      document.getElementById('btnSave').addEventListener('click', saveEquipment);
-      document.getElementById('btnClear').addEventListener('click', clearForm);
-      document.getElementById('btnTemplateCSV').addEventListener('click', downloadTemplateCSV);
-      document.getElementById('btnTemplateXLSX').addEventListener('click', downloadTemplateXLSX);
-      document.getElementById('btnImport').addEventListener('click', importExcel);
-      document.getElementById('btnSendChat').addEventListener('click', sendChat);
-      document.getElementById('btnClearChat').addEventListener('click', clearChatHistory);
-
-      loadSecteurs();
-      loadEquipments().then(loadStatsAndBuildCharts);
-      loadSmartAlerts();
+    // Init
+    document.addEventListener('DOMContentLoaded', async ()=>{
+      await loadSecteurs();
+      await loadEquipments();
     });
 
-    /* ======= LISTE / ANALYSES ======= */
-    async function loadSmartAlerts() {
+    async function loadSecteurs(){
       try {
-        const r = await fetch(API.analysis);
-        const alerts = await r.json();
-        document.getElementById('smartAlerts').innerHTML =
-          alerts.map(a => `<div class="alert alert-light border">${a.text}</div>`).join('');
-      } catch(e){ console.error('Erreur loadSmartAlerts:', e); }
+        const data = await api('/atex-secteurs');
+        secteurs = (data?.length? data: data?.data)||[];
+        const s = $('#secteur'); s.innerHTML = '<option value="">—</option>' + secteurs.map(x=>`<option>${x.name||x}</option>`).join('');
+      } catch(e){ console.error('Secteurs', e); }
     }
 
-    async function loadEquipments() {
+    async function loadEquipments(){
+      const body = $('#equipBody'); body.innerHTML = '<tr><td colspan="14" class="text-center text-muted">Chargement…</td></tr>';
       try {
-        const response = await fetch(API.equipments);
-        if (!response.ok) throw new Error('Erreur chargement liste');
-        equipments = await response.json();
+        const list = await api('/atex-equipments');
+        equipments = (Array.isArray(list)? list: list?.data)||[];
         renderTable();
-      } catch (error) {
-        console.error('Erreur loadEquipments:', error);
-        showToast('Erreur chargement liste: ' + error.message, 'danger');
-      }
+      } catch(e){ console.error('Equipments', e); body.innerHTML = '<tr><td colspan="14" class="text-center text-danger">Erreur de chargement</td></tr>'; }
     }
 
-    function renderTable(list = equipments) {
-      const tbody = document.getElementById('equipmentsTable');
-      tbody.innerHTML = '';
-      list.forEach(eq => {
-        const riskClass = (typeof eq.risque === 'number' && eq.risque <= 1) ? 'risk-low' : ((eq.risque <= 3) ? 'risk-med' : 'risk-high');
-        const zone = eq.exterieur || eq.interieur || 'N/A';
-        const isNonConf = (eq.conformite || '').toLowerCase().includes('non');
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${eq.id ?? ''}</td>
-          <td>${eq.composant || ''}</td>
-          <td>${eq.secteur || ''}</td>
-          <td>${zone}</td>
-          <td>${eq.conformite || ''}</td>
-          <td class="${riskClass}">${eq.risque ?? ''}</td>
-          <td>${fmtDate(eq.last_inspection_date)}</td>
-          <td>${fmtDate(eq.next_inspection_date)}</td>
-          <td>
-            ${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" onclick="openPhoto('${encodeURIComponent(eq.photo)}')">` : '<span class="text-muted">—</span>'}
+    function renderTable(){
+      const body = $('#equipBody');
+      if(!equipments.length){ body.innerHTML = '<tr><td colspan="14" class="text-center text-muted">Aucun équipement</td></tr>'; return }
+      body.innerHTML = equipments.map(row=>{
+        const conf = (row.conformite||'').toLowerCase();
+        const badge = conf.includes('non') ? '<span class="badge badge-danger-soft rounded-pill">Non conforme</span>' : '<span class="badge badge-success-soft rounded-pill">Conforme</span>';
+        const photoCell = renderPhotoCell(row.photo);
+        return `<tr>
+          <td>${row.id}</td>
+          <td>${row.secteur||''}</td>
+          <td>${row.batiment||''}</td>
+          <td>${row.local||''}</td>
+          <td>${row.composant||''}</td>
+          <td>${row.fournisseur||''}</td>
+          <td>${row.type||''}</td>
+          <td>${row.marquage_atex||''}</td>
+          <td>${row.risque ?? ''}</td>
+          <td>${badge}</td>
+          <td>${fmtDate(row.last_inspection_date)}</td>
+          <td>${fmtDate(row.next_inspection_date)}</td>
+          <td>${photoCell}</td>
+          <td class="list-actions">
+            <button class="btn btn-sm btn-ghost" onclick="editRow(${row.id})">Éditer</button>
+            <button class="btn btn-sm btn-ghost" onclick="openIA(${row.id})">Demander IA</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="delRow(${row.id})">Supprimer</button>
           </td>
-          <td class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(${eq.id})">Éditer</button>
-            <button class="btn btn-sm btn-outline-danger" onclick="deleteEquipment(${eq.id})">Supprimer</button>
-            <button class="btn btn-sm ${isNonConf ? 'btn-warning' : 'btn-outline-secondary'}" onclick="askAIForFix(${eq.id})">
-              <i data-lucide="sparkles"></i> Aide AutonomiX IA
-            </button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-      if (window.lucide) window.lucide.createIcons();
+        </tr>`
+      }).join('');
     }
 
-    function applyFilters() {
-      const s = (document.getElementById('filterSecteur').value || '').toLowerCase();
-      const b = (document.getElementById('filterBatiment').value || '').toLowerCase();
-      const c = document.getElementById('filterConformite').value;
-      const filtered = equipments.filter(eq =>
-        (!s || (eq.secteur||'').toLowerCase().includes(s)) &&
-        (!b || (eq.batiment||'').toLowerCase().includes(b)) &&
-        (!c || (eq.conformite||'') === c)
-      );
-      renderTable(filtered);
-    }
-
-    async function loadStatsAndBuildCharts(){
-      try{
-        const r = await fetch(API.riskGlobal);
-        const { stats } = await r.json();
-        // conformité
-        buildOrUpdateChart('chartConformite', 'doughnut', {
-          labels: ['Conformes','Non conformes'],
-          datasets: [{ data: [stats?.conformes||0, stats?.non_conformes||0] }]
-        });
-        // risques 0..5
-        const buckets = [0,1,2,3,4,5].map(()=>0);
-        equipments.forEach(e => { if (typeof e.risque === 'number' && e.risque>=0 && e.risque<=5) buckets[e.risque]++; });
-        buildOrUpdateChart('chartRisques', 'bar', {
-          labels: ['0','1','2','3','4','5'],
-          datasets: [{ label:'Nb', data: buckets }]
-        }, { scales: { y: { beginAtZero: true } }});
-        // secteurs
-        const bySecteur = {};
-        equipments.forEach(e => { const k = e.secteur || 'N/A'; bySecteur[k] = (bySecteur[k]||0)+1; });
-        buildOrUpdateChart('chartSecteurs', 'bar', {
-          labels: Object.keys(bySecteur),
-          datasets: [{ label:'Équipements', data: Object.values(bySecteur) }]
-        }, { indexAxis: 'y', scales:{ x:{ beginAtZero: true }}});
-        // échéances
-        const months = new Array(12).fill(0);
-        const now = new Date();
-        equipments.forEach(e => {
-          if (!e.next_inspection_date) return;
-          const d = new Date(e.next_inspection_date);
-          const diffM = (d.getFullYear()-now.getFullYear())*12 + (d.getMonth()-now.getMonth());
-          if (diffM>=0 && diffM<12) months[diffM]++;
-        });
-        const labels = [...Array(12)].map((_,i)=>{
-          const dt = new Date(now.getFullYear(), now.getMonth()+i, 1);
-          return dt.toLocaleString('fr-FR', { month:'short' });
-        });
-        buildOrUpdateChart('chartEcheances', 'line', {
-          labels, datasets: [{ label:'Contrôles à venir', data: months, fill:false }]
-        });
-      } catch(e){ console.error('charts', e); }
-    }
-    function buildOrUpdateChart(id, type, data, options={}){
-      const ctx = document.getElementById(id);
-      if (!ctx) return;
-      charts[id]?.destroy?.();
-      charts[id] = new Chart(ctx, { type, data, options });
-    }
-
-    /* ======= PHOTO ======= */
-    function openPhoto(encodedSrc){
-      const src = decodeURIComponent(encodedSrc);
-      const img = document.getElementById('photoModalImg');
-      const a = document.getElementById('photoDownload');
-      img.src = src; a.href = src;
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('photoModal')).show();
-    }
-    window.openPhoto = openPhoto; // pour onclick HTML
-
-    /* ======= SECTEURS ======= */
-    async function loadSecteurs() {
-      try {
-        const response = await fetch(API.secteurs);
-        const secteurs = await response.json();
-        const select = document.getElementById('secteur-input');
-        select.innerHTML = '<option value="" disabled selected>— Sélectionner —</option>';
-        secteurs.forEach(s => {
-          const option = document.createElement('option');
-          option.value = s.name; option.text = s.name;
-          select.appendChild(option);
-        });
-      } catch (error) {
-        console.error('Erreur loadSecteur:', error);
+    function renderPhotoCell(photo){
+      if(!photo) return '';
+      if(photo.startsWith('data:application/pdf')||photo.endsWith('.pdf')){
+        return `<button class="btn btn-ghost btn-sm" onclick=\"openPhoto('${encodeURIComponent(photo)}')\">Voir PDF</button>`;
       }
-    }
-    function openModalSecteur(){
-      const modalHtml = `
-      <div class="modal fade" id="modalSecteur" tabindex="-1">
-        <div class="modal-dialog"><div class="modal-content">
-          <div class="modal-header"><h5 class="modal-title">Nouveau secteur</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-          <div class="modal-body">
-            <input id="newSecteurName" class="form-control" placeholder="Nom du secteur">
-            <div id="secteurSaveMsg" class="small-muted mt-2"></div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-            <button class="btn btn-primary" id="saveSecteurBtn">Enregistrer</button>
-          </div>
-        </div></div>
-      </div>`;
-      document.body.insertAdjacentHTML('beforeend', modalHtml);
-      const modalEl = document.getElementById('modalSecteur');
-      const modal = new bootstrap.Modal(modalEl);
-      modal.show();
-      modalEl.querySelector('#saveSecteurBtn').addEventListener('click', async ()=>{
-        const name = (modalEl.querySelector('#newSecteurName').value || '').trim();
-        if (!name) { modalEl.querySelector('#secteurSaveMsg').textContent = 'Nom requis.'; return; }
-        try{
-          const r = await fetch(API.secteurs, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name }) });
-          if (!r.ok) throw new Error('Erreur API');
-          await loadSecteurs();
-          document.getElementById('secteur-input').value = name;
-          showToast('Secteur enregistré', 'success');
-          modal.hide(); modalEl.remove();
-        } catch(e){ modalEl.querySelector('#secteurSaveMsg').textContent = 'Erreur: '+(e.message||e); }
-      }, { once:true });
-      modalEl.addEventListener('hidden.bs.modal', ()=> modalEl.remove(), { once:true });
+      return `<button class="btn btn-ghost btn-sm" onclick=\"openPhoto('${encodeURIComponent(photo)}')\">Voir</button>`;
     }
 
-    /* ======= FORMULAIRE ======= */
-    function clearForm() {
-      document.getElementById('equipId').value = '';
-      ['secteur-input','batiment-input','local-input','zone-input','composant-input','fournisseur-input','type-input','identifiant-input','marquage_atex-input','photo-input','comments-input','last-inspection-input'].forEach(id=>{
-        const el = document.getElementById(id);
-        if (!el) return;
-        if (el.type === 'file') el.value = '';
-        else el.value = '';
-      });
+    function openPhoto(src){
+      const url = decodeURIComponent(src);
+      const w = window.open();
+      w.document.write(`<iframe src="${url}" style="border:0;width:100%;height:100%"></iframe>`);
     }
 
-    async function saveEquipment() {
-      // Validation minimale
-      const requiredIds = ['secteur-input','local-input','zone-input','composant-input','fournisseur-input','type-input','marquage_atex-input'];
-      const missing = requiredIds.filter(id => !document.getElementById(id).value);
-      if (missing.length) { showToast('Champs manquants : ' + missing.join(', '), 'warning'); return; }
+    function editRow(id){
+      const it = equipments.find(x=>x.id===id); if(!it) return;
+      selectedId = id;
+      $('#id').value = id;
+      $('#secteur').value = it.secteur || '';
+      $('#batiment').value = it.batiment || '';
+      $('#local').value = it.local || '';
+      $('#composant').value = it.composant || '';
+      $('#fournisseur').value = it.fournisseur || '';
+      $('#type').value = it.type || '';
+      $('#identifiant').value = it.identifiant || '';
+      $('#grade').value = it.grade || 'V';
+      $('#frequence').value = it.frequence || 3;
+      $('#zone_type').value = it.zone_type || '';
+      $('#marquage_atex').value = it.marquage_atex || '';
+      $('#categorie_minimum').value = it.categorie_minimum || '';
+      $('#last_inspection_date').value = it.last_inspection_date? String(it.last_inspection_date).slice(0,10): '';
+      $('#photo').value = it.photo || '';
+      $('#comments').value = it.comments || '';
+      new bootstrap.Tab(document.querySelector('[data-bs-target="#tab-form"]').classList.contains('active')? document.querySelector('[data-bs-target="#tab-form"]'):document.querySelector('[data-bs-target="#tab-form"]').parentElement).show();
+      new bootstrap.Tab(document.querySelector('[data-bs-target="#tab-form"]').parentElement).show?.();
+      bootstrap.Tab.getOrCreateInstance(document.querySelector('[data-bs-target="#tab-form"]').closest('button')).show?.();
+      const btn = document.querySelector('[data-bs-target="#tab-form"]'); if(btn) bootstrap.Tab.getOrCreateInstance(btn).show();
+    }
 
-      const id = document.getElementById('equipId').value || null;
-      const zone = document.getElementById('zone-input').value;
-      const data = {
-        secteur: document.getElementById('secteur-input').value,
-        batiment: document.getElementById('batiment-input').value,
-        local: document.getElementById('local-input').value,
-        composant: document.getElementById('composant-input').value,
-        fournisseur: document.getElementById('fournisseur-input').value,
-        type: document.getElementById('type-input').value,
-        identifiant: document.getElementById('identifiant-input').value,
-        marquage_atex: document.getElementById('marquage_atex-input').value,
-        comments: document.getElementById('comments-input').value,
-        exterieur: zone,           // ⬅️ on mappe Type de zone -> exterieur pour le calcul backend
-        interieur: '',             // (optionnel)
-        photo: await getBase64(document.getElementById('photo-input').files[0])
+    function resetForm(){
+      selectedId = null; $('#equipForm').reset(); $('#id').value='';
+    }
+
+    async function saveEquipment(ev){
+      ev?.preventDefault();
+      // validation min
+      const requiredIds = ['composant','fournisseur','type','marquage_atex'];
+      for(const id of requiredIds){ if(!$('#'+id).value.trim()){ $('#'+id).focus(); return toast('Merci de remplir les champs obligatoires'); } }
+
+      const payload = {
+        secteur: $('#secteur').value.trim(), batiment: $('#batiment').value.trim(), local: $('#local').value.trim(),
+        composant: $('#composant').value.trim(), fournisseur: $('#fournisseur').value.trim(), type: $('#type').value.trim(), identifiant: $('#identifiant').value.trim(),
+        grade: $('#grade').value, frequence: +($('#frequence').value||3),
+        zone_type: $('#zone_type').value || null,
+        marquage_atex: $('#marquage_atex').value.trim(), categorie_minimum: $('#categorie_minimum').value.trim(),
+        last_inspection_date: $('#last_inspection_date').value||null,
+        photo: $('#photo').value.trim(), comments: $('#comments').value.trim()
       };
-
-      const method = id ? 'PUT' : 'POST';
-      const url = id ? API.equipment(id) : API.equipments;
-
-      try {
-        const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-        if (!response.ok) throw new Error('Erreur enregistrement');
-        const saved = await response.json();
-
-        // si date de dernière inspection renseignée -> /api/atex-inspect
-        const last = document.getElementById('last-inspection-input').value;
-        if (last) {
-          await fetch(API.inspect, {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ equipment_id: saved.id, status: 'done', inspection_date: last })
-          });
-        }
-
-        showToast('Équipement sauvegardé.', 'success');
-        await loadEquipments(); await loadStatsAndBuildCharts();
-        clearForm();
-        // revenir à la liste
-        document.getElementById('list-tab').click();
-      } catch (error) {
-        showToast('Erreur: ' + error.message, 'danger');
-      }
-    }
-
-    function getBase64(file) {
-      return new Promise((resolve, reject) => {
-        if (!file) return resolve(null);
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = err => reject(err);
-      });
-    }
-
-    async function editEquipment(id) {
-      try {
-        const response = await fetch(API.equipment(id));
-        if (!response.ok) throw new Error('Erreur chargement équipement');
-        const eq = await response.json();
-        document.getElementById('equipId').value = eq.id;
-        document.getElementById('secteur-input').value = eq.secteur || '';
-        document.getElementById('batiment-input').value = eq.batiment || '';
-        document.getElementById('local-input').value = eq.local || '';
-        document.getElementById('zone-input').value = (eq.exterieur || eq.interieur || '');
-        document.getElementById('composant-input').value = eq.composant || '';
-        document.getElementById('fournisseur-input').value = eq.fournisseur || '';
-        document.getElementById('type-input').value = eq.type || '';
-        document.getElementById('identifiant-input').value = eq.identifiant || '';
-        document.getElementById('marquage_atex-input').value = eq.marquage_atex || '';
-        document.getElementById('comments-input').value = eq.comments || '';
-        document.getElementById('last-inspection-input').value = eq.last_inspection_date ? new Date(eq.last_inspection_date).toISOString().slice(0,10) : '';
-        document.getElementById('add-tab').click();
-      } catch (error) {
-        showToast('Erreur édition: ' + error.message, 'danger');
-      }
-    }
-
-    async function deleteEquipment(id) {
-      if (!confirm('Confirmer suppression ?')) return;
-      try {
-        const response = await fetch(API.equipment(id), { method: 'DELETE' });
-        if (!response.ok) throw new Error('Erreur suppression');
-        showToast('Supprimé !', 'success');
-        await loadEquipments(); await loadStatsAndBuildCharts();
-      } catch (error) {
-        showToast('Erreur: ' + error.message, 'danger');
-      }
-    }
-
-    function syncData() {
-      loadEquipments().then(loadStatsAndBuildCharts);
-      showToast('Données synchronisées !', 'info');
-    }
-
-    /* ======= IMPORT ======= */
-    function downloadTemplateCSV(){
-      // Ordre aligné avec l’API d’import Excel (indices utilisés côté serveur)
-      // [risque, secteur, batiment, local, composant, fournisseur, type, identifiant,
-      //  interieur, exterieur, categorie_minimum, marquage_atex, photo, conformite, comments, last_inspection_date]
-      const head = ['risque','secteur','batiment','local','composant','fournisseur','type','identifiant','interieur','exterieur','categorie_minimum','marquage_atex','photo','conformite','comments','last_inspection_date'];
-      const rows = [
-        ['', 'Utilities','B06','L-203','Capteur','IFM','PN7092','CAPT-0123','', '22','', 'II 3G IIA T4','', '', '', '2025-06-01'],
-        ['', 'Maintenance','B11','Salle compresseurs','Clapet','Siemens','3RW40 11-1BB14','CLAP-0007','', '21','', 'II 3G IIB T3','', '', 'à contrôler', '2025-04-10']
-      ];
-      const csv = [head.join(','), ...rows.map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(','))].join('\n');
-      const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob); const a = document.createElement('a');
-      a.href = url; a.download = 'modele-atex.csv'; a.click();
-      setTimeout(()=> URL.revokeObjectURL(url), 500);
-      showToast('Modèle CSV téléchargé', 'success');
-    }
-    function downloadTemplateXLSX(){ downloadTemplateCSV(); }
-
-    async function importExcel() {
-      const file = document.getElementById('excelFile').files[0];
-      if (!file) return showToast('Sélectionnez un fichier (CSV ou Excel)', 'warning');
-      const formData = new FormData();
-      formData.append('excel', file);
-      try {
-        const response = await fetch(API.importExcel, { method: 'POST', body: formData });
-        if (!response.ok) throw new Error('Erreur import');
-        showToast('Import réussi !', 'success');
-        await loadEquipments(); await loadStatsAndBuildCharts();
-      } catch (error) {
-        showToast('Erreur import: ' + error.message, 'danger');
-      }
-    }
-
-    /* ======= CHAT IA ======= */
-    const CHAT_KEY = 'atexChatHistory';
-    function getChatHistory(){ try{ return JSON.parse(localStorage.getItem(CHAT_KEY) || '[]'); }catch{return []} }
-    function setChatHistory(h){ localStorage.setItem(CHAT_KEY, JSON.stringify(h)); }
-    function clearChatHistory(){ setChatHistory([]); document.getElementById('chatResponse').textContent = ''; showToast('Historique effacé', 'info'); }
-
-    function isIdentityQuestion(s){
-      const t = s.toLowerCase();
-      return t.includes('qui es-tu') || t.includes('tu es qui') || t.includes('à qui je parle') || t.includes('qui êtes-vous');
-    }
-
-    async function sendChat() {
-      const input = (document.getElementById('chatInput').value || '').trim();
-      if (!input) return showToast('Entrez une question', 'warning');
-
-      // identité: réponse locale
-      if (isIdentityQuestion(input)) {
-        const reply = "Salut, je suis AutonomiX IA — ton assistant pour l’ATEX, la maintenance et les analyses. Je peux t’aider à comprendre les marquages, la conformité, et à structurer les actions correctives.";
-        appendChat({ role:'user', content: input });
-        appendChat({ role:'assistant', content: reply });
-        renderChat();
-        return;
-      }
-
-      const history = getChatHistory();
-      appendChat({ role:'user', content: input });
-
-      try {
-        const r = await fetch(API.chat, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: input, history })
-        });
-        const data = await r.json();
-        const text = data?.response || data?.answer || JSON.stringify(data);
-        appendChat({ role:'assistant', content: text || '(réponse vide)' });
-        renderChat();
-      } catch(e){
-        appendChat({ role:'assistant', content: 'Erreur : ' + (e.message||e) });
-        renderChat();
-      }
-    }
-
-    function appendChat(msg){
-      const h = getChatHistory(); h.push(msg); setChatHistory(h);
-    }
-
-    function renderChat(){
-      const h = getChatHistory();
-      const out = h.map(m => (m.role==='user'?'Vous':'AutonomiX IA') + ' : ' + (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n\n');
-      document.getElementById('chatResponse').textContent = out;
-      document.getElementById('chatInput').value = '';
-    }
-
-    // Aide IA depuis la liste (non conformité)
-    async function askAIForFix(id){
       try{
-        const r = await fetch(API.equipment(id)); if (!r.ok) throw new Error('Équipement introuvable');
-        const eq = await r.json();
-        const payload = {
-          equipment: {
-            composant: eq.composant, risque: eq.risque, next_inspection_date: eq.next_inspection_date
-          },
-          history: getChatHistory()
-        };
-        const resp = await fetch(API.chat, {
-          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
-        });
-        const data = await resp.json();
-        appendChat({ role:'assistant', content: (data?.response || data?.answer || JSON.stringify(data)) });
-        renderChat();
-        // basculer sur l’onglet chat
-        document.getElementById('chat-tab').click();
-        showToast('Analyse AutonomiX IA prête dans l’onglet Chat', 'info');
-      } catch(e){
-        showToast('Erreur IA: ' + (e.message||e), 'danger');
-      }
+        const method = selectedId? 'PUT':'POST';
+        const url = selectedId? `/atex-equipments/${selectedId}`: '/atex-equipments';
+        const res = await api(url,{method, body:JSON.stringify(payload)});
+        toast('Équipement enregistré');
+        await loadEquipments();
+        if(res?.id){ selectedId = res.id; $('#id').value = res.id; }
+      }catch(e){ console.error(e); toast('Erreur enregistrement'); }
     }
-    window.askAIForFix = askAIForFix; // pour onclick
 
+    async function delRow(id){
+      if(!confirm('Supprimer définitivement cet équipement ?')) return;
+      try{ await api(`/atex-equipments/${id}`,{method:'DELETE'}); await loadEquipments(); }catch(e){ console.error(e); }
+    }
+
+    function openRisk(){ window.open('atex-risk.html', '_blank'); }
+    function syncData(){ loadEquipments(); toast('Données synchronisées'); }
+
+    /* ===== Assistant IA (drawer) ===== */
+    function toggleDrawer(open){ $('#iaDrawer').classList.toggle('open', !!open); if(open){ renderChatHeader(); loadChatHistory(); } }
+    function openIA(id){ editRow(id); toggleDrawer(true); sendChatPreset('Peux-tu analyser cet équipement et me dire si quelque chose est non conforme ?'); }
+
+    function renderChatHeader(){
+      const it = currentEquip(); if(!it){ $('#iaEquipTitle').textContent=''; return; }
+      $('#iaEquipTitle').textContent = `• ${it.composant||'Équipement'} (#${it.id||''})`;
+      const conf = (it.conformite||'').toLowerCase();
+      $('#iaEquipBadge').innerHTML = conf.includes('non')
+        ? '<span class="badge badge-danger-soft rounded-pill">Non conforme</span> '
+        : '<span class="badge badge-success-soft rounded-pill">Conforme</span>';
+    }
+    function currentEquip(){ const id = $('#id').value||selectedId; return equipments.find(x=> String(x.id)===String(id)) || null; }
+
+    function pushMsg(role, content){
+      const box = $('#chatBox');
+      const div = document.createElement('div');
+      div.className = 'chat-msg ' + (role==='user'?'chat-me':'chat-ai');
+      div.innerHTML = content.replace(/```[\s\S]*?```/g, m=>`<pre class="mb-0 small">${m.replaceAll('<','&lt;')}</pre>`);
+      box.appendChild(div); box.scrollTop = box.scrollHeight;
+    }
+
+    function loadChatHistory(){
+      const it = currentEquip(); if(!it) return;
+      const key = 'iahist_'+it.id; const arr = JSON.parse(localStorage.getItem(key)||'[]');
+      $('#chatBox').innerHTML = ''; arr.forEach(m=>pushMsg(m.role, m.content));
+    }
+    function saveChatHistory(role, content){ const it=currentEquip(); if(!it) return; const key='iahist_'+it.id; const arr=JSON.parse(localStorage.getItem(key)||'[]'); arr.push({role,content}); localStorage.setItem(key, JSON.stringify(arr.slice(-30))); }
+
+    async function sendChat(){
+      const it = currentEquip(); const q = $('#chatInput').value.trim(); if(!q) return; $('#chatInput').value='';
+      pushMsg('user', q); saveChatHistory('user', q);
+      try{
+        const payload = { message:q, equipmentId: it?.id||null };
+        const r = await api('/atex-chat', { method:'POST', body: JSON.stringify(payload) });
+        const answer = r?.answer || r?.response || '…';
+        pushMsg('assistant', answer); saveChatHistory('assistant', answer);
+      }catch(e){ console.error(e); pushMsg('assistant', "Désolé, je n'ai pas pu répondre."); }
+    }
+    function sendChatPreset(q){ $('#chatInput').value=q; sendChat(); }
   </script>
-
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
