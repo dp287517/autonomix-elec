@@ -391,7 +391,29 @@
     let currentIA = null;
     const CHAT_KEY = 'atexIAHistoryV3';
 
-    const $ = sel => document.querySelector(sel);
+    
+    // --- Nettoyage des balises ```html ... ``` ---
+    function stripCodeFences(txt){
+      if(typeof txt !== 'string') return txt || '';
+      // supprime blocs ```lang et ``` en début/fin et au milieu (sécurisé)
+      let s = txt
+        .replace(/^\s*```[a-zA-Z]*\s*\n?/m, '')
+        .replace(/\n?\s*```+\s*$/m, '');
+      // si plusieurs blocs
+      s = s.replace(/```[a-zA-Z]*\s*\n?/g, '').replace(/```/g, '');
+      return s.trim();
+    }
+    function toHtmlPreservingLines(s){
+      // si déjà des balises HTML, on garde
+      if(/[<][a-zA-Z!/]/.test(s)) return s;
+      // sinon on convertit les retours à la ligne
+      return s.replace(/\n/g, '<br>');
+    }
+    function renderIAHtml(raw){
+      const clean = toHtmlPreservingLines(stripCodeFences(raw || ''));
+      return clean;
+    }
+const $ = sel => document.querySelector(sel);
     const $$ = sel => Array.from(document.querySelectorAll(sel));
 
     function showToast(message, variant='primary'){
@@ -674,14 +696,14 @@
         $('#iaHeader').textContent = `${eq.composant || 'Équipement'} — ID ${eq.id} • Dernière: ${fmtDate(eq.last_inspection_date)} • Prochaine: ${fmtDate(eq.next_inspection_date)}`;
         renderBadges(eq);
 
-        const htmlAide = help?.response || '<p class="text-muted mb-0">Aucune analyse IA disponible.</p>';
+        const htmlAide = help?.response ? renderIAHtml(help.response) : '<p class="text-muted mb-0">Aucune analyse IA disponible.</p>';
         $('#iaDetails').innerHTML = htmlAide;
 
         addToHistory({
           id: eq.id,
           composant: eq.composant || 'Équipement',
           date: new Date().toISOString(),
-          content: htmlAide,
+          content: renderIAHtml(htmlAide),
           meta: {
             conformite: eq.conformite || 'N/A',
             risque: eq.risque ?? '-',
