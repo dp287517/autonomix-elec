@@ -41,6 +41,23 @@ router.get('/atex-secteurs', async (_req, res) => {
   }
 });
 
+// POST /api/atex-secteurs  { name }
+router.post('/atex-secteurs', async (req, res) => {
+  const name = (req.body?.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Nom de secteur requis' });
+  try {
+    const r = await query(
+      `INSERT INTO atex_secteurs (name) VALUES ($1)
+       ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+       RETURNING id, name`,
+      [name]
+    );
+    res.json(r.rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: 'Erreur création secteur: ' + e.message });
+  }
+});
+
 /* ----------------------- Équipements ----------------------- */
 // GET /api/atex-equipments
 router.get('/atex-equipments', async (_req, res) => {
@@ -64,51 +81,60 @@ router.get('/atex-equipments/:id', async (req, res) => {
   }
 });
 
+function calculateMinCategory(zoneExt = '', zoneInt = '') {
+  const zone = String(zoneExt || zoneInt || '22');
+  if (zone.startsWith('0'))  return 'II 1G IIIB T135°C';
+  if (zone.startsWith('1'))  return 'II 2G IIIB T135°C';
+  if (zone.startsWith('2'))  return 'II 3G IIIB T135°C';
+  if (zone.startsWith('20')) return 'II 1D IIIB T135°C';
+  if (zone.startsWith('21')) return 'II 2D IIIB T135°C';
+  return 'II 3D IIIB T135°C';
+}
+function parseTClass(marquage) {
+  // Retourne la T max autorisée du marquage (ex: T4 => 135)
+  const m = /T([1-6])/i.exec(marquage || '');
+  const map = { '1': 450, '2': 300, '3': 200, '4': 135, '5': 100, '6': 85 };
+  return m ? (map[m[1]] || 135) : 135;
+}
+function parseCat(marquage) {
+  // Ga/Gb/Gc -> 1/2/3
+  const s = String(marquage || '');
+  if (/Ga\b/.test(s)) return 1;
+  if (/Gb\b/.test(s)) return 2;
+  return 3; // Gc ou inconnu
+}
+function checkAtexConformity(marquage, categorieMin, zoneExt = '', zoneInt = '') {
+  if (!marquage || !categorieMin) return 'Non Conforme';
+  const catMarq = parseCat(marquage);
+  const tMarq  = parseTClass(marquage);
+
+  const m = /II\s+(\d)/i.exec(categorieMin || '');
+  const catMin = m ? parseInt(m[1], 10) : 3;
+
+  const zone = String(zoneExt || zoneInt || '22');
+  const requiredCat = (zone.startsWith('0') || zone.startsWith('20')) ? 1 :
+                      ((zone.startsWith('1') || zone.startsWith('21')) ? 2 : 3);
+
+  if (catMarq > requiredCat || catMarq > catMin) return 'Non Conforme';
+
+  const tMinMatch = /T(\d+)/i.exec(categorieMin || '');
+  const tMin = tMinMatch ? parseInt(tMinMatch[1], 10) : 135;
+  if (tMarq < tMin) return 'Non Conforme';
+
+  return 'Conforme';
+}
+function calculateRisk(zoneExt = '', zoneInt = '', conformity) {
+  const zone = String(zoneExt || zoneInt || '22');
+  const zoneScore = (zone.startsWith('0') || zone.startsWith('20')) ? 5 :
+                    ((zone.startsWith('1') || zone.startsWith('21')) ? 3 : 1);
+  const confScore = conformity !== 'Conforme' ? 2 : 0;
+  return Math.min(Math.max(zoneScore + confScore, 0), 5);
+}
+
 // POST /api/atex-equipments
 router.post('/atex-equipments', async (req, res) => {
   const data = req.body || {};
   try {
-    function calculateMinCategory(zoneExt = '', zoneInt = '') {
-      const zone = zoneExt || zoneInt || '22';
-      if (zone.startsWith('0')) return 'II 1G IIIB T135°C';
-      if (zone.startsWith('1')) return 'II 2G IIIB T135°C';
-      if (zone.startsWith('2')) return 'II 3G IIIB T135°C';
-      if (zone.startsWith('20')) return 'II 1D IIIB T135°C';
-      if (zone.startsWith('21')) return 'II 2D IIIB T135°C';
-      return 'II 3D IIIB T135°C';
-    }
-    function checkAtexConformity(marquage, categorieMin, zoneExt = '', zoneInt = '') {
-      if (!marquage || !categorieMin) return 'Non Conforme';
-      let catMarq = 3, tMarq = 135;
-      const m = marquage.match(/T(\d)/i);
-      if (m) {
-        const tMap = { '1': 450, '2': 300, '3': 200, '4': 135, '5': 100, '6': 85 };
-        tMarq = tMap[m[1]] || 135;
-      }
-      if (marquage.includes('Ga')) catMarq = 1;
-      else if (marquage.includes('Gb')) catMarq = 2;
-      else if (marquage.includes('Gc')) catMarq = 3;
-      const minM = categorieMin.match(/II (\d)/i);
-      const catMin = minM ? parseInt(minM[1]) : 3;
-
-      const zone = zoneExt || zoneInt || '22';
-      const requiredCat = (zone.startsWith('0') || zone.startsWith('20')) ? 1 :
-                          ((zone.startsWith('1') || zone.startsWith('21')) ? 2 : 3);
-
-      if (catMarq > requiredCat || catMarq > catMin) return 'Non Conforme';
-      const minT = (categorieMin.match(/T(\d+)/i) || [])[1];
-      const tMin = minT ? parseInt(minT) : 135;
-      if (tMarq < tMin) return 'Non Conforme';
-      return 'Conforme';
-    }
-    function calculateRisk(zoneExt = '', zoneInt = '', conformity) {
-      const zone = zoneExt || zoneInt || '22';
-      const zoneScore = (zone.startsWith('0') || zone.startsWith('20')) ? 5 :
-                        ((zone.startsWith('1') || zone.startsWith('21')) ? 3 : 1);
-      const confScore = conformity !== 'Conforme' ? 2 : 0;
-      return Math.min(Math.max(zoneScore + confScore, 0), 5);
-    }
-
     data.categorie_minimum = data.categorie_minimum || calculateMinCategory(data.exterieur, data.interieur);
     data.conformite = checkAtexConformity(data.marquage_atex, data.categorie_minimum, data.exterieur, data.interieur);
     data.risque = calculateRisk(data.exterieur, data.interieur, data.conformite);
@@ -147,47 +173,6 @@ router.put('/atex-equipments/:id', async (req, res) => {
   const { id } = req.params;
   const data = req.body || {};
   try {
-    function calculateMinCategory(zoneExt = '', zoneInt = '') {
-      const zone = zoneExt || zoneInt || '22';
-      if (zone.startsWith('0')) return 'II 1G IIIB T135°C';
-      if (zone.startsWith('1')) return 'II 2G IIIB T135°C';
-      if (zone.startsWith('2')) return 'II 3G IIIB T135°C';
-      if (zone.startsWith('20')) return 'II 1D IIIB T135°C';
-      if (zone.startsWith('21')) return 'II 2D IIIB T135°C';
-      return 'II 3D IIIB T135°C';
-    }
-    function checkAtexConformity(marquage, categorieMin, zoneExt = '', zoneInt = '') {
-      if (!marquage || !categorieMin) return 'Non Conforme';
-      let catMarq = 3, tMarq = 135;
-      if (marquage.includes('Ga')) catMarq = 1;
-      else if (marquage.includes('Gb')) catMarq = 2;
-      else if (marquage.includes('Gc')) catMarq = 3;
-      if (marquage.includes('T1')) tMarq = 450;
-      else if (marquage.includes('T2')) tMarq = 300;
-      else if (marquage.includes('T3')) tMarq = 200;
-      else if (marquage.includes('T4')) tMarq = 135;
-      else if (marquage.includes('T5')) tMarq = 100;
-      else if (marquage.includes('T6')) tMarq = 85;
-
-      const minM = categorieMin.match(/II (\d)/i);
-      const catMin = minM ? parseInt(minM[1]) : 3;
-      const zone = zoneExt || zoneInt || '22';
-      const requiredCat = (zone.startsWith('0') || zone.startsWith('20')) ? 1 :
-                          ((zone.startsWith('1') || zone.startsWith('21')) ? 2 : 3);
-      if (catMarq > requiredCat || catMarq > catMin) return 'Non Conforme';
-
-      const tMin = parseInt((categorieMin.match(/T(\d+)/i) || [])[1] || 135);
-      if (tMarq < tMin) return 'Non Conforme';
-      return 'Conforme';
-    }
-    function calculateRisk(zoneExt = '', zoneInt = '', conformity) {
-      const zone = zoneExt || zoneInt || '22';
-      const zoneScore = (zone.startsWith('0') || zone.startsWith('20')) ? 5 :
-                        ((zone.startsWith('1') || zone.startsWith('21')) ? 3 : 1);
-      const confScore = conformity !== 'Conforme' ? 2 : 0;
-      return Math.min(Math.max(zoneScore + confScore, 0), 5);
-    }
-
     data.categorie_minimum = data.categorie_minimum || calculateMinCategory(data.exterieur, data.interieur);
     data.conformite = checkAtexConformity(data.marquage_atex, data.categorie_minimum, data.exterieur, data.interieur);
     data.risque = calculateRisk(data.exterieur, data.interieur, data.conformite);
@@ -259,47 +244,6 @@ router.post('/atex-import-excel', upload.single('excel'), async (req, res) => {
     const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-
-    function calculateMinCategory(zoneExt = '', zoneInt = '') {
-      const zone = zoneExt || zoneInt || '22';
-      if (zone.startsWith('0')) return 'II 1G IIIB T135°C';
-      if (zone.startsWith('1')) return 'II 2G IIIB T135°C';
-      if (zone.startsWith('2')) return 'II 3G IIIB T135°C';
-      if (zone.startsWith('20')) return 'II 1D IIIB T135°C';
-      if (zone.startsWith('21')) return 'II 2D IIIB T135°C';
-      return 'II 3D IIIB T135°C';
-    }
-    function checkAtexConformity(marquage, categorieMin, zoneExt = '', zoneInt = '') {
-      if (!marquage || !categorieMin) return 'Non Conforme';
-      let catMarq = 3, tMarq = 135;
-      if (marquage.includes('Ga')) catMarq = 1;
-      else if (marquage.includes('Gb')) catMarq = 2;
-      else if (marquage.includes('Gc')) catMarq = 3;
-      if (marquage.includes('T1')) tMarq = 450;
-      else if (marquage.includes('T2')) tMarq = 300;
-      else if (marquage.includes('T3')) tMarq = 200;
-      else if (marquage.includes('T4')) tMarq = 135;
-      else if (marquage.includes('T5')) tMarq = 100;
-      else if (marquage.includes('T6')) tMarq = 85;
-
-      const minM = categorieMin.match(/II (\d)/i);
-      const catMin = minM ? parseInt(minM[1]) : 3;
-      const zone = zoneExt || zoneInt || '22';
-      const requiredCat = (zone.startsWith('0') || zone.startsWith('20')) ? 1 :
-                          ((zone.startsWith('1') || zone.startsWith('21')) ? 2 : 3);
-      if (catMarq > requiredCat || catMarq > catMin) return 'Non Conforme';
-
-      const tMin = parseInt((categorieMin.match(/T(\d+)/i) || [])[1] || 135);
-      if (tMarq < tMin) return 'Non Conforme';
-      return 'Conforme';
-    }
-    function calculateRisk(zoneExt = '', zoneInt = '', conformity) {
-      const zone = zoneExt || zoneInt || '22';
-      const zoneScore = (zone.startsWith('0') || zone.startsWith('20')) ? 5 :
-                        ((zone.startsWith('1') || zone.startsWith('21')) ? 3 : 1);
-      const confScore = conformity !== 'Conforme' ? 2 : 0;
-      return Math.min(Math.max(zoneScore + confScore, 0), 5);
-    }
 
     for (const row of rows) {
       if (row.length < 15) continue;
@@ -403,29 +347,99 @@ router.post('/atex-analysis', async (req, res) => {
   }
 });
 
-/* ----------------------- Chat IA ----------------------- */
+/* ----------------------- Chat IA (robuste) ----------------------- */
 // POST /api/atex-chat  { question?, equipment?, history? }
 router.post('/atex-chat', async (req, res) => {
   const { question, equipment, history = [] } = req.body || {};
   try {
-    const messages = history.map(m => ({ role: m.role, content: m.content }));
+    let messages = Array.isArray(history)
+      ? history.map(m => ({ role: m.role || 'user', content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }))
+      : [];
+
     let prompt = question || '';
+    let wantsJSON = false;
+
     if (equipment) {
-      prompt = `Analyse équipement ATEX: composant=${equipment.composant}, risque=${equipment.risque}, prochaine_inspection=${equipment.next_inspection_date || 'n/a'}
-Retourne un JSON: {analysis: string, corrections: string[], links: string[], cost_estimate: string}`;
+      wantsJSON = true;
+      prompt = `Analyse équipement ATEX:
+- composant: ${equipment.composant}
+- risque: ${equipment.risque}
+- prochaine_inspection: ${equipment.next_inspection_date || 'n/a'}
+
+Retourne un JSON strict avec les clés exactement:
+{
+  "analysis": string,
+  "corrections": string[],
+  "links": string[],
+  "cost_estimate": string
+}`;
     }
+
     if (!prompt) return res.status(400).json({ error: 'question ou equipment requis' });
+
     messages.push({ role: 'user', content: prompt });
+
+    // Sécurité si pas de clé => réponse de secours
+    if (!process.env.OPENAI_API_KEY) {
+      const fallback = wantsJSON
+        ? {
+            analysis: "Mode secours (clé OpenAI absente). Vérifiez la configuration serveur.",
+            corrections: ["Vérifier le marquage ATEX sur la plaque signalétique", "Planifier une inspection de conformité"],
+            links: [],
+            cost_estimate: "N/A"
+          }
+        : "Mode secours (clé OpenAI absente). Vérifiez la configuration serveur.";
+      return res.json({
+        response: wantsJSON ? JSON.stringify(fallback, null, 2) : String(fallback),
+        answer: wantsJSON ? "Analyse structurée (secours) générée." : String(fallback),
+        raw: wantsJSON ? fallback : { message: String(fallback) }
+      });
+    }
 
     const resp = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages,
-      response_format: { type: 'json_object' }
+      // si on veut garantir du JSON pour le mode "equipment"
+      ...(wantsJSON ? { response_format: { type: 'json_object' } } : {})
     });
-    const data = JSON.parse(resp.choices[0].message.content);
-    res.json({ response: data });
+
+    const content = resp?.choices?.[0]?.message?.content ?? '';
+    let responseString = content;
+    let answerString = content;
+    let rawObj = null;
+
+    if (wantsJSON) {
+      try {
+        rawObj = JSON.parse(content);
+        // on renvoie une string utilisable directement par l’UI
+        responseString = JSON.stringify(rawObj, null, 2);
+        // et une version courte lisible
+        answerString =
+          `Analyse: ${rawObj.analysis || '—'}\n` +
+          (Array.isArray(rawObj.corrections) && rawObj.corrections.length
+            ? `Corrections:\n- ${rawObj.corrections.join('\n- ')}\n` : '') +
+          (Array.isArray(rawObj.links) && rawObj.links.length
+            ? `Liens:\n- ${rawObj.links.join('\n- ')}\n` : '') +
+          (rawObj.cost_estimate ? `Coût estimé: ${rawObj.cost_estimate}` : '');
+      } catch {
+        // si ce n’est pas un JSON valide, on renvoie brut
+        rawObj = { error: 'Réponse non JSON', content };
+      }
+    }
+
+    res.json({
+      response: responseString,  // toujours une STRING exploitable par innerHTML/textContent
+      answer: answerString,      // version lisible courte
+      raw: rawObj ?? { content } // pour debug côté front si besoin
+    });
   } catch (e) {
-    res.status(500).json({ error: 'Erreur chat IA: ' + e.message });
+    console.error('[ATEX-CHAT] error:', e);
+    // On renvoie 200 avec une réponse “secours” pour éviter le popup 500 côté front
+    return res.json({
+      response: 'Impossible de répondre pour le moment. Détail serveur: ' + (e?.message || e),
+      answer: 'Erreur côté serveur (voir logs).',
+      raw: { error: String(e?.stack || e) }
+    });
   }
 });
 
