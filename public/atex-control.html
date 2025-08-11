@@ -7,7 +7,6 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { background-color: #f8f9fa; font-family: 'Poppins', sans-serif; color: #333; }
     .card { margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-radius: 15px; background: #fff; }
@@ -16,17 +15,22 @@
     .small-muted { font-size: 12px; color: #6c757d; }
     .last-photo { max-width: 50px; border-radius: 5px; cursor: zoom-in; }
     .toast-container { position: fixed; top: 16px; right: 16px; z-index: 2000; }
+    /* Offcanvas IA - responsive */
+    .offcanvas-ia { width: min(860px, 100vw); }
+    @media (max-width: 992px){
+      .offcanvas-ia { width: 100vw; }
+    }
+    .ia-history-item { cursor:pointer; }
+    .ia-history-item.active { background: #f1f3f5; border-left: 3px solid #0d6efd; }
+    .ia-badge { font-size: .75rem; }
+    .table-responsive { overflow-x: auto; }
   </style>
 </head>
 <body class="container my-5">
   <h1 class="text-center mb-4">Contrôle des Équipements ATEX</h1>
   <p class="text-center lead">Outil pour inspecter, ajouter et suivre les conformités ATEX.</p>
-  <a href="atex-risk.html" class="btn btn-info mb-4"><i data-lucide="bar-chart"></i> Voir Risk Assessment Global</a>
 
-  <!-- Smart Alerts -->
-  <div id="smartAlerts" class="mb-4"></div>
-
-  <!-- Onglets -->
+  <!-- Onglets (Chat IA retiré de la navigation pour éviter le switch forcé) -->
   <ul class="nav nav-tabs" id="atexTabs" role="tablist">
     <li class="nav-item" role="presentation">
       <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab"><i data-lucide="list"></i> Liste</button>
@@ -37,48 +41,18 @@
     <li class="nav-item" role="presentation">
       <button class="nav-link" id="import-tab" data-bs-toggle="tab" data-bs-target="#import" type="button" role="tab"><i data-lucide="upload"></i> Importer</button>
     </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="chat-tab" data-bs-toggle="tab" data-bs-target="#chat" type="button" role="tab"><i data-lucide="message-circle"></i> Chat IA</button>
-    </li>
   </ul>
 
   <div class="tab-content" id="atexTabContent">
 
     <!-- LISTE -->
     <div class="tab-pane fade show active" id="list" role="tabpanel">
-      <!-- Analyses -->
-      <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h4 class="mb-0">Analyses</h4>
-          <span class="small-muted">Données /api/atex-risk-global & /api/atex-equipments</span>
-        </div>
-        <div class="card-body">
-          <div class="row g-3">
-            <div class="col-md-3">
-              <canvas id="chartConformite"></canvas>
-              <div class="text-center small-muted mt-2">Conformes / Non conformes</div>
-            </div>
-            <div class="col-md-3">
-              <canvas id="chartRisques"></canvas>
-              <div class="text-center small-muted mt-2">Distribution des risques</div>
-            </div>
-            <div class="col-md-3">
-              <canvas id="chartSecteurs"></canvas>
-              <div class="text-center small-muted mt-2">Par secteur</div>
-            </div>
-            <div class="col-md-3">
-              <canvas id="chartEcheances"></canvas>
-              <div class="text-center small-muted mt-2">Échéances (12 mois)</div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <!-- Filtres -->
       <div class="card mb-4">
         <div class="card-header"><h4>Filtres</h4></div>
         <div class="card-body">
-          <div class="row">
+          <div class="row g-2">
             <div class="col-md-3"><input id="filterSecteur" class="form-control" placeholder="Secteur"></div>
             <div class="col-md-3"><input id="filterBatiment" class="form-control" placeholder="Bâtiment"></div>
             <div class="col-md-3">
@@ -88,22 +62,27 @@
                 <option value="Non Conforme">Non Conforme</option>
               </select>
             </div>
-            <div class="col-md-3"><button id="btnApplyFilters" class="btn btn-primary"><i data-lucide="search"></i> Appliquer</button></div>
+            <div class="col-md-3 d-grid d-md-block">
+              <button id="btnApplyFilters" class="btn btn-primary"><i data-lucide="search"></i> Appliquer</button>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Liste -->
       <div class="card">
-        <div class="card-header"><h4>Liste des Équipements</h4></div>
-        <div class="card-body">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h4 class="mb-0">Liste des Équipements</h4>
+          <button id="btnSync" class="btn btn-info"><i data-lucide="refresh-cw"></i> Sync</button>
+        </div>
+        <div class="card-body table-responsive">
           <table class="table table-striped align-middle">
             <thead>
               <tr>
                 <th>ID</th><th>Composant</th><th>Secteur</th><th>Bâtiment</th><th>Local</th><th>Zone</th>
                 <th>Conformité</th><th>Risque</th>
                 <th>Dernière Insp.</th><th>Prochaine</th>
-                <th>Photo</th><th>Actions</th>
+                <th>Photo</th><th style="min-width:260px">Actions</th>
               </tr>
             </thead>
             <tbody id="equipmentsTable"></tbody>
@@ -240,26 +219,6 @@
         </div>
       </div>
     </div>
-
-    <!-- CHAT IA -->
-    <div class="tab-pane fade" id="chat" role="tabpanel">
-      <div class="card">
-        <div class="card-body">
-          <div class="mb-2 small-muted">Historique conservé localement. Identité : “AutonomiX IA”.</div>
-          <textarea id="chatInput" class="form-control" placeholder="Posez une question sur l'ATEX..."></textarea>
-          <div class="d-flex gap-2 mt-2">
-            <button class="btn btn-primary" id="btnSendChat"><i data-lucide="send"></i> Envoyer</button>
-            <button class="btn btn-outline-secondary" id="btnClearChat">Effacer l’historique</button>
-          </div>
-          <div id="chatResponse" class="mt-3" style="white-space:pre-wrap"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Bouton Sync -->
-  <div class="text-center mt-3">
-    <button id="btnSync" class="btn btn-info"><i data-lucide="refresh-cw"></i> Sync</button>
   </div>
 
   <!-- Modal Photo -->
@@ -281,6 +240,101 @@
     </div>
   </div>
 
+  <!-- Modal Confirmation Suppression (remplace window.confirm) -->
+  <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-danger"><i data-lucide="trash-2"></i> Confirmer la suppression</h5>
+          <button class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p>Voulez-vous vraiment supprimer cet équipement ATEX ? Cette action est irréversible.</p>
+          <div id="deleteMeta" class="small-muted"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-danger" id="confirmDeleteBtn">Supprimer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Offcanvas latéral AutonomiX IA -->
+  <div class="offcanvas offcanvas-end offcanvas-ia" tabindex="-1" id="iaPanel">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title"><i data-lucide="bot"></i> Aide AutonomiX IA</h5>
+      <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body">
+      <div class="row">
+        <!-- Historique à gauche -->
+        <div class="col-lg-4 mb-3 mb-lg-0">
+          <div class="card h-100">
+            <div class="card-header d-flex align-items-center justify-content-between">
+              <div><i data-lucide="history"></i> Historique</div>
+              <button class="btn btn-sm btn-outline-secondary" id="btnClearChat"><i data-lucide="eraser"></i> Effacer</button>
+            </div>
+            <div class="card-body p-0" style="max-height: 60vh; overflow:auto">
+              <ul class="list-group list-group-flush" id="iaHistoryList"></ul>
+            </div>
+          </div>
+        </div>
+        <!-- Contenu IA à droite -->
+        <div class="col-lg-8">
+          <div id="iaContent" class="card">
+            <div class="card-body">
+              <div id="iaLoading" class="text-center text-muted" style="display:none">
+                <div class="spinner-border" role="status" aria-hidden="true"></div>
+                <div class="mt-2">Analyse en cours…</div>
+              </div>
+              <div id="iaDetails" style="display:none"></div>
+
+              <hr>
+              <!-- Bloc d’analyse enrichie locale (palliatif, préventif, coûts, réf) -->
+              <div id="iaEnriched" style="display:none">
+                <h5 class="mb-3">Synthèse actionnable</h5>
+                <div id="iaWhy" class="mb-3"></div>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                      <h6>Mesures palliatives (immédiat)</h6>
+                      <ul id="iaPalliative" class="mb-0"></ul>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                      <h6>Mesures préventives (durable)</h6>
+                      <ul id="iaPreventive" class="mb-0"></ul>
+                    </div>
+                  </div>
+                </div>
+                <div class="row g-3 mt-1">
+                  <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                      <h6>Références & changements</h6>
+                      <ul id="iaRefs" class="mb-0"></ul>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                      <h6>Estimation des coûts</h6>
+                      <ul id="iaCosts" class="mb-0"></ul>
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-3">
+                  <span class="badge text-bg-light ia-badge">Conseils générés à partir des données actuelles</span>
+                </div>
+              </div>
+              <!-- /Bloc enrichi -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toasts -->
   <div class="toast-container" id="toasts"></div>
 
@@ -293,15 +347,13 @@
       equipments: '/api/atex-equipments',
       equipment: (id) => '/api/atex-equipments/' + id,
       importExcel: '/api/atex-import-excel',
-      analysis: '/api/atex-analysis',
-      riskGlobal: '/api/atex-risk-global',
-      chat: '/api/atex-chat',
-      inspect: '/api/atex-inspect'
+      chat: '/api/atex-chat',         // conservé si besoin plus tard
+      inspect: '/api/atex-inspect',
+      help: (id) => '/api/atex-help/' + id
     };
 
     // État
     let equipments = [];
-    let charts = {};
     const toastsEl = document.getElementById('toasts');
 
     // Helpers UI
@@ -323,7 +375,7 @@
     function fmtDate(d) {
       if (!d) return 'N/A';
       const date = new Date(d);
-      if (isNaN(date)) return d; // déjà formaté
+      if (isNaN(date)) return d;
       const dd = String(date.getDate()).padStart(2,'0');
       const mm = String(date.getMonth()+1).padStart(2,'0');
       const yyyy = date.getFullYear();
@@ -340,24 +392,13 @@
       document.getElementById('btnTemplateCSV').addEventListener('click', downloadTemplateCSV);
       document.getElementById('btnTemplateXLSX').addEventListener('click', downloadTemplateXLSX);
       document.getElementById('btnImport').addEventListener('click', importExcel);
-      document.getElementById('btnSendChat').addEventListener('click', sendChat);
       document.getElementById('btnClearChat').addEventListener('click', clearChatHistory);
 
       loadSecteurs();
-      loadEquipments().then(loadStatsAndBuildCharts);
-      loadSmartAlerts();
+      loadEquipments();
     });
 
-    /* ======= LISTE / ANALYSES ======= */
-    async function loadSmartAlerts() {
-      try {
-        const r = await fetch(API.analysis);
-        const alerts = await r.json();
-        document.getElementById('smartAlerts').innerHTML =
-          alerts.map(a => `<div class="alert alert-light border">${a.text}</div>`).join('');
-      } catch(e){ console.error('Erreur loadSmartAlerts:', e); }
-    }
-
+    /* ======= LISTE ======= */
     async function loadEquipments() {
       try {
         const response = await fetch(API.equipments);
@@ -393,10 +434,10 @@
           <td>
             ${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" onclick="openPhoto('${encodeURIComponent(eq.photo)}')">` : '<span class="text-muted">—</span>'}
           </td>
-          <td class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(${eq.id})">Éditer</button>
-            <button class="btn btn-sm btn-outline-danger" onclick="deleteEquipment(${eq.id})">Supprimer</button>
-            <button class="btn btn-sm ${isNonConf ? 'btn-warning' : 'btn-outline-secondary'}" onclick="askAIForFix(${eq.id})">
+          <td class="d-flex flex-wrap gap-2">
+            <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(${eq.id})"><i data-lucide="edit-3"></i> Éditer</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${eq.id}, '${(eq.composant||'').replace(/'/g,'\\\'')}')"><i data-lucide="trash-2"></i> Supprimer</button>
+            <button class="btn btn-sm ${isNonConf ? 'btn-warning' : 'btn-outline-secondary'}" onclick="openIA(${eq.id})">
               <i data-lucide="sparkles"></i> Aide AutonomiX IA
             </button>
           </td>
@@ -418,54 +459,6 @@
       renderTable(filtered);
     }
 
-    async function loadStatsAndBuildCharts(){
-      try{
-        const r = await fetch(API.riskGlobal);
-        const { stats } = await r.json();
-        // conformité
-        buildOrUpdateChart('chartConformite', 'doughnut', {
-          labels: ['Conformes','Non conformes'],
-          datasets: [{ data: [stats?.conformes||0, stats?.non_conformes||0] }]
-        });
-        // risques 0..5
-        const buckets = [0,1,2,3,4,5].map(()=>0);
-        equipments.forEach(e => { if (typeof e.risque === 'number' && e.risque>=0 && e.risque<=5) buckets[e.risque]++; });
-        buildOrUpdateChart('chartRisques', 'bar', {
-          labels: ['0','1','2','3','4','5'],
-          datasets: [{ label:'Nb', data: buckets }]
-        }, { scales: { y: { beginAtZero: true } }});
-        // secteurs
-        const bySecteur = {};
-        equipments.forEach(e => { const k = e.secteur || 'N/A'; bySecteur[k] = (bySecteur[k]||0)+1; });
-        buildOrUpdateChart('chartSecteurs', 'bar', {
-          labels: Object.keys(bySecteur),
-          datasets: [{ label:'Équipements', data: Object.values(bySecteur) }]
-        }, { indexAxis: 'y', scales:{ x:{ beginAtZero: true }}});
-        // échéances
-        const months = new Array(12).fill(0);
-        const now = new Date();
-        equipments.forEach(e => {
-          if (!e.next_inspection_date) return;
-          const d = new Date(e.next_inspection_date);
-          const diffM = (d.getFullYear()-now.getFullYear())*12 + (d.getMonth()-now.getMonth());
-          if (diffM>=0 && diffM<12) months[diffM]++;
-        });
-        const labels = [...Array(12)].map((_,i)=>{
-          const dt = new Date(now.getFullYear(), now.getMonth()+i, 1);
-          return dt.toLocaleString('fr-FR', { month:'short' });
-        });
-        buildOrUpdateChart('chartEcheances', 'line', {
-          labels, datasets: [{ label:'Contrôles à venir', data: months, fill:false }]
-        });
-      } catch(e){ console.error('charts', e); }
-    }
-    function buildOrUpdateChart(id, type, data, options={}){
-      const ctx = document.getElementById(id);
-      if (!ctx) return;
-      charts[id]?.destroy?.();
-      charts[id] = new Chart(ctx, { type, data, options });
-    }
-
     /* ======= PHOTO ======= */
     function openPhoto(encodedSrc){
       const src = decodeURIComponent(encodedSrc);
@@ -474,7 +467,7 @@
       img.src = src; a.href = src;
       bootstrap.Modal.getOrCreateInstance(document.getElementById('photoModal')).show();
     }
-    window.openPhoto = openPhoto; // pour onclick HTML
+    window.openPhoto = openPhoto;
 
     /* ======= SECTEURS ======= */
     async function loadSecteurs() {
@@ -555,8 +548,8 @@
         identifiant: document.getElementById('identifiant-input').value,
         marquage_atex: document.getElementById('marquage_atex-input').value,
         comments: document.getElementById('comments-input').value,
-        exterieur: zone,           // ⬅️ on mappe Type de zone -> exterieur pour le calcul backend
-        interieur: '',             // (optionnel)
+        exterieur: zone,
+        interieur: '',
         photo: await getBase64(document.getElementById('photo-input').files[0])
       };
 
@@ -578,9 +571,8 @@
         }
 
         showToast('Équipement sauvegardé.', 'success');
-        await loadEquipments(); await loadStatsAndBuildCharts();
+        await loadEquipments();
         clearForm();
-        // revenir à la liste
         document.getElementById('list-tab').click();
       } catch (error) {
         showToast('Erreur: ' + error.message, 'danger');
@@ -620,32 +612,44 @@
       }
     }
 
-    async function deleteEquipment(id) {
-      if (!confirm('Confirmer suppression ?')) return;
+    /* ======= SUPPRESSION (modal) ======= */
+    let toDeleteId = null;
+    function openDeleteModal(id, label=''){
+      toDeleteId = id;
+      const meta = document.getElementById('deleteMeta');
+      meta.textContent = label ? 'Équipement : ' + label + ' (ID ' + id + ')' : 'ID ' + id;
+      const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteModal'));
+      modal.show();
+      const btn = document.getElementById('confirmDeleteBtn');
+      btn.onclick = confirmDelete;
+    }
+    async function confirmDelete(){
+      if (!toDeleteId) return;
       try {
-        const response = await fetch(API.equipment(id), { method: 'DELETE' });
+        const response = await fetch(API.equipment(toDeleteId), { method: 'DELETE' });
         if (!response.ok) throw new Error('Erreur suppression');
         showToast('Supprimé !', 'success');
-        await loadEquipments(); await loadStatsAndBuildCharts();
+        await loadEquipments();
       } catch (error) {
         showToast('Erreur: ' + error.message, 'danger');
+      } finally {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteModal')).hide();
+        toDeleteId = null;
       }
     }
+    window.openDeleteModal = openDeleteModal;
 
     function syncData() {
-      loadEquipments().then(loadStatsAndBuildCharts);
+      loadEquipments();
       showToast('Données synchronisées !', 'info');
     }
 
     /* ======= IMPORT ======= */
     function downloadTemplateCSV(){
-      // Ordre aligné avec l’API d’import Excel (indices utilisés côté serveur)
-      // [risque, secteur, batiment, local, composant, fournisseur, type, identifiant,
-      //  interieur, exterieur, categorie_minimum, marquage_atex, photo, conformite, comments, last_inspection_date]
       const head = ['risque','secteur','batiment','local','composant','fournisseur','type','identifiant','interieur','exterieur','categorie_minimum','marquage_atex','photo','conformite','comments','last_inspection_date'];
       const rows = [
         ['', 'Utilities','B06','L-203','Capteur','IFM','PN7092','CAPT-0123','', '22','', 'II 3G IIA T4','', '', '', '2025-06-01'],
-        ['', 'Maintenance','B11','Salle compresseurs','Clapet','Siemens','3RW40 11-1BB14','CLAP-0007','', '21','', 'II 3G IIB T3','', '', 'à contrôler', '2025-04-10']
+        ['', 'Maintenance','B11','Salle compresseurs','Clapet','Siemens','3RW40 11-1BB14','CLAP-0007','', '21','', 'II 2G IIB T3','', '', 'à contrôler', '2025-04-10']
       ];
       const csv = [head.join(','), ...rows.map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(','))].join('\n');
       const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
@@ -665,92 +669,172 @@
         const response = await fetch(API.importExcel, { method: 'POST', body: formData });
         if (!response.ok) throw new Error('Erreur import');
         showToast('Import réussi !', 'success');
-        await loadEquipments(); await loadStatsAndBuildCharts();
+        await loadEquipments();
       } catch (error) {
         showToast('Erreur import: ' + error.message, 'danger');
       }
     }
 
-    /* ======= CHAT IA ======= */
-    const CHAT_KEY = 'atexChatHistory';
+    /* ======= Aide AutonomiX IA — Offcanvas latéral avec historique ======= */
+    const CHAT_KEY = 'atexIAHistoryV2';
     function getChatHistory(){ try{ return JSON.parse(localStorage.getItem(CHAT_KEY) || '[]'); }catch{return []} }
     function setChatHistory(h){ localStorage.setItem(CHAT_KEY, JSON.stringify(h)); }
-    function clearChatHistory(){ setChatHistory([]); document.getElementById('chatResponse').textContent = ''; showToast('Historique effacé', 'info'); }
-
-    function isIdentityQuestion(s){
-      const t = s.toLowerCase();
-      return t.includes('qui es-tu') || t.includes('tu es qui') || t.includes('à qui je parle') || t.includes('qui êtes-vous');
+    function clearChatHistory(){
+      setChatHistory([]);
+      renderHistory();
+      document.getElementById('iaDetails').innerHTML = '';
+      document.getElementById('iaEnriched').style.display = 'none';
+      showToast('Historique effacé', 'info');
     }
 
-    async function sendChat() {
-      const input = (document.getElementById('chatInput').value || '').trim();
-      if (!input) return showToast('Entrez une question', 'warning');
+    async function openIA(id){
+      // Ouvre le panneau latéral
+      const panel = document.getElementById('iaPanel');
+      const off = bootstrap.Offcanvas.getOrCreateInstance(panel);
+      off.show();
 
-      // identité: réponse locale
-      if (isIdentityQuestion(input)) {
-        const reply = "Salut, je suis AutonomiX IA — ton assistant pour l’ATEX, la maintenance et les analyses. Je peux t’aider à comprendre les marquages, la conformité, et à structurer les actions correctives.";
-        appendChat({ role:'user', content: input });
-        appendChat({ role:'assistant', content: reply });
-        renderChat();
-        return;
-      }
-
-      const history = getChatHistory();
-      appendChat({ role:'user', content: input });
+      // Charge équipement + aide back `/api/atex-help/:id`
+      const loading = document.getElementById('iaLoading');
+      const details = document.getElementById('iaDetails');
+      const enriched = document.getElementById('iaEnriched');
+      loading.style.display = 'block';
+      details.style.display = 'none';
+      enriched.style.display = 'none';
+      details.innerHTML = '';
 
       try {
-        const r = await fetch(API.chat, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: input, history })
-        });
-        const data = await r.json();
-        const text = data?.response || data?.answer || JSON.stringify(data);
-        appendChat({ role:'assistant', content: text || '(réponse vide)' });
-        renderChat();
-      } catch(e){
-        appendChat({ role:'assistant', content: 'Erreur : ' + (e.message||e) });
-        renderChat();
-      }
-    }
+        const [eqResp, helpResp] = await Promise.all([
+          fetch(API.equipment(id)),
+          fetch(API.help(id))
+        ]);
+        if (!eqResp.ok) throw new Error('Équipement introuvable');
+        const eq = await eqResp.json();
+        const help = await helpResp.json();
 
-    function appendChat(msg){
-      const h = getChatHistory(); h.push(msg); setChatHistory(h);
-    }
+        const htmlAide = help?.response || '<p class="text-muted">Aucune analyse IA disponible.</p>';
+        details.innerHTML = `
+          <div class="d-flex align-items-center justify-content-between">
+            <h5 class="mb-3">${eq.composant || 'Équipement'} <span class="badge text-bg-light">ID ${eq.id}</span></h5>
+            <div>
+              <span class="badge ${String(eq.conformite).toLowerCase().includes('non')?'text-bg-danger':'text-bg-success'}">${eq.conformite || 'N/A'}</span>
+              <span class="badge text-bg-secondary">Risque ${eq.risque ?? '-'}</span>
+              <span class="badge text-bg-secondary">Zone ${eq.zone_type || eq.exterieur || eq.interieur || '-'}</span>
+            </div>
+          </div>
+          <div class="small-muted mb-2">Dernière inspection : ${fmtDate(eq.last_inspection_date)} — Prochaine : ${fmtDate(eq.next_inspection_date)}</div>
+          <div class="border rounded p-3 mb-3" id="iaHtml">${htmlAide}</div>
+        `;
 
-    function renderChat(){
-      const h = getChatHistory();
-      const out = h.map(m => (m.role==='user'?'Vous':'AutonomiX IA') + ' : ' + (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n\n');
-      document.getElementById('chatResponse').textContent = out;
-      document.getElementById('chatInput').value = '';
-    }
+        // Enrichissement local : "Pourquoi non conforme", palliatif/préventif, refs, coûts.
+        buildLocalEnrichment(eq);
 
-    // Aide IA depuis la liste (non conformité)
-    async function askAIForFix(id){
-      try{
-        const r = await fetch(API.equipment(id)); if (!r.ok) throw new Error('Équipement introuvable');
-        const eq = await r.json();
-        const payload = {
-          equipment: {
-            composant: eq.composant, risque: eq.risque, next_inspection_date: eq.next_inspection_date
-          },
-          history: getChatHistory()
+        // Historique
+        const item = {
+          id: eq.id,
+          composant: eq.composant || 'Équipement',
+          date: new Date().toISOString(),
+          content: details.querySelector('#iaHtml').innerHTML
         };
-        const resp = await fetch(API.chat, {
-          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
-        });
-        const data = await resp.json();
-        appendChat({ role:'assistant', content: (data?.response || data?.answer || JSON.stringify(data)) });
-        renderChat();
-        // basculer sur l’onglet chat
-        document.getElementById('chat-tab').click();
-        showToast('Analyse AutonomiX IA prête dans l’onglet Chat', 'info');
+        const hist = getChatHistory();
+        hist.unshift(item);
+        setChatHistory(hist.slice(0, 50)); // limite
+        renderHistory(eq.id);
+
+        loading.style.display = 'none';
+        details.style.display = 'block';
+        enriched.style.display = 'block';
       } catch(e){
-        showToast('Erreur IA: ' + (e.message||e), 'danger');
+        loading.style.display = 'none';
+        details.style.display = 'block';
+        details.innerHTML = `<div class="alert alert-danger">Erreur IA: ${e.message || e}</div>`;
       }
     }
-    window.askAIForFix = askAIForFix; // pour onclick
+    window.openIA = openIA;
 
+    function renderHistory(activeId=null){
+      const list = document.getElementById('iaHistoryList');
+      const h = getChatHistory();
+      list.innerHTML = '';
+      if (!h.length){
+        list.innerHTML = '<li class="list-group-item text-muted">Aucun historique.</li>';
+        return;
+      }
+      h.forEach((it, idx) => {
+        const d = new Date(it.date);
+        const label = (it.composant || 'Équipement') + ' • ' + d.toLocaleString('fr-FR');
+        const li = document.createElement('li');
+        li.className = 'list-group-item ia-history-item' + (it.id===activeId?' active':'');
+        li.textContent = label;
+        li.title = 'Réouvrir cette analyse';
+        li.onclick = () => {
+          document.getElementById('iaHtml').innerHTML = it.content;
+          // highlight actif
+          [...list.children].forEach(c=>c.classList.remove('active'));
+          li.classList.add('active');
+        };
+        list.appendChild(li);
+      });
+    }
+
+    function buildLocalEnrichment(eq){
+      const why = document.getElementById('iaWhy');
+      const pal = document.getElementById('iaPalliative');
+      const prev = document.getElementById('iaPreventive');
+      const refs = document.getElementById('iaRefs');
+      const costs = document.getElementById('iaCosts');
+
+      const zone = String(eq.zone_type || eq.exterieur || eq.interieur || '22');
+      const conf = String(eq.conformite || 'N/A');
+      const marq = String(eq.marquage_atex || '');
+      const catNeeded = zone.startsWith('0')||zone.startsWith('20') ? '1' : (zone.startsWith('1')||zone.startsWith('21') ? '2' : '3');
+
+      // Pourquoi non conforme (règles simples, côté front)
+      let reasons = [];
+      if (conf.toLowerCase().includes('non')) {
+        if (marq && !/G|D/i.test(marq)) reasons.push('Marquage ATEX incomplet ou invalide.');
+        if (catNeeded === '1' && !/G[a]|D[a]/.test(marq)) reasons.push('Catégorie requise 1 (Ga/Da) non respectée pour la zone.');
+        if (catNeeded === '2' && !/G[b]|D[b]/.test(marq)) reasons.push('Catégorie requise 2 (Gb/Db) non respectée pour la zone.');
+        if (!/T[1-6]/i.test(marq)) reasons.push('Classe de température (T1..T6) absente : risque de dépassement thermique.');
+        if (!reasons.length) reasons.push('Écart entre catégorie minimale requise et le marquage de l’équipement.');
+      } else {
+        reasons.push('Équipement déclaré conforme. Vérifier tout de même la documentation constructeur et la zone.');
+      }
+
+      // Palliatives
+      const palliatives = [
+        'Mettre en place une signalisation temporaire et limiter l’accès à la zone.',
+        'Réduire les sources d’inflammation (débranchements non essentiels, contrôle ESD).',
+        'Planifier une inspection rapprochée (< 1 mois) pour confirmer l’état réel.'
+      ];
+      if (zone.startsWith('1') || zone.startsWith('21')) palliatives.push('Réduire la présence de mélange explosif (ventilation provisoire, nettoyage).');
+
+      // Préventives
+      const preventives = [
+        'Standardiser le marquage : ex. II ' + (catNeeded) + (zone.startsWith('2')||zone.startsWith('22')? 'G' : (zone.includes('0')||zone.includes('1')?'G':'D')) + ' T4 min.',
+        'Mettre à jour la base de données ATEX (photos, plaques signalétiques, certificats).',
+        'Former le personnel à l’identification des marquages et à la classe T pertinente.'
+      ];
+
+      // Références & changements
+      const refList = [
+        'Mettre à jour la fiche d’équipement avec certificat CE de type.',
+        'Aligner la catégorie minimale avec la zone (' + zone + ') dans la GED.',
+        'Tracer la décision (changement matériel / dérogation) dans le registre sécurité.'
+      ];
+
+      // Coûts (ordre de grandeur indicatif)
+      const costList = [
+        'Remplacement capteur/équipement certifié : 300–1’500 € selon fabricant.',
+        'Main-d’œuvre (pose, test) : 2–6 h.',
+        'Inspection tierce partie (si requis) : 300–900 €.'
+      ];
+
+      why.innerHTML = '<strong>Pourquoi ' + (conf.toLowerCase().includes('non')? 'non conforme':'/ points de vigilance') + ' ?</strong><ul>' + reasons.map(r=>'<li>'+r+'</li>').join('') + '</ul>';
+      pal.innerHTML = palliatives.map(x=>'<li>'+x+'</li>').join('');
+      prev.innerHTML = preventives.map(x=>'<li>'+x+'</li>').join('');
+      refs.innerHTML = refList.map(x=>'<li>'+x+'</li>').join('');
+      costs.innerHTML = costList.map(x=>'<li>'+x+'</li>').join('');
+    }
   </script>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
