@@ -413,7 +413,7 @@ router.post('/disjoncteur', async (req, res) => {
     };
     res.json(normalizedData);
   } catch (e) {
-    res.status(500).json({ error: 'Erreur lors de la recherche: ' + e.message });
+    { res.status(500).json({ error: `Erreur lors de la mise à jour de l'équipement: ${e.message}` });
   } finally { if (client) client.release(); }
 });
 
