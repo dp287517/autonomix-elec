@@ -209,7 +209,7 @@ router.put('/tableaux/:id', async (req, res) => {
       }
     });
   } catch (e) {
-    res.status(500).json({ error: 'Erreur lors de la mise à jour: ' + e.message });
+    res.status(500).json({ error: "Erreur lors de la mise à jour: " + e.message });
   } finally { if (client) client.release(); }
 });
 
@@ -227,7 +227,7 @@ router.delete('/tableaux/:id', async (req, res) => {
     const result = await client.query('DELETE FROM tableaux WHERE id = $1 RETURNING *', [id]);
     if (!result.rowCount) return res.status(404).json({ error: 'Tableau non trouvé' });
     res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: 'Erreur lors de la suppression: ' + e.message }); } finally { if (client) client.release(); }
+  } catch (e) { res.status(500).json({ error: "Erreur lors de la suppression: " + e.message }); } finally { if (client) client.release(); }
 });
 
 // Disjoncteur update (ID conservé)
@@ -266,7 +266,7 @@ router.put('/disjoncteur/:tableauId/:disjoncteurId', async (req, res) => {
     await client.query('UPDATE tableaux SET disjoncteurs = $1::jsonb WHERE id = $2', [JSON.stringify(disjoncteurs), tableauId]);
     res.json({ success: true, data: updated });
   } catch (e) {
-    res.status(500).json({ error: 'Erreur lors de la mise à jour du disjoncteur: ' + e.message });
+    res.status(500).json({ error: "Erreur lors de la mise à jour du disjoncteur: " + e.message });
   } finally { if (client) client.release(); }
 });
 
@@ -288,7 +288,7 @@ router.put('/equipement/:tableauId/:equipmentId', async (req, res) => {
     await client.query('UPDATE equipements SET equipment_id = $1, equipment_type = $2, data = $3::jsonb WHERE tableau_id = $4 AND equipment_id = $5',
       [newId || decodeURIComponent(equipmentId), updatedData.equipmentType, JSON.stringify(data), tableauId, decodeURIComponent(equipmentId)]);
     res.json({ success: true, data: updatedEquipement });
-  } catch (e) { res.status(500).json({ error: 'Erreur lors de la mise à jour de l'équipement: ' + e.message }); } finally { if (client) client.release(); }
+  } catch (e) { res.status(500).json({ error: "Erreur lors de la mise à jour de l'équipement: " + e.message }); } finally { if (client) client.release(); }
 });
 
 router.delete('/equipement/:tableauId/:equipmentId', async (req, res) => {
@@ -298,7 +298,7 @@ router.delete('/equipement/:tableauId/:equipmentId', async (req, res) => {
     const result = await client.query('DELETE FROM equipements WHERE tableau_id = $1 AND equipment_id = $2 RETURNING *', [tableauId, decodeURIComponent(equipmentId)]);
     if (!result.rows.length) return res.status(404).json({ error: 'Équipement non trouvé' });
     res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: 'Erreur lors de la suppression de l'équipement: ' + e.message }); } finally { if (client) client.release(); }
+  } catch (e) { res.status(500).json({ error: "Erreur lors de la mise à jour de l'équipement: " + e.message }); } finally { if (client) client.release(); }
 });
 
 // Data pour selectivity et arc-flash (identiques structure)
