@@ -396,13 +396,13 @@
 
     function showToast(message, variant='primary'){
       const id='t'+Date.now();
-      const html = \`
-        <div id="\${id}" class="toast text-bg-\${variant} border-0 mb-2" role="alert">
+      const html = `
+        <div id="${id}" class="toast text-bg-${variant} border-0 mb-2" role="alert">
           <div class="d-flex">
-            <div class="toast-body">\${message}</div>
+            <div class="toast-body">${message}</div>
             <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
           </div>
-        </div>\`;
+        </div>`;
       $('#toasts').insertAdjacentHTML('beforeend', html);
       const t = new bootstrap.Toast($('#'+id), {delay:3000}); t.show();
       setTimeout(()=> $('#'+id)?.remove(), 3500);
@@ -412,7 +412,7 @@
       if(!d) return 'N/A';
       const date = new Date(d); if(isNaN(date)) return d;
       const dd=String(date.getDate()).padStart(2,'0'), mm=String(date.getMonth()+1).padStart(2,'0'), yyyy=date.getFullYear();
-      return \`\${dd}-\${mm}-\${yyyy}\`;
+      return `${dd}-${mm}-${yyyy}`;
     }
 
     function getChatHistory(){ try{ return JSON.parse(localStorage.getItem(CHAT_KEY) || '[]'); }catch{return []} }
@@ -461,24 +461,24 @@
         const risk = eq.risque ?? '—';
         const isNC = String(eq.conformite||'').toLowerCase().includes('non');
         const tr = document.createElement('tr');
-        tr.innerHTML = \`
-          <td>\${eq.id ?? ''}</td>
-          <td>\${eq.composant || ''}</td>
-          <td>\${eq.secteur || ''}</td>
-          <td>\${eq.batiment || ''}</td>
-          <td>\${eq.local || ''}</td>
-          <td>\${zone}</td>
-          <td>\${eq.conformite || ''}</td>
-          <td>\${risk}</td>
-          <td>\${fmtDate(eq.last_inspection_date)}</td>
-          <td>\${fmtDate(eq.next_inspection_date)}</td>
-          <td>\${eq.photo ? \`<img class="last-photo" src="\${eq.photo}" alt="Photo" onclick="openPhoto('\${encodeURIComponent(eq.photo)}')">\` : '<span class="text-muted">—</span>'}</td>
+        tr.innerHTML = `
+          <td>${eq.id ?? ''}</td>
+          <td>${eq.composant || ''}</td>
+          <td>${eq.secteur || ''}</td>
+          <td>${eq.batiment || ''}</td>
+          <td>${eq.local || ''}</td>
+          <td>${zone}</td>
+          <td>${eq.conformite || ''}</td>
+          <td>${risk}</td>
+          <td>${fmtDate(eq.last_inspection_date)}</td>
+          <td>${fmtDate(eq.next_inspection_date)}</td>
+          <td>${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" onclick="openPhoto('${encodeURIComponent(eq.photo)}')">` : '<span class="text-muted">—</span>'}</td>
           <td class="actions">
-            <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(\${eq.id})"><i data-lucide="edit-3"></i> Éditer</button>
-            <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(\${eq.id}, '\${(eq.composant||'').replace(/'/g,"\\\\'")}')"><i data-lucide="trash-2"></i> Supprimer</button>
-            <button class="btn btn-sm \${isNC?'btn-warning':'btn-outline-secondary'}" onclick="openIA(\${eq.id})"><i data-lucide="sparkles"></i> Aide AutonomiX IA</button>
+            <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(${eq.id})"><i data-lucide="edit-3"></i> Éditer</button>
+            <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${eq.id}, '${(eq.composant||'').replace(/'/g,"\\\\'")}')"><i data-lucide="trash-2"></i> Supprimer</button>
+            <button class="btn btn-sm ${isNC?'btn-warning':'btn-outline-secondary'}" onclick="openIA(${eq.id})"><i data-lucide="sparkles"></i> Aide AutonomiX IA</button>
           </td>
-        \`;
+        `;
         tbody.appendChild(tr);
       });
       window.lucide?.createIcons();
@@ -516,7 +516,7 @@
       }catch(e){}
     }
     function openModalSecteur(){
-      const html=\`
+      const html=`
       <div class="modal fade" id="modalSecteur" tabindex="-1">
         <div class="modal-dialog"><div class="modal-content">
           <div class="modal-header"><h5 class="modal-title">Nouveau secteur</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -529,7 +529,7 @@
             <button class="btn btn-primary" id="saveSecteurBtn">Enregistrer</button>
           </div>
         </div></div>
-      </div>\`;
+      </div>`;
       document.body.insertAdjacentHTML('beforeend', html);
       const el = $('#modalSecteur'), modal = new bootstrap.Modal(el); modal.show();
       el.querySelector('#saveSecteurBtn').addEventListener('click', async ()=>{
@@ -618,7 +618,7 @@
     let toDeleteId = null;
     function openDeleteModal(id, label=''){
       toDeleteId=id;
-      $('#deleteMeta').textContent = label ? \`Équipement : \${label} (ID \${id})\` : \`ID \${id}\`;
+      $('#deleteMeta').textContent = label ? `Équipement : ${label} (ID ${id})` : `ID ${id}`;
       bootstrap.Modal.getOrCreateInstance($('#deleteModal')).show();
       $('#confirmDeleteBtn').onclick = confirmDelete;
     }
@@ -650,11 +650,11 @@
       const box = document.querySelector('#iaPanel .ia-badges'); box.innerHTML='';
       const wrap = document.createElement('div');
       wrap.className='ia-badges';
-      wrap.innerHTML = \`
-        <span class="badge \${String(eq.conformite||'').toLowerCase().includes('non')?'text-bg-danger':'text-bg-success'}">\${eq.conformite||'N/A'}</span>
-        <span class="badge text-bg-secondary">Risque \${eq.risque ?? '-'}</span>
-        <span class="badge text-bg-secondary">Zone \${eq.zone_type || eq.exterieur || eq.interieur || '-'}</span>
-      \`;
+      wrap.innerHTML = `
+        <span class="badge ${String(eq.conformite||'').toLowerCase().includes('non')?'text-bg-danger':'text-bg-success'}">${eq.conformite||'N/A'}</span>
+        <span class="badge text-bg-secondary">Risque ${eq.risque ?? '-'}</span>
+        <span class="badge text-bg-secondary">Zone ${eq.zone_type || eq.exterieur || eq.interieur || '-'}</span>
+      `;
       document.querySelector('#iaPanel .ia-badges').replaceWith(wrap);
     }
 
@@ -671,7 +671,7 @@
         const eq = await eqR.json();
         const help = await helpR.json();
 
-        $('#iaHeader').textContent = \`\${eq.composant || 'Équipement'} — ID \${eq.id} • Dernière: \${fmtDate(eq.last_inspection_date)} • Prochaine: \${fmtDate(eq.next_inspection_date)}\`;
+        $('#iaHeader').textContent = `${eq.composant || 'Équipement'} — ID ${eq.id} • Dernière: ${fmtDate(eq.last_inspection_date)} • Prochaine: ${fmtDate(eq.next_inspection_date)}`;
         renderBadges(eq);
 
         const htmlAide = help?.response || '<p class="text-muted mb-0">Aucune analyse IA disponible.</p>';
@@ -699,7 +699,7 @@
       }catch(e){
         $('#iaLoading').style.display='none';
         $('#iaDetails').style.display='block';
-        $('#iaDetails').innerHTML = \`<div class="alert alert-danger">Erreur IA: \${e.message||e}</div>\`;
+        $('#iaDetails').innerHTML = `<div class="alert alert-danger">Erreur IA: ${e.message||e}</div>`;
       }
     }
     window.openIA = openIA;
@@ -710,7 +710,7 @@
       h.forEach((it,idx)=>{
         const li=document.createElement('li');
         li.className='list-group-item ia-item'+(it.id===activeId?' active':'');
-        li.textContent = \`\${it.composant || 'Équipement'} • \${new Date(it.date).toLocaleString('fr-FR')}\`;
+        li.textContent = `${it.composant || 'Équipement'} • ${new Date(it.date).toLocaleString('fr-FR')}`;
         li.title='Réouvrir cette analyse';
         li.onclick = ()=> {
           $('#iaDetails').innerHTML = it.content;
@@ -731,10 +731,10 @@
         const li=document.createElement('li');
         li.className='list-group-item d-flex flex-column';
         li.style.cursor='pointer';
-        li.innerHTML = \`
-          <div><strong>\${it.composant || 'Équipement'}</strong></div>
-          <div class="small-muted">\${new Date(it.date).toLocaleString('fr-FR')}</div>
-        \`;
+        li.innerHTML = `
+          <div><strong>${it.composant || 'Équipement'}</strong></div>
+          <div class="small-muted">${new Date(it.date).toLocaleString('fr-FR')}</div>
+        `;
         li.onclick = ()=> selectHistoryChat(idx);
         list.appendChild(li);
       });
@@ -743,7 +743,7 @@
     function selectHistoryChat(index){
       const h=getChatHistory(); const it=h[index]; if(!it) return;
       currentIA = it.id;
-      $('#chatHeader').textContent = \`\${it.composant || 'Équipement'} — ID \${it.id} • Dernière: \${it.meta?.last||'-'} • Prochaine: \${it.meta?.next||'-'}\`;
+      $('#chatHeader').textContent = `${it.composant || 'Équipement'} — ID ${it.id} • Dernière: ${it.meta?.last||'-'} • Prochaine: ${it.meta?.next||'-'}`;
       $('#chatHtml').innerHTML = it.content || '<p class="text-muted mb-0">—</p>';
       $('#chatEnriched').style.display='block';
     }
@@ -785,30 +785,30 @@
       if(zone.startsWith('1')||zone.startsWith('21')) palliatives.push('Réduire la présence de mélange explosif (ventilation provisoire, nettoyage).');
 
       const preventives=[
-        \`Standardiser le marquage : II \${catNeeded}\${(zone.includes('0')||zone.includes('1')||zone.includes('2'))?'G':'D'} T4 min.\`,
+        `Standardiser le marquage : II ${catNeeded}${(zone.includes('0')||zone.includes('1')||zone.includes('2'))?'G':'D'} T4 min.`,
         'Mettre à jour la base de données ATEX (photos, plaques, certificats).',
         'Former le personnel à l’identification des marquages & classe T.'
       ];
 
       const refs=[
         'Joindre le certificat CE de type à la fiche.',
-        \`Aligner la catégorie minimale avec la zone (\${zone}) dans la GED.\`,
+        `Aligner la catégorie minimale avec la zone (${zone}) dans la GED.`,
         'Tracer la décision (remplacement/dérogation) dans le registre sécurité.',
         '<a href="https://eur-lex.europa.eu/legal-content/FR/TXT/?uri=CELEX%3A32014L0034" target="_blank" rel="noopener">Directive 2014/34/UE (EUR-Lex)</a>',
         '<a href="https://portail-qualite.public.lu/dam-assets/fr/publications/surveillance-marche/guides/atex-guide-2014-34-ue/ATEX-2014-34-EU-Guidelines-3rd-Edition-December-2020-VA-VF-clean.pdf" target="_blank" rel="noopener">Lignes directrices ATEX 2020 (PDF)</a>'
       ];
 
       const costs=[
-        'Remplacement capteur/équipement : 300–1’500 € selon fabricant.',
+        'Remplacement capteur/équipement : 300–1’500 £ selon fabricant.',
         'Main‑d’œuvre (pose, test) : 2–6 h.',
-        'Inspection tierce partie (si requis) : 300–900 € (voir tarifs ISSeP).'
+        'Inspection tierce partie (si requis) : 300–900 £ (voir tarifs ISSeP).'
       ];
 
-      $('#chatWhy').innerHTML = '<ul>'+reasons.map(r=>\`<li>\${r}</li>\`).join('')+'</ul>';
-      $('#chatPalliative').innerHTML = palliatives.map(x=>\`<li>\${x}</li>\`).join('');
-      $('#chatPreventive').innerHTML = preventives.map(x=>\`<li>\${x}</li>\`).join('');
-      $('#chatRefs').innerHTML = refs.map(x=>\`<li>\${x}</li>\`).join('');
-      $('#chatCosts').innerHTML = costs.map(x=>\`<li>\${x}</li>\`).join('');
+      $('#chatWhy').innerHTML = '<ul>'+reasons.map(r=>`<li>${r}</li>`).join('')+'</ul>';
+      $('#chatPalliative').innerHTML = palliatives.map(x=>`<li>${x}</li>`).join('');
+      $('#chatPreventive').innerHTML = preventives.map(x=>`<li>${x}</li>`).join('');
+      $('#chatRefs').innerHTML = refs.map(x=>`<li>${x}</li>`).join('');
+      $('#chatCosts').innerHTML = costs.map(x=>`<li>${x}</li>`).join('');
     }
 
     // --- Sélecteur de pièces : liens externes (constructeur/distributeur/formation) ---
