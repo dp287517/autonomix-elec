@@ -1,3 +1,4 @@
+// config/initDb.js
 const { pool } = require('./db');
 const { getRecommendedSection, normalizeIcn } = require('../utils/electric');
 
@@ -8,7 +9,7 @@ async function initDb() {
     client = await pool.connect();
     await client.query('SELECT 1');
 
-    // Création des tables (identiques à l'existant)
+    // Tables existantes inchangées (électricité, projets, etc.)
     await client.query(`
       CREATE TABLE IF NOT EXISTS tableaux (
         id VARCHAR(50) PRIMARY KEY,
@@ -86,7 +87,7 @@ async function initDb() {
         profit_loss DECIMAL NOT NULL,
         current_capital DECIMAL NOT NULL,
         notes TEXT
-      )
+      );
     `);
     await client.query(`
       CREATE TABLE IF NOT EXISTS projects (
@@ -130,6 +131,7 @@ async function initDb() {
         identifiant VARCHAR(100) UNIQUE,
         interieur VARCHAR(50),
         exterieur VARCHAR(50),
+        zone_type VARCHAR(10),
         categorie_minimum VARCHAR(100),
         marquage_atex VARCHAR(100),
         photo TEXT,
@@ -142,6 +144,11 @@ async function initDb() {
         frequence INTEGER DEFAULT 3
       );
     `);
+    // Migrations idempotentes
+    await client.query(`ALTER TABLE atex_equipments ADD COLUMN IF NOT EXISTS zone_type VARCHAR(10);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_atex_identifiant ON atex_equipments (identifiant);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_atex_next_inspection ON atex_equipments (next_inspection_date);`);
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS atex_inspections (
         id SERIAL PRIMARY KEY,
@@ -159,12 +166,11 @@ async function initDb() {
       );
     `);
     const secteursCount = await client.query('SELECT COUNT(*) FROM atex_secteurs');
-    if (parseInt(secteursCount.rows[0].count) === 0) {
-      await client.query(`
-        INSERT INTO atex_secteurs (name) VALUES ('Métro'), ('Utilité'), ('Maintenance');
-      `);
+    if (parseInt(secteursCount.rows[0].count, 10) === 0) {
+      await client.query(`INSERT INTO atex_secteurs (name) VALUES ('Métro'), ('Utilité'), ('Maintenance');`);
     }
 
+    // Trigger updated_at (projets)
     await client.query(`
       CREATE OR REPLACE FUNCTION update_updated_at_projects()
       RETURNS TRIGGER AS $$
@@ -180,7 +186,7 @@ async function initDb() {
       FOR EACH ROW EXECUTE PROCEDURE update_updated_at_projects();
     `);
 
-    // Normaliser les disjoncteurs existants
+    // Normalisation disjoncteurs existants (élec)
     const result = await client.query('SELECT id, disjoncteurs FROM tableaux');
     for (const row of result.rows) {
       if (!Array.isArray(row.disjoncteurs)) {
