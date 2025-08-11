@@ -15,7 +15,6 @@ app.use(requestLogger);
 
 // Helper: récupère un Router quelle que soit la forme d'export
 function pickRouter(mod, name) {
-  // candidats courants
   const candidates = [
     mod && mod.default,
     mod && mod.router,
@@ -24,7 +23,6 @@ function pickRouter(mod, name) {
   ].filter(Boolean);
 
   for (const c of candidates) {
-    // Express Router est une fonction (middleware) avec props .use/.handle ou .stack
     if (typeof c === 'function' && (c.use || c.handle || c.stack)) return c;
   }
 
@@ -44,6 +42,7 @@ const safety       = pickRouter(require('./routes/safety'),       'routes/safety
 const projects     = pickRouter(require('./routes/projects'),     'routes/projects');
 const trades       = pickRouter(require('./routes/trades'),       'routes/trades');
 const translate    = pickRouter(require('./routes/translate'),    'routes/translate');
+const atex         = pickRouter(require('./routes/atex'),         'routes/atex');  // ⬅️ NEW
 
 // Montage (endpoints inchangés)
 app.use('/api', tableaux);
@@ -55,6 +54,7 @@ app.use('/api', safety);
 app.use('/api', projects);
 app.use('/',    trades);      // garde /trades*
 app.use('/api', translate);
+app.use('/api', atex);        // ⬅️ NEW
 
 // Erreurs
 app.use(errorHandler);
