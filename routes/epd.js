@@ -1,13 +1,11 @@
-// EPD Builder — JavaScript
-// Ce fichier est autonome et suppose que epd.html charge: Bootstrap, Lucide, Marked.
-// Endpoints backend attendus (déjà présents dans ton projet ATEX) :
+// EPD Builder — JavaScript (FRONT)
+// Rangé dans main/routes/epd.js, mais servi EN STATIQUE via /js/epd.js depuis app.js
 const API = {
-  equipments: '/api/atex-equipments', // GET: liste complète d'équipements ATEX
-  chat: '/api/atex-chat',             // POST: {question} -> {response}
-  epd: '/api/epd'                     // Option "boss": POST/GET/PUT pour persister l'EPD
+  equipments: '/api/atex-equipments',
+  chat: '/api/atex-chat',
+  epd: '/api/epd' // Option "boss"
 };
 
-// ===== State =====
 const state = {
   context: {},
   zones: new Set(),
@@ -21,17 +19,12 @@ const state = {
 
 document.addEventListener('DOMContentLoaded', () => {
   if (window.lucide) window.lucide.createIcons();
-
-  // Steps
   document.querySelectorAll('.step').forEach(step =>
     step.addEventListener('click', () => goToStep(step.dataset.step))
   );
+  on('#btnAskAI','click', onAskAI);
 
-  // Right rail IA
-  const btnAskAI = document.getElementById('btnAskAI');
-  if (btnAskAI) btnAskAI.addEventListener('click', onAskAI);
-
-  // Inputs contexte
+  // Context
   ['org','site','address','author','processDesc'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', () => { state.context[id] = el.value; save(); });
@@ -41,82 +34,57 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('[data-step="2"] input[type="checkbox"]').forEach(cb => {
     cb.addEventListener('change', () => { if (cb.checked) state.zones.add(cb.value); else state.zones.delete(cb.value); save(); });
   });
-  const btnAIIntroZoning = document.getElementById('btnAIIntroZoning');
-  if (btnAIIntroZoning) btnAIIntroZoning.addEventListener('click', async () => {
+  on('#btnAIIntroZoning','click', async () => {
     const reply = await callAI('Explique brièvement les zones ATEX 0/1/2/20/21/22 et leurs critères, en 120 mots.');
     setHtml('#aiReply', marked.parse(reply || ''));
   });
 
   // Équipements
   bindEquipments();
-
-  // Mesures / IA
+  // Mesures + IA
   bindMeasuresAI();
 
-  // Build exports
-  const btnBuild = document.getElementById('btnBuild');
-  if (btnBuild) btnBuild.addEventListener('click', buildAndRender);
-
-  const btnExportMD = document.getElementById('btnExportMD');
-  if (btnExportMD) btnExportMD.addEventListener('click', () => {
+  on('#btnBuild','click', buildAndRender);
+  on('#btnExportMD','click', () => {
     const md = getMdFromPreviewOrBuild();
     downloadFile('EPD.md', md, 'text/markdown;charset=utf-8');
   });
-
-  const btnExportJSON = document.getElementById('btnExportJSON');
-  if (btnExportJSON) btnExportJSON.addEventListener('click', () => {
+  on('#btnExportJSON','click', () => {
     const json = buildJsonPayload();
     downloadFile('EPD.json', JSON.stringify(json, null, 2), 'application/json');
   });
+  on('#btnSaveServer','click', saveServer);
+  on('#btnReset','click', () => { localStorage.removeItem(KEY); location.reload(); });
 
-  const btnSaveServer = document.getElementById('btnSaveServer');
-  if (btnSaveServer) btnSaveServer.addEventListener('click', saveServer);
-
-  const btnReset = document.getElementById('btnReset');
-  if (btnReset) btnReset.addEventListener('click', () => { localStorage.removeItem(KEY); location.reload(); });
-
-  // Persistence
   restore();
-
-  // Init data
   loadEquip();
-
-  // Default step
   goToStep(1);
 });
 
-// ===== Navigation
+// Nav
 function goToStep(n){
   document.querySelectorAll('.step').forEach(s => s.classList.toggle('is-active', s.dataset.step === String(n)));
   document.querySelectorAll('.step-pane').forEach(p => p.classList.toggle('d-none', p.dataset.step !== String(n)));
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// ===== IA
+// IA
 async function onAskAI(){
-  const q = (document.getElementById('aiQuestion').value || '').trim();
+  const q = (val('#aiQuestion') || '').trim();
   if (!q) return;
   const reply = await callAI(q);
   setHtml('#aiReply', marked.parse(reply || ''));
 }
-
 async function callAI(question){
   try{
-    const r = await fetch(API.chat, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ question })
-    });
+    const r = await fetch(API.chat, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ question }) });
     const data = await r.json();
     return (data && (data.response || data.answer)) || '';
   }catch(e){ return '⚠️ IA indisponible.'; }
 }
 
-// ===== Équipements
+// Équipements
 function bindEquipments(){
-  const fSecteur = get('#fSecteur');
-  const fBat = get('#fBat');
-  const fConf = get('#fConf');
   on('#btnSyncEquip','click', loadEquip);
   on('#fSecteur','input', renderEquip);
   on('#fBat','input', renderEquip);
@@ -124,8 +92,6 @@ function bindEquipments(){
   on('#checkAll','change', (e) => {
     document.querySelectorAll('.row-check').forEach(ch => { ch.checked = e.target.checked; toggleSelect(ch); });
   });
-
-  // IA analyse sélection (texte dans rail IA)
   on('#btnAIEq','click', async () => {
     const selected = [...state.selectedEquip.values()];
     if (!selected.length) { setHtml('#aiReply', 'Sélectionne au moins un équipement.'); return; }
@@ -135,7 +101,6 @@ function bindEquipments(){
     setHtml('#aiReply', marked.parse(reply || ''));
   });
 }
-
 async function loadEquip(){
   try{
     const r = await fetch(API.equipments);
@@ -143,7 +108,6 @@ async function loadEquip(){
     renderEquip();
   }catch(e){ console.error('loadEquip', e); }
 }
-
 function renderEquip(){
   const tbody = get('#equipTable tbody');
   if (!tbody) return;
@@ -169,9 +133,8 @@ function renderEquip(){
       <td>${safe(eq.risque)}</td>
     </tr>`;
   }).join('');
-  tbody.querySelectorAll('.row-check').forEach(ch => ch.addEventListener('change', () => toggleSelect(ch)));
+  document.querySelectorAll('.row-check').forEach(ch => ch.addEventListener('change', () => toggleSelect(ch)));
 }
-
 function toggleSelect(ch){
   const id = Number(ch.dataset.id);
   const item = state.equipments.find(e => e.id === id);
@@ -179,8 +142,6 @@ function toggleSelect(ch){
   if (ch.checked) state.selectedEquip.set(id, item); else state.selectedEquip.delete(id);
   save();
 }
-
-// Helpers catégorie mini depuis zone
 function minCategoryFromZone(zone){
   zone = String(zone || '');
   if (zone === '0' || zone.startsWith('0')) return 'II 1G T135°C';
@@ -191,7 +152,7 @@ function minCategoryFromZone(zone){
   return 'II 3D T135°C'; // 22 par défaut
 }
 
-// ===== Mesures + IA boutons
+// Mesures + IA
 function bindMeasuresAI(){
   const measuresPrev = get('#measuresPrev');
   const measuresProt = get('#measuresProt');
@@ -215,13 +176,12 @@ function bindMeasuresAI(){
   }));
 }
 
-// ===== Build (Markdown + HTML)
+// Build
 function buildAndRender(){
   const md = buildMarkdown();
   setText('#mdPreview', md);
   setHtml('#htmlPreview', marked.parse(md));
 }
-
 function buildMarkdown(){
   const ctx = state.context || {};
   const zones = [...state.zones].sort((a,b)=>Number(a)-Number(b)).join(', ');
@@ -269,14 +229,13 @@ ${maintenance}
 - FDS / SDS
 `;
 }
-
 function getMdFromPreviewOrBuild(){
   const node = get('#mdPreview');
   if (!node || !node.textContent) return buildMarkdown();
   return node.textContent;
 }
 
-// ===== Export / Download
+// Export / Download
 function downloadFile(name, content, mime){
   const blob = new Blob([content], { type:mime });
   const url = URL.createObjectURL(blob);
@@ -285,7 +244,7 @@ function downloadFile(name, content, mime){
   setTimeout(() => URL.revokeObjectURL(url), 500);
 }
 
-// ===== Persistence (localStorage)
+// Persistence
 const KEY='EPD_BUILDER';
 function save(){
   const json = {
@@ -309,21 +268,16 @@ function restore(){
     setVal('#training', data.training || '');
     setVal('#maintenance', data.maintenance || '');
     Object.entries(state.context).forEach(([k,v])=>{ const el = document.getElementById(k); if(el) el.value = v; });
-    // Retick zones
     document.querySelectorAll('[data-step="2"] input[type="checkbox"]').forEach(cb => { cb.checked = state.zones.has(cb.value); });
   }catch{}
 }
 
-// ===== Save to server (Option boss)
+// Save to server (Option boss)
 async function saveServer(){
   try{
     const payload = buildJsonPayload();
     const title = state.context?.site || 'EPD';
-    const r = await fetch(API.epd, {
-      method:'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ title, payload })
-    });
+    const r = await fetch(API.epd, { method:'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ title, payload }) });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
     alert('EPD enregistré (id: ' + (data.id || '?') + ')');
@@ -331,7 +285,6 @@ async function saveServer(){
     alert('Impossible d\'enregistrer côté serveur. Vérifie que /api/epd est monté.\n' + e.message);
   }
 }
-
 function buildJsonPayload(){
   return {
     context: state.context,
@@ -344,7 +297,7 @@ function buildJsonPayload(){
   };
 }
 
-// ===== Utilities
+// Utils
 function get(sel, root=document){ return root.querySelector(sel); }
 function on(sel, evt, fn){ const el = get(sel); if (el) el.addEventListener(evt, fn); }
 function val(sel){ const el = get(sel); return el ? el.value : ''; }
