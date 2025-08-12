@@ -1,4 +1,4 @@
-// main/routes/epdStore.js — basé sur ta version, avec protection requireAuth
+// main/routes/epdStore.js — version robuste avec auth optionnelle
 const express = require('express');
 const router = express.Router();
 const path = require('path');
@@ -7,15 +7,26 @@ const multer = require('multer');
 const crypto = require('crypto');
 const { pool } = require('../config/db');
 
-// 🔐 Auth middleware (si présent)
-let requireAuth = (_req,_res,next)=>next();
+// 🔐 Auth middleware (robuste / optionnel)
+let requireAuth = (_req, _res, next) => next();
 try {
-  ({ requireAuth } = require('../auth'));
-} catch(e) {
-  console.warn('[epdStore] auth non trouvé, routes non protégées (dev mode).');
+  const auth = require('../auth');
+  // Supporte: module.exports = { requireAuth }, ou module.exports = requireAuth, ou autre
+  const candidate =
+    (auth && typeof auth.requireAuth === 'function' && auth.requireAuth) ||
+    (typeof auth === 'function' && auth);
+
+  if (typeof candidate === 'function') {
+    requireAuth = candidate;
+  } else {
+    console.warn('[epdStore] Module auth trouvé mais sans middleware `requireAuth` fonctionnel. Routes non protégées (dev).');
+  }
+} catch (e) {
+  console.warn('[epdStore] Module auth absent. Routes non protégées (dev).');
 }
 router.use(requireAuth);
 
+// ====== DB bootstrap
 async function ensureTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS atex_epd_docs (
@@ -53,13 +64,13 @@ async function ensureTable() {
   `);
 }
 
-// Upload
+// ====== Upload pièces jointes
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
+  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
+  filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname);
     const base = crypto.randomBytes(8).toString('hex');
     cb(null, `${Date.now()}_${base}${ext}`);
@@ -76,12 +87,12 @@ router.post('/upload', upload.array('files', 10), async (req, res) => {
       url: `/uploads/${path.basename(f.path)}`
     }));
     res.json(out);
-  } catch (e) {
+  } catch (_e) {
     res.status(500).json({ error: 'upload_failed' });
   }
 });
 
-// CRUD
+// ====== CRUD EPD
 router.get('/epd', async (req, res, next) => {
   try {
     await ensureTable();
@@ -91,13 +102,14 @@ router.get('/epd', async (req, res, next) => {
     if (status) { params.push(status); where.push(`status = $${params.length}`); }
     if (q) { params.push(`%${q}%`); where.push(`(title ILIKE $${params.length} OR CAST(payload AS TEXT) ILIKE $${params.length})`); }
     const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    params.push(limit); params.push(offset);
+    params.push(limit);
+    params.push(offset);
     const sql = `
       SELECT id, title, status, created_at, updated_at
       FROM atex_epd_docs
       ${w}
       ORDER BY updated_at DESC
-      LIMIT $${params.length-1} OFFSET $${params.length};
+      LIMIT $${params.length - 1} OFFSET $${params.length};
     `;
     const r = await pool.query(sql, params);
     res.json(r.rows);
