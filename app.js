@@ -1,93 +1,96 @@
+// app.js — Serveur principal AutonomiX
 require('dotenv').config();
+
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
-const fs = require('fs');
-const { initDb } = require('./config/initDb');
-const { errorHandler } = require('./middleware/error');
-const { requestLogger } = require('./middleware/logger');
 
+// ---- Création app ----
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-app.use(express.static('public'));
-app.use(cors());
-app.use(express.json({ limit: '20mb' }));
-app.use(requestLogger);
+// ---- Sécurité / CORS ----
+app.use(cors({
+  origin: '*', // ajuste si besoin (ex: ['https://ton-domaine'])
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization']
+}));
 
-// Helper: récupère un Router quelle que soit la forme d'export
-function pickRouter(mod, name) {
-  const candidates = [
-    mod && mod.default,
-    mod && mod.router,
-    mod,
-    ...(mod && typeof mod === 'object' ? Object.values(mod) : [])
-  ].filter(Boolean);
+// ---- Tailles de payload (corrige "request entity too large") ----
+// Monte si tu veux accepter de grosses images base64
+const BODY_LIMIT = process.env.BODY_LIMIT || '25mb';
+app.use(express.json({ limit: BODY_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 
-  for (const c of candidates) {
-    if (typeof c === 'function' && (c.use || c.handle || c.stack)) return c;
-  }
+// ---- Statique ----
+// Sert les fichiers HTML/CSS/JS à la racine du projet (login.html, dashboard.html, atex-control.html, etc.)
+app.use(express.static(path.join(__dirname)));
 
-  console.error(`[Boot] Mauvais export pour ${name}. Type: ${typeof mod}, clés: ${
-    mod && typeof mod === 'object' ? Object.keys(mod).join(',') : 'n/a'
-  }`);
-  throw new TypeError(`[Boot] ${name} n'exporte pas un router valide`);
-}
+// Optionnel: un dossier public si tu en as un
+// app.use('/public', express.static(path.join(__dirname, 'public')));
 
-// 🔐 Auth (NOUVEAU)
-const auth        = pickRouter(require('./auth'), 'auth'); // ← routes /api/login et /api/me
-
-// Charge les routes
-const tableaux     = pickRouter(require('./routes/tableaux'),     'routes/tableaux');
-const obsolescence = pickRouter(require('./routes/obsolescence'), 'routes/obsolescence');
-const reports      = pickRouter(require('./routes/reports'),      'routes/reports');
-const maintenance  = pickRouter(require('./routes/maintenance'),  'routes/maintenance');
-const emergency    = pickRouter(require('./routes/emergency'),    'routes/emergency');
-const safety       = pickRouter(require('./routes/safety'),       'routes/safety');
-const projects     = pickRouter(require('./routes/projects'),     'routes/projects');
-const trades       = pickRouter(require('./routes/trades'),       'routes/trades');
-const translate    = pickRouter(require('./routes/translate'),    'routes/translate');
-const atex         = pickRouter(require('./routes/atex'),         'routes/atex');
-
-let epdStore = null;
+// ---- Routers API ----
+// IMPORTANT : auth.js doit être au même niveau que app.js
+let authRouter;
 try {
-  epdStore = pickRouter(require('./routes/epdStore'), 'routes/epdStore');
+  authRouter = require('./auth');
 } catch (e) {
-  console.warn('[Boot] routes/epdStore absent.');
+  console.error('[BOOT] auth.js introuvable ou invalide:', e.message);
+  // on continue quand même pour ne pas planter le boot
+}
+let atexRouter;
+try {
+  atexRouter = require('./routes/atex');
+} catch (e) {
+  console.error('[BOOT] routes/atex.js introuvable ou invalide:', e.message);
 }
 
-// Montage
-app.use('/api', auth);           // ← 🔐 d'abord (login/me)
-app.use('/api', tableaux);
-app.use('/api', obsolescence);
-app.use('/api', reports);
-app.use('/api', maintenance);
-app.use('/api', emergency);
-app.use('/api', safety);
-app.use('/api', projects);
-app.use('/',    trades);
-app.use('/api', translate);
-app.use('/api', atex);
-if (epdStore) app.use('/api', epdStore);
+// Monte les routes sous /api
+if (authRouter) app.use('/api', authRouter);
+if (atexRouter) app.use('/api', atexRouter);
 
-// Servir le JS front EPD placé dans routes/
-app.get('/js/epd.js', (req, res) => {
-  res.sendFile(path.join(__dirname, 'routes', 'epd.js'), err => {
-    if (err) res.status(404).send('epd.js introuvable (place-le dans main/routes/epd.js)');
-  });
+// ---- Routes de confort (HTML) ----
+
+// Page d’accueil -> redirige vers login (le front gère le token et peut renvoyer vers dashboard)
+app.get(['/', '/index.html'], (_req, res) => {
+  res.sendFile(path.join(__dirname, 'login.html'));
 });
 
-// Servir les fichiers uploadés
-const UPLOAD_DIR = path.join(__dirname, 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-app.use('/uploads', express.static(UPLOAD_DIR));
+// Route de fallback pour les fichiers front connus
+app.get('/login', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'login.html'));
+});
+app.get('/dashboard', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+app.get('/atex-control', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'atex-control.html'));
+});
+app.get('/atex-risk', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'atex-risk.html'));
+});
 
-// Erreurs
-app.use(errorHandler);
+// ---- Healthcheck ----
+app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
-initDb()
-  .then(() => app.listen(PORT, () => console.log(`[Server] Écoute sur : ${PORT}`)))
-  .catch(err => {
-    console.error('[Server] Échec init DB:', err);
-    process.exit(1);
-  });
+// ---- 404 API ----
+app.use('/api', (_req, res) => {
+  res.status(404).json({ error: 'API route not found' });
+});
+
+// ---- Gestion erreurs globale ----
+app.use((err, _req, res, _next) => {
+  console.error('[ERROR]', err);
+  // Cas fréquent: payload trop gros
+  if (String(err?.type).includes('entity.too.large') || /request entity too large/i.test(err?.message || '')) {
+    return res.status(413).json({ error: 'Payload trop volumineux. Réduis la taille de l’image ou compresse le fichier.' });
+  }
+  res.status(500).json({ error: 'Erreur serveur', detail: err?.message || 'Unknown' });
+});
+
+// ---- Lancement ----
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`[AutonomiX] Server up on port ${PORT}`);
+  console.log('HTML -> /login.html, /dashboard.html, /atex-control.html');
+  console.log('API  -> /api/... (auth, atex, etc.)');
+});
