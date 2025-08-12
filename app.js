@@ -34,6 +34,9 @@ function pickRouter(mod, name) {
   throw new TypeError(`[Boot] ${name} n'exporte pas un router valide`);
 }
 
+// 🔐 Auth (NOUVEAU)
+const auth        = pickRouter(require('./auth'), 'auth'); // ← routes /api/login et /api/me
+
 // Charge les routes
 const tableaux     = pickRouter(require('./routes/tableaux'),     'routes/tableaux');
 const obsolescence = pickRouter(require('./routes/obsolescence'), 'routes/obsolescence');
@@ -54,6 +57,7 @@ try {
 }
 
 // Montage
+app.use('/api', auth);           // ← 🔐 d'abord (login/me)
 app.use('/api', tableaux);
 app.use('/api', obsolescence);
 app.use('/api', reports);
