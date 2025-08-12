@@ -1,4 +1,4 @@
-// main/routes/epdStore.js
+// main/routes/epdStore.js — basé sur ta version, avec protection requireAuth
 const express = require('express');
 const router = express.Router();
 const path = require('path');
@@ -6,6 +6,15 @@ const fs = require('fs');
 const multer = require('multer');
 const crypto = require('crypto');
 const { pool } = require('../config/db');
+
+// 🔐 Auth middleware (si présent)
+let requireAuth = (_req,_res,next)=>next();
+try {
+  ({ requireAuth } = require('../auth'));
+} catch(e) {
+  console.warn('[epdStore] auth non trouvé, routes non protégées (dev mode).');
+}
+router.use(requireAuth);
 
 async function ensureTable() {
   await pool.query(`
