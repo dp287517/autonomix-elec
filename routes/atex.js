@@ -5,11 +5,14 @@ const { pool } = require('../config/db');
 const multer = require('multer');
 const upload = multer();
 const XLSX = require('xlsx');
-const { openai } = require('../config/openai');
+const path = require('path');
+const fs = require('fs');
+let openai = null;
+try { openai = require('../config/openai').openai; } catch {}
 
 const JSON_LIMIT_ERR = 'Charge utile trop volumineuse. Utilisez une image redimensionnée.';
 
-/* ----------------------- Helpers DB sûrs ----------------------- */
+// ============ DB helpers ============
 async function query(sql, params = []) {
   const client = await pool.connect();
   try { return await client.query(sql, params); }
@@ -23,22 +26,16 @@ async function rowsOrEmpty(sql, params = []) {
   }
 }
 
-/* ----------------------- Utilitaires métier ----------------------- */
+// ============ Utils ============
 const REQUIRED_FIELDS = ['composant', 'type', 'marquage_atex'];
 
-function mapAliases(payload = {}) {
-  // Compat : “fabricant” -> fournisseur ; “zone_type” remplace exterieur/interieur
-  if (payload.fabricant && !payload.fournisseur) payload.fournisseur = payload.fabricant;
-  if (payload.zone_type) { payload.exterieur = payload.zone_type; payload.interieur = null; }
-  return payload;
-}
 function missingFields(data) {
   const miss = [];
   for (const f of REQUIRED_FIELDS) if (!data[f]) miss.push(f);
-  if (!data.identifiant) miss.push('identifiant (vivement recommandé)');
   if (!data.fournisseur) miss.push('fabricant');
   return miss;
 }
+
 function parseDateFlexible(v) {
   if (!v) return null;
   const s = String(v).trim();
@@ -55,66 +52,85 @@ function parseDateFlexible(v) {
   return d ? d.toISOString().split('T')[0] : null;
 }
 function isoOrNull(d) { if (!d) return null; try { return new Date(d).toISOString().split('T')[0]; } catch { return null; } }
-
-function nextFrom(lastISO, freqYears = 3) {
-  const base = parseDateFlexible(lastISO) || new Date().toISOString().split('T')[0];
-  const d = new Date(base);
-  d.setFullYear(d.getFullYear() + (parseInt(freqYears, 10) || 3));
+function addYearsISO(dateISO, years) {
+  const d = new Date(dateISO);
+  if (isNaN(d)) return null;
+  d.setFullYear(d.getFullYear() + (parseInt(years,10)||0));
   return d.toISOString().split('T')[0];
 }
 
-function calculateMinCategoryFromZone(zone = '22') {
-  zone = String(zone);
-  if (zone.startsWith('0')) return 'II 1G T135°C';
-  if (zone.startsWith('1')) return 'II 2G T135°C';
-  if (zone.startsWith('2')) return 'II 3G T135°C';
-  if (zone.startsWith('20')) return 'II 1D T135°C';
-  if (zone.startsWith('21')) return 'II 2D T135°C';
-  return 'II 3D T135°C';
+// Zones : Gaz ↦ interieur (0/1/2), Poussières ↦ exterieur (20/21/22)
+function pickZones(payload = {}) {
+  const zg = payload.zone_gaz || (['0','1','2'].includes(String(payload.zone_type||'')) ? String(payload.zone_type) : '');
+  const zd = payload.zone_poussieres || (['20','21','22'].includes(String(payload.zone_type||'')) ? String(payload.zone_type) : '');
+  return { zone_gaz: zg || null, zone_poussieres: zd || null };
+}
+function minCatForZone(z){ if(!z) return null;
+  const s = String(z);
+  if (s === '0' || s === '20') return 1;
+  if (s === '1' || s === '21') return 2;
+  return 3;
 }
 function tempClassToMaxC(marquage = '') {
-  const m = marquage.match(/T([1-6])/i);
-  if (!m) return 135; // défaut
+  const m = marquage.match(/T(\d)/i);
+  if (!m) return 135;
   return { '1':450,'2':300,'3':200,'4':135,'5':100,'6':85 }[m[1]];
 }
 function catFromMarquage(marquage = '') {
-  if (/G[a]/.test(marquage) || /D[a]/.test(marquage)) return 1;
-  if (/G[b]/.test(marquage) || /D[b]/.test(marquage)) return 2;
-  return 3;
+  // Heuristique : si “II 1x/2x/3x …”
+  const m = marquage.match(/II\s+([123])/i);
+  return m ? parseInt(m[1],10) : 3;
 }
-function requiredCatFromZone(zone = '22') {
-  zone = String(zone);
-  if (zone.startsWith('0') || zone.startsWith('20')) return 1;
-  if (zone.startsWith('1') || zone.startsWith('21')) return 2;
-  return 3;
-}
-function checkAtexConformity(marquage, categorieMin, zone = '22') {
-  if (!marquage || !categorieMin) return 'Non Conforme';
-  const catMarq = catFromMarquage(marquage);
-  const catMin = parseInt((categorieMin.match(/II (\d)/i) || [])[1] || '3', 10);
-  const reqCat = requiredCatFromZone(zone);
-  if (catMarq > reqCat || catMarq > catMin) return 'Non Conforme';
-  const tMin = parseInt((categorieMin.match(/T(\d+)/i) || [])[1] || '135', 10);
+function checkDualConformity(marquage, zg, zd) {
+  const needG = ['0','1','2'].includes(String(zg||''));
+  const needD = ['20','21','22'].includes(String(zd||''));
+
+  // Présence marquage côté G/D
+  const okG = !needG || /II\s+[123]\s*G/i.test(marquage);
+  const okD = !needD || /II\s+[123]\s*D/i.test(marquage);
+  if (!okG || !okD) return 'Non Conforme';
+
+  // Catégorie requise = pire des deux
+  const req = Math.max(minCatForZone(zg)||0, minCatForZone(zd)||0) || 3;
+  const marqCat = catFromMarquage(marquage);
+  if (marqCat > req) return 'Non Conforme';
+
+  // Classe T minimale (135°C par défaut)
+  const tMin = 135;
   const tMarq = tempClassToMaxC(marquage);
   if (tMarq < tMin) return 'Non Conforme';
+
   return 'Conforme';
 }
-function calculateRisk(zone = '22', conformity = 'Conforme') {
-  const z = String(zone);
-  const zoneScore = (z.startsWith('0') || z.startsWith('20')) ? 5 : ((z.startsWith('1') || z.startsWith('21')) ? 3 : 1);
-  const confScore = conformity !== 'Conforme' ? 2 : 0;
+function riskFromDual(zg, zd, conformity='Conforme'){
+  function score(z) {
+    if (!z && z!==0) return 0;
+    const s = String(z);
+    if (s==='0' || s==='20') return 5;
+    if (s==='1' || s==='21') return 3;
+    return 1; // 2 / 22
+  }
+  const zoneScore = Math.max(score(zg), score(zd));
+  const confScore = (conformity !== 'Conforme') ? 2 : 0;
   return Math.min(Math.max(zoneScore + confScore, 0), 5);
 }
+function worstZone(zg, zd){
+  // renvoie la plus sévère des 2 pour compat “zone_type”
+  const rank = z => (z==='0'||z==='20')?3 : (z==='1'||z==='21')?2 : (z==='2'||z==='22')?1 : 0;
+  return rank(zg) >= rank(zd) ? (zg || zd || '22') : (zd || zg || '22');
+}
+function nextFrom(lastISO, freqYears = 3) {
+  const base = parseDateFlexible(lastISO) || new Date().toISOString().split('T')[0];
+  return addYearsISO(base, freqYears);
+}
 
-/* ----------------------- Secteurs ----------------------- */
-// GET /api/atex-secteurs
+// ============ Secteurs ============
 router.get('/atex-secteurs', async (_req, res) => {
   try {
     const rows = await rowsOrEmpty(`SELECT id, name FROM atex_secteurs ORDER BY name ASC`);
     res.json(rows);
   } catch (e) { res.status(500).json({ error: 'Erreur ATEX secteurs: ' + e.message }); }
 });
-// POST /api/atex-secteurs  { name }
 router.post('/atex-secteurs', async (req, res) => {
   try {
     const name = (req.body && req.body.name || '').trim();
@@ -124,35 +140,37 @@ router.post('/atex-secteurs', async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Erreur création secteur: ' + e.message }); }
 });
 
-/* ----------------------- Équipements ----------------------- */
-// GET /api/atex-equipments (avec fallback next_inspection_date si null)
+// ============ Equipements ============
 router.get('/atex-equipments', async (_req, res) => {
   try {
     let rows = await rowsOrEmpty(`SELECT * FROM atex_equipments ORDER BY id DESC`);
-    // Fallback calculé si next_inspection_date est nul mais last_inspection_date présent
+    // enrichissement : zone_gaz / zone_poussieres + fallback prochaine date
     rows = rows.map(r => {
-      if (!r.next_inspection_date && r.last_inspection_date) {
-        const next = nextFrom(r.last_inspection_date, r.frequence || 3);
-        return { ...r, next_inspection_date: next };
-      }
-      return r;
+      const zg = (['0','1','2'].includes(String(r.interieur))) ? String(r.interieur) : null;
+      const zd = (['20','21','22'].includes(String(r.exterieur))) ? String(r.exterieur) : null;
+      const next = (!r.next_inspection_date && r.last_inspection_date)
+        ? nextFrom(r.last_inspection_date, r.frequence || 3)
+        : r.next_inspection_date;
+      return { ...r, zone_gaz: zg, zone_poussieres: zd, next_inspection_date: next };
     });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: 'Erreur récupération équipements ATEX: ' + e.message }); }
 });
-// GET /api/atex-equipments/:id
+
 router.get('/atex-equipments/:id', async (req, res) => {
   try {
     const r = await rowsOrEmpty(`SELECT * FROM atex_equipments WHERE id = $1`, [req.params.id]);
     if (!r.length) return res.status(404).json({ error: 'Équipement non trouvé' });
     const row = r[0];
+    const zg = (['0','1','2'].includes(String(row.interieur))) ? String(row.interieur) : null;
+    const zd = (['20','21','22'].includes(String(row.exterieur))) ? String(row.exterieur) : null;
     if (!row.next_inspection_date && row.last_inspection_date) {
       row.next_inspection_date = nextFrom(row.last_inspection_date, row.frequence || 3);
     }
-    res.json(row);
+    res.json({ ...row, zone_gaz: zg, zone_poussieres: zd });
   } catch (e) { res.status(500).json({ error: 'Erreur récupération équipement: ' + e.message }); }
 });
-// GET /api/atex-equipments/:id/photo (base64)
+
 router.get('/atex-equipments/:id/photo', async (req, res) => {
   try {
     const r = await rowsOrEmpty(`SELECT photo FROM atex_equipments WHERE id = $1`, [req.params.id]);
@@ -161,7 +179,7 @@ router.get('/atex-equipments/:id/photo', async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Erreur récupération photo: ' + e.message }); }
 });
 
-// POST /api/atex-photo/:id  (upload multipart -> base64 stocké en DB)
+// Upload photo multipart
 router.post('/atex-photo/:id', upload.single('photo'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Aucun fichier reçu' });
@@ -172,17 +190,18 @@ router.post('/atex-photo/:id', upload.single('photo'), async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Erreur upload photo: ' + e.message }); }
 });
 
-// POST /api/atex-equipments
+// Create
 router.post('/atex-equipments', async (req, res) => {
   try {
-    let data = mapAliases(req.body || {});
+    const data = req.body || {};
     const miss = missingFields(data);
     if (miss.length) return res.status(400).json({ error: `Champs obligatoires manquants: ${miss.join(', ')}` });
 
-    const zone = data.zone_type || data.exterieur || data.interieur || '22';
-    const categorie_minimum = data.categorie_minimum || calculateMinCategoryFromZone(zone);
-    const conformite = checkAtexConformity(data.marquage_atex, categorie_minimum, zone);
-    const risque = calculateRisk(zone, conformite);
+    const { zone_gaz, zone_poussieres } = pickZones(data);
+    const zone_type = worstZone(zone_gaz, zone_poussieres);
+    const categorie_minimum = `II ${Math.max(minCatForZone(zone_gaz)||0, minCatForZone(zone_poussieres)||0 || 3}${(zone_gaz && zone_poussieres)?'GD':(zone_gaz?'G':'D')} T135°C`;
+    const conformite = checkDualConformity(data.marquage_atex, zone_gaz, zone_poussieres);
+    const risque = riskFromDual(zone_gaz, zone_poussieres, conformite);
 
     const lastInspection = parseDateFlexible(data.last_inspection_date);
     const frequence = parseInt(data.frequence || 3, 10);
@@ -196,8 +215,9 @@ router.post('/atex-equipments', async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
        RETURNING *`,
       [
-        risque, data.secteur, data.batiment, data.local, data.composant, data.fournisseur,
-        data.type, data.identifiant, data.interieur || null, data.exterieur || null, zone,
+        risque, data.secteur || null, data.batiment || null, data.local || null,
+        data.composant, data.fournisseur, data.type, data.identifiant || null,
+        zone_gaz || null, zone_poussieres || null, zone_type,
         categorie_minimum, data.marquage_atex, data.photo || null, conformite,
         data.comments || null, data.grade || 'V', frequence, lastInspection, isoOrNull(next)
       ]
@@ -209,17 +229,18 @@ router.post('/atex-equipments', async (req, res) => {
   }
 });
 
-// PUT /api/atex-equipments/:id
+// Update
 router.put('/atex-equipments/:id', async (req, res) => {
   try {
-    let data = mapAliases(req.body || {});
-    const miss = missingFields(data).filter(x => x !== 'identifiant (vivement recommandé)');
+    const data = req.body || {};
+    const miss = missingFields(data);
     if (miss.length) return res.status(400).json({ error: `Champs obligatoires manquants: ${miss.join(', ')}` });
 
-    const zone = data.zone_type || data.exterieur || data.interieur || '22';
-    const categorie_minimum = data.categorie_minimum || calculateMinCategoryFromZone(zone);
-    const conformite = checkAtexConformity(data.marquage_atex, categorie_minimum, zone);
-    const risque = calculateRisk(zone, conformite);
+    const { zone_gaz, zone_poussieres } = pickZones(data);
+    const zone_type = worstZone(zone_gaz, zone_poussieres);
+    const categorie_minimum = `II ${Math.max(minCatForZone(zone_gaz)||0, minCatForZone(zone_poussieres)||0 || 3}${(zone_gaz && zone_poussieres)?'GD':(zone_gaz?'G':'D')} T135°C`;
+    const conformite = checkDualConformity(data.marquage_atex, zone_gaz, zone_poussieres);
+    const risque = riskFromDual(zone_gaz, zone_poussieres, conformite);
 
     const lastInspection = parseDateFlexible(data.last_inspection_date);
     const frequence = parseInt(data.frequence || 3, 10);
@@ -233,9 +254,10 @@ router.put('/atex-equipments/:id', async (req, res) => {
         last_inspection_date=$19, next_inspection_date=$20
        WHERE id=$21 RETURNING *`,
       [
-        risque, data.secteur, data.batiment, data.local, data.composant, data.fournisseur,
-        data.type, data.identifiant, data.interieur || null, data.exterieur || null, zone,
-        categorie_minimum, data.marquage_atex, data.photo || null, conformite, data.comments || null,
+        risque, data.secteur || null, data.batiment || null, data.local || null,
+        data.composant, data.fournisseur, data.type, data.identifiant || null,
+        zone_gaz || null, zone_poussieres || null, zone_type,
+        data.marquage_atex, data.photo || null, conformite, data.comments || null,
         data.grade || 'V', frequence, lastInspection, isoOrNull(next), req.params.id
       ]
     );
@@ -244,7 +266,7 @@ router.put('/atex-equipments/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Erreur update équipement ATEX: ' + e.message }); }
 });
 
-// DELETE /api/atex-equipments/:id
+// Delete
 router.delete('/atex-equipments/:id', async (req, res) => {
   try {
     const r = await query(`DELETE FROM atex_equipments WHERE id = $1 RETURNING *`, [req.params.id]);
@@ -253,8 +275,7 @@ router.delete('/atex-equipments/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Erreur suppression équipement ATEX: ' + e.message }); }
 });
 
-/* ----------------------- Inspections ----------------------- */
-// POST /api/atex-inspect  { equipment_id, status, comment, photo?, inspection_date? }
+// Inspections
 router.post('/atex-inspect', async (req, res) => {
   try {
     const { equipment_id, status, comment, photo, inspection_date } = req.body || {};
@@ -266,7 +287,6 @@ router.post('/atex-inspect', async (req, res) => {
        VALUES ($1,$2,$3,$4,$5)`,
       [equipment_id, status, comment || null, photo || null, dateISO]
     );
-    // maj prochaine inspection selon frequence actuelle
     const eq = (await rowsOrEmpty(`SELECT frequence FROM atex_equipments WHERE id=$1`, [equipment_id]))[0];
     const next = nextFrom(dateISO, eq?.frequence || 3);
     await query(
@@ -277,32 +297,29 @@ router.post('/atex-inspect', async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Erreur enregistrement inspection: ' + e.message }); }
 });
 
-/* ----------------------- Import / Modèles ----------------------- */
-// GET /api/atex-import-columns
+// Import / Templates
 router.get('/atex-import-columns', (_req, res) => {
   res.json({
-    required: ['secteur','batiment','local','composant','fabricant','type','identifiant','zone_type','marquage_atex'],
+    required: ['secteur','batiment','local','composant','fabricant','type','identifiant','zone_gaz','zone_poussieres','marquage_atex'],
     optional: ['comments','last_inspection_date'],
-    note: 'zone_type attendu : 0,1,2,20,21,22 (ou texte équivalent), last_inspection_date au format JJ-MM-AAAA ou AAAA-MM-JJ'
+    note: 'zone_gaz attendu : 0/1/2; zone_poussieres attendu : 20/21/22; dates JJ-MM-AAAA ou AAAA-MM-JJ'
   });
 });
-// GET /api/atex-import-template (CSV)
 router.get('/atex-import-template', (_req, res) => {
   const csv =
-`secteur,batiment,local,composant,fabricant,type,identifiant,zone_type,marquage_atex,comments,last_inspection_date
-Métro,BâtA,L-01,Capteur pression,ACME,REF-123,CPT-0001,21,II 2D T135°C,Premier lot,01-06-2025
+`secteur,batiment,local,composant,fabricant,type,identifiant,zone_gaz,zone_poussieres,marquage_atex,comments,last_inspection_date
+Métro,BâtA,L-01,Capteur pression,ACME,REF-123,CPT-0001,1,21,II 2GD T135°C,Premier lot,01-06-2025
 `;
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="atex_import_template.csv"');
   res.send(csv);
 });
-// GET /api/atex-import-template.xlsx (XLSX)
 router.get('/atex-import-template.xlsx', (_req, res) => {
   try{
     const wb = XLSX.utils.book_new();
     const data = [
-      ['secteur','batiment','local','composant','fabricant','type','identifiant','zone_type','marquage_atex','comments','last_inspection_date'],
-      ['Métro','BâtA','L-01','Capteur pression','ACME','REF-123','CPT-0001','21','II 2D T135°C','Premier lot','01-06-2025']
+      ['secteur','batiment','local','composant','fabricant','type','identifiant','zone_gaz','zone_poussieres','marquage_atex','comments','last_inspection_date'],
+      ['Métro','BâtA','L-01','Capteur pression','ACME','REF-123','CPT-0001','1','21','II 2GD T135°C','Premier lot','01-06-2025']
     ];
     const ws = XLSX.utils.aoa_to_sheet(data);
     XLSX.utils.book_append_sheet(wb, ws, 'import');
@@ -312,8 +329,6 @@ router.get('/atex-import-template.xlsx', (_req, res) => {
     res.send(buf);
   }catch(e){ res.status(500).json({ error: 'xlsx generation failed', detail: e.message }); }
 });
-
-// POST /api/atex-import-excel (form-data: excel=<file>)
 router.post('/atex-import-excel', upload.single('excel'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Fichier Excel requis' });
@@ -324,7 +339,6 @@ router.post('/atex-import-excel', upload.single('excel'), async (req, res) => {
     const get = (row, keys) => { for (const k of keys) if (row[k] !== undefined) return String(row[k]).trim(); return ''; };
 
     for (const row of rows) {
-      // mapping souple des en-têtes
       let data = {
         secteur:                get(row, ['secteur','Secteur']),
         batiment:               get(row, ['batiment','Bâtiment','Batiment']),
@@ -333,25 +347,26 @@ router.post('/atex-import-excel', upload.single('excel'), async (req, res) => {
         fabricant:              get(row, ['fabricant','Fournisseur']),
         type:                   get(row, ['type','Type']),
         identifiant:            get(row, ['identifiant','Identifiant','ID']),
-        zone_type:              get(row, ['zone_type','Type de zone','zone','Zone']),
+        zone_gaz:               get(row, ['zone_gaz','Zone Gaz','Gaz']),
+        zone_poussieres:        get(row, ['zone_poussieres','Zone Poussières','Poussières']),
         marquage_atex:          get(row, ['marquage_atex','Marquage atex','Marquage ATEX']),
         comments:               get(row, ['comments','Commentaires']),
         last_inspection_date:   get(row, ['last_inspection_date','Date dernière inspection','Date de dernière inspection'])
       };
-      data = mapAliases(data);
 
-      // Vérif obligatoires pour import (identifiant conseillé, pas bloquant)
       const miss = missingFields(data);
-      if (miss.includes('identifiant (vivement recommandé)')) miss.splice(miss.indexOf('identifiant (vivement recommandé)'), 1);
-      if (miss.length) continue; // ligne trop incomplète -> on saute
+      if (miss.length) continue;
 
-      const zone = data.zone_type || data.exterieur || data.interieur || '22';
-      const categorie_minimum = calculateMinCategoryFromZone(zone);
-      const conformite = checkAtexConformity(data.marquage_atex, categorie_minimum, zone);
-      const risque = calculateRisk(zone, conformite);
+      const zg = (['0','1','2'].includes(String(data.zone_gaz))) ? String(data.zone_gaz) : null;
+      const zd = (['20','21','22'].includes(String(data.zone_poussieres))) ? String(data.zone_poussieres) : null;
+      const zone_type = worstZone(zg, zd);
+
+      const conformite = checkDualConformity(data.marquage_atex, zg, zd);
+      const risque = riskFromDual(zg, zd, conformite);
       const lastISO = parseDateFlexible(data.last_inspection_date);
-      const frequence = 3; // défaut à l’import
-      const nextISO = lastISO ? nextFrom(lastISO, frequence) : null;
+      const frequence = 3;
+      const nextISO = lastISO ? addYearsISO(lastISO, frequence) : null;
+      const categorie_minimum = `II ${Math.max(minCatForZone(zg)||0, minCatForZone(zd)||0 || 3}${(zg && zd)?'GD':(zg?'G':'D')} T135°C`;
 
       await query(
         `INSERT INTO atex_equipments
@@ -367,8 +382,8 @@ router.post('/atex-import-excel', upload.single('excel'), async (req, res) => {
            conformite=EXCLUDED.conformite, comments=EXCLUDED.comments, last_inspection_date=EXCLUDED.last_inspection_date,
            next_inspection_date=EXCLUDED.next_inspection_date, frequence=EXCLUDED.frequence`,
         [
-          risque, data.secteur, data.batiment, data.local, data.composant, data.fournisseur,
-          data.type, data.identifiant, null, zone, zone, categorie_minimum, data.marquage_atex,
+          risque, data.secteur, data.batiment, data.local, data.composant, data.fabricant,
+          data.type, data.identifiant, zg, zd, zone_type, categorie_minimum, data.marquage_atex,
           conformite, data.comments || null, lastISO, nextISO, frequence, 'V'
         ]
       );
@@ -377,7 +392,7 @@ router.post('/atex-import-excel', upload.single('excel'), async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Erreur import Excel: ' + e.message }); }
 });
 
-/* ----------------------- Analyses / Risques ----------------------- */
+// ======== Analyses / IA ========
 router.get('/atex-risk-global', async (_req, res) => {
   try {
     const stats = (await rowsOrEmpty(
@@ -415,31 +430,30 @@ router.get('/atex-analysis', async (_req, res) => {
   } catch (e) { res.status(500).json({ error: 'Erreur analyse ATEX: ' + e.message }); }
 });
 
-/* ----------------------- Chat IA & Aide conformité ----------------------- */
 router.post('/atex-chat', async (req, res) => {
   try {
     const { question, equipment, history = [] } = req.body || {};
-    const sys = { role: 'system', content: 'Tu es **AutonomiX IA**. Tu réponds en français clair et concret. Jamais “développé par OpenAI”.' };
+    const sys = { role: 'system', content: 'Tu es AutonomiX IA. Tu réponds en HTML concis en français.' };
 
     let userPrompt = question || '';
     if (equipment) {
       userPrompt = `Analyse l'équipement ATEX suivant et propose des corrections concrètes :
 Composant: ${equipment.composant}
 Risque: ${equipment.risque}
+Zones: G=${equipment.zone_gaz||'-'} / D=${equipment.zone_poussieres||'-'}
 Prochaine inspection: ${equipment.next_inspection_date || 'n/a'}
 Réponds en HTML concis (titres + liste).`;
     }
     if (!userPrompt) return res.status(400).json({ error: 'question ou equipment requis' });
 
-    if (!process.env.OPENAI_API_KEY) {
-      const html = `<p><strong>Salut, je suis AutonomiX IA.</strong><br>Pas d'accès au moteur IA sur ce déploiement (clé manquante). 
-      Donne quand même des détails et je t’indiquerai la démarche côté terrain.</p>`;
+    if (!openai || !process.env.OPENAI_API_KEY) {
+      const html = `<p><strong>AutonomiX IA (local)</strong> — Moteur IA indisponible sur ce déploiement. Vérifiez marquage vs zones G/D, classe T (≥135°C) et catégorie (1/2/3).</p>`;
       return res.json({ response: html, offline: true });
     }
 
     const messages = [sys, ...history, { role: 'user', content: userPrompt }];
     const resp = await openai.chat.completions.create({ model: 'gpt-4o', messages });
-    const html = resp.choices?.[0]?.message?.content || 'Réponse indisponible pour le moment.';
+    const html = resp.choices?.[0]?.message?.content || 'Réponse indisponible.';
     res.json({ response: html });
   } catch (e) { res.status(500).json({ error: 'Erreur chat IA: ' + e.message }); }
 });
@@ -449,22 +463,20 @@ router.get('/atex-help/:id', async (req, res) => {
     const eq = (await rowsOrEmpty(`SELECT * FROM atex_equipments WHERE id=$1`, [req.params.id]))[0];
     if (!eq) return res.status(404).json({ error: 'Équipement non trouvé' });
 
-    const question = `Un utilisateur demande de corriger une non-conformité ATEX.
-Données: composant=${eq.composant}, marquage=${eq.marquage_atex}, zone=${eq.zone_type || eq.exterieur || eq.interieur || '22'}, conformité=${eq.conformite}.
-Donne 3 étapes terrain, 3 contrôles à faire, et une suggestion de marquage/type compatible.
-Réponds en HTML, 150-220 mots max.`;
+    const zg = (['0','1','2'].includes(String(eq.interieur))) ? String(eq.interieur) : null;
+    const zd = (['20','21','22'].includes(String(eq.exterieur))) ? String(eq.exterieur) : null;
 
-    if (!process.env.OPENAI_API_KEY) {
-      return res.json({ response: `<p><strong>AutonomiX IA</strong> — Sans moteur IA ici. Vérifier le marquage vs zone (${eq.zone_type || '22'}), 
-      contrôler la classe T et la catégorie (1/2/3). Si “Non Conforme”, remplacer par un appareil certifié (p.ex. II 2G T4 pour zone 1 gaz).</p>` });
+    const question = `Corriger une non-conformité ATEX.
+Données: composant=${eq.composant}, marquage=${eq.marquage_atex}, zones: G=${zg||'-'} / D=${zd||'-'}, conformité=${eq.conformite}.
+Donne 3 étapes terrain, 3 contrôles, et une suggestion de marquage/type compatible (en HTML 150-220 mots).`;
+
+    if (!openai || !process.env.OPENAI_API_KEY) {
+      return res.json({ response: `<p><strong>AutonomiX IA</strong> — Sans moteur IA ici. Vérifier la couverture G/D, classe T ≥ 135°C et catégorie requise (1/2/3), remplacer si nécessaire.</p>` });
     }
 
     const resp = await openai.chat.completions.create({
       model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: 'Tu es AutonomiX IA. Réponds en HTML concis.' },
-        { role: 'user', content: question }
-      ]
+      messages: [{ role: 'system', content: 'Tu es AutonomiX IA. Réponds en HTML concis.' }, { role: 'user', content: question }]
     });
     res.json({ response: resp.choices?.[0]?.message?.content || '' });
   } catch (e) { res.status(500).json({ error: 'Erreur aide conformité: ' + e.message }); }
