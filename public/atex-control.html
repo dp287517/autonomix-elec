@@ -385,6 +385,26 @@
                 <div class="mt-3">
                   <h6>Suggestions d’achat (automatiques)</h6>
                   <div id="autoLinks" class="link-list"></div>
+                <div class="mt-3">
+                  <h6>Pièces & Liens d’achat (manuel)</h6>
+                  <div class="row g-2 align-items-end">
+                    <div class="col-md-7">
+                      <label class="form-label">Type de pièce</label>
+                      <select id="partType" class="form-select">
+                        <option value="capteur">Capteur de pression ATEX (ex: IFM PN7092)</option>
+                        <option value="boite_e">Boîte de jonction Ex e (R. STAHL)</option>
+                        <option value="boite_d">Boîte de jonction Ex d (R. STAHL)</option>
+                        <option value="formation">Formation / Audit ATEX</option>
+                      </select>
+                    </div>
+                    <div class="col-md-5">
+                      <button id="btnPartLinks" class="btn btn-outline-primary w-100"><i data-lucide="link"></i> Proposer des liens</button>
+                    </div>
+                  </div>
+                  <div class="mt-2 small-muted">Les liens ouvrent les distributeurs/fabricants (IFM, R.STAHL, RS UK) pour comparer et obtenir un prix réel.</div>
+                  <div id="partLinks" class="mt-2 link-list"></div>
+                </div>
+
                 </div>
               </div>
 
@@ -670,6 +690,15 @@
     });
 
     // ===== LISTE =====
+    function hasIAHistory(id){
+      const h = getChatHistory();
+      const it = h.find(x=>x.id===id);
+      if (!it) return false;
+      const hasContent = !!(it.content && it.content.trim());
+      const hasThread  = Array.isArray(it.thread) && it.thread.length>0;
+      return hasContent || hasThread;
+    }
+
     async function loadEquipments(){
       try{
         const r = await fetch(API.equipments);
@@ -695,7 +724,7 @@
       const tbody = $('#equipmentsTable'); tbody.innerHTML='';
       list.forEach(eq=>{
         const zg = eq.zone_gaz || (['0','1','2'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
-        const zd = eq.zone_poussieres || (['20','21','22'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
+        const zd = (eq.zone_poussieres || eq.zone_poussiere) || (['20','21','22'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
         const risk = eq.risque ?? '—';
         const isNC = String(eq.conformite||'').toLowerCase().includes('non');
         const confBadge = isNC ? `<span class="badge-conf ko">Non&nbsp;Conforme</span>` : `<span class="badge-conf ok">Conforme</span>`;
@@ -720,7 +749,7 @@
           <td class="actions">
             <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(${eq.id})" title="Éditer"><i data-lucide="edit-3"></i></button>
             <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${eq.id}, '${(eq.composant||'').replace(/'/g,"\\'")}')" title="Supprimer"><i data-lucide="trash-2"></i></button>
-            <button class="btn btn-sm ${isNC?'btn-warning':'btn-outline-secondary'}" onclick="openIA(${eq.id})" title="IA AutonomiX"><i data-lucide="sparkles"></i> IA</button>
+            \1${ hasIAHistory(eq.id) ? "btn-success" : (isNC?"btn-warning":"btn-outline-secondary") }\2
           </td>
         `;
         tbody.appendChild(tr);
@@ -917,7 +946,7 @@
         composant: $('#composant-input').value, fournisseur: $('#fournisseur-input').value,
         type: $('#type-input').value, identifiant: $('#identifiant-input').value,
         marquage_atex: $('#marquage_atex-input').value, comments: $('#comments-input').value,
-        zone_gaz: zone_g || null, zone_poussieres: zone_d || null,
+        zone_gaz: zone_g || null, zone_poussieres: zone_d || null, zone_poussiere: zone_d || null,
         photo: photoBase64
       };
 
@@ -955,7 +984,7 @@
         $('#batiment-input').value = eq.batiment || '';
         $('#local-input').value = eq.local || '';
         $('#zone-g-input').value = eq.zone_gaz || (['0','1','2'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
-        $('#zone-d-input').value = eq.zone_poussieres || (['20','21','22'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
+        $('#zone-d-input').value = (eq.zone_poussieres || eq.zone_poussiere) || (['20','21','22'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
         $('#composant-input').value = eq.composant || '';
         $('#fournisseur-input').value = eq.fournisseur || '';
         $('#type-input').value = eq.type || '';
@@ -1142,7 +1171,119 @@
     // Photo modal
     function openPhoto(encoded){ const src = decodeURIComponent(encoded); $('#photoModalImg').src = src; $('#photoDownload').href = src; bootstrap.Modal.getOrCreateInstance($('#photoModal')).show(); }
     window.openPhoto = openPhoto;
-  </script>
+  
+    // === AutonomiX IA helpers (restored) ===
+    document.addEventListener('click', function(e){
+      if(e.target && e.target.id === 'btnPartLinks'){ e.preventDefault(); buildPartLinks(); }
+    });
+
+    function buildPartLinks(){
+      const type = (document.getElementById('partType')?.value || '').toLowerCase();
+      const holder = document.getElementById('partLinks');
+      if(!holder) return;
+      let links = [];
+      if(type === 'capteur'){
+        links = [
+          { label: 'IFM PN7092 — capteur pression ATEX', href: 'https://www.ifm.com/' },
+          { label: 'RS UK — recherche capteur pression ATEX', href: 'https://uk.rs-online.com/' }
+        ];
+      }else if(type === 'boite_e'){
+        links = [
+          { label: 'R. STAHL — Boîtes de jonction Ex e', href: 'https://r-stahl.com/' },
+          { label: 'RS UK — coffrets Ex e', href: 'https://uk.rs-online.com/' }
+        ];
+      }else if(type === 'boite_d'){
+        links = [
+          { label: 'R. STAHL — Boîtes de jonction Ex d', href: 'https://r-stahl.com/' },
+          { label: 'RS UK — coffrets Ex d', href: 'https://uk.rs-online.com/' }
+        ];
+      }else if(type === 'formation'){
+        links = [
+          { label: 'Formation / Audit ATEX (recherche)', href: 'https://www.google.com/search?q=formation+ATEX+audit' }
+        ];
+      }
+      holder.innerHTML = links.map(l => `<a class="d-block" href="${l.href}" target="_blank" rel="noopener">${l.label}</a>`).join('') || '<div class="text-muted">Aucun lien pour ce type.</div>';
+    }
+
+    function requiredCategoryForZone(zg, zd){
+      const zgNum = String(zg||'').replace(/[^0-9]/g,'') || '';
+      const zdNum = String(zd||'').replace(/[^0-9]/g,'') || '';
+      if(zgNum === '0' || zdNum === '20') return 'II 1GD';
+      if(zgNum === '1' || zdNum === '21') return 'II 2GD';
+      return 'II 3GD';
+    }
+
+    function buildDynamicSuggestions(eq){
+      const cont = document.getElementById('autoLinks');
+      if(!cont) return;
+      cont.innerHTML = '';
+      const isNC = String(eq?.conformite || '').toLowerCase().includes('non');
+      if(!isNC){ cont.innerHTML = '<div class="text-muted small">Aucune suggestion (équipement conforme).</div>'; return; }
+
+      const req = requiredCategoryForZone(eq?.zone_gaz, eq?.zone_poussieres);
+      const items = [];
+      const comp = (eq?.composant || '').toLowerCase();
+
+      if(comp.includes('pression') || comp.includes('capteur')){
+        items.push({ label: 'Capteur de pression ATEX — IFM PN7092 (réf.)', href: 'https://www.ifm.com/' });
+      }
+      items.push({ label: 'Boîte de jonction Ex e — R. STAHL', href: 'https://r-stahl.com/' });
+      items.push({ label: 'Boîte de jonction Ex d — R. STAHL', href: 'https://r-stahl.com/' });
+      items.push({ label: 'Distributeur — RS UK (recherche par référence)', href: 'https://uk.rs-online.com/' });
+
+      cont.innerHTML = `
+        <div class="small mb-2 text-muted">Catégorie requise estimée : ${req}</div>
+        ${items.map(it => `<a class="d-block" href="${it.href}" target="_blank" rel="noopener">${it.label}</a>`).join('')}
+      `;
+    }
+
+    // Override buildLocalEnrichmentChat to actually populate cards and trigger auto-links
+    buildLocalEnrichmentChat = function(eq){
+      const reasons = [];
+      const palliatives = [];
+      const preventives = [];
+      const refs = [];
+      const costs = [];
+
+      const isNC = String(eq?.conformite || '').toLowerCase().includes('non');
+      const zg = eq?.zone_gaz || eq?.zone_type || '';
+      const zd = eq?.zone_poussieres || '';
+
+      if(isNC){
+        reasons.push('Non‑conformité déclarée sur la fiche.');
+      }else{
+        reasons.push('Aucune non‑conformité déclarée.');
+      }
+      if(zg) reasons.push('Présence de zone gaz: ' + zg);
+      if(zd) reasons.push('Présence de zone poussières: ' + zd);
+      if(eq?.marquage_atex) reasons.push('Marquage actuel: ' + eq.marquage_atex);
+
+      if(isNC){
+        palliatives.push('Sécuriser la zone et éviter toute source d’inflammation.');
+        palliatives.push('Mettre en place une surveillance accrue jusqu’au remplacement.');
+        preventives.push('Choisir matériel avec marquage compatible (Ex, catégorie, T-class).');
+        preventives.push('Mettre à jour documentation & marquage local.');
+        refs.push('Directive ATEX 2014/34/UE — catégories 1/2/3 (Ga/Gb/Gc).');
+        costs.push('Capteur ATEX: £150–£350 (indicatif)');
+        costs.push('Boîte Ex e/d: £80–£250 (indicatif)');
+      }else{
+        palliatives.push('Aucune mesure palliative requise.');
+        preventives.push('Maintenir la conformité via inspection périodique.');
+      }
+
+      const mapList = (arr)=> arr.map(x=>`<li>${x}</li>`).join('') || '<li>—</li>';
+      const el = (id)=> document.getElementById(id);
+
+      if(el('chatWhy')) el('chatWhy').innerHTML = '<ul>'+mapList(reasons)+'</ul>';
+      if(el('chatPalliative')) el('chatPalliative').innerHTML = mapList(palliatives);
+      if(el('chatPreventive')) el('chatPreventive').innerHTML = mapList(preventives);
+      if(el('chatRefs')) el('chatRefs').innerHTML = mapList(refs);
+      if(el('chatCosts')) el('chatCosts').innerHTML = mapList(costs);
+
+      try { buildDynamicSuggestions(eq); } catch(e){}
+      return { reasons, palliatives, preventives, refs, costs };
+    };
+</script>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
