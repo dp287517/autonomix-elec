@@ -1,4 +1,4 @@
-// epd.js — EPD/DRPCE v4 (guide + autosave serveur + IA chat + steps + lock tabs)
+// epd.js — vAuth minimal: fetchAuth + redirection 401, reste inchangé
 const API = {
   equipments: '/api/atex-equipments',
   chat: '/api/atex-chat',
@@ -6,6 +6,20 @@ const API = {
   epdStatus: (id)=> `/api/epd/${id}/status`,
   upload: '/api/upload'
 };
+
+function getToken(){ return localStorage.getItem('autonomix_token'); }
+async function fetchAuth(url, opts={}){
+  const token = getToken();
+  const headers = Object.assign({}, opts.headers||{}, { Authorization: 'Bearer '+token });
+  const res = await fetch(url, Object.assign({}, opts, { headers }));
+  if (res.status === 401) {
+    localStorage.removeItem('autonomix_token');
+    localStorage.removeItem('autonomix_user');
+    window.location.href = 'login.html';
+    throw new Error('401 Unauthorized');
+  }
+  return res;
+}
 
 const state = {
   mode: 'projet',
@@ -88,12 +102,11 @@ async function saveServer(){
     const payload = buildJsonPayload();
     const title = state.context?.site || 'EPD';
     const body = { title, status: 'Brouillon', payload };
-    const r = await fetch(`${API.epd}/${state.currentProjectId}`, {
+    const r = await fetchAuth(`${API.epd}/${state.currentProjectId}`, {
       method:'PUT',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify(body)
     });
-    if (!r.ok) throw new Error('HTTP '+r.status);
     await r.json();
     const el = document.getElementById('saveHint');
     if (el) el.textContent = 'Enregistré';
@@ -112,7 +125,7 @@ function bindProjects(){
     try{
       const payload = buildJsonPayload();
       const title = state.context?.site || 'EPD';
-      const r = await fetch(API.epd, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ title, status:'Brouillon', payload }) });
+      const r = await fetchAuth(API.epd, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ title, status:'Brouillon', payload }) });
       const data = await r.json();
       state.currentProjectId = data.id;
       lockTabs(false);
@@ -130,7 +143,7 @@ async function loadProjects(){
     const url = new URL(API.epd, location.origin);
     if (status) url.searchParams.set('status', status);
     if (q) url.searchParams.set('q', q);
-    const r = await fetch(url.toString());
+    const r = await fetchAuth(url.toString());
     const rows = await r.json();
     renderProjects(rows);
   }catch(e){ console.error(e); }
@@ -175,7 +188,7 @@ function renderProjects(rows){
 }
 async function openProject(id){
   try{
-    const r = await fetch(`${API.epd}/${id}`);
+    const r = await fetchAuth(`${API.epd}/${id}`);
     const data = await r.json();
     state.currentProjectId = data.id;
     const p = data.payload || {};
@@ -196,10 +209,10 @@ async function openProject(id){
 }
 async function cloneProject(id){
   try{
-    const r = await fetch(`${API.epd}/${id}`);
+    const r = await fetchAuth(`${API.epd}/${id}`);
     const data = await r.json();
     const body = { title: (data.title||'EPD') + ' (copie)', status: 'Brouillon', payload: data.payload };
-    const r2 = await fetch(API.epd, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const r2 = await fetchAuth(API.epd, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
     const created = await r2.json();
     toast(`Projet cloné (#${created.id})`, 'success');
     loadProjects();
@@ -208,7 +221,7 @@ async function cloneProject(id){
 async function deleteProject(id){
   if (!confirm('Supprimer ce projet ?')) return;
   try{
-    const r = await fetch(`${API.epd}/${id}`, { method:'DELETE' });
+    const r = await fetchAuth(`${API.epd}/${id}`, { method:'DELETE' });
     const data = await r.json();
     if (!data.ok) throw new Error();
     toast('Projet supprimé', 'warning');
@@ -219,7 +232,7 @@ async function deleteProject(id){
 }
 async function updateProjectStatus(id, status){
   try{
-    const r = await fetch(API.epdStatus(id), { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status }) });
+    const r = await fetchAuth(API.epdStatus(id), { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status }) });
     await r.json();
     toast(`Statut mis à jour`, 'info');
     loadProjects();
@@ -260,7 +273,7 @@ function bindAttachments(){
     const form = new FormData();
     files.forEach(f => form.append('files', f));
     try{
-      const r = await fetch(API.upload, { method:'POST', body: form });
+      const r = await fetchAuth(API.upload, { method:'POST', body: form });
       const uploaded = await r.json();
       state.attachments.push(...uploaded);
       renderAttachmentThumbs();
@@ -324,8 +337,8 @@ function bindEquipments(){
   on('#btnAIEq','click', async () => {
     const selected = [...state.selectedEquip.values()];
     if (!selected.length) return openIA('Sélectionne au moins un équipement.');
-    const sample = selected.slice(0, 12).map(e => `${e.id} ${e.composant} [${e.zone_type||e.exterieur||e.interieur}] ${e.marquage_atex||''} ${e.conformite||''}`).join('\\n');
-    const prompt = `Analyse la sélection, signale les non-conformités (catégorie/zone/IP/Tmax), propose 5 corrections priorisées:\\n${sample}`;
+    const sample = selected.slice(0, 12).map(e => `${e.id} ${e.composant} [${e.zone_type||e.exterieur||e.interieur}] ${e.marquage_atex||''} ${e.conformite||''}`).join('\n');
+    const prompt = `Analyse la sélection, signale les non-conformités (catégorie/zone/IP/Tmax), propose 5 corrections priorisées:\n${sample}`;
     openIA(await callAI(prompt), true);
   });
   on('#btnAIProposeEquip','click', async () => {
@@ -340,14 +353,14 @@ function bindEquipments(){
     const sample = keys.map(k => {
       const arr = groups[k].slice(0,5).map(e => `${e.composant} [${e.zone_type||e.exterieur||e.interieur}] ${e.marquage_atex||''}`).join('; ');
       return `Local ${k}: ${arr}`;
-    }).join('\\n');
+    }).join('\n');
     const prompt = `Pour chaque local listé, génère un Q&R d'inspection (alimentation, IP, marquage, équipements de sécurité, mise à la terre, maintenance) en 6 questions:\n${sample}`;
     openIA(await callAI(prompt), true);
   });
 }
 async function loadEquip(){
   try{
-    const r = await fetch(API.equipments);
+    const r = await fetchAuth(API.equipments);
     state.equipments = await r.json();
     renderEquip();
     toast('Équipements chargés','info');
@@ -409,16 +422,16 @@ function bindMeasuresAI(){
     const ctx = `mode=${state.mode}, zones=[${[...state.zones].join(',')}], produits=${state.context.fluids||'-'}, procédé=${state.context.processDesc||'-'}`;
     const prompts = {
       'prev': `À partir de ${ctx}, propose 8 mesures de PREVENTION ATEX (éviter l'atmosphère explosive et les sources d'inflammation). Format puces.`,
-      'prev-check': `Vérifie ces mesures de PREVENTION ATEX, ajoute contrôles/essais et références: \\n${val('#measuresPrev')||'-'}`,
+      'prev-check': `Vérifie ces mesures de PREVENTION ATEX, ajoute contrôles/essais et références: \n${val('#measuresPrev')||'-'}`,
       'prot': `À partir de ${ctx}, propose 8 mesures de PROTECTION ATEX (limiter les effets: évents, découplage, confinement, SIS/ESD, zones inertes). Format puces.`,
-      'prot-check': `Vérifie ces mesures de PROTECTION ATEX, ajoute surveillances, critères d'acceptation et périodicités: \\n${val('#measuresProt')||'-'}`,
+      'prot-check': `Vérifie ces mesures de PROTECTION ATEX, ajoute surveillances, critères d'acceptation et périodicités: \n${val('#measuresProt')||'-'}`,
       'training': `Conçois un programme de FORMATION ATEX pour ${ctx} (public, objectifs, contenus, périodicité, traçabilité). 150 mots.`,
       'maintenance': `Propose un PLAN DE MAINTENANCE ATEX (périodicité, inspections, métrologie détecteurs, critères de rejet, consignations). 150 mots pour ${ctx}.`
     };
     const reply = await callAI(prompts[kind]);
     const map = { 'prev':'#measuresPrev','prev-check':'#measuresPrev','prot':'#measuresProt','prot-check':'#measuresProt','training':'#training','maintenance':'#maintenance' };
     const sel = map[kind];
-    if (sel){ const el = qs(sel); el.value = (el.value ? el.value + '\\n' : '') + reply; markDirty(); }
+    if (sel){ const el = qs(sel); el.value = (el.value ? el.value + '\n' : '') + reply; markDirty(); }
     openIA(reply, true);
   }));
 }
@@ -444,7 +457,7 @@ function buildMarkdown(){
   const ctx = state.context || {};
   const zones = [...state.zones].sort((a,b)=>Number(a)-Number(b)).join(', ');
   const equip = [...state.selectedEquip.values()];
-  const rows = equip.map(e => `| ${e.id} | ${e.composant||''} | ${e.secteur||''} | ${e.batiment||''} | ${e.local||''} | ${e.zone_type||e.exterieur||e.interieur||''} | ${e.marquage_atex||''} | ${minCategoryFromZone(e.zone_type||e.exterieur||e.interieur)} | ${e.conformite||''} | ${e.risque??''} |`).join('\\n');
+  const rows = equip.map(e => `| ${e.id} | ${e.composant||''} | ${e.secteur||''} | ${e.batiment||''} | ${e.local||''} | ${e.zone_type||e.exterieur||e.interieur||''} | ${e.marquage_atex||''} | ${minCategoryFromZone(e.zone_type||e.exterieur||e.interieur)} | ${e.conformite||''} | ${e.risque??''} |`).join('\n');
   return `# Document Relatif à la Protection Contre les Explosions (EPD)
 
 ## 1. Informations générales
@@ -471,7 +484,7 @@ Commentaires : ${ctx.zoningNotes||''}
 ${rows||''}
 
 ## 6. Pièces jointes
-${(state.attachments||[]).map(a=>`- [${a.name}](${a.url})`).join('\\n')}
+${(state.attachments||[]).map(a=>`- [${a.name}](${a.url})`).join('\n')}
 `;
 }
 
@@ -503,7 +516,7 @@ async function sendChat(){
   if (!msg) return;
   const ctx = `Mode=${state.mode}; Produits=${state.context.fluids||'-'}; Procédé=${state.context.processDesc||'-'}; Conditions=${state.context.operating||'-'}`;
   openIA('Réflexion en cours…', false, true);
-  const reply = await callAI(ctx + '\\nQuestion: ' + msg);
+  const reply = await callAI(ctx + '\nQuestion: ' + msg);
   openIA(reply, true);
   input.value='';
 }
@@ -530,7 +543,7 @@ function setDot(id, done){
 // ===== IA helpers + UI
 async function callAI(question){
   try{
-    const r = await fetch(API.chat, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ question }) });
+    const r = await fetchAuth(API.chat, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ question }) });
     const data = await r.json();
     return (data && (data.response || data.answer)) || '';
   }catch(e){ return 'IA indisponible.'; }
@@ -538,7 +551,7 @@ async function callAI(question){
 function applyIA(markdown, selector){
   const el = qs(selector);
   if (!el) return openIA(markdown, true);
-  el.value = (el.value ? el.value + '\\n' : '') + markdown;
+  el.value = (el.value ? el.value + '\n' : '') + markdown;
   markDirty();
   openIA(markdown, true);
 }
