@@ -1,4 +1,4 @@
-// epd.js — vAuth minimal: fetchAuth + redirection 401, reste inchangé
+// public/js/epd.js — version robuste (auth 401 + tolérance réseau)
 const API = {
   equipments: '/api/atex-equipments',
   chat: '/api/atex-chat',
@@ -144,9 +144,17 @@ async function loadProjects(){
     if (status) url.searchParams.set('status', status);
     if (q) url.searchParams.set('q', q);
     const r = await fetchAuth(url.toString());
-    const rows = await r.json();
+    // —— robustesse : accepte seulement un tableau, sinon affiche un toast et passe un tableau vide
+    let data;
+    try { data = await r.json(); } catch { data = []; }
+    const rows = Array.isArray(data) ? data : [];
+    if (!Array.isArray(data)) toast('API EPD indisponible (404/erreur).', 'danger');
     renderProjects(rows);
-  }catch(e){ console.error(e); }
+  }catch(e){
+    console.error(e);
+    toast('Chargement des projets impossible.', 'danger');
+    renderProjects([]);
+  }
 }
 function renderProjects(rows){
   const tbody = document.querySelector('#projTable tbody');
@@ -313,7 +321,7 @@ function bindZoning(){
     openIA('Réflexion en cours…', false, true);
     const prompt = `Tu es expert ATEX. Produits=${state.context.fluids||'-'}, procédé=${state.context.processDesc||'-'}, conditions=${state.context.operating||'-'}. Propose un zonage (zones, étendue, critères 60079-10-x) + hypothèses et limites. Indique clairement les zones 0/1/2/20/21/22 concernées.`;
     const reply = await callAI(prompt);
-    const found = (reply.match(/Zone\\s?(0|1|2|20|21|22)/gi) || []).map(x=>x.replace(/[^0-9]/g,''));
+    const found = (reply.match(/Zone\s?(0|1|2|20|21|22)/gi) || []).map(x=>x.replace(/[^0-9]/g,''));
     if (found.length){
       document.querySelectorAll('#zoning input[type="checkbox"]').forEach(cb => {
         cb.checked = found.includes(cb.value);
