@@ -135,6 +135,7 @@ router.get('/atex-equipments/:id', async (req, res) => {
     const it = r[0];
     it.zone_gaz       = normZoneG(it.zone_gaz ?? it.exterieur);
     it.zone_poussiere = normZoneD(it.zone_poussiere ?? it.interieur);
+    it.zone_poussieres = it.zone_poussiere;
     if (!it.next_inspection_date && it.last_inspection_date) {
       it.next_inspection_date = addYearsISO(it.last_inspection_date, it.frequence || 3);
     }
@@ -430,13 +431,14 @@ router.get('/atex-ia-history/:id', async (req, res) => {
 });
 
 // --- PHOTOS ---
-router.post('/atex-photo/:id', upload.single('file'), async (req, res) => {
+router.post('/atex-photo/:id', upload.any(), async (req, res) => {
   try {
     const id = req.params.id;
     let dataUrl = null;
-    if (req.file?.buffer) {
-      const mime = req.file.mimetype || 'image/jpeg';
-      dataUrl = `data:${mime};base64,` + req.file.buffer.toString('base64');
+    if (Array.isArray(req.files) && req.files.length) {
+      const f = req.files.find(f=>f.fieldname==='file' || f.fieldname==='photo') || req.files[0];
+      const mime = f.mimetype || 'image/jpeg';
+      dataUrl = `data:${mime};base64,` + f.buffer.toString('base64');
     } else if (req.body?.photo) {
       dataUrl = String(req.body.photo);
     }
