@@ -23,13 +23,9 @@
     .link-list a{ text-decoration:none; }
 
     /* badges conformité + statut */
-    .badge-conf{
-      white-space:nowrap; /* évite le retour à la ligne */
-      font-weight:600; padding:.40rem .55rem; font-size:.82rem; border-radius:.65rem;
-    }
+    .badge-conf{ font-weight:600; padding:.45rem .65rem; font-size:.85rem; border-radius:.65rem; }
     .badge-conf.ok{ background:#16a34a; color:#fff; }
     .badge-conf.ko{ background:#dc2626; color:#fff; }
-    td.col-conf{ white-space:nowrap; }
 
     .badge-st.ok{ background:#22c55e; }
     .badge-st.soon{ background:#f59e0b; }
@@ -578,15 +574,6 @@
       return `${dd}-${mm}-${yyyy}`;
     }
 
-    // Ajoute "nbYears" années en conservant le jour/mois (si possible)
-    function addYearsISO(dateISO, nbYears){
-      const d = new Date(dateISO);
-      if (isNaN(d)) return null;
-      const y = d.getFullYear() + (nbYears||0);
-      d.setFullYear(y);
-      return d.toISOString();
-    }
-
     function stripCodeFences(s){
       if(typeof s!=='string') return '';
       return s.replace(/```(?:html)?\s*[\r\n]?/gi,'').replace(/```$/,'').trim();
@@ -670,13 +657,14 @@
       if(!nextDate) return 'ok';
       const d = new Date(nextDate); if(isNaN(d)) return 'ok';
       const today = new Date(); today.setHours(0,0,0,0);
-      const dn = new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+      const dn = new Date(d.getFullYear(), d.getMonth(), d.getDate()); // ← parenthèse corrigée
       const diffDays = Math.round((dn - today)/(1000*60*60*24));
       if (diffDays < 0) return 'late';
       if (diffDays === 0) return 'today';
       if (diffDays <= 30) return 'soon';
       return 'ok';
     }
+
     function statusBadge(st){
       if(st==='late') return '<span class="badge badge-st late">En retard</span>';
       if(st==='today') return '<span class="badge badge-st today">Aujourd’hui</span>';
@@ -689,18 +677,7 @@
         const r = await fetch(API.equipments);
         if(!r.ok) throw new Error('Erreur chargement');
         equipments = await r.json();
-
-        // Fallback: calcule la prochaine date si absente (dernière + frequence ans)
-        equipments = (equipments||[]).map(eq=>{
-          if (!eq.next_inspection_date && eq.last_inspection_date){
-            const freq = Number(eq.frequence)||3;
-            const iso = addYearsISO(eq.last_inspection_date, freq);
-            if (iso) eq.next_inspection_date = iso;
-          }
-          return eq;
-        });
-
-        buildFilterLists();
+        buildFilterLists(); // alimenter les dropdowns multi
         renderTable();
         showToast('Données synchronisées','info');
       }catch(e){ showToast('Erreur: '+(e.message||e),'danger'); }
@@ -712,9 +689,7 @@
         const zone = eq.zone_type || eq.exterieur || eq.interieur || '—';
         const risk = eq.risque ?? '—';
         const isNC = String(eq.conformite||'').toLowerCase().includes('non');
-        const confBadge = isNC
-          ? `<span class="badge-conf ko">Non&nbsp;Conforme</span>`
-          : `<span class="badge-conf ok">Conforme</span>`;
+        const confBadge = isNC ? `<span class="badge-conf ko">Non Conforme</span>` : `<span class="badge-conf ok">Conforme</span>`;
         const st = computeStatus(eq.next_inspection_date);
 
         const tr = document.createElement('tr');
@@ -726,7 +701,7 @@
           <td>${eq.batiment || ''}</td>
           <td>${eq.local || ''}</td>
           <td>${zone}</td>
-          <td class="col-conf">${confBadge}</td>
+          <td>${confBadge}</td>
           <td>${statusBadge(st)}</td>
           <td>${risk}</td>
           <td>${fmtDate(eq.last_inspection_date)}</td>
@@ -767,10 +742,12 @@
       });
       batBox.querySelectorAll('input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.batiments, inp.value, inp.checked)));
 
-      // Conformité et Statut
+      // Conformité et Statut déjà en place
       $$('#dd-conformite input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.conformites, inp.value, inp.checked)));
       $$('#dd-statut input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.statut, inp.value, inp.checked)));
 
+
+      // texte
       $('#filterText').addEventListener('input', (e)=>{ activeFilters.text = e.target.value.toLowerCase(); renderPills(); applyFilters(); });
 
       renderPills();
