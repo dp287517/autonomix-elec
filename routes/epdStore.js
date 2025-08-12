@@ -11,17 +11,12 @@ const { pool } = require('../config/db');
 let requireAuth = (_req, _res, next) => next();
 try {
   const auth = require('../auth');
-  // Supporte: module.exports = { requireAuth }, ou module.exports = requireAuth, ou autre
   const candidate =
     (auth && typeof auth.requireAuth === 'function' && auth.requireAuth) ||
     (typeof auth === 'function' && auth);
-
-  if (typeof candidate === 'function') {
-    requireAuth = candidate;
-  } else {
-    console.warn('[epdStore] Module auth trouvé mais sans middleware `requireAuth` fonctionnel. Routes non protégées (dev).');
-  }
-} catch (e) {
+  if (typeof candidate === 'function') requireAuth = candidate;
+  else console.warn('[epdStore] Module auth trouvé mais sans middleware `requireAuth` fonctionnel. Routes non protégées (dev).');
+} catch {
   console.warn('[epdStore] Module auth absent. Routes non protégées (dev).');
 }
 router.use(requireAuth);
@@ -52,9 +47,7 @@ async function ensureTable() {
   await pool.query(`
     DO $$
     BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_trigger WHERE tgname = 'trig_updated_at_epd'
-      ) THEN
+      IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trig_updated_at_epd') THEN
         CREATE TRIGGER trig_updated_at_epd
         BEFORE UPDATE ON atex_epd_docs
         FOR EACH ROW EXECUTE PROCEDURE update_updated_at_epd();
@@ -81,13 +74,11 @@ const upload = multer({ storage });
 router.post('/upload', upload.array('files', 10), async (req, res) => {
   try {
     const out = (req.files || []).map(f => ({
-      name: f.originalname,
-      type: f.mimetype,
-      size: f.size,
+      name: f.originalname, type: f.mimetype, size: f.size,
       url: `/uploads/${path.basename(f.path)}`
     }));
     res.json(out);
-  } catch (_e) {
+  } catch {
     res.status(500).json({ error: 'upload_failed' });
   }
 });
