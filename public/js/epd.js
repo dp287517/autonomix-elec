@@ -1,6 +1,6 @@
-// public/js/epd.js — version robuste (auth 401 + tolérance réseau)
+// public/js/epd.js — EPD avec guidance + zonage (bat/local) + création équipement + filtres par zonage
 const API = {
-  equipments: '/api/atex-equipments',
+  equipments: '/api/atex-equipments',          // cohérent avec ATEX control :contentReference[oaicite:2]{index=2}
   chat: '/api/atex-chat',
   epd: '/api/epd',
   epdStatus: (id)=> `/api/epd/${id}/status`,
@@ -28,12 +28,12 @@ const state = {
   equipments: [],
   selectedEquip: new Map(),
   attachments: [],
-  currentProjectId: null
+  currentProjectId: null,
+  zoningSelections: [] // { batiment, local, zones: ['1','21',…] }
 };
 
 let saveTimer = null;
 
-// Boot
 document.addEventListener('DOMContentLoaded', () => {
   if (window.lucide) window.lucide.createIcons();
   bindProjects();
@@ -89,7 +89,7 @@ function markDirty(){
 }
 
 function scheduleSave(){
-  const el = document.getElementById('saveHint');
+  const el = document.getElementById('saveHint'); // (supprimé du HTML, mais on garde la tolérance)
   if (el) el.textContent = 'Enregistrement…';
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveServer, 800);
@@ -144,9 +144,7 @@ async function loadProjects(){
     if (status) url.searchParams.set('status', status);
     if (q) url.searchParams.set('q', q);
     const r = await fetchAuth(url.toString());
-    // —— robustesse : accepte seulement un tableau, sinon affiche un toast et passe un tableau vide
-    let data;
-    try { data = await r.json(); } catch { data = []; }
+    let data; try { data = await r.json(); } catch { data = []; }
     const rows = Array.isArray(data) ? data : [];
     if (!Array.isArray(data)) toast('API EPD indisponible (404/erreur).', 'danger');
     renderProjects(rows);
@@ -164,9 +162,7 @@ function renderProjects(rows){
     return `<tr>
       <td>${p.id}</td>
       <td>${safe(p.title||'EPD')}</td>
-      <td>
-        <span class="badge bg-${p.status==='Terminé'?'success':p.status==='En cours'?'warning text-dark':'secondary'}">${p.status}</span>
-      </td>
+      <td><span class="badge bg-${p.status==='Terminé'?'success':p.status==='En cours'?'warning text-dark':'secondary'}">${p.status}</span></td>
       <td>${dd}</td>
       <td class="text-end">
         <div class="btn-group btn-group-sm">
@@ -204,11 +200,13 @@ async function openProject(id){
     state.context = p.context || {};
     state.zones = new Set(p.zones || []);
     state.attachments = p.attachments || [];
+    state.zoningSelections = Array.isArray(p.zoningSelections) ? p.zoningSelections : [];
     Object.entries(state.context).forEach(([k,v])=>{ const el = document.getElementById(k); if(el) el.value = v; });
     document.getElementById('modeProjet').checked = state.mode==='projet';
     document.getElementById('modeInspection').checked = state.mode==='inspection';
     document.querySelectorAll('#zoning input[type="checkbox"]').forEach(cb => { cb.checked = state.zones.has(cb.value); });
     renderAttachmentThumbs();
+    renderZoningList();
     lockTabs(false);
     toast(`Projet #${id} ouvert`, 'primary');
     document.querySelector('#context-tab').click();
@@ -307,11 +305,12 @@ function renderAttachmentThumbs(){
   });
 }
 
-// ===== Zoning
+// ===== Zoning (zones + couples Bâtiment/Local)
 function bindZoning(){
   document.querySelectorAll('#zoning input[type="checkbox"]').forEach(cb => {
     cb.addEventListener('change', () => { if (cb.checked) state.zones.add(cb.value); else state.zones.delete(cb.value); markDirty(); });
   });
+
   on('#btnAIIntroZoning','click', async () => {
     openIA('Réflexion en cours…', false, true);
     const reply = await callAI('Explique brièvement les zones ATEX 0/1/2/20/21/22 et leurs critères, en 120 mots.');
@@ -331,17 +330,82 @@ function bindZoning(){
     }
     openIA(reply, true);
   });
+
+  on('#btnZoningAdd','click', () => {
+    const bat = (qs('#zoneBat')?.value || '').trim();
+    const loc = (qs('#zoneLocal')?.value || '').trim();
+    const zones = [...document.querySelectorAll('#zoning input[type="checkbox"]:checked')].map(cb => cb.value);
+    if (!bat && !loc) return toast('Renseigne au moins Bâtiment ou Local.', 'warning');
+    if (!zones.length) return toast('Coche au moins une zone.', 'warning');
+
+    const idx = state.zoningSelections.findIndex(z => (z.batiment||'').toLowerCase()===bat.toLowerCase() && (z.local||'').toLowerCase()===loc.toLowerCase());
+    if (idx>=0){
+      const s = new Set([ ...state.zoningSelections[idx].zones, ...zones ]);
+      state.zoningSelections[idx].zones = [...s];
+    } else {
+      state.zoningSelections.push({ batiment: bat, local: loc, zones });
+    }
+    renderZoningList();
+    markDirty();
+  });
+
+  renderZoningList();
+}
+function renderZoningList(){
+  const host = qs('#zoningList'); if (!host) return;
+  if (!state.zoningSelections.length){ host.innerHTML = '<div class="text-muted">Aucune sélection ajoutée.</div>'; return; }
+  host.innerHTML = state.zoningSelections.map((z,i) => {
+    const label = [z.batiment||'—', z.local||'—'].join(' / ');
+    return `<div class="border rounded p-2 d-flex justify-content-between align-items-center mb-2">
+      <div><strong>${safe(label)}</strong> — Zones: <span class="pill">${z.zones.join(', ')}</span></div>
+      <button class="btn btn-sm btn-outline-danger" data-zdel="${i}"><i data-lucide="x"></i></button>
+    </div>`;
+  }).join('');
+  if (window.lucide) window.lucide.createIcons();
+  host.querySelectorAll('[data-zdel]').forEach(btn => btn.addEventListener('click', ()=>{
+    const i = Number(btn.dataset.zdel);
+    state.zoningSelections.splice(i,1);
+    renderZoningList();
+    markDirty();
+  }));
 }
 
 // ===== Equipements
 function bindEquipments(){
-  on('#btnSyncEquip','click', loadEquip);
-  on('#fSecteur','input', renderEquip);
-  on('#fBat','input', renderEquip);
-  on('#fConf','change', renderEquip);
-  on('#checkAll','change', (e) => {
-    document.querySelectorAll('.row-check').forEach(ch => { ch.checked = e.target.checked; toggleSelect(ch); });
+  on('#btnEquipNew','click', () => {
+    const m = new bootstrap.Modal(document.getElementById('equipModal'));
+    document.getElementById('equipForm').reset?.();
+    m.show();
   });
+  const equipForm = document.getElementById('equipForm');
+  if (equipForm) equipForm.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const body = {
+      composant: val('#eqComposant'),
+      secteur: val('#eqSecteur'),
+      batiment: val('#eqBatiment'),
+      local: val('#eqLocal'),
+      marquage_atex: val('#eqMarquage'),
+      conformite: val('#eqConformite'),
+      risque: val('#eqRisque')
+    };
+    const z = String(val('#eqZone')||'').trim();
+    if (['0','1','2'].includes(z)) body.zone_gaz = z; else if (['20','21','22'].includes(z)) body.zone_poussieres = z;
+    try{
+      const r = await fetchAuth(API.equipments, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error('post_failed');
+      const created = await r.json();
+      state.equipments.unshift(created);
+      toast('Équipement créé (API).','success');
+    }catch(_){
+      const tmp = Object.assign({ id: Date.now(), _local: true, zone_type: z }, body);
+      state.equipments.unshift(tmp);
+      toast('Équipement ajouté (local).','warning');
+    }
+    renderEquip();
+    bootstrap.Modal.getInstance(document.getElementById('equipModal'))?.hide();
+  });
+
   on('#btnAIEq','click', async () => {
     const selected = [...state.selectedEquip.values()];
     if (!selected.length) return openIA('Sélectionne au moins un équipement.');
@@ -365,10 +429,21 @@ function bindEquipments(){
     const prompt = `Pour chaque local listé, génère un Q&R d'inspection (alimentation, IP, marquage, équipements de sécurité, mise à la terre, maintenance) en 6 questions:\n${sample}`;
     openIA(await callAI(prompt), true);
   });
+
+  on('#fSecteur','input', renderEquip);
+  on('#fBat','input', renderEquip);
+  on('#fConf','change', renderEquip);
+  on('#fByZoning','change', renderEquip);
+  on('#checkAll','change', (e) => {
+    document.querySelectorAll('.row-check').forEach(ch => { ch.checked = e.target.checked; toggleSelect(ch); });
+  });
+
+  loadEquip();
 }
+
 async function loadEquip(){
   try{
-    const r = await fetchAuth(API.equipments);
+    const r = await fetchAuth(API.equipments);   // mêmes endpoints que atex-control :contentReference[oaicite:3]{index=3}
     state.equipments = await r.json();
     renderEquip();
     toast('Équipements chargés','info');
@@ -379,23 +454,42 @@ function renderEquip(){
   const s = (val('#fSecteur') || '').toLowerCase();
   const b = (val('#fBat') || '').toLowerCase();
   const c = (val('#fConf') || '');
-  const rows = (state.equipments || []).filter(eq =>
+  const useZ = qs('#fByZoning')?.checked;
+
+  function zoneCode(z){ const m = String(z||'').match(/20|21|22|0|1|2/); return m ? m[0] : ''; }
+  let rows = (state.equipments || []).filter(eq =>
     (!s || (eq.secteur||'').toLowerCase().includes(s)) &&
     (!b || (eq.batiment||'').toLowerCase().includes(b)) &&
     (!c || (eq.conformite||'') === c)
   );
+
+  if (useZ && state.zoningSelections.length){
+    rows = rows.filter(eq => {
+      const zc = zoneCode(eq.zone_type || eq.exterieur || eq.interieur || eq.zone_gaz || eq.zone_poussieres);
+      return state.zoningSelections.some(sel => {
+        const mb = !sel.batiment || (eq.batiment||'').toLowerCase() === sel.batiment.toLowerCase();
+        const ml = !sel.local || (eq.local||'').toLowerCase() === sel.local.toLowerCase();
+        const mz = !sel.zones?.length || sel.zones.includes(zc);
+        return mb && ml && mz;
+      });
+    });
+  }
+
   tbody.innerHTML = rows.map(eq => {
     const zone = eq.zone_type || eq.exterieur || eq.interieur || '';
     const catMin = minCategoryFromZone(zone);
     return `<tr>
       <td><input class="form-check-input row-check" type="checkbox" data-id="${eq.id}"></td>
-      <td>${safe(eq.id)}</td><td>${safe(eq.composant)}</td><td>${safe(eq.secteur)}</td>
-      <td>${safe(eq.batiment)}</td><td>${safe(eq.local)}</td>
+      <td>${safe(eq.id ?? '')}</td>
+      <td>${safe(eq.composant||'')}</td>
+      <td>${safe(eq.secteur||'')}</td>
+      <td>${safe(eq.batiment||'')}</td>
+      <td>${safe(eq.local||'')}</td>
       <td><span class="pill">${safe(zone) || 'n/a'}</span></td>
-      <td class="code">${safe(eq.marquage_atex)}</td>
+      <td class="code">${safe(eq.marquage_atex||'')}</td>
       <td class="code">${safe(catMin)}</td>
-      <td>${safe(eq.conformite)}</td>
-      <td>${safe(eq.risque)}</td>
+      <td>${safe(eq.conformite||'')}</td>
+      <td>${safe(eq.risque ?? '')}</td>
     </tr>`;
   }).join('');
   tbody.querySelectorAll('.row-check').forEach(ch => ch.addEventListener('change', () => toggleSelect(ch)));
@@ -432,12 +526,10 @@ function bindMeasuresAI(){
       'prev': `À partir de ${ctx}, propose 8 mesures de PREVENTION ATEX (éviter l'atmosphère explosive et les sources d'inflammation). Format puces.`,
       'prev-check': `Vérifie ces mesures de PREVENTION ATEX, ajoute contrôles/essais et références: \n${val('#measuresPrev')||'-'}`,
       'prot': `À partir de ${ctx}, propose 8 mesures de PROTECTION ATEX (limiter les effets: évents, découplage, confinement, SIS/ESD, zones inertes). Format puces.`,
-      'prot-check': `Vérifie ces mesures de PROTECTION ATEX, ajoute surveillances, critères d'acceptation et périodicités: \n${val('#measuresProt')||'-'}`,
-      'training': `Conçois un programme de FORMATION ATEX pour ${ctx} (public, objectifs, contenus, périodicité, traçabilité). 150 mots.`,
-      'maintenance': `Propose un PLAN DE MAINTENANCE ATEX (périodicité, inspections, métrologie détecteurs, critères de rejet, consignations). 150 mots pour ${ctx}.`
+      'prot-check': `Vérifie ces mesures de PROTECTION ATEX, ajoute surveillances, critères d'acceptation et périodicités: \n${val('#measuresProt')||'-'}`
     };
     const reply = await callAI(prompts[kind]);
-    const map = { 'prev':'#measuresPrev','prev-check':'#measuresPrev','prot':'#measuresProt','prot-check':'#measuresProt','training':'#training','maintenance':'#maintenance' };
+    const map = { 'prev':'#measuresPrev','prev-check':'#measuresPrev','prot':'#measuresProt','prot-check':'#measuresProt' };
     const sel = map[kind];
     if (sel){ const el = qs(sel); el.value = (el.value ? el.value + '\n' : '') + reply; markDirty(); }
     openIA(reply, true);
@@ -465,7 +557,8 @@ function buildMarkdown(){
   const ctx = state.context || {};
   const zones = [...state.zones].sort((a,b)=>Number(a)-Number(b)).join(', ');
   const equip = [...state.selectedEquip.values()];
-  const rows = equip.map(e => `| ${e.id} | ${e.composant||''} | ${e.secteur||''} | ${e.batiment||''} | ${e.local||''} | ${e.zone_type||e.exterieur||e.interieur||''} | ${e.marquage_atex||''} | ${minCategoryFromZone(e.zone_type||e.exterieur||e.interieur)} | ${e.conformite||''} | ${e.risque??''} |`).join('\n');
+  const rows = equip.map(e => `| ${e.id||''} | ${e.composant||''} | ${e.secteur||''} | ${e.batiment||''} | ${e.local||''} | ${e.zone_type||e.exterieur||e.interieur||''} | ${e.marquage_atex||''} | ${minCategoryFromZone(e.zone_type||e.exterieur||e.interieur)} | ${e.conformite||''} | ${e.risque??''} |`).join('\n');
+  const zoningExpl = state.zoningSelections.map(z => `- **${z.batiment||'—'} / ${z.local||'—'}** → zones: ${z.zones.join(', ')}`).join('\n');
   return `# Document Relatif à la Protection Contre les Explosions (EPD)
 
 ## 1. Informations générales
@@ -484,6 +577,8 @@ ${ctx.processDesc||''}
 
 ## 4. Zonage ATEX
 Zones présentes : ${zones||'—'}
+Sélections Bâtiment/Local :
+${zoningExpl || '—'}
 Commentaires : ${ctx.zoningNotes||''}
 
 ## 5. Équipements (sélection)
@@ -508,47 +603,13 @@ function buildJsonPayload(){
     context: state.context,
     zones: [...state.zones],
     attachments: state.attachments,
-    equipmentsSelected: [...state.selectedEquip.values()]
+    equipmentsSelected: [...state.selectedEquip.values()],
+    zoningSelections: state.zoningSelections
   };
 }
 
-// ===== IA chat
-function bindIAChat(){
-  on('#iaSend','click', sendChat);
-  const input = document.getElementById('iaInput');
-  if (input) input.addEventListener('keydown', (e)=>{ if (e.key==='Enter') sendChat(); });
-}
-async function sendChat(){
-  const input = document.getElementById('iaInput');
-  const msg = (input?.value||'').trim();
-  if (!msg) return;
-  const ctx = `Mode=${state.mode}; Produits=${state.context.fluids||'-'}; Procédé=${state.context.processDesc||'-'}; Conditions=${state.context.operating||'-'}`;
-  openIA('Réflexion en cours…', false, true);
-  const reply = await callAI(ctx + '\nQuestion: ' + msg);
-  openIA(reply, true);
-  input.value='';
-}
-
-// ===== Step completion logic
-function updateStepStatus(){
-  setDot('projects', !!state.currentProjectId);
-  setDot('context', Boolean(state.context.org && state.context.site && state.context.author && state.context.processDesc));
-  setDot('zoning', state.zones.size>0);
-  setDot('equip', state.selectedEquip.size>0);
-  const measuresDone = Boolean((val('#measuresPrev')||'').trim() || (val('#measuresProt')||'').trim());
-  setDot('measures', measuresDone);
-  const allDone = ['projects','context','zoning','equip','measures'].every(id => isGreen(id));
-  setDot('build', allDone);
-}
-function isGreen(id){ return document.getElementById('st-'+id)?.classList.contains('status-green'); }
-function setDot(id, done){
-  const el = document.getElementById('st-'+id);
-  if (!el) return;
-  el.classList.toggle('status-green', !!done);
-  el.classList.toggle('status-orange', !done);
-}
-
-// ===== IA helpers + UI
+// ===== IA chat (simple)
+function bindIAChat(){ /* conservé (boutons IA de section) */ }
 async function callAI(question){
   try{
     const r = await fetchAuth(API.chat, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ question }) });
@@ -575,11 +636,24 @@ function openIA(html, isMarkdown=false, showLoader=false){
     load.style.display='none'; content.style.display='block';
   }, showLoader ? 350 : 0);
 }
+
+// ===== utils
 function qs(sel, root=document){ return root.querySelector(sel); }
 function on(sel, evt, fn){ const el = qs(sel); if (el) el.addEventListener(evt, fn); }
 function val(sel){ const el = qs(sel); return el ? el.value : ''; }
 function qst(sel, text){ const el = qs(sel); if (el) el.textContent = text; }
 function safe(x){ return (x==null? '' : String(x)).replace(/[&<>]/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[s])); }
+
+function downloadFile(filename, content, mime='text/plain'){
+  const blob = new Blob([content], {type:mime});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  URL.revokeObjectURL(link.href);
+  link.remove();
+}
 
 function toast(message, variant='primary'){
   const id='t'+Date.now();
