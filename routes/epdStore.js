@@ -1,8 +1,10 @@
-
 // main/routes/epdStore.js
-// API EPD (DRPCE) — Postgres (Neon) avec auto-provision (ensureTable)
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+const crypto = require('crypto');
 const { pool } = require('../config/db');
 
 async function ensureTable() {
@@ -42,20 +44,43 @@ async function ensureTable() {
   `);
 }
 
-// GET /api/epd?status=&q=&limit=&offset=
+// Upload
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const base = crypto.randomBytes(8).toString('hex');
+    cb(null, `${Date.now()}_${base}${ext}`);
+  }
+});
+const upload = multer({ storage });
+
+router.post('/upload', upload.array('files', 10), async (req, res) => {
+  try {
+    const out = (req.files || []).map(f => ({
+      name: f.originalname,
+      type: f.mimetype,
+      size: f.size,
+      url: `/uploads/${path.basename(f.path)}`
+    }));
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: 'upload_failed' });
+  }
+});
+
+// CRUD
 router.get('/epd', async (req, res, next) => {
   try {
     await ensureTable();
     const { status, q, limit = 50, offset = 0 } = req.query;
     const params = [];
     const where = [];
-
     if (status) { params.push(status); where.push(`status = $${params.length}`); }
-    if (q) {
-      params.push(`%${q}%`);
-      where.push(`(title ILIKE $${params.length} OR CAST(payload AS TEXT) ILIKE $${params.length})`);
-    }
-
+    if (q) { params.push(`%${q}%`); where.push(`(title ILIKE $${params.length} OR CAST(payload AS TEXT) ILIKE $${params.length})`); }
     const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
     params.push(limit); params.push(offset);
     const sql = `
@@ -70,12 +95,10 @@ router.get('/epd', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// POST /api/epd  { title, status?, payload }
 router.post('/epd', async (req, res, next) => {
   try {
     await ensureTable();
-    const { title = 'EPD', status = 'Brouillon', payload } = req.body || {};
-    if (!payload) return res.status(400).json({ error: 'payload_required' });
+    const { title = 'EPD', status = 'Brouillon', payload = {} } = req.body || {};
     const r = await pool.query(
       `INSERT INTO atex_epd_docs (title, status, payload)
        VALUES ($1,$2,$3) RETURNING *`,
@@ -85,7 +108,6 @@ router.post('/epd', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// GET /api/epd/:id
 router.get('/epd/:id', async (req, res, next) => {
   try {
     await ensureTable();
@@ -95,7 +117,6 @@ router.get('/epd/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// PUT /api/epd/:id  { title?, status?, payload? }
 router.put('/epd/:id', async (req, res, next) => {
   try {
     await ensureTable();
@@ -106,7 +127,6 @@ router.put('/epd/:id', async (req, res, next) => {
     if (status !== undefined) { params.push(status); fields.push(`status = $${params.length}`); }
     if (payload !== undefined) { params.push(payload); fields.push(`payload = $${params.length}`); }
     if (!fields.length) return res.status(400).json({ error: 'nothing_to_update' });
-
     params.push(req.params.id);
     const r = await pool.query(
       `UPDATE atex_epd_docs SET ${fields.join(', ')}, updated_at = NOW()
@@ -118,7 +138,6 @@ router.put('/epd/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// PATCH /api/epd/:id/status  { status }
 router.patch('/epd/:id/status', async (req, res, next) => {
   try {
     await ensureTable();
@@ -134,7 +153,6 @@ router.patch('/epd/:id/status', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// DELETE /api/epd/:id
 router.delete('/epd/:id', async (req, res, next) => {
   try {
     await ensureTable();
