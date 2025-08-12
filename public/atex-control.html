@@ -749,7 +749,7 @@
           <td class="actions">
             <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(${eq.id})" title="Éditer"><i data-lucide="edit-3"></i></button>
             <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${eq.id}, '${(eq.composant||'').replace(/'/g,"\\'")}')" title="Supprimer"><i data-lucide="trash-2"></i></button>
-            \1${ hasIAHistory(eq.id) ? "btn-success" : (isNC?"btn-warning":"btn-outline-secondary") }\2
+            <button class="btn btn-sm ${ hasIAHistory(eq.id) ? 'btn-success' : (isNC?'btn-warning':'btn-outline-secondary') }" onclick="openIA(${eq.id})" title="IA AutonomiX"><i data-lucide="sparkles"></i> IA</button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -1238,51 +1238,55 @@
     }
 
     // Override buildLocalEnrichmentChat to actually populate cards and trigger auto-links
-    buildLocalEnrichmentChat = function(eq){
-      const reasons = [];
-      const palliatives = [];
-      const preventives = [];
-      const refs = [];
-      const costs = [];
+    if (typeof buildLocalEnrichmentChat !== 'function') {
+      // ensure function exists
+      function buildLocalEnrichmentChat(){}
+    }
+    (function(){
+      const original = buildLocalEnrichmentChat;
+      buildLocalEnrichmentChat = function(eq){
+        const reasons = [];
+        const palliatives = [];
+        const preventives = [];
+        const refs = [];
+        const costs = [];
 
-      const isNC = String(eq?.conformite || '').toLowerCase().includes('non');
-      const zg = eq?.zone_gaz || eq?.zone_type || '';
-      const zd = eq?.zone_poussieres || '';
+        const isNC = String(eq?.conformite || '').toLowerCase().includes('non');
+        const zg = eq?.zone_gaz || eq?.zone_type || '';
+        const zd = eq?.zone_poussieres || eq?.zone_poussiere || '';
 
-      if(isNC){
-        reasons.push('Non‑conformité déclarée sur la fiche.');
-      }else{
-        reasons.push('Aucune non‑conformité déclarée.');
-      }
-      if(zg) reasons.push('Présence de zone gaz: ' + zg);
-      if(zd) reasons.push('Présence de zone poussières: ' + zd);
-      if(eq?.marquage_atex) reasons.push('Marquage actuel: ' + eq.marquage_atex);
+        if(isNC){ reasons.push('Non‑conformité déclarée sur la fiche.'); }
+        else { reasons.push('Aucune non‑conformité déclarée.'); }
+        if(zg) reasons.push('Présence de zone gaz: ' + zg);
+        if(zd) reasons.push('Présence de zone poussières: ' + zd);
+        if(eq?.marquage_atex) reasons.push('Marquage actuel: ' + eq.marquage_atex);
 
-      if(isNC){
-        palliatives.push('Sécuriser la zone et éviter toute source d’inflammation.');
-        palliatives.push('Mettre en place une surveillance accrue jusqu’au remplacement.');
-        preventives.push('Choisir matériel avec marquage compatible (Ex, catégorie, T-class).');
-        preventives.push('Mettre à jour documentation & marquage local.');
-        refs.push('Directive ATEX 2014/34/UE — catégories 1/2/3 (Ga/Gb/Gc).');
-        costs.push('Capteur ATEX: £150–£350 (indicatif)');
-        costs.push('Boîte Ex e/d: £80–£250 (indicatif)');
-      }else{
-        palliatives.push('Aucune mesure palliative requise.');
-        preventives.push('Maintenir la conformité via inspection périodique.');
-      }
+        if(isNC){
+          palliatives.push('Sécuriser la zone et éviter toute source d’inflammation.');
+          palliatives.push('Mettre en place une surveillance accrue jusqu’au remplacement.');
+          preventives.push('Choisir matériel avec marquage compatible (Ex, catégorie, T‑class).');
+          preventives.push('Mettre à jour documentation & marquage local.');
+          refs.push('Directive ATEX 2014/34/UE — catégories 1/2/3 (Ga/Gb/Gc).');
+          costs.push('Capteur ATEX: £150–£350 (indicatif)');
+          costs.push('Boîte Ex e/d: £80–£250 (indicatif)');
+        }else{
+          palliatives.push('Aucune mesure palliative requise.');
+          preventives.push('Maintenir la conformité via inspection périodique.');
+        }
 
-      const mapList = (arr)=> arr.map(x=>`<li>${x}</li>`).join('') || '<li>—</li>';
-      const el = (id)=> document.getElementById(id);
+        const mapList = (arr)=> arr.map(x=>`<li>${x}</li>`).join('') || '<li>—</li>';
+        const el = (id)=> document.getElementById(id);
 
-      if(el('chatWhy')) el('chatWhy').innerHTML = '<ul>'+mapList(reasons)+'</ul>';
-      if(el('chatPalliative')) el('chatPalliative').innerHTML = mapList(palliatives);
-      if(el('chatPreventive')) el('chatPreventive').innerHTML = mapList(preventives);
-      if(el('chatRefs')) el('chatRefs').innerHTML = mapList(refs);
-      if(el('chatCosts')) el('chatCosts').innerHTML = mapList(costs);
+        if(el('chatWhy')) el('chatWhy').innerHTML = '<ul>'+mapList(reasons)+'</ul>';
+        if(el('chatPalliative')) el('chatPalliative').innerHTML = mapList(palliatives);
+        if(el('chatPreventive')) el('chatPreventive').innerHTML = mapList(preventives);
+        if(el('chatRefs')) el('chatRefs').innerHTML = mapList(refs);
+        if(el('chatCosts')) el('chatCosts').innerHTML = mapList(costs);
 
-      try { buildDynamicSuggestions(eq); } catch(e){}
-      return { reasons, palliatives, preventives, refs, costs };
-    };
+        try { buildDynamicSuggestions(eq); } catch(e){}
+        return { reasons, palliatives, preventives, refs, costs };
+      };
+    })();
 </script>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
