@@ -114,6 +114,7 @@ router.get('/atex-equipments', async (_req, res) => {
       // compat: si anciens champs existent
       it.zone_gaz       = normZoneG(it.zone_gaz ?? it.exterieur);
       it.zone_poussiere = normZoneD(it.zone_poussiere ?? it.interieur);
+      it.zone_poussieres = it.zone_poussiere;
 
       if (!it.next_inspection_date && it.last_inspection_date) {
         it.next_inspection_date = addYearsISO(it.last_inspection_date, it.frequence || 3);
@@ -148,7 +149,7 @@ router.post('/atex-equipments', async (req, res) => {
   try {
     const d  = req.body || {};
     const zg = normZoneG(d.zone_gaz ?? d.exterieur);      // accepte l’un ou l’autre depuis le front
-    const zd = normZoneD(d.zone_poussiere ?? d.interieur);
+    const zd = normZoneD(d.zone_poussieres ?? d.zone_poussiere ?? d.interieur);
 
     const cat = calculateMinCategory(zg, zd);
     const conf = checkDualConformity(d.marquage_atex, zg, zd);
@@ -181,7 +182,7 @@ router.put('/atex-equipments/:id', async (req, res) => {
     const id = req.params.id;
     const d  = req.body || {};
     const zg = normZoneG(d.zone_gaz ?? d.exterieur);
-    const zd = normZoneD(d.zone_poussiere ?? d.interieur);
+    const zd = normZoneD(d.zone_poussieres ?? d.zone_poussiere ?? d.interieur);
 
     const cat  = calculateMinCategory(zg, zd);
     const conf = checkDualConformity(d.marquage_atex, zg, zd);
