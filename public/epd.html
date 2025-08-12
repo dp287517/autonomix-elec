@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>EPD Builder - DRPCE / AutonomiX</title>
 
-  <!-- 🔐 Auth guard: redirige vers login.html si non connecté -->
+  <!-- 🔐 Auth guard -->
   <script>
     (async function(){
       try{
@@ -45,27 +45,26 @@
       <p class="lead mb-0">Créer, guider et documenter vos EPD avec IA intégrée.</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-      <a class="btn btn-outline-secondary" href="atex-risk.html"><i data-lucide="scan-search"></i> Analyse</a>
-      <a class="btn btn-outline-secondary" href="epd.html"><i data-lucide="file-text"></i> EPD</a>
+      <a class="btn btn-outline-secondary" href="dashboard.html"><i data-lucide="home"></i> Menu</a>
+      <a class="btn btn-outline-secondary" href="atex-control.html"><i data-lucide="factory"></i> Contrôle ATEX</a>
       <a class="btn btn-outline-secondary" href="is-loop.html"><i data-lucide="circuit-board"></i> Boucles Exi</a>
     </div>
   </header>
 
-  <!-- Guide step-by-step -->
+  <!-- Guide (sans numéros, sans “Enregistrement automatique”) -->
   <div class="card mb-3">
-    <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-2">
-      <div>
+    <div class="card-body d-flex justify-content-between align-items-center flex-wrap">
+      <div class="small">
         <strong>Guide :</strong>
-        <span class="ms-2">1) Projets<span id="st-projects" class="status-dot status-orange"></span></span>
-        <span class="ms-3">2) Contexte<span id="st-context" class="status-dot status-orange"></span></span>
-        <span class="ms-3">3) Zonage<span id="st-zoning" class="status-dot status-orange"></span></span>
-        <span class="ms-3">4) Équipements<span id="st-equip" class="status-dot status-orange"></span></span>
-        <span class="ms-3">5) Mesures<span id="st-measures" class="status-dot status-orange"></span></span>
-        <span class="ms-3">6) Génération<span id="st-build" class="status-dot status-orange"></span></span>
+        <span class="ms-2">Projets <span id="st-projects" class="status-dot status-orange"></span></span>
+        <span class="ms-3">Contexte <span id="st-context" class="status-dot status-orange"></span></span>
+        <span class="ms-3">Zonage <span id="st-zoning" class="status-dot status-orange"></span></span>
+        <span class="ms-3">Équipements <span id="st-equip" class="status-dot status-orange"></span></span>
+        <span class="ms-3">Mesures <span id="st-measures" class="status-dot status-orange"></span></span>
+        <span class="ms-3">Génération <span id="st-build" class="status-dot status-orange"></span></span>
       </div>
       <div class="d-flex gap-2">
         <button id="btnNextStep" class="btn btn-primary btn-sm"><i data-lucide="chevrons-right"></i> Étape suivante</button>
-        <span class="small-muted" id="saveHint">Enregistrement automatique</span>
       </div>
     </div>
   </div>
@@ -88,12 +87,12 @@
     </li>
     <li class="nav-item" role="presentation">
       <button class="nav-link" id="equip-tab" data-bs-toggle="tab" data-bs-target="#equip" type="button" role="tab">
-        <i data-lucide="cpu"></i> Équipements
+        <i data-lucide="wrench"></i> Équipements
       </button>
     </li>
     <li class="nav-item" role="presentation">
       <button class="nav-link" id="measures-tab" data-bs-toggle="tab" data-bs-target="#measures" type="button" role="tab">
-        <i data-lucide="shield-check"></i> Mesures
+        <i data-lucide="clipboard-check"></i> Mesures
       </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -108,50 +107,51 @@
     <!-- Projets -->
     <div class="tab-pane fade show active" id="projects" role="tabpanel">
       <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">Projets EPD</h5>
+        <div class="card-header d-flex align-items-center justify-content-between flex-wrap">
+          <h5 class="mb-0">Projets</h5>
           <div class="d-flex gap-2">
-            <select id="projFilter" class="form-select form-select-sm" style="width:auto">
-              <option value="">Tous</option>
-              <option>Brouillon</option>
-              <option>En cours</option>
-              <option>Terminé</option>
-            </select>
-            <input id="projSearch" class="form-control form-control-sm" placeholder="Rechercher...">
-            <button id="btnProjReload" class="btn btn-sm btn-outline-primary"><i data-lucide="refresh-cw"></i> Actualiser</button>
-            <button id="btnProjNew" class="btn btn-sm btn-primary"><i data-lucide="plus"></i> Nouveau</button>
+            <button class="btn btn-sm btn-outline-secondary" id="btnProjReload"><i data-lucide="refresh-cw"></i> Recharger</button>
+            <button class="btn btn-sm btn-primary" id="btnProjNew"><i data-lucide="plus"></i> Nouveau</button>
           </div>
         </div>
-        <div class="card-body table-responsive">
-          <table class="table align-middle" id="projTable">
-            <thead>
-              <tr>
-                <th>ID</th><th>Titre</th><th>Statut</th><th>MAJ</th><th class="text-end">Actions</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
+        <div class="card-body">
+          <div class="alert alert-info small mb-3">
+            📌 <strong>Que faire ici ?</strong> Crée un projet ou ouvre un existant. Ensuite complète le <em>Contexte</em>, fais le <em>Zonage</em>, sélectionne des <em>Équipements</em> et termine par la <em>Génération</em> du document.
+          </div>
+          <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+              <label class="form-label">Filtre statut</label>
+              <select id="projFilter" class="form-select">
+                <option value="">— Tous —</option>
+                <option>Brouillon</option>
+                <option>En cours</option>
+                <option>Terminé</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Recherche</label>
+              <input id="projSearch" class="form-control" placeholder="Titre / contenu…">
+            </div>
+          </div>
+
+          <div class="table-responsive mt-3">
+            <table class="table table-striped align-middle" id="projTable">
+              <thead><tr><th>ID</th><th>Titre</th><th>Statut</th><th>Modifié</th><th class="text-end">Actions</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Contexte -->
     <div class="tab-pane fade" id="context" role="tabpanel">
-      <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">Informations générales</h5>
-          <div class="d-flex align-items-center gap-3">
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="modeEPD" id="modeProjet" value="projet" checked>
-              <label class="form-check-label" for="modeProjet">Nouveau projet</label>
-            </div>
-            <div class="form-check form-check-inline">
-              <input class="form-check-input" type="radio" name="modeEPD" id="modeInspection" value="inspection">
-              <label class="form-check-label" for="modeInspection">Inspection / Mise à jour</label>
-            </div>
-          </div>
-        </div>
+      <div class="card mb-3">
+        <div class="card-header"><h5 class="mb-0">Contexte</h5></div>
         <div class="card-body">
+          <div class="alert alert-info small mb-3">
+            ℹ️ <strong>Que faire ici ?</strong> Renseigne <em>Entreprise, Site, Rédacteur</em> et décris le <em>procédé</em> (produits, conditions). Ces infos guident l’IA et la suite.
+          </div>
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">Entreprise</label>
@@ -175,53 +175,58 @@
             </div>
           </div>
 
-          <hr class="my-4">
+          <div class="mt-3 d-flex gap-2 flex-wrap">
+            <div class="form-check me-3">
+              <input class="form-check-input" type="radio" name="modeEPD" id="modeProjet" value="projet" checked>
+              <label class="form-check-label" for="modeProjet">Projet (création EPD)</label>
+            </div>
+            <div class="form-check me-3">
+              <input class="form-check-input" type="radio" name="modeEPD" id="modeInspection" value="inspection">
+              <label class="form-check-label" for="modeInspection">Inspection / Mise à jour</label>
+            </div>
 
-          <div class="row g-3">
-            <div class="col-md-4">
-              <label class="form-label">Fluides / Poudres</label>
-              <input class="form-control" id="fluids" placeholder="Ex: méthane, ethanol, farine…">
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">Conditions opératoires</label>
-              <input class="form-control" id="operating" placeholder="T, P, débits, confinement, ventilation">
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">Documents (PDF, images)</label>
-              <input class="form-control" id="attachments" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp">
-            </div>
-            <div class="col-12" id="attachmentPreview" class="d-flex flex-wrap gap-2"></div>
+            <button class="btn btn-outline-secondary btn-sm" id="btnScopeChecklist"><i data-lucide="check-square"></i> IA checklist cadrage</button>
+            <button class="btn btn-outline-secondary btn-sm" id="btnScopeHazid"><i data-lucide="alert-triangle"></i> IA pré-HAZID</button>
+            <button class="btn btn-outline-secondary btn-sm" id="btnAICompleteContext"><i data-lucide="wand-2"></i> IA compléter description</button>
           </div>
+        </div>
+      </div>
 
-          <div class="mt-3 d-flex gap-2">
-            <button id="btnScopeChecklist" class="btn btn-outline-primary btn-sm"><i data-lucide="list-checks"></i> IA : Checklist cadrage projet</button>
-            <button id="btnScopeHazid" class="btn btn-outline-secondary btn-sm"><i data-lucide="radar"></i> IA : Pré-HazID</button>
-            <button id="btnAICompleteContext" class="btn btn-outline-dark btn-sm"><i data-lucide="bot"></i> IA : compléter</button>
-          </div>
+      <!-- Pièces jointes -->
+      <div class="card">
+        <div class="card-header"><h5 class="mb-0">Pièces jointes</h5></div>
+        <div class="card-body">
+          <input type="file" id="attachments" class="form-control" multiple>
+          <div id="attachmentPreview" class="mt-3"></div>
         </div>
       </div>
     </div>
 
-    <!-- Zonage -->
+    <!-- Zonage ATEX -->
     <div class="tab-pane fade" id="zoning" role="tabpanel">
       <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
           <h5 class="mb-0">Zonage ATEX</h5>
           <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-primary" id="btnAIIntroZoning"><i data-lucide="sparkles"></i> IA : Expliquer</button>
-            <button class="btn btn-sm btn-outline-secondary" id="btnAIProposeZoning"><i data-lucide="map"></i> IA : Proposer zonage</button>
+            <button class="btn btn-outline-secondary btn-sm" id="btnAIIntroZoning"><i data-lucide="book-open-text"></i> IA rappel zones</button>
+            <button class="btn btn-outline-secondary btn-sm" id="btnAIProposeZoning"><i data-lucide="map"></i> IA proposition</button>
           </div>
         </div>
         <div class="card-body">
-          <div class="row g-3">
+          <div class="alert alert-info small mb-3">
+            🧭 <strong>Que faire ici ?</strong> Coche les <em>zones 0/1/2/20/21/22</em>, puis associe-les à un <em>Bâtiment</em> et/ou <em>Local</em>. Ajoute plusieurs sélections si nécessaire (elles serviront de <em>filtres</em> dans l’onglet Équipements).
+          </div>
+
+          <div class="row g-3 align-items-end">
             <div class="col-md-4">
-              <label class="form-label">Type d'atmosphère</label>
-              <select class="form-select" id="atexType">
-                <option value="gaz">Gaz / Vapeurs</option>
-                <option value="poussiere">Poussières combustibles</option>
-              </select>
+              <label class="form-label">Bâtiment</label>
+              <input class="form-control" id="zoneBat" placeholder="Ex: B06">
             </div>
-            <div class="col-md-8">
+            <div class="col-md-4">
+              <label class="form-label">Local</label>
+              <input class="form-control" id="zoneLocal" placeholder="Ex: Soufflantes STEP">
+            </div>
+            <div class="col-md-4">
               <label class="form-label">Zones présentes</label>
               <div class="d-flex flex-wrap gap-2">
                 <label class="pill"><input class="form-check-input me-1" type="checkbox" value="0"> Zone 0</label>
@@ -232,10 +237,16 @@
                 <label class="pill"><input class="form-check-input me-1" type="checkbox" value="22"> Zone 22</label>
               </div>
             </div>
-            <div class="col-12">
-              <label class="form-label">Plans / commentaires</label>
-              <textarea class="form-control" id="zoningNotes" rows="3"></textarea>
+            <div class="col-12 d-flex justify-content-end">
+              <button class="btn btn-primary" id="btnZoningAdd"><i data-lucide="plus"></i> Ajouter la sélection</button>
             </div>
+          </div>
+
+          <div id="zoningList" class="mt-3"></div>
+
+          <div class="mt-3">
+            <label class="form-label">Plans / commentaires</label>
+            <textarea class="form-control" id="zoningNotes" rows="3"></textarea>
           </div>
         </div>
       </div>
@@ -247,23 +258,34 @@
         <div class="card-header d-flex justify-content-between align-items-center">
           <h5 class="mb-0">Filtres</h5>
           <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-success" id="btnAIProposeEquip"><i data-lucide="cpu"></i> IA : Proposer équipements (projet)</button>
-            <button class="btn btn-sm btn-outline-secondary" id="btnAILocalQA"><i data-lucide="messages-square"></i> IA : Q&R par local (inspection)</button>
+            <button class="btn btn-sm btn-outline-success" id="btnAIEq"><i data-lucide="cpu"></i> IA : Analyser sélection</button>
+            <button class="btn btn-sm btn-outline-secondary" id="btnAILocalQA"><i data-lucide="messages-square"></i> IA : Q&R par local</button>
           </div>
         </div>
         <div class="card-body">
-          <div class="row g-2">
-            <div class="col-md-3"><input id="fSecteur" class="form-control" placeholder="Secteur"></div>
-            <div class="col-md-3"><input id="fBat" class="form-control" placeholder="Bâtiment"></div>
+          <div class="alert alert-info small mb-3">
+            🧩 <strong>Que faire ici ?</strong> Charge tes équipements, filtre par <em>secteur / bâtiment</em> et active <em>“Filtrer par le zonage sélectionné”</em> pour ne voir que les éléments concernés. Tu peux aussi <em>créer</em> un équipement.
+          </div>
+          <div class="row g-3 align-items-end">
             <div class="col-md-3">
+              <label class="form-label">Secteur</label>
+              <input id="fSecteur" class="form-control" placeholder="Texte…">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Bâtiment</label>
+              <input id="fBat" class="form-control" placeholder="Texte…">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Conformité</label>
               <select id="fConf" class="form-select">
-                <option value="">Conformité (tous)</option>
-                <option value="Conforme">Conforme</option>
-                <option value="Non Conforme">Non Conforme</option>
+                <option value="">—</option>
+                <option>Conforme</option>
+                <option>Non Conforme</option>
               </select>
             </div>
-            <div class="col-md-3 d-grid d-md-block">
-              <button id="btnSyncEquip" class="btn btn-primary"><i data-lucide="refresh-cw"></i> Charger</button>
+            <div class="col-md-3 form-check mt-4">
+              <input class="form-check-input" type="checkbox" id="fByZoning">
+              <label class="form-check-label" for="fByZoning">Filtrer par le zonage sélectionné</label>
             </div>
           </div>
         </div>
@@ -273,20 +295,57 @@
         <div class="card-header d-flex justify-content-between align-items-center">
           <h5 class="mb-0">Sélection d’équipements</h5>
           <div class="d-flex gap-2 flex-wrap">
-            <button class="btn btn-outline-secondary btn-sm" id="btnAIEq"><i data-lucide="bot"></i> IA : analyser la sélection</button>
-            <span class="pill">Source : /api/atex-equipments</span>
+            <button class="btn btn-outline-primary btn-sm" id="btnEquipNew"><i data-lucide="plus"></i> Nouvel équipement</button>
+            <div class="form-check ms-2">
+              <input type="checkbox" class="form-check-input" id="checkAll">
+              <label class="form-check-label" for="checkAll">Tout cocher</label>
+            </div>
           </div>
         </div>
         <div class="card-body table-responsive">
           <table class="table table-striped align-middle" id="equipTable">
             <thead>
               <tr>
-                <th><input type="checkbox" id="checkAll"></th>
-                <th>ID</th><th>Composant</th><th>Secteur</th><th>Bâtiment</th><th>Local</th><th>Zone</th><th>Marquage</th><th>Cat. min</th><th>Conformité</th><th>Risque</th>
+                <th></th>
+                <th>ID</th><th>Composant</th><th>Secteur</th><th>Bâtiment</th><th>Local</th>
+                <th>Zone</th><th>Marquage</th><th>Cat. min.</th><th>Conformité</th><th>Risque</th>
               </tr>
             </thead>
             <tbody></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- Modal création équipement -->
+      <div class="modal fade" id="equipModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <form class="modal-content" id="equipForm">
+            <div class="modal-header">
+              <h5 class="modal-title">Nouvel équipement ATEX</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body row g-3">
+              <div class="col-md-6"><label class="form-label">Composant</label><input class="form-control" id="eqComposant" required></div>
+              <div class="col-md-3"><label class="form-label">Secteur</label><input class="form-control" id="eqSecteur"></div>
+              <div class="col-md-3"><label class="form-label">Bâtiment</label><input class="form-control" id="eqBatiment"></div>
+              <div class="col-md-4"><label class="form-label">Local</label><input class="form-control" id="eqLocal"></div>
+              <div class="col-md-4"><label class="form-label">Zone (0/1/2/20/21/22)</label><input class="form-control" id="eqZone"></div>
+              <div class="col-md-4"><label class="form-label">Marquage ATEX</label><input class="form-control" id="eqMarquage"></div>
+              <div class="col-md-4">
+                <label class="form-label">Conformité</label>
+                <select class="form-select" id="eqConformite">
+                  <option value="">—</option>
+                  <option>Conforme</option>
+                  <option>Non Conforme</option>
+                </select>
+              </div>
+              <div class="col-md-8"><label class="form-label">Risque (commentaire)</label><input class="form-control" id="eqRisque"></div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+              <button class="btn btn-primary" type="submit">Créer</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -294,11 +353,20 @@
     <!-- Mesures -->
     <div class="tab-pane fade" id="measures" role="tabpanel">
       <div class="card">
-        <div class="card-header"><h5 class="mb-0">Mesures de prévention & protection</h5></div>
+        <div class="card-header"><h5 class="mb-0">Mesures prévention / protection</h5></div>
         <div class="card-body">
+          <div class="alert alert-info small mb-3">
+            🧭 <strong>Guidance :</strong>  
+            <ul class="mb-2">
+              <li><em>Prévention</em> : éliminer / réduire l’atmosphère explosive et les sources d’inflammation (procédé, ventilation, qualité produit, AT, équipements).</li>
+              <li><em>Protection</em> : limiter les effets (évents / découplage / confinement, SIS/ESD, inerte) et définir critères d’acceptation + périodicité des contrôles.</li>
+              <li>Utilise les boutons IA pour <em>proposer</em> et <em>vérifier</em> en fonction de ton Contexte et du Zonage.</li>
+            </ul>
+          </div>
+
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Prévention (éviter ATEX / ignition)</label>
+              <label class="form-label">Prévention (éviter l’ATEX / sources)</label>
               <textarea id="measuresPrev" class="form-control" rows="7"></textarea>
               <div class="mt-2 d-flex gap-2">
                 <button class="btn btn-sm btn-outline-primary" data-ai="prev"><i data-lucide="sparkles"></i> IA : proposer</button>
@@ -316,17 +384,16 @@
           </div>
 
           <hr class="my-4">
-
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">Programme de formation</label>
               <textarea id="training" class="form-control" rows="6"></textarea>
-              <div class="mt-2"><button class="btn btn-sm btn-outline-primary" data-ai="training"><i data-lucide="sparkles"></i> IA : générer</button></div>
+              <div class="mt-2"><button class="btn btn-sm btn-outline-primary" id="training"><i data-lucide="sparkles"></i> IA : générer</button></div>
             </div>
             <div class="col-md-6">
               <label class="form-label">Plan de maintenance / contrôles</label>
               <textarea id="maintenance" class="form-control" rows="6"></textarea>
-              <div class="mt-2"><button class="btn btn-sm btn-outline-primary" data-ai="maintenance"><i data-lucide="sparkles"></i> IA : générer</button></div>
+              <div class="mt-2"><button class="btn btn-sm btn-outline-primary" id="maintenance"><i data-lucide="sparkles"></i> IA : générer</button></div>
             </div>
           </div>
         </div>
@@ -337,54 +404,41 @@
     <div class="tab-pane fade" id="build" role="tabpanel">
       <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">Générer & Exporter</h5>
-          <div class="d-flex gap-2 flex-wrap">
-            <button id="btnBuild" class="btn btn-primary"><i data-lucide="wand-2"></i> Générer</button>
-            <button id="btnExportMD" class="btn btn-outline-secondary"><i data-lucide="download"></i> Exporter .md</button>
-            <button id="btnExportJSON" class="btn btn-outline-secondary"><i data-lucide="download"></i> Exporter .json</button>
+          <h5 class="mb-0">Générer l’EPD</h5>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary btn-sm" id="btnBuild"><i data-lucide="binary"></i> Construire</button>
+            <button class="btn btn-outline-secondary btn-sm" id="btnExportMD"><i data-lucide="download"></i> Exporter .md</button>
+            <button class="btn btn-outline-secondary btn-sm" id="btnExportJSON"><i data-lucide="download"></i> Exporter .json</button>
           </div>
         </div>
         <div class="card-body">
           <div class="row g-3">
-            <div class="col-lg-6">
-              <div class="small-muted mb-1">Aperçu Markdown</div>
-              <pre id="mdPreview" class="p-3 bg-white border rounded" style="min-height:220px"></pre>
-            </div>
-            <div class="col-lg-6">
-              <div class="small-muted mb-1">Aperçu HTML</div>
-              <div id="htmlPreview" class="p-3 bg-white border rounded" style="min-height:220px"></div>
-            </div>
+            <div class="col-md-6"><label class="form-label">Markdown</label><pre id="mdPreview" class="code p-3 bg-light rounded" style="min-height:260px"></pre></div>
+            <div class="col-md-6"><label class="form-label">Aperçu HTML</label><div id="htmlPreview" class="p-3 bg-white border rounded" style="min-height:260px"></div></div>
           </div>
         </div>
       </div>
     </div>
-
   </div>
 
-  <!-- Offcanvas IA global avec mini chat -->
+  <!-- Offcanvas IA -->
   <div class="offcanvas offcanvas-end offcanvas-ia" tabindex="-1" id="iaPanel" data-bs-scroll="true" data-bs-backdrop="false" aria-labelledby="iaPanelLabel">
     <div class="offcanvas-header">
-      <h5 class="offcanvas-title" id="iaPanelLabel"><i data-lucide="bot"></i> AutonomiX IA</h5>
+      <h5 class="offcanvas-title" id="iaPanelLabel"><i data-lucide="bot"></i> Aide IA</h5>
       <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
     </div>
-    <div class="offcanvas-body d-flex flex-column gap-2">
+    <div class="offcanvas-body">
       <div id="iaLoading" class="text-center text-muted" style="display:none">
         <div class="spinner-border" role="status" aria-hidden="true"></div>
-        <div class="mt-2">Réflexion en cours…</div>
+        <div class="mt-2">Analyse en cours…</div>
       </div>
-      <div id="iaDetails" class="border rounded p-2 bg-white" style="display:none; max-height:50vh; overflow:auto"></div>
-      <div class="d-flex gap-2">
-        <input id="iaInput" class="form-control" placeholder="Discuter avec AutonomiX…">
-        <button id="iaSend" class="btn btn-primary"><i data-lucide="send"></i></button>
-      </div>
+      <div id="iaDetails" style="display:none"></div>
     </div>
   </div>
 
   <div class="toast-container position-fixed top-0 end-0 p-3" id="toasts" style="z-index: 2000;"></div>
 
-  <footer class="text-center small mt-4">
-    © AutonomiX — Tous droits réservés
-  </footer>
+  <footer class="text-center small mt-4">© AutonomiX — Tous droits réservés</footer>
 
   <script src="/js/epd.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
