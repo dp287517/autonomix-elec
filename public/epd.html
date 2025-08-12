@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>EPD Builder - DRPCE / Explosion Protection Document</title>
+  <title>EPD Builder - DRPCE / AutonomiX</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
@@ -12,43 +11,61 @@
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
   <style>
-    :root{
-      --offcanvas-w: clamp(420px, 40vw, 560px);
-    }
+    :root{ --offcanvas-w: clamp(420px, 40vw, 560px); }
     body{ background:#f8f9fa; font-family:'Poppins',sans-serif; color:#333; }
     .card{ border-radius:14px; box-shadow:0 4px 10px rgba(0,0,0,.06); }
     .small-muted{ font-size:.9rem; color:#6c757d; }
     .offcanvas-ia{ --bs-offcanvas-width: var(--offcanvas-w); }
-    #iaPanel{ border-left:1px solid #e5e7eb; }
-    #iaPanel .offcanvas-body{ display:flex; flex-direction:column; gap:1rem; padding-top:.75rem; }
-    .ia-details{ border:1px solid #e9ecef; border-radius:10px; background:#fff; max-height: 55vh; overflow:auto; padding:1rem; }
-    .markdown-preview{ border:1px solid #e9ecef; border-radius:10px; background:#fff; padding:1rem; min-height:220px; max-height:55vh; overflow:auto; }
     .pill{border:1px solid #e9ecef; border-radius:999px; padding:.15rem .6rem; font-size:.8rem; color:#6c757d; background:#fff;}
-    .code{ font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace }
-    .save-status{ font-size:.85rem; }
+    .code{ font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Courier New",monospace }
     .thumb{ width:84px; height:84px; object-fit:cover; border:1px solid #dee2e6; border-radius:8px; }
+    .status-dot{ display:inline-block; width:10px; height:10px; border-radius:50%; margin-left:.4rem; vertical-align:middle; }
+    .status-green{ background:#28a745; }
+    .status-orange{ background:#fd7e14; }
+    .tab-disabled .nav-link:not(.active){ pointer-events:none; opacity:.5; }
   </style>
 </head>
-<body class="container my-4">
+<body class="container my-5">
 
-  <div class="d-flex align-items-center justify-content-between mb-2">
-    <div class="d-flex align-items-center gap-3">
-      <h1 class="mb-0">EPD / DRPCE — Constructeur</h1>
-      <input id="projectTitle" class="form-control form-control-sm" placeholder="Titre du projet (ex: EPD Station B06)" style="width: 340px;">
-      <select id="projectStatus" class="form-select form-select-sm" style="width: 160px;">
-        <option>Brouillon</option><option>En cours</option><option>Terminé</option>
-      </select>
-      <button id="btnSaveServerTop" class="btn btn-sm btn-success"><i data-lucide="save"></i> Enregistrer</button>
+  <header class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h1 class="mb-1">EPD / DRPCE — AutonomiX</h1>
+      <p class="lead mb-0">Créer, guider et documenter vos EPD avec IA intégrée.</p>
     </div>
-    <div class="save-status text-muted">
-      <span id="saveStateDot" class="me-1">●</span><span id="saveStateText">Prêt</span>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-secondary" href="atex-risk.html"><i data-lucide="scan-search"></i> Analyse</a>
+      <a class="btn btn-outline-secondary" href="epd.html"><i data-lucide="file-text"></i> EPD</a>
+      <a class="btn btn-outline-secondary" href="is-loop.html"><i data-lucide="circuit-board"></i> Boucles Exi</a>
+    </div>
+  </header>
+
+  <!-- Guide step-by-step -->
+  <div class="card mb-3">
+    <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <div>
+        <strong>Guide :</strong>
+        <span class="ms-2">1) Projets<span id="st-projects" class="status-dot status-orange"></span></span>
+        <span class="ms-3">2) Contexte<span id="st-context" class="status-dot status-orange"></span></span>
+        <span class="ms-3">3) Zonage<span id="st-zoning" class="status-dot status-orange"></span></span>
+        <span class="ms-3">4) Équipements<span id="st-equip" class="status-dot status-orange"></span></span>
+        <span class="ms-3">5) Mesures<span id="st-measures" class="status-dot status-orange"></span></span>
+        <span class="ms-3">6) Génération<span id="st-build" class="status-dot status-orange"></span></span>
+      </div>
+      <div class="d-flex gap-2">
+        <button id="btnNextStep" class="btn btn-primary btn-sm"><i data-lucide="chevrons-right"></i> Étape suivante</button>
+        <span class="small-muted" id="saveHint">Enregistrement automatique</span>
+      </div>
     </div>
   </div>
-  <p class="text-muted">Créer, documenter et exporter un <strong>Document Relatif à la Protection Contre les Explosions</strong> pour <em>nouveau projet</em> ou <em>inspection/mise à jour</em>.</p>
 
-  <ul class="nav nav-tabs" id="epdTabs" role="tablist">
+  <ul class="nav nav-tabs tab-disabled" id="epdTabs" role="tablist">
     <li class="nav-item" role="presentation">
-      <button class="nav-link active" id="context-tab" data-bs-toggle="tab" data-bs-target="#context" type="button" role="tab">
+      <button class="nav-link active" id="projects-tab" data-bs-toggle="tab" data-bs-target="#projects" type="button" role="tab">
+        <i data-lucide="folders"></i> Projets
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="context-tab" data-bs-toggle="tab" data-bs-target="#context" type="button" role="tab">
         <i data-lucide="building-2"></i> Contexte
       </button>
     </li>
@@ -68,11 +85,6 @@
       </button>
     </li>
     <li class="nav-item" role="presentation">
-      <button class="nav-link" id="projects-tab" data-bs-toggle="tab" data-bs-target="#projects" type="button" role="tab">
-        <i data-lucide="folder-open"></i> Projets
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
       <button class="nav-link" id="build-tab" data-bs-toggle="tab" data-bs-target="#build" type="button" role="tab">
         <i data-lucide="file-text"></i> Génération
       </button>
@@ -80,8 +92,39 @@
   </ul>
 
   <div class="tab-content mt-3" id="epdTabContent">
+
+    <!-- Projets -->
+    <div class="tab-pane fade show active" id="projects" role="tabpanel">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Projets EPD</h5>
+          <div class="d-flex gap-2">
+            <select id="projFilter" class="form-select form-select-sm" style="width:auto">
+              <option value="">Tous</option>
+              <option>Brouillon</option>
+              <option>En cours</option>
+              <option>Terminé</option>
+            </select>
+            <input id="projSearch" class="form-control form-control-sm" placeholder="Rechercher...">
+            <button id="btnProjReload" class="btn btn-sm btn-outline-primary"><i data-lucide="refresh-cw"></i> Actualiser</button>
+            <button id="btnProjNew" class="btn btn-sm btn-primary"><i data-lucide="plus"></i> Nouveau</button>
+          </div>
+        </div>
+        <div class="card-body table-responsive">
+          <table class="table align-middle" id="projTable">
+            <thead>
+              <tr>
+                <th>ID</th><th>Titre</th><th>Statut</th><th>MAJ</th><th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- Contexte -->
-    <div class="tab-pane fade show active" id="context" role="tabpanel">
+    <div class="tab-pane fade" id="context" role="tabpanel">
       <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
           <h5 class="mb-0">Informations générales</h5>
@@ -116,7 +159,7 @@
             </div>
             <div class="col-12">
               <label class="form-label">Portée / Description du procédé</label>
-              <textarea class="form-control" id="processDesc" rows="3" placeholder="Décris le procédé, les substances manipulées, conditions T/P, ventilation…"></textarea>
+              <textarea class="form-control" id="processDesc" rows="3"></textarea>
             </div>
           </div>
 
@@ -126,16 +169,14 @@
             <div class="col-md-4">
               <label class="form-label">Fluides / Poudres</label>
               <input class="form-control" id="fluids" placeholder="Ex: méthane, ethanol, farine…">
-              <div class="form-text">Indique les principaux produits / solvants / poussières concernés.</div>
             </div>
             <div class="col-md-4">
               <label class="form-label">Conditions opératoires</label>
               <input class="form-control" id="operating" placeholder="T, P, débits, confinement, ventilation">
             </div>
             <div class="col-md-4">
-              <label class="form-label">Documents / photos (upload serveur)</label>
+              <label class="form-label">Documents (PDF, images)</label>
               <input class="form-control" id="attachments" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp">
-              <div class="form-text">Les fichiers sont envoyés sur le serveur (Render: disque éphémère). Pour du durable, prévoir S3.</div>
             </div>
             <div class="col-12" id="attachmentPreview" class="d-flex flex-wrap gap-2"></div>
           </div>
@@ -143,6 +184,7 @@
           <div class="mt-3 d-flex gap-2">
             <button id="btnScopeChecklist" class="btn btn-outline-primary btn-sm"><i data-lucide="list-checks"></i> IA : Checklist cadrage projet</button>
             <button id="btnScopeHazid" class="btn btn-outline-secondary btn-sm"><i data-lucide="radar"></i> IA : Pré-HazID</button>
+            <button id="btnAICompleteContext" class="btn btn-outline-dark btn-sm"><i data-lucide="bot"></i> IA : compléter</button>
           </div>
         </div>
       </div>
@@ -180,9 +222,8 @@
             </div>
             <div class="col-12">
               <label class="form-label">Plans / commentaires</label>
-              <textarea class="form-control" id="zoningNotes" rows="3" placeholder="Lien vers plans, critères IEC 60079-10-x, etc."></textarea>
+              <textarea class="form-control" id="zoningNotes" rows="3"></textarea>
             </div>
-            <div class="col-12 small-muted">Pendant les appels IA, un message “Réflexion en cours…” s’affiche.</div>
           </div>
         </div>
       </div>
@@ -246,7 +287,7 @@
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">Prévention (éviter ATEX / ignition)</label>
-              <textarea id="measuresPrev" class="form-control" rows="7" placeholder="Ventilation, inertage, contrôle ESD, procédures de nettoyage…"></textarea>
+              <textarea id="measuresPrev" class="form-control" rows="7"></textarea>
               <div class="mt-2 d-flex gap-2">
                 <button class="btn btn-sm btn-outline-primary" data-ai="prev"><i data-lucide="sparkles"></i> IA : proposer</button>
                 <button class="btn btn-sm btn-outline-secondary" data-ai="prev-check"><i data-lucide="shield"></i> IA : vérifier</button>
@@ -254,7 +295,7 @@
             </div>
             <div class="col-md-6">
               <label class="form-label">Protection (limiter les effets)</label>
-              <textarea id="measuresProt" class="form-control" rows="7" placeholder="Évents, découplage, cloisonnement, arrêt d'urgence…"></textarea>
+              <textarea id="measuresProt" class="form-control" rows="7"></textarea>
               <div class="mt-2 d-flex gap-2">
                 <button class="btn btn-sm btn-outline-primary" data-ai="prot"><i data-lucide="sparkles"></i> IA : proposer</button>
                 <button class="btn btn-sm btn-outline-secondary" data-ai="prot-check"><i data-lucide="shield"></i> IA : vérifier</button>
@@ -267,44 +308,15 @@
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">Programme de formation</label>
-              <textarea id="training" class="form-control" rows="6" placeholder="Public cible, périodicité, supports, habilitations…"></textarea>
+              <textarea id="training" class="form-control" rows="6"></textarea>
               <div class="mt-2"><button class="btn btn-sm btn-outline-primary" data-ai="training"><i data-lucide="sparkles"></i> IA : générer</button></div>
             </div>
             <div class="col-md-6">
               <label class="form-label">Plan de maintenance / contrôles</label>
-              <textarea id="maintenance" class="form-control" rows="6" placeholder="Périodicité contrôles, inspections, métrologie détecteurs…"></textarea>
+              <textarea id="maintenance" class="form-control" rows="6"></textarea>
               <div class="mt-2"><button class="btn btn-sm btn-outline-primary" data-ai="maintenance"><i data-lucide="sparkles"></i> IA : générer</button></div>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Projets -->
-    <div class="tab-pane fade" id="projects" role="tabpanel">
-      <div class="card">
-        <div class="card-header d-flex align-items-center justify-content-between">
-          <h5 class="mb-0">Projets EPD</h5>
-          <div class="d-flex gap-2">
-            <select id="projFilter" class="form-select form-select-sm">
-              <option value="">Tous</option>
-              <option>Brouillon</option>
-              <option>En cours</option>
-              <option>Terminé</option>
-            </select>
-            <input id="projSearch" class="form-control form-control-sm" placeholder="Recherche titre/texte…">
-            <button id="btnReloadProjects" class="btn btn-sm btn-outline-primary"><i data-lucide="refresh-cw"></i> Recharger</button>
-          </div>
-        </div>
-        <div class="card-body table-responsive">
-          <table class="table table-striped align-middle" id="projectsTable">
-            <thead>
-              <tr>
-                <th>ID</th><th>Titre</th><th>Statut</th><th>MAJ</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
         </div>
       </div>
     </div>
@@ -318,19 +330,17 @@
             <button id="btnBuild" class="btn btn-primary"><i data-lucide="wand-2"></i> Générer</button>
             <button id="btnExportMD" class="btn btn-outline-secondary"><i data-lucide="download"></i> Exporter .md</button>
             <button id="btnExportJSON" class="btn btn-outline-secondary"><i data-lucide="download"></i> Exporter .json</button>
-            <button id="btnSaveServer" class="btn btn-success"><i data-lucide="save"></i> Enregistrer serveur</button>
-            <button id="btnReset" class="btn btn-warning"><i data-lucide="erase"></i> Réinitialiser</button>
           </div>
         </div>
         <div class="card-body">
           <div class="row g-3">
             <div class="col-lg-6">
               <div class="small-muted mb-1">Aperçu Markdown</div>
-              <pre id="mdPreview" class="markdown-preview"></pre>
+              <pre id="mdPreview" class="p-3 bg-white border rounded" style="min-height:220px"></pre>
             </div>
             <div class="col-lg-6">
               <div class="small-muted mb-1">Aperçu HTML</div>
-              <div id="htmlPreview" class="markdown-preview"></div>
+              <div id="htmlPreview" class="p-3 bg-white border rounded" style="min-height:220px"></div>
             </div>
           </div>
         </div>
@@ -339,24 +349,31 @@
 
   </div>
 
-  <!-- Offcanvas IA global -->
+  <!-- Offcanvas IA global avec mini chat -->
   <div class="offcanvas offcanvas-end offcanvas-ia" tabindex="-1" id="iaPanel" data-bs-scroll="true" data-bs-backdrop="false" aria-labelledby="iaPanelLabel">
     <div class="offcanvas-header">
       <h5 class="offcanvas-title" id="iaPanelLabel"><i data-lucide="bot"></i> AutonomiX IA</h5>
       <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
     </div>
-    <div class="offcanvas-body">
+    <div class="offcanvas-body d-flex flex-column gap-2">
       <div id="iaLoading" class="text-center text-muted" style="display:none">
         <div class="spinner-border" role="status" aria-hidden="true"></div>
         <div class="mt-2">Réflexion en cours…</div>
       </div>
-      <div id="iaDetails" class="ia-details" style="display:none"></div>
+      <div id="iaDetails" class="border rounded p-2 bg-white" style="display:none; max-height:50vh; overflow:auto"></div>
+      <div class="d-flex gap-2">
+        <input id="iaInput" class="form-control" placeholder="Discuter avec AutonomiX…">
+        <button id="iaSend" class="btn btn-primary"><i data-lucide="send"></i></button>
+      </div>
     </div>
   </div>
 
   <div class="toast-container position-fixed top-0 end-0 p-3" id="toasts" style="z-index: 2000;"></div>
 
-  <!-- JS FRONT -->
+  <footer class="text-center small mt-4">
+    © AutonomiX — Tous droits réservés
+  </footer>
+
   <script src="/js/epd.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
