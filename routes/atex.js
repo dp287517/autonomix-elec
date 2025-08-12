@@ -12,17 +12,12 @@ const JSON_LIMIT_ERR = 'Charge utile trop volumineuse. Utilisez une image redime
 /* ----------------------- Helpers DB sûrs ----------------------- */
 async function query(sql, params = []) {
   const client = await pool.connect();
-  try {
-    return await client.query(sql, params);
-  } finally {
-    client.release();
-  }
+  try { return await client.query(sql, params); }
+  finally { client.release(); }
 }
 async function rowsOrEmpty(sql, params = []) {
-  try {
-    const r = await query(sql, params);
-    return r.rows;
-  } catch (e) {
+  try { const r = await query(sql, params); return r.rows; }
+  catch (e) {
     if (e && (e.code === '42P01' || /relation .* does not exist/i.test(e.message))) return [];
     throw e;
   }
@@ -30,26 +25,22 @@ async function rowsOrEmpty(sql, params = []) {
 
 /* ----------------------- Utilitaires métier ----------------------- */
 const REQUIRED_FIELDS = ['composant', 'type', 'marquage_atex'];
+
 function mapAliases(payload = {}) {
   // Compat : “fabricant” -> fournisseur ; “zone_type” remplace exterieur/interieur
   if (payload.fabricant && !payload.fournisseur) payload.fournisseur = payload.fabricant;
-  if (payload.zone_type) {
-    payload.exterieur = payload.zone_type; // on stocke côté “exterieur” pour compat
-    payload.interieur = null;
-  }
+  if (payload.zone_type) { payload.exterieur = payload.zone_type; payload.interieur = null; }
   return payload;
 }
 function missingFields(data) {
   const miss = [];
   for (const f of REQUIRED_FIELDS) if (!data[f]) miss.push(f);
-  // identifiant fortement conseillé : unique pour upsert/import
   if (!data.identifiant) miss.push('identifiant (vivement recommandé)');
   if (!data.fournisseur) miss.push('fabricant');
   return miss;
 }
 function parseDateFlexible(v) {
   if (!v) return null;
-  // support JJ-MM-AAAA, JJ/MM/AAAA, AAAA-MM-JJ
   const s = String(v).trim();
   let d = null;
   if (/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(s)) {
@@ -63,9 +54,13 @@ function parseDateFlexible(v) {
   }
   return d ? d.toISOString().split('T')[0] : null;
 }
-function formatISOorNull(d) {
-  if (!d) return null;
-  try { return new Date(d).toISOString().split('T')[0]; } catch { return null; }
+function isoOrNull(d) { if (!d) return null; try { return new Date(d).toISOString().split('T')[0]; } catch { return null; } }
+
+function nextFrom(lastISO, freqYears = 3) {
+  const base = parseDateFlexible(lastISO) || new Date().toISOString().split('T')[0];
+  const d = new Date(base);
+  d.setFullYear(d.getFullYear() + (parseInt(freqYears, 10) || 3));
+  return d.toISOString().split('T')[0];
 }
 
 function calculateMinCategoryFromZone(zone = '22') {
@@ -78,13 +73,11 @@ function calculateMinCategoryFromZone(zone = '22') {
   return 'II 3D T135°C';
 }
 function tempClassToMaxC(marquage = '') {
-  // T1..T6 => 450,300,200,135,100,85
   const m = marquage.match(/T([1-6])/i);
-  if (!m) return 135;
+  if (!m) return 135; // défaut
   return { '1':450,'2':300,'3':200,'4':135,'5':100,'6':85 }[m[1]];
 }
 function catFromMarquage(marquage = '') {
-  // très simplifié : Ga/Gb/Gc ou Da/Db/Dc => 1/2/3
   if (/G[a]/.test(marquage) || /D[a]/.test(marquage)) return 1;
   if (/G[b]/.test(marquage) || /D[b]/.test(marquage)) return 2;
   return 3;
@@ -101,7 +94,6 @@ function checkAtexConformity(marquage, categorieMin, zone = '22') {
   const catMin = parseInt((categorieMin.match(/II (\d)/i) || [])[1] || '3', 10);
   const reqCat = requiredCatFromZone(zone);
   if (catMarq > reqCat || catMarq > catMin) return 'Non Conforme';
-  // Vérif T-class minimale (extrait de categorieMin si présent, sinon 135)
   const tMin = parseInt((categorieMin.match(/T(\d+)/i) || [])[1] || '135', 10);
   const tMarq = tempClassToMaxC(marquage);
   if (tMarq < tMin) return 'Non Conforme';
@@ -120,9 +112,7 @@ router.get('/atex-secteurs', async (_req, res) => {
   try {
     const rows = await rowsOrEmpty(`SELECT id, name FROM atex_secteurs ORDER BY name ASC`);
     res.json(rows);
-  } catch (e) {
-    res.status(500).json({ error: 'Erreur ATEX secteurs: ' + e.message });
-  }
+  } catch (e) { res.status(500).json({ error: 'Erreur ATEX secteurs: ' + e.message }); }
 });
 // POST /api/atex-secteurs  { name }
 router.post('/atex-secteurs', async (req, res) => {
@@ -131,30 +121,36 @@ router.post('/atex-secteurs', async (req, res) => {
     if (!name) return res.status(400).json({ error: 'Nom de secteur requis' });
     const r = await query(`INSERT INTO atex_secteurs(name) VALUES ($1) ON CONFLICT(name) DO NOTHING RETURNING *`, [name]);
     res.json(r.rows[0] || { name, created: false });
-  } catch (e) {
-    res.status(500).json({ error: 'Erreur création secteur: ' + e.message });
-  }
+  } catch (e) { res.status(500).json({ error: 'Erreur création secteur: ' + e.message }); }
 });
 
 /* ----------------------- Équipements ----------------------- */
-// GET /api/atex-equipments
+// GET /api/atex-equipments (avec fallback next_inspection_date si null)
 router.get('/atex-equipments', async (_req, res) => {
   try {
-    const rows = await rowsOrEmpty(`SELECT * FROM atex_equipments ORDER BY id DESC`);
+    let rows = await rowsOrEmpty(`SELECT * FROM atex_equipments ORDER BY id DESC`);
+    // Fallback calculé si next_inspection_date est nul mais last_inspection_date présent
+    rows = rows.map(r => {
+      if (!r.next_inspection_date && r.last_inspection_date) {
+        const next = nextFrom(r.last_inspection_date, r.frequence || 3);
+        return { ...r, next_inspection_date: next };
+      }
+      return r;
+    });
     res.json(rows);
-  } catch (e) {
-    res.status(500).json({ error: 'Erreur récupération équipements ATEX: ' + e.message });
-  }
+  } catch (e) { res.status(500).json({ error: 'Erreur récupération équipements ATEX: ' + e.message }); }
 });
 // GET /api/atex-equipments/:id
 router.get('/atex-equipments/:id', async (req, res) => {
   try {
     const r = await rowsOrEmpty(`SELECT * FROM atex_equipments WHERE id = $1`, [req.params.id]);
     if (!r.length) return res.status(404).json({ error: 'Équipement non trouvé' });
-    res.json(r[0]);
-  } catch (e) {
-    res.status(500).json({ error: 'Erreur récupération équipement: ' + e.message });
-  }
+    const row = r[0];
+    if (!row.next_inspection_date && row.last_inspection_date) {
+      row.next_inspection_date = nextFrom(row.last_inspection_date, row.frequence || 3);
+    }
+    res.json(row);
+  } catch (e) { res.status(500).json({ error: 'Erreur récupération équipement: ' + e.message }); }
 });
 // GET /api/atex-equipments/:id/photo (base64)
 router.get('/atex-equipments/:id/photo', async (req, res) => {
@@ -162,9 +158,18 @@ router.get('/atex-equipments/:id/photo', async (req, res) => {
     const r = await rowsOrEmpty(`SELECT photo FROM atex_equipments WHERE id = $1`, [req.params.id]);
     if (!r.length || !r[0].photo) return res.status(404).json({ error: 'Photo absente' });
     res.json({ photo: r[0].photo });
-  } catch (e) {
-    res.status(500).json({ error: 'Erreur récupération photo: ' + e.message });
-  }
+  } catch (e) { res.status(500).json({ error: 'Erreur récupération photo: ' + e.message }); }
+});
+
+// POST /api/atex-photo/:id  (upload multipart -> base64 stocké en DB)
+router.post('/atex-photo/:id', upload.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Aucun fichier reçu' });
+    const mime = req.file.mimetype || 'image/jpeg';
+    const b64 = `data:${mime};base64,${req.file.buffer.toString('base64')}`;
+    await query(`UPDATE atex_equipments SET photo=$1 WHERE id=$2`, [b64, req.params.id]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: 'Erreur upload photo: ' + e.message }); }
 });
 
 // POST /api/atex-equipments
@@ -175,14 +180,13 @@ router.post('/atex-equipments', async (req, res) => {
     if (miss.length) return res.status(400).json({ error: `Champs obligatoires manquants: ${miss.join(', ')}` });
 
     const zone = data.zone_type || data.exterieur || data.interieur || '22';
-    data.categorie_minimum = data.categorie_minimum || calculateMinCategoryFromZone(zone);
-    data.conformite = checkAtexConformity(data.marquage_atex, data.categorie_minimum, zone);
-    data.risque = calculateRisk(zone, data.conformite);
+    const categorie_minimum = data.categorie_minimum || calculateMinCategoryFromZone(zone);
+    const conformite = checkAtexConformity(data.marquage_atex, categorie_minimum, zone);
+    const risque = calculateRisk(zone, conformite);
 
     const lastInspection = parseDateFlexible(data.last_inspection_date);
-    const freqYears = parseInt(data.frequence || 3, 10);
-    const next = new Date(lastInspection || new Date().toISOString().split('T')[0]);
-    next.setFullYear(next.getFullYear() + freqYears);
+    const frequence = parseInt(data.frequence || 3, 10);
+    const next = nextFrom(lastInspection, frequence);
 
     const r = await query(
       `INSERT INTO atex_equipments
@@ -192,10 +196,10 @@ router.post('/atex-equipments', async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
        RETURNING *`,
       [
-        data.risque, data.secteur, data.batiment, data.local, data.composant, data.fournisseur,
+        risque, data.secteur, data.batiment, data.local, data.composant, data.fournisseur,
         data.type, data.identifiant, data.interieur || null, data.exterieur || null, zone,
-        data.categorie_minimum, data.marquage_atex, data.photo || null, data.conformite,
-        data.comments || null, data.grade || 'V', freqYears, lastInspection, formatISOorNull(next)
+        categorie_minimum, data.marquage_atex, data.photo || null, conformite,
+        data.comments || null, data.grade || 'V', frequence, lastInspection, isoOrNull(next)
       ]
     );
     res.json(r.rows[0]);
@@ -209,18 +213,17 @@ router.post('/atex-equipments', async (req, res) => {
 router.put('/atex-equipments/:id', async (req, res) => {
   try {
     let data = mapAliases(req.body || {});
-    const miss = missingFields(data).filter(x => x !== 'identifiant (vivement recommandé)'); // en édition, on tolère identifiant
+    const miss = missingFields(data).filter(x => x !== 'identifiant (vivement recommandé)');
     if (miss.length) return res.status(400).json({ error: `Champs obligatoires manquants: ${miss.join(', ')}` });
 
     const zone = data.zone_type || data.exterieur || data.interieur || '22';
-    data.categorie_minimum = data.categorie_minimum || calculateMinCategoryFromZone(zone);
-    data.conformite = checkAtexConformity(data.marquage_atex, data.categorie_minimum, zone);
-    data.risque = calculateRisk(zone, data.conformite);
+    const categorie_minimum = data.categorie_minimum || calculateMinCategoryFromZone(zone);
+    const conformite = checkAtexConformity(data.marquage_atex, categorie_minimum, zone);
+    const risque = calculateRisk(zone, conformite);
 
     const lastInspection = parseDateFlexible(data.last_inspection_date);
-    const freqYears = parseInt(data.frequence || 3, 10);
-    const next = new Date(lastInspection || new Date().toISOString().split('T')[0]);
-    next.setFullYear(next.getFullYear() + freqYears);
+    const frequence = parseInt(data.frequence || 3, 10);
+    const next = nextFrom(lastInspection, frequence);
 
     const r = await query(
       `UPDATE atex_equipments SET
@@ -230,17 +233,15 @@ router.put('/atex-equipments/:id', async (req, res) => {
         last_inspection_date=$19, next_inspection_date=$20
        WHERE id=$21 RETURNING *`,
       [
-        data.risque, data.secteur, data.batiment, data.local, data.composant, data.fournisseur,
+        risque, data.secteur, data.batiment, data.local, data.composant, data.fournisseur,
         data.type, data.identifiant, data.interieur || null, data.exterieur || null, zone,
-        data.categorie_minimum, data.marquage_atex, data.photo || null, data.conformite, data.comments || null,
-        data.grade || 'V', freqYears, lastInspection, formatISOorNull(next), req.params.id
+        categorie_minimum, data.marquage_atex, data.photo || null, conformite, data.comments || null,
+        data.grade || 'V', frequence, lastInspection, isoOrNull(next), req.params.id
       ]
     );
     if (!r.rows.length) return res.status(404).json({ error: 'Équipement non trouvé' });
     res.json(r.rows[0]);
-  } catch (e) {
-    res.status(500).json({ error: 'Erreur update équipement ATEX: ' + e.message });
-  }
+  } catch (e) { res.status(500).json({ error: 'Erreur update équipement ATEX: ' + e.message }); }
 });
 
 // DELETE /api/atex-equipments/:id
@@ -249,9 +250,7 @@ router.delete('/atex-equipments/:id', async (req, res) => {
     const r = await query(`DELETE FROM atex_equipments WHERE id = $1 RETURNING *`, [req.params.id]);
     if (!r.rows.length) return res.status(404).json({ error: 'Équipement non trouvé' });
     res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ error: 'Erreur suppression équipement ATEX: ' + e.message });
-  }
+  } catch (e) { res.status(500).json({ error: 'Erreur suppression équipement ATEX: ' + e.message }); }
 });
 
 /* ----------------------- Inspections ----------------------- */
@@ -269,20 +268,17 @@ router.post('/atex-inspect', async (req, res) => {
     );
     // maj prochaine inspection selon frequence actuelle
     const eq = (await rowsOrEmpty(`SELECT frequence FROM atex_equipments WHERE id=$1`, [equipment_id]))[0];
-    const next = new Date(dateISO);
-    next.setFullYear(next.getFullYear() + (eq?.frequence || 3));
+    const next = nextFrom(dateISO, eq?.frequence || 3);
     await query(
       `UPDATE atex_equipments SET last_inspection_date=$1, next_inspection_date=$2 WHERE id=$3`,
-      [dateISO, next.toISOString().split('T')[0], equipment_id]
+      [dateISO, next, equipment_id]
     );
     res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ error: 'Erreur enregistrement inspection: ' + e.message });
-  }
+  } catch (e) { res.status(500).json({ error: 'Erreur enregistrement inspection: ' + e.message }); }
 });
 
-/* ----------------------- Import Excel ----------------------- */
-// GET /api/atex-import-columns  => liste des colonnes attendues + obligatoires
+/* ----------------------- Import / Modèles ----------------------- */
+// GET /api/atex-import-columns
 router.get('/atex-import-columns', (_req, res) => {
   res.json({
     required: ['secteur','batiment','local','composant','fabricant','type','identifiant','zone_type','marquage_atex'],
@@ -290,7 +286,7 @@ router.get('/atex-import-columns', (_req, res) => {
     note: 'zone_type attendu : 0,1,2,20,21,22 (ou texte équivalent), last_inspection_date au format JJ-MM-AAAA ou AAAA-MM-JJ'
   });
 });
-// GET /api/atex-import-template  => CSV minimal à télécharger
+// GET /api/atex-import-template (CSV)
 router.get('/atex-import-template', (_req, res) => {
   const csv =
 `secteur,batiment,local,composant,fabricant,type,identifiant,zone_type,marquage_atex,comments,last_inspection_date
@@ -299,6 +295,22 @@ Métro,BâtA,L-01,Capteur pression,ACME,REF-123,CPT-0001,21,II 2D T135°C,Premie
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="atex_import_template.csv"');
   res.send(csv);
+});
+// GET /api/atex-import-template.xlsx (XLSX)
+router.get('/atex-import-template.xlsx', (_req, res) => {
+  try{
+    const wb = XLSX.utils.book_new();
+    const data = [
+      ['secteur','batiment','local','composant','fabricant','type','identifiant','zone_type','marquage_atex','comments','last_inspection_date'],
+      ['Métro','BâtA','L-01','Capteur pression','ACME','REF-123','CPT-0001','21','II 2D T135°C','Premier lot','01-06-2025']
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, 'import');
+    const buf = XLSX.write(wb, { bookType:'xlsx', type:'buffer' });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="atex_import_template.xlsx"');
+    res.send(buf);
+  }catch(e){ res.status(500).json({ error: 'xlsx generation failed', detail: e.message }); }
 });
 
 // POST /api/atex-import-excel (form-data: excel=<file>)
@@ -309,10 +321,7 @@ router.post('/atex-import-excel', upload.single('excel'), async (req, res) => {
     const sheet = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
 
-    const get = (row, keys) => {
-      for (const k of keys) if (row[k] !== undefined) return String(row[k]).trim();
-      return '';
-    };
+    const get = (row, keys) => { for (const k of keys) if (row[k] !== undefined) return String(row[k]).trim(); return ''; };
 
     for (const row of rows) {
       // mapping souple des en-têtes
@@ -331,42 +340,44 @@ router.post('/atex-import-excel', upload.single('excel'), async (req, res) => {
       };
       data = mapAliases(data);
 
-      // Vérif obligatoires pour import
+      // Vérif obligatoires pour import (identifiant conseillé, pas bloquant)
       const miss = missingFields(data);
       if (miss.includes('identifiant (vivement recommandé)')) miss.splice(miss.indexOf('identifiant (vivement recommandé)'), 1);
-      if (miss.length) continue; // on saute la ligne incomplète
+      if (miss.length) continue; // ligne trop incomplète -> on saute
 
       const zone = data.zone_type || data.exterieur || data.interieur || '22';
       const categorie_minimum = calculateMinCategoryFromZone(zone);
       const conformite = checkAtexConformity(data.marquage_atex, categorie_minimum, zone);
       const risque = calculateRisk(zone, conformite);
       const lastISO = parseDateFlexible(data.last_inspection_date);
+      const frequence = 3; // défaut à l’import
+      const nextISO = lastISO ? nextFrom(lastISO, frequence) : null;
 
       await query(
         `INSERT INTO atex_equipments
          (risque, secteur, batiment, local, composant, fournisseur, type, identifiant,
-          interieur, exterieur, zone_type, categorie_minimum, marquage_atex, conformite, comments, last_inspection_date)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+          interieur, exterieur, zone_type, categorie_minimum, marquage_atex, conformite, comments,
+          last_inspection_date, next_inspection_date, frequence, grade)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
          ON CONFLICT (identifiant) DO UPDATE SET
            risque=EXCLUDED.risque, secteur=EXCLUDED.secteur, batiment=EXCLUDED.batiment,
            local=EXCLUDED.local, composant=EXCLUDED.composant, fournisseur=EXCLUDED.fournisseur,
            type=EXCLUDED.type, interieur=EXCLUDED.interieur, exterieur=EXCLUDED.exterieur, zone_type=EXCLUDED.zone_type,
            categorie_minimum=EXCLUDED.categorie_minimum, marquage_atex=EXCLUDED.marquage_atex,
-           conformite=EXCLUDED.conformite, comments=EXCLUDED.comments, last_inspection_date=EXCLUDED.last_inspection_date`,
+           conformite=EXCLUDED.conformite, comments=EXCLUDED.comments, last_inspection_date=EXCLUDED.last_inspection_date,
+           next_inspection_date=EXCLUDED.next_inspection_date, frequence=EXCLUDED.frequence`,
         [
           risque, data.secteur, data.batiment, data.local, data.composant, data.fournisseur,
-          data.type, data.identifiant, null, zone, zone, categorie_minimum, data.marquage_atex, conformite, data.comments || null, lastISO
+          data.type, data.identifiant, null, zone, zone, categorie_minimum, data.marquage_atex,
+          conformite, data.comments || null, lastISO, nextISO, frequence, 'V'
         ]
       );
     }
     res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ error: 'Erreur import Excel: ' + e.message });
-  }
+  } catch (e) { res.status(500).json({ error: 'Erreur import Excel: ' + e.message }); }
 });
 
 /* ----------------------- Analyses / Risques ----------------------- */
-// GET /api/atex-risk-global
 router.get('/atex-risk-global', async (_req, res) => {
   try {
     const stats = (await rowsOrEmpty(
@@ -388,12 +399,9 @@ router.get('/atex-risk-global', async (_req, res) => {
     );
 
     res.json({ stats, highRisk });
-  } catch (e) {
-    res.status(500).json({ error: 'Erreur données globales ATEX: ' + e.message });
-  }
+  } catch (e) { res.status(500).json({ error: 'Erreur données globales ATEX: ' + e.message }); }
 });
 
-// GET /api/atex-analysis (brefs messages)
 router.get('/atex-analysis', async (_req, res) => {
   try {
     const rows = await rowsOrEmpty(
@@ -404,13 +412,10 @@ router.get('/atex-analysis', async (_req, res) => {
       text: `Équipement ${r.composant || r.id} — ${r.conformite || 'N/A'} — prochain contrôle ${r.next_inspection_date || 'n/a'}`
     }));
     res.json(alerts);
-  } catch (e) {
-    res.status(500).json({ error: 'Erreur analyse ATEX: ' + e.message });
-  }
+  } catch (e) { res.status(500).json({ error: 'Erreur analyse ATEX: ' + e.message }); }
 });
 
 /* ----------------------- Chat IA & Aide conformité ----------------------- */
-// POST /api/atex-chat  { question?, equipment?, history? }
 router.post('/atex-chat', async (req, res) => {
   try {
     const { question, equipment, history = [] } = req.body || {};
@@ -426,26 +431,19 @@ Réponds en HTML concis (titres + liste).`;
     }
     if (!userPrompt) return res.status(400).json({ error: 'question ou equipment requis' });
 
-    // Fallback si pas de clé
     if (!process.env.OPENAI_API_KEY) {
-      const html = `<p><strong>Salut, je suis AutonomiX IA.</strong><br>Je n'ai pas accès au moteur IA sur ce déploiement (clé manquante). 
-      Donne-moi quand même des détails et je t’indiquerai la démarche à suivre côté terrain.</p>`;
+      const html = `<p><strong>Salut, je suis AutonomiX IA.</strong><br>Pas d'accès au moteur IA sur ce déploiement (clé manquante). 
+      Donne quand même des détails et je t’indiquerai la démarche côté terrain.</p>`;
       return res.json({ response: html, offline: true });
     }
 
     const messages = [sys, ...history, { role: 'user', content: userPrompt }];
-    const resp = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages
-    });
+    const resp = await openai.chat.completions.create({ model: 'gpt-4o', messages });
     const html = resp.choices?.[0]?.message?.content || 'Réponse indisponible pour le moment.';
     res.json({ response: html });
-  } catch (e) {
-    res.status(500).json({ error: 'Erreur chat IA: ' + e.message });
-  }
+  } catch (e) { res.status(500).json({ error: 'Erreur chat IA: ' + e.message }); }
 });
 
-// GET /api/atex-help/:id  => synthèse aide conformité
 router.get('/atex-help/:id', async (req, res) => {
   try {
     const eq = (await rowsOrEmpty(`SELECT * FROM atex_equipments WHERE id=$1`, [req.params.id]))[0];
@@ -457,8 +455,8 @@ Donne 3 étapes terrain, 3 contrôles à faire, et une suggestion de marquage/ty
 Réponds en HTML, 150-220 mots max.`;
 
     if (!process.env.OPENAI_API_KEY) {
-      return res.json({ response: `<p><strong>AutonomiX IA</strong> — Sans moteur IA ici. Vérifier le marquage par rapport à la zone (${eq.zone_type || '22'}), 
-      contrôler la classe de température (T) et la catégorie (1/2/3). Si “Non Conforme”, remplacer par un appareil certifié (p.ex. II 2G T4 pour zone 1 gaz).</p>` });
+      return res.json({ response: `<p><strong>AutonomiX IA</strong> — Sans moteur IA ici. Vérifier le marquage vs zone (${eq.zone_type || '22'}), 
+      contrôler la classe T et la catégorie (1/2/3). Si “Non Conforme”, remplacer par un appareil certifié (p.ex. II 2G T4 pour zone 1 gaz).</p>` });
     }
 
     const resp = await openai.chat.completions.create({
@@ -469,9 +467,7 @@ Réponds en HTML, 150-220 mots max.`;
       ]
     });
     res.json({ response: resp.choices?.[0]?.message?.content || '' });
-  } catch (e) {
-    res.status(500).json({ error: 'Erreur aide conformité: ' + e.message });
-  }
+  } catch (e) { res.status(500).json({ error: 'Erreur aide conformité: ' + e.message }); }
 });
 
 module.exports = router;
