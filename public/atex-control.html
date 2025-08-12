@@ -74,9 +74,6 @@
     .def-list dd{ margin-bottom:.75rem; color:#475569; }
 
     footer{ margin-top:32px; color:#6b7280; }
-
-    /* 👉 Empêche les retours à la ligne sur les entêtes du tableau (Zone G / Zone D) */
-    .table thead th{ white-space:nowrap; }
   </style>
 </head>
 <body class="container my-5">
@@ -454,14 +451,14 @@
             <dt>Risque (0–5)</dt>
             <dd>Basé sur la zone la plus sévère (0/20 → 5, 1/21 → 3, 2/22 → 1) augmenté de +2 si Non Conforme. Limité entre 0 et 5.</dd>
             <dt>Conformité</dt>
-            <dd>Comparaison du marquage ATEX avec les exigences <strong>gaz</strong> et <strong>poussières</strong>. L’état global est <strong>Non Conforme</strong> si l’une des deux filières (G/D) n’est pas satisfaite.</dd>
+            <dd>Comparaison du marquage ATEX avec les exigences **gaz** et **poussières**. L’état global est **Non Conforme** si l’une des deux filières (G/D) n’est pas satisfaite.</dd>
           </dl>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Modals & Offcanvas -->
+  <!-- Modals & Offcanvas (inchangés) -->
   <div class="modal fade" id="photoModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content">
@@ -488,6 +485,7 @@
     </div>
   </div>
 
+  <!-- Offcanvas IA (inchangé) -->
   <div class="offcanvas offcanvas-end offcanvas-ia" tabindex="-1" id="iaPanel" data-bs-scroll="true" data-bs-backdrop="false" aria-labelledby="iaPanelLabel">
     <div class="offcanvas-header">
       <h5 class="offcanvas-title" id="iaPanelLabel"><i data-lucide="bot"></i> Aide IA</h5>
@@ -678,7 +676,7 @@
         if(!r.ok) throw new Error('Erreur chargement');
         equipments = await r.json();
 
-        // Fallback prochaine date (si backend ne la renvoie pas)
+        // Fallback prochaine date
         equipments = (equipments||[]).map(eq=>{
           if (!eq.next_inspection_date && eq.last_inspection_date){
             const freq = Number(eq.frequence)||3;
@@ -703,10 +701,6 @@
         const confBadge = isNC ? `<span class="badge-conf ko">Non&nbsp;Conforme</span>` : `<span class="badge-conf ok">Conforme</span>`;
         const st = computeStatus(eq.next_inspection_date);
 
-        // 👉 Couleur du bouton IA si historique déjà présent
-        const hasIA = getChatHistory().some(h => h.id === eq.id);
-        const iaBtnClass = hasIA ? 'btn-primary' : (isNC ? 'btn-warning' : 'btn-outline-secondary');
-
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><input type="checkbox" class="rowchk" data-id="${eq.id}"></td>
@@ -726,7 +720,7 @@
           <td class="actions">
             <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(${eq.id})" title="Éditer"><i data-lucide="edit-3"></i></button>
             <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${eq.id}, '${(eq.composant||'').replace(/'/g,"\\'")}')" title="Supprimer"><i data-lucide="trash-2"></i></button>
-            <button class="btn btn-sm ${iaBtnClass}" onclick="openIA(${eq.id})" title="IA AutonomiX"><i data-lucide="sparkles"></i> IA</button>
+            <button class="btn btn-sm ${isNC?'btn-warning':'btn-outline-secondary'}" onclick="openIA(${eq.id})" title="IA AutonomiX"><i data-lucide="sparkles"></i> IA</button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -1007,7 +1001,7 @@
       }catch(e){ showToast('Erreur import: '+(e.message||e),'danger'); }
     }
 
-    // IA
+    // IA (inchangé hors contenus)
     function renderBadges(eq){
       const box = document.querySelector('#iaPanel .ia-badges'); box.innerHTML='';
       const wrap = document.createElement('div');
@@ -1042,6 +1036,7 @@
       el.scrollTop = el.scrollHeight;
     }
     function buildLocalEnrichmentChat(eq){
+      // … (identique à ta version précédente, conservé) …
       return { reasons:[], palliatives:[], preventives:[], refs:[], costs:[] };
     }
     async function openIA(id, opts={}){
