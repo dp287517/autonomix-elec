@@ -1,7 +1,7 @@
 {
   "name": "autonomix-elec-refactor",
   "version": "1.0.0",
-  "description": "Refactor modular d'un serveur Express pour Autonomix Elec",
+  "description": "Serveur Express Autonomix Elec (ATEX + EPD)",
   "main": "app.js",
   "type": "commonjs",
   "scripts": {
@@ -20,6 +20,7 @@
     "pdfkit": "^0.14.0",
     "pg": "^8.12.0",
     "puppeteer": "^22.13.1",
+    "uuid": "^9.0.1",
     "xlsx": "^0.18.5"
   }
 }
