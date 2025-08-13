@@ -749,7 +749,7 @@
           <td class="actions">
             <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(${eq.id})" title="Éditer"><i data-lucide="edit-3"></i></button>
             <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${eq.id}, '${(eq.composant||'').replace(/'/g,"\\'")}')" title="Supprimer"><i data-lucide="trash-2"></i></button>
-            <button class="btn btn-sm ${eq.has_ia_history ? 'btn-success' : 'btn-outline-secondary'}" onclick="openIA(${eq.id})" title="IA Analysis"><i data-lucide="sparkles"></i> IA</button>
+            <button class="btn btn-sm ${eq.has_ia_history ? 'btn-success' : (String(eq.conformite||'').toLowerCase().includes('non') ? 'btn-warning' : 'btn-outline-secondary')}" onclick="openIA(${eq.id})" title="IA Analysis"><i data-lucide="sparkles"></i> IA</button>
           </td>
         `;
         tbody.appendChild(tr);
