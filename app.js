@@ -106,6 +106,14 @@ try {
   console.warn('⚠️ auth.js introuvable ou non monté. /api/login et /api/me renverront 404 si absent.');
 }
 
+// 👉👉 AJOUT NOUVEAU : routes comptes/membres (owner/admin)
+try {
+  const accountsRoutes = require('./routes/accounts');
+  app.use('/api', accountsRoutes);
+} catch (e) {
+  console.warn('⚠️ routes/accounts.js introuvable ou non monté. /api/accounts indisponible.');
+}
+
 // ===== Statique =====
 // Sert tout le contenu de ./public (ex.: /js/dashboard.js, /login.html, /dashboard.html)
 app.use(express.static(path.join(__dirname, 'public'))); // 
