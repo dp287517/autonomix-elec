@@ -455,27 +455,26 @@ router.get('/atex-help/:id', async (req, res) => {
 
 
 // -------------------- INSPECTION (fix 404) --------------------
+
 router.post('/atex-inspect', express.json(), async (req, res) => {
   const pool = getPool(req);
   try {
-    const id = Number(req.body?.equipment_id);
-    const date = req.body?.inspection_date || new Date().toISOString().slice(0,10);
+    const id = Number(req.body?.equipment_id || req.query?.equipment_id);
     if (!id) return res.status(400).json({ error: 'equipment_id_required' });
-    // Update last_inspection_date; trigger will roll next_inspection_date
-    await pool.query(
+    const date = (req.body?.inspection_date || req.query?.inspection_date || new Date().toISOString().slice(0,10)).slice(0,10);
+    const { rowCount } = await pool.query(
       `UPDATE public.atex_equipments
          SET last_inspection_date = $2
        WHERE id = $1`,
       [id, date]
     );
-    res.json({ ok: true });
+    if (!rowCount) return res.status(404).json({ error: 'equipment_not_found' });
+    res.json({ ok: true, inspection_date: date });
   } catch (e) {
     console.error('POST /atex-inspect', e);
     res.status(500).json({ error: 'server_error' });
   }
 });
-
-// -------------------- PHOTO (fix 404) --------------------
 router.post('/atex-photo/:id', upload.single('photo'), async (req, res) => {
   const pool = getPool(req);
   try {
@@ -504,5 +503,62 @@ router.get('/atex-photo/:id', async (req, res) => {
     console.error('GET /atex-photo/:id', e);
     res.status(500).json({ error: 'server_error' });
   }
+});
+
+
+// -------------------- IA CHAT --------------------
+async function callOpenAI(prompt) {
+  try {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return "Résumé automatique indisponible (clé OpenAI absente).\n\n• État: synthèse locale\n• Actions: vérifier marquage ATEX, zones gaz/poussières, fréquence d’inspection.";
+    }
+    const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'gpt-4o-mini', messages: [{role:'system', content:'Tu es un assistant ATEX. Rédige en français.'},{role:'user', content: prompt}], temperature: 0.2 })
+    });
+    const j = await r.json();
+    return j.choices?.[0]?.message?.content || 'Réponse IA indisponible.';
+  } catch (e) { console.error('callOpenAI error', e); return 'Réponse IA indisponible pour le moment.'; }
+}
+async function pushIAHistory(pool, id, role, content) {
+  await pool.query(`UPDATE public.atex_equipments
+     SET ia_history = COALESCE(ia_history, '[]'::jsonb) || jsonb_build_object('ts', to_char(now(),'YYYY-MM-DD"T"HH24:MI:SS'),'role', $2, 'content', $3)
+     WHERE id = $1`, [id, role, content]);
+}
+
+router.post('/atex-chat', express.json(), async (req, res) => {
+  const pool = getPool(req);
+  try {
+    const question = (req.body?.question || '').trim();
+    const id = Number(req.body?.id || req.body?.equipment_id || 0);
+    const message = (req.body?.message || question || '').trim();
+    if (!message) return res.status(400).json({ error:'question_required' });
+
+    if (id) { await pushIAHistory(pool, id, 'user', message); }
+
+    const ctx = id ? `Contexte: Equipement ATEX #${id}. ` : '';
+    const prompt = `${ctx}${message}\n\nStructure attendue: 
+    1) Titre: Explication synthétique (5-6 phrases concises, sans HTML superflu). 
+    2) 4 blocs: Pourquoi ? | Mesures palliatives | Mesures préventives | Catégorie requise (1 phrase). 
+    Style pro, français.`;
+
+    const reply = await callOpenAI(prompt);
+    if (id) { await pushIAHistory(pool, id, 'assistant', reply); }
+
+    res.json({ response: reply });
+  } catch (e) {
+    console.error('POST /atex-chat', e);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+router.delete('/atex-chat/:id', async (req, res) => {
+  const pool = getPool(req);
+  try { const id = Number(req.params.id); if(!id) return res.status(400).json({ error:'bad_id' });
+    await pool.query(`UPDATE public.atex_equipments SET ia_history='[]'::jsonb WHERE id=$1`, [id]);
+    res.json({ ok:true });
+  } catch (e) { console.error('DELETE /atex-chat/:id', e); res.status(500).json({ error: 'server_error' }); }
 });
 module.exports = router;
