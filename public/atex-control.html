@@ -347,13 +347,14 @@
               <strong><i data-lucide="bot"></i> Aide IA</strong>
               <div class="d-flex gap-2">
                 <button class="btn btn-sm btn-outline-primary" id="btnReanalyse"><i data-lucide="sparkles"></i> Ré‑analyser</button>
-                <button class="btn btn-sm btn-outline-secondary" id="btnCopier"><i data-lucide="copy"></i> Copier</button>
+                <button class="btn btn-sm btn-outline-danger" id="btnDeleteDiscussion"><i data-lucide="trash-2"></i> Effacer discussion</button>
+              <button class="btn btn-sm btn-outline-secondary" id="btnCopier"><i data-lucide="copy"></i> Copier</button>
               </div>
             </div>
             <div class="card-body">
               <div id="chatLoading" class="text-center text-muted" style="display:none">
                 <div class="spinner-border" role="status" aria-hidden="true"></div>
-                <div class="mt-2">Analyse en cours…</div>
+                <div class="mt-2">Réflexion en cours (le temps pour OpenAI de faire son analyse)</div>
               </div>
 
               <div id="chatHeader" class="mb-2 small-muted"></div>
@@ -534,7 +535,7 @@
         <div class="col-12">
           <div id="iaLoading" class="text-center text-muted" style="display:none">
             <div class="spinner-border" role="status" aria-hidden="true"></div>
-            <div class="mt-2">Analyse en cours…</div>
+            <div class="mt-2">Réflexion en cours (le temps pour OpenAI de faire son analyse)</div>
           </div>
           <div id="iaDetails" class="ia-details" style="display:none"></div>
         </div>
@@ -548,7 +549,8 @@
         </div>
         <div class="col-12 d-flex gap-2 flex-wrap">
           <button class="btn btn-outline-primary" id="btnOpenInChat"><i data-lucide="panel-right-open"></i> Ouvrir dans Chat IA</button>
-          <button class="btn btn-outline-secondary" id="btnClearChat2"><i data-lucide="eraser"></i> Effacer historique</button>
+          <button class="btn btn-outline-danger" id="btnClearOne"><i data-lucide="trash-2"></i> Effacer discussion</button>
+          \1
         </div>
       </div>
     </div>
@@ -1354,7 +1356,25 @@
     });
 </script>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js">
+    function deleteCurrentDiscussion(){
+      if(!currentIA){ return; }
+      const h = getChatHistory();
+      const idx = h.findIndex(x => x.id === currentIA);
+      if(idx >= 0){
+        h.splice(idx, 1);
+        setChatHistory(h);
+        // Clear current displays
+        const chatHtml = document.getElementById('chatHtml');
+        const chatHeader = document.getElementById('chatHeader');
+        const chatThread = document.getElementById('chatThread');
+        if(chatHtml) chatHtml.innerHTML = '';
+        if(chatHeader) chatHeader.textContent = '';
+        if(chatThread) chatThread.innerHTML = '';
+        renderHistory(); renderHistoryChat();
+      }
+    }
+    </script>
 
   <!-- Attachment Viewer (Lightbox) -->
   <div class="modal fade" id="attViewerModal" tabindex="-1" aria-hidden="true">
