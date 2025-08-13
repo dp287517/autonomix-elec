@@ -1094,6 +1094,13 @@
 
         $('#iaLoading').style.display='none'; $('#iaDetails').style.display='block';
         renderThread(document.getElementById('iaThread'), getThread(eq.id));
+        // === Enrich cards in Chat tab ===
+        try {
+          buildLocalEnrichmentChat(eq);
+          const ce = document.getElementById('chatEnriched');
+          if (ce) ce.style.display = 'block';
+        } catch(_) {}
+
 
         if(opts.openChat){ document.getElementById('chat-tab').click(); setTimeout(()=>selectHistoryChat(0),60); }
       }catch(e){
@@ -1141,6 +1148,21 @@
       document.getElementById('chatHeader').textContent = `${it.composant || 'Équipement'} — ID ${it.id} • Dernière: ${it.meta?.last||'-'} • Prochaine: ${it.meta?.next||'-'}`;
       renderIAContent(document.getElementById('chatHtml'), it.content || '—');
       renderThread(document.getElementById('chatThread'), it.thread||[]);
+      // Rebuild a minimal eq from history meta to populate cards
+      try {
+        const meta = it.meta || {};
+        const eqMeta = {
+          conformite: meta.conformite || 'N/A',
+          risque: meta.risque,
+          zone_gaz: meta.zone_g || null,
+          zone_poussieres: meta.zone_d || null,
+          marquage_atex: it.marquage_atex || ''
+        };
+        buildLocalEnrichmentChat(eqMeta);
+        const ce = document.getElementById('chatEnriched');
+        if (ce) ce.style.display = 'block';
+      } catch(_) {}
+
     }
     function clearChatHistory(){
       setChatHistory([]); document.getElementById('iaDetails').innerHTML=''; document.getElementById('chatHtml').innerHTML='';
