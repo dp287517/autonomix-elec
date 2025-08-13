@@ -1,29 +1,30 @@
--- 001b_verify.sql
--- Vérifications rapides pour la partie licences
+-- 001_verify.sql
+-- Vérifications rapides après migration
 
--- 1) Nouvelles tables
-SELECT 'apps' AS table, COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='apps'
+-- 1) Tables
+SELECT 'accounts'              AS table, COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='accounts'
 UNION ALL
-SELECT 'app_plans' AS table, COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='app_plans'
+SELECT 'user_accounts'         AS table, COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='user_accounts'
 UNION ALL
-SELECT 'app_pages' AS table, COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='app_pages'
+SELECT 'user_links'            AS table, COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='user_links'
 UNION ALL
-SELECT 'license_assignments' AS table, COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='license_assignments';
+SELECT 'subscriptions'         AS table, COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='subscriptions';
 
--- 2) Colonnes ajoutées à subscriptions
+-- 2) Colonnes ATEX
 SELECT column_name
 FROM information_schema.columns
-WHERE table_schema='public' AND table_name='subscriptions'
-  AND column_name IN ('app_code','tier','scope','seats_total','payer_user_id','payer_account_id')
+WHERE table_schema='public' AND table_name='atex_equipments' AND column_name IN ('account_id','created_by')
 ORDER BY column_name;
 
--- 3) Exemples d'initialisation (à exécuter manuellement au besoin):
--- INSERT INTO public.apps (code, name) VALUES ('ATEX','ATEX Control'), ('EPD','EPD Manager') ON CONFLICT (code) DO NOTHING;
--- INSERT INTO public.app_plans (app_code, tier, name) VALUES
---   ('ATEX',1,'Niveau 1'),('ATEX',2,'Niveau 2'),('ATEX',3,'Niveau 3'),
---   ('EPD',1,'Niveau 1'),('EPD',2,'Niveau 2'),('EPD',3,'Niveau 3')
--- ON CONFLICT DO NOTHING;
--- INSERT INTO public.app_pages (page_slug, app_code, min_tier) VALUES
---   ('atex-control','ATEX',1),
---   ('epd','EPD',2)
--- ON CONFLICT DO NOTHING;
+-- 3) Index
+SELECT indexname
+FROM pg_indexes
+WHERE schemaname='public' AND indexname IN (
+  'accounts_parent_idx',
+  'user_accounts_user_idx',
+  'user_accounts_account_idx',
+  'subscriptions_account_idx',
+  'subscriptions_user_idx',
+  'atex_equipments_account_idx'
+)
+ORDER BY indexname;
