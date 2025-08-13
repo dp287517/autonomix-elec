@@ -1,88 +1,130 @@
-// auth.js (A LA RACINE DU PROJET)
-const fs = require('fs');
-const path = require('path');
+// auth.js (root) — Auth Postgres (Neon) : /api/register • /api/login • /api/me
+
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
 const router = express.Router();
 
-// ---------- CONFIG ----------
-const USERS_FILE = path.join(process.cwd(), 'uploads', 'auth-users.json');
-const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-prod';
+// ====== CONFIG ======
+const { pool } = require('./config/db'); // <- utilise ta config PG existante :contentReference[oaicite:4]{index=4}
+const JWT_SECRET  = process.env.JWT_SECRET  || 'change-me-in-prod';
 const JWT_EXPIRES = process.env.JWT_EXPIRES || '7d';
+
+// Compte admin fallback (optionnel, via variables d'env)
 const AUTH_USER = process.env.AUTH_USER || 'admin@autonomix.local';
 const AUTH_PASS = process.env.AUTH_PASS || 'AutonomiX!2025';
 
-// ---------- STORE FICHIER ----------
-function ensureStore() {
-  const dir = path.dirname(USERS_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, '[]');
+// ====== INIT TABLE ======
+async function ensureUsersTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.users (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      name  TEXT NOT NULL DEFAULT '',
+      password TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx
+      ON public.users (LOWER(email));
+  `);
 }
-function loadUsers() {
-  try { return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')); }
-  catch { return []; }
-}
-function saveUsers(list) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify(list || [], null, 2), 'utf8');
-}
-ensureStore();
+ensureUsersTable().catch(err => {
+  console.error('[auth] failed to ensure users table:', err);
+});
 
-// ---------- ROUTES ----------
+// ====== HELPERS ======
+const normEmail = (e) => String(e||'').trim();
+const bad = (res, code, msg) => res.status(code).json({ error: msg });
+
+// ====== ROUTES ======
+
+/**
+ * POST /api/register
+ * body: { email, password, name? }
+ */
 router.post('/register', async (req, res) => {
   try {
-    const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
-    if (String(password).length < 8) return res.status(400).json({ error: 'Mot de passe trop court (min 8)' });
+    const email = normEmail(req.body?.email);
+    const password = String(req.body?.password || '');
+    const name = String(req.body?.name || '').trim();
 
-    const users = loadUsers();
-    if (users.find(u => u.email.toLowerCase() === String(email).toLowerCase())) {
-      return res.status(409).json({ error: 'Email déjà utilisé' });
-    }
+    if (!email || !password) return bad(res, 400, 'Email et mot de passe requis');
+    if (password.length < 8)   return bad(res, 400, 'Mot de passe trop court (min 8)');
+
+    // Unicité insensible à la casse
+    const exists = await pool.query(
+      `SELECT 1 FROM public.users WHERE LOWER(email)=LOWER($1) LIMIT 1`,
+      [email]
+    );
+    if (exists.rowCount) return bad(res, 409, 'Email déjà utilisé');
+
     const hash = await bcrypt.hash(password, 10);
-    users.push({ email, hash, createdAt: new Date().toISOString() });
-    saveUsers(users);
-    res.json({ success: true });
+    await pool.query(
+      `INSERT INTO public.users (email, name, password) VALUES ($1,$2,$3)`,
+      [email, name || email.split('@')[0], hash]
+    );
+
+    return res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: 'Erreur inscription: ' + e.message });
+    console.error('[POST /register]', e);
+    return bad(res, 500, 'Erreur inscription');
   }
 });
 
+/**
+ * POST /api/login
+ * body: { email, password }
+ */
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
+    const email = normEmail(req.body?.email);
+    const password = String(req.body?.password || '');
+    if (!email || !password) return bad(res, 400, 'Email et mot de passe requis');
 
-    // Comptes "inscrits"
-    const users = loadUsers();
-    const user = users.find(u => u.email.toLowerCase() === String(email).toLowerCase());
-    if (user && await bcrypt.compare(password, user.hash)) {
-      const token = jwt.sign({ sub: email, role: 'user' }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
-      return res.json({ token, user: { email } });
+    // 1) Essayer en base
+    const { rows } = await pool.query(
+      `SELECT id, email, password FROM public.users WHERE LOWER(email)=LOWER($1) LIMIT 1`,
+      [email]
+    );
+    if (rows.length) {
+      const u = rows[0];
+      const ok = await bcrypt.compare(password, u.password);
+      if (!ok) return bad(res, 401, 'Identifiants incorrects');
+
+      const token = jwt.sign({ sub: u.email, uid: u.id, role: 'user' }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+      return res.json({ token, user: { email: u.email } });
     }
 
-    // Fallback admin par variables d'env
+    // 2) Fallback admin via variables d’env
     if (email === AUTH_USER && password === AUTH_PASS) {
       const token = jwt.sign({ sub: email, role: 'admin' }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
       return res.json({ token, user: { email } });
     }
 
-    res.status(401).json({ error: 'Identifiants incorrects' });
+    return bad(res, 401, 'Identifiants incorrects');
   } catch (e) {
-    res.status(500).json({ error: 'Erreur login: ' + e.message });
+    console.error('[POST /login]', e);
+    return bad(res, 500, 'Erreur login');
   }
 });
 
+/**
+ * GET /api/me
+ * headers: Authorization: Bearer <token>
+ */
 router.get('/me', (req, res) => {
   try {
     const auth = req.headers.authorization || '';
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-    if (!token) return res.status(401).json({ error: 'Non authentifié' });
+    if (!token) return bad(res, 401, 'Non authentifié');
+
     const payload = jwt.verify(token, JWT_SECRET);
-    res.json({ ok: true, user: { email: payload.sub } });
-  } catch {
-    res.status(401).json({ error: 'Session invalide/expirée' });
+    return res.json({ ok: true, user: { email: payload.sub } });
+  } catch (e) {
+    return bad(res, 401, 'Session invalide/expirée');
   }
 });
 
