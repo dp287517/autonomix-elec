@@ -1,4 +1,5 @@
-// main/routes/epdStore.js — version robuste avec auth optionnelle
+
+// main/routes/epdStore.js — version robuste avec auth optionnelle (inchangé fonctionnel, petites sécurités)
 const express = require('express');
 const router = express.Router();
 const path = require('path');
@@ -57,7 +58,7 @@ async function ensureTable() {
   `);
 }
 
-// ====== Upload pièces jointes
+// ====== Upload pièces jointes (statique: /uploads)
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -69,7 +70,7 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}_${base}${ext}`);
   }
 });
-const upload = multer({ storage });
+const upload = multer({ storage, limits: { fileSize: 25 * 1024 * 1024 } }); // 25MB max
 
 router.post('/upload', upload.array('files', 10), async (req, res) => {
   try {
@@ -91,7 +92,10 @@ router.get('/epd', async (req, res, next) => {
     const params = [];
     const where = [];
     if (status) { params.push(status); where.push(`status = $${params.length}`); }
-    if (q) { params.push(`%${q}%`); where.push(`(title ILIKE $${params.length} OR CAST(payload AS TEXT) ILIKE $${params.length})`); }
+    if (q) {
+      params.push(`%${q}%`);
+      where.push(`(title ILIKE $${params.length} OR CAST(payload AS TEXT) ILIKE $${params.length})`);
+    }
     const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
     params.push(limit);
     params.push(offset);
