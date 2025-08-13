@@ -1,6 +1,7 @@
-// public/js/epd.js — EPD avec guidance + zonage (bat/local) + création équipement + filtres par zonage
+
+// public/js/epd.js — EPD avec guidance + zonage (bat/local) + création équipement + filtres par zonage (corrigé)
 const API = {
-  equipments: '/api/atex-equipments',          // cohérent avec ATEX control :contentReference[oaicite:2]{index=2}
+  equipments: '/api/atex-equipments',
   chat: '/api/atex-chat',
   epd: '/api/epd',
   epdStatus: (id)=> `/api/epd/${id}/status`,
@@ -46,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindIAChat();
   lockTabs(true);
   loadProjects();
-  updateStepStatus();
+  updateStepStatus(); // ✅ exist now
 });
 
 // ===== Tabs lock until a project is open
@@ -89,7 +90,7 @@ function markDirty(){
 }
 
 function scheduleSave(){
-  const el = document.getElementById('saveHint'); // (supprimé du HTML, mais on garde la tolérance)
+  const el = document.getElementById('saveHint'); // tolérance si l’élément existe
   if (el) el.textContent = 'Enregistrement…';
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveServer, 800);
@@ -257,7 +258,7 @@ function bindContext(){
   }));
   on('#btnScopeChecklist','click', async () => {
     const prompt = `Agis en ingénieur process safety. À partir de ces infos (fluids: ${state.context.fluids||'-'}, operating: ${state.context.operating||'-'}), rédige une checklist de cadrage projet ATEX/EPD (données à collecter, normes, interfaces HSE, essais requis) en 12 points.`;
-    applyIA(await callAI(prompt), '#processDesc');
+    applyIA(await callAI(prompt), '#processDesc'); // ✅ textarea reçoit du texte sans balises
   });
   on('#btnScopeHazid','click', async () => {
     const prompt = `Agis en HAZID leader. Procédé: ${state.context.processDesc||'-'}, produits: ${state.context.fluids||'-'}, conditions: ${state.context.operating||'-'}. Propose une pré-HAZID (sources ATEX, scénarios, barrières, actions) en Markdown.`;
@@ -443,7 +444,7 @@ function bindEquipments(){
 
 async function loadEquip(){
   try{
-    const r = await fetchAuth(API.equipments);   // mêmes endpoints que atex-control :contentReference[oaicite:3]{index=3}
+    const r = await fetchAuth(API.equipments);
     state.equipments = await r.json();
     renderEquip();
     toast('Équipements chargés','info');
@@ -516,7 +517,7 @@ function minCategoryFromZone(zone){
   return 'II 3D T135°C';
 }
 
-// ===== Mesures (IA)
+// ===== Mesures (IA) — conversion HTML -> texte simple
 function bindMeasuresAI(){
   document.querySelectorAll('[data-ai]')?.forEach(btn => btn.addEventListener('click', async ()=>{
     const kind = btn.dataset.ai;
@@ -531,9 +532,54 @@ function bindMeasuresAI(){
     const reply = await callAI(prompts[kind]);
     const map = { 'prev':'#measuresPrev','prev-check':'#measuresPrev','prot':'#measuresProt','prot-check':'#measuresProt' };
     const sel = map[kind];
-    if (sel){ const el = qs(sel); el.value = (el.value ? el.value + '\n' : '') + reply; markDirty(); }
+    if (sel){
+      const el = qs(sel);
+      const plain = aiToPlain(reply);
+      el.value = (el.value ? el.value + '\n' : '') + plain;
+      markDirty();
+    }
     openIA(reply, true);
   }));
+
+  // Saisie manuelle : on marque dirty pour la progression
+  on('#measuresPrev', 'input', markDirty);
+  on('#measuresProt', 'input', markDirty);
+
+  // IA boutons formation / maintenance (IDs uniques)
+  on('#btnTrainingIA','click', async () => {
+    openIA('Réflexion en cours…', false, true);
+    const reply = await callAI(`Génère un programme de formation ATEX/EPD adapté au contexte suivant (entreprise=${state.context.org||'-'}, site=${state.context.site||'-'}, zones=[${[...state.zones].join(',')}]). Format puces.`);
+    const el = qs('#training');
+    el.value = (el.value? el.value+'\n':'') + aiToPlain(reply);
+    markDirty();
+    openIA(reply, true);
+  });
+  on('#btnMaintenanceIA','click', async () => {
+    openIA('Réflexion en cours…', false, true);
+    const reply = await callAI(`Propose un plan de maintenance et de contrôles périodiques pour équipements ATEX du site ${state.context.site||'-'} (catégories, périodicité, critères d'acceptation). Format puces.`);
+    const el = qs('#maintenance');
+    el.value = (el.value? el.value+'\n':'') + aiToPlain(reply);
+    markDirty();
+    openIA(reply, true);
+  });
+}
+
+// Convertit un éventuel HTML/Markdown en texte propre pour textarea
+function aiToPlain(str){
+  if (!str) return '';
+  // Remplacement des listes HTML par "- "
+  let s = String(str)
+    .replace(/<\/?ul[^>]*>/gi, '')
+    .replace(/<li[^>]*>/gi, '- ')
+    .replace(/<\/li>/gi, '\n');
+  // Supprimer les autres balises
+  s = s.replace(/<br\s*\/?>/gi, '\n').replace(/<\/?p[^>]*>/gi, '\n').replace(/<[^>]+>/g, '');
+  // Normaliser markdown simple
+  s = s.replace(/^\s*[-*]\s*/gm, (m)=> m) // conserver puces
+       .replace(/\r\n/g, '\n')
+       .replace(/\n{3,}/g, '\n\n')
+       .trim();
+  return s;
 }
 
 // ===== Build / Export
@@ -620,7 +666,10 @@ async function callAI(question){
 function applyIA(markdown, selector){
   const el = qs(selector);
   if (!el) return openIA(markdown, true);
-  el.value = (el.value ? el.value + '\n' : '') + markdown;
+  const plain = aiToPlain(markdown);
+  el.value = (el.value ? el.value + '\n' : '') + plain;
+  // Miroir vers contexte
+  if (selector === '#processDesc') state.context.processDesc = el.value;
   markDirty();
   openIA(markdown, true);
 }
@@ -635,6 +684,40 @@ function openIA(html, isMarkdown=false, showLoader=false){
     if (isMarkdown) content.innerHTML = marked.parse(html||''); else content.innerHTML = html || '<p class="text-muted">—</p>';
     load.style.display='none'; content.style.display='block';
   }, showLoader ? 350 : 0);
+}
+
+// ===== Guide / progression
+function updateStepStatus(){
+  // helper: set color
+  function setDot(id, ok){
+    const el = document.getElementById('st-'+id);
+    if (!el) return;
+    el.classList.toggle('status-green', !!ok);
+    el.classList.toggle('status-orange', !ok);
+  }
+  // projects: projet ouvert
+  setDot('projects', !!state.currentProjectId);
+
+  // context: champs clés renseignés
+  const ctx = state.context || {};
+  const ctxOk = !!(ctx.org || ctx.site) && !!(ctx.processDesc && String(ctx.processDesc).trim().length >= 30);
+  setDot('context', ctxOk);
+
+  // zoning: au moins une zone ou une sélection bat/local
+  const zOk = (state.zones && state.zones.size>0) || (state.zoningSelections && state.zoningSelections.length>0);
+  setDot('zoning', zOk);
+
+  // equip: au moins 1 équipement coché
+  setDot('equip', state.selectedEquip && state.selectedEquip.size>0);
+
+  // measures: contenu dans au moins une textarea
+  const mPrev = qs('#measuresPrev')?.value?.trim().length || 0;
+  const mProt = qs('#measuresProt')?.value?.trim().length || 0;
+  setDot('measures', (mPrev + mProt) > 10);
+
+  // build: OK si les précédents sont OK
+  const allOk = !!state.currentProjectId && ctxOk && zOk && (state.selectedEquip?.size>0) && ((mPrev+mProt)>10);
+  setDot('build', allOk);
 }
 
 // ===== utils
@@ -664,7 +747,14 @@ function toast(message, variant='primary'){
         <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
       </div>
     </div>`;
-  const cont = document.getElementById('toasts');
+  const cont = document.getElementById('toasts') || (()=>{
+    const d = document.createElement('div');
+    d.className = 'toast-container position-fixed top-0 end-0 p-3';
+    d.id = 'toasts';
+    d.style.zIndex = '2000';
+    document.body.appendChild(d);
+    return d;
+  })();
   cont.insertAdjacentHTML('beforeend', html);
   const t = new bootstrap.Toast(document.getElementById(id), {delay:2800}); t.show();
   setTimeout(()=> document.getElementById(id)?.remove(), 3200);
