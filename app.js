@@ -19,75 +19,77 @@ try {
   ({ pool } = require('./db')); // si db.js est à la racine du projet
 }
 
-// Initialisation de l'app
 const app = express();
 
 // Logs HTTP
 app.use(morgan('dev'));
 
-// 🔐 Helmet avec CSP configurée pour tes besoins (CDN + inline hashes)
+// 🔐 Helmet avec CSP qui autorise :
+// - scripts locaux ('self')
+// - CDN: unpkg (Lucide) & jsdelivr (Bootstrap)
+// - 2 scripts inline via leurs hashes (ligne 9 et ~562 de atex-control.html)
 app.use(
   helmet({
     contentSecurityPolicy: {
       useDefaults: true,
       directives: {
-        // Scripts autorisés :
-        // - self (fichiers locaux)
-        // - unpkg (Lucide) + jsdelivr (Bootstrap)
-        // - 2 scripts inline identifiés par leurs hashes (vus dans la console)
+        // Pour tout JS (incl. inline, workers…)
         "script-src": [
           "'self'",
           "https://unpkg.com",
           "https://cdn.jsdelivr.net",
+          // hashes EXACTS de tes deux scripts inline
           "'sha256-QXP0lggFom0sCQGU7C8Ga1ZZ4nZXMv/Ae7a6FMMPn8Q='",
           "'sha256-Wglttk6u7n6jtm/l0HzvsAle8kFKAnhMIkQBLkiJpTA='"
         ],
-        // Précaution : certains navigateurs distinguent les balises <script src=...>
+
+        // Très important : même règles pour les <script> éléments (sinon Chrome bloque l'inline)
         "script-src-elem": [
           "'self'",
           "https://unpkg.com",
-          "https://cdn.jsdelivr.net"
+          "https://cdn.jsdelivr.net",
+          // ➜ ajouter aussi les HASHES ici
+          "'sha256-QXP0lggFom0sCQGU7C8Ga1ZZ4nZXMv/Ae7a6FMMPn8Q='",
+          "'sha256-Wglttk6u7n6jtm/l0HzvsAle8kFKAnhMIkQBLkiJpTA='"
         ],
 
-        // Styles : Bootstrap CSS + Google Fonts (Poppins) utilisés dans atex-control.html
+        // CSS (Bootstrap) + Google Fonts utilisés par la page
         "style-src": [
           "'self'",
           "https://cdn.jsdelivr.net",
           "https://fonts.googleapis.com",
-          // Optionnel : tu peux retirer 'unsafe-inline' si tout fonctionne sans
+          // Tu peux tenter de retirer 'unsafe-inline' si tout marche sans
           "'unsafe-inline'"
         ],
 
-        // Polices : Google Fonts
+        // Polices (Google Fonts)
         "font-src": [
           "'self'",
           "https://fonts.gstatic.com",
           "data:"
         ],
 
-        // Images locales + data: + blob: (tu utilises des images base64 côté front)
+        // Images locales + base64 + blob (tu utilises du base64 côté front)
         "img-src": [
           "'self'",
           "data:",
           "blob:"
         ],
 
-        // Appels XHR/fetch vers la même origine (API /api/*)
+        // fetch/XHR vers ton API même origine
         "connect-src": [
           "'self'"
         ],
 
-        // Iframes si un jour tu intègres des viewers (ici on reste strict)
-        "frame-src": [
-          "'self'"
-        ],
+        // Si tu n’embarques rien en iframe, reste strict
+        "frame-src": ["'self'"],
 
-        // Empêche l’embed du site ailleurs
+        // Évite l’embed du site ailleurs
         "frame-ancestors": ["'self'"]
       }
     },
 
-    // Selon les besoins de viewers/Workers, tu peux désactiver COEP strict
+    // Laisse à false si tu affiches des PDFs/images/ifames sans COEP complet
     crossOriginEmbedderPolicy: false,
   })
 );
@@ -104,7 +106,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const atexRoutes = require('./routes/atex');
 app.use('/api', atexRoutes);
 
-// Fichiers statiques (public/)
+// Fichiers statiques
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Route de test
@@ -112,7 +114,7 @@ app.get('/ping', (req, res) => {
   res.send('pong');
 });
 
-// Lancement serveur
+// Lancement
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Serveur lancé sur le port ${PORT}`);
