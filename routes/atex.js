@@ -437,7 +437,7 @@ router.get('/atex-help/:id', async (req, res) => {
     const html = '<div class="mb-3">'
   + '<h6 class="mb-1">Explication synthétique</h6>'
   + '<div class="small">Ce résumé présente l’état de conformité, les raisons principales et les actions recommandées. Les quatre cartes ci‑dessous détaillent <em>Pourquoi</em>, les <em>Mesures palliatives</em>, les <em>Mesures préventives</em>, et la <em>Catégorie requise</em> estimée en fonction des zones ATEX.</div>'
-  + '</div>' + '<div class="row g-3">''
+  + '</div>' + '<div class="row g-3">'
       + cards.map(c =>
         '<div class="col-md-6"><div class="border rounded p-3 h-100">'
         + '<strong>'+c.title+'</strong>'
