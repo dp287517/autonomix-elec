@@ -38,7 +38,7 @@ for (const dir of STATIC_DIRS) {
 function sendHtmlIfExists(res, filename) {
   for (const dir of STATIC_DIRS) {
     const full = path.join(dir, filename);
-    if (fs.existsSync(full)) return res.sendFile(full);
+    if (fs.exists(full)) return res.sendFile(full);
   }
   return res.status(404).send(`Not Found: ${filename}`);
 }
@@ -53,7 +53,7 @@ const pool = new Pool({
   idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT || 30000)
 });
 
-// Expose pool aux routers
+// Expose pool aux routers si besoin (req.app.locals.pool)
 app.locals.pool = pool;
 
 // ---- Routers API ----
@@ -106,6 +106,7 @@ app.use((err, _req, res, _next) => {
 const PORT = process.env.PORT || 3000;
 (async () => {
   try {
+    // initDb accepte un pool en argument (ou utilisera sa config interne si non fourni)
     await initDb(pool);
     app.listen(PORT, () => {
       console.log(`[AutonomiX] Server up on port ${PORT}`);
@@ -122,15 +123,11 @@ const PORT = process.env.PORT || 3000;
 // ---- Graceful shutdown ----
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, closing server...');
-  try {
-    await pool.end();
-  } catch (_) {}
+  try { await pool.end(); } catch (_) {}
   process.exit(0);
 });
 process.on('SIGINT', async () => {
   console.log('SIGINT received, closing server...');
-  try {
-    await pool.end();
-  } catch (_) {}
+  try { await pool.end(); } catch (_) {}
   process.exit(0);
 });
