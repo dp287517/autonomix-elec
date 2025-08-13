@@ -1,12 +1,11 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>EPD Builder - DRPCE / AutonomiX</title>
 
-  <!-- 🔐 Auth guard -->
+  <!-- 🔐 Auth guard basique -->
   <script>
     (async function(){
       try{
@@ -18,8 +17,8 @@
     })();
   </script>
 
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet"/>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
@@ -36,6 +35,7 @@
     .status-green{ background:#28a745; }
     .status-orange{ background:#fd7e14; }
     .tab-disabled .nav-link:not(.active){ pointer-events:none; opacity:.5; }
+    #projTableWrap{ max-height: 50vh; overflow:auto; }
   </style>
 </head>
 <body class="container my-5">
@@ -65,6 +65,7 @@
         <span class="ms-3">Génération <span id="st-build" class="status-dot status-orange"></span></span>
       </div>
       <div class="d-flex gap-2">
+        <div id="saveHint" class="small text-muted me-3"></div>
         <button id="btnNextStep" class="btn btn-primary btn-sm"><i data-lucide="chevrons-right"></i> Étape suivante</button>
       </div>
     </div>
@@ -135,9 +136,11 @@
             </div>
           </div>
 
-          <div class="table-responsive mt-3">
+          <div id="projTableWrap" class="table-responsive mt-3">
             <table class="table table-striped align-middle" id="projTable">
-              <thead><tr><th>ID</th><th>Titre</th><th>Statut</th><th>Modifié</th><th class="text-end">Actions</th></tr></thead>
+              <thead class="table-light position-sticky top-0">
+                <tr><th>ID</th><th>Titre</th><th>Statut</th><th>Modifié</th><th class="text-end">Actions</th></tr>
+              </thead>
               <tbody></tbody>
             </table>
           </div>
@@ -172,7 +175,8 @@
             </div>
             <div class="col-12">
               <label class="form-label">Portée / Description du procédé</label>
-              <textarea class="form-control" id="processDesc" rows="3"></textarea>
+              <textarea class="form-control" id="processDesc" rows="4"></textarea>
+              <div class="form-text">Astuce : utilise les boutons IA ci-dessous pour t’aider.</div>
             </div>
           </div>
 
@@ -357,11 +361,11 @@
         <div class="card-header"><h5 class="mb-0">Mesures prévention / protection</h5></div>
         <div class="card-body">
           <div class="alert alert-info small mb-3">
-            🧭 <strong>Guidance :</strong>  
+            🧭 <strong>Guidance :</strong>
             <ul class="mb-2">
-              <li><em>Prévention</em> : éliminer / réduire l’atmosphère explosive et les sources d’inflammation (procédé, ventilation, qualité produit, AT, équipements).</li>
-              <li><em>Protection</em> : limiter les effets (évents / découplage / confinement, SIS/ESD, inerte) et définir critères d’acceptation + périodicité des contrôles.</li>
-              <li>Utilise les boutons IA pour <em>proposer</em> et <em>vérifier</em> en fonction de ton Contexte et du Zonage.</li>
+              <li><em>Prévention</em> : éliminer / réduire l’atmosphère explosive et les sources d’inflammation.</li>
+              <li><em>Protection</em> : limiter les effets (évents / découplage / confinement, SIS/ESD, inertage) + critères & périodicités.</li>
+              <li>Les boutons IA tiennent compte du Contexte / Zonage / Équipements.</li>
             </ul>
           </div>
 
@@ -405,7 +409,7 @@
     <div class="tab-pane fade" id="build" role="tabpanel">
       <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">Générer l’EPD</h5>
+          <h5 class="mb-0">Générer le cahier des charges EPD</h5>
           <div class="d-flex gap-2">
             <button class="btn btn-outline-primary btn-sm" id="btnBuild"><i data-lucide="binary"></i> Construire</button>
             <button class="btn btn-outline-secondary btn-sm" id="btnExportMD"><i data-lucide="download"></i> Exporter .md</button>
@@ -431,9 +435,58 @@
     <div class="offcanvas-body">
       <div id="iaLoading" class="text-center text-muted" style="display:none">
         <div class="spinner-border" role="status" aria-hidden="true"></div>
-        <div class="mt-2">Analyse en cours…</div>
+        <div class="mt-2">Réflexion en cours…</div>
       </div>
       <div id="iaDetails" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Modal: supprimer projet -->
+  <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i data-lucide="trash-2"></i> Supprimer le projet</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          Es-tu sûr de vouloir supprimer ce projet ? Cette action est irréversible.
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button type="button" class="btn btn-danger" id="deleteConfirm">Supprimer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: statut projet -->
+  <div class="modal fade" id="statusModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i data-lucide="check-circle-2"></i> Changer le statut</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="projStatusRadio" id="stBrouillon" value="Brouillon">
+            <label class="form-check-label" for="stBrouillon">Brouillon</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="projStatusRadio" id="stEnCours" value="En cours">
+            <label class="form-check-label" for="stEnCours">En cours</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="projStatusRadio" id="stTermine" value="Terminé">
+            <label class="form-check-label" for="stTermine">Terminé</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button type="button" class="btn btn-primary" id="statusSave">Enregistrer</button>
+        </div>
+      </div>
     </div>
   </div>
 
