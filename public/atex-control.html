@@ -1094,13 +1094,6 @@
 
         $('#iaLoading').style.display='none'; $('#iaDetails').style.display='block';
         renderThread(document.getElementById('iaThread'), getThread(eq.id));
-        // === Enrich cards in Chat tab ===
-        try {
-          buildLocalEnrichmentChat(eq);
-          const ce = document.getElementById('chatEnriched');
-          if (ce) ce.style.display = 'block';
-        } catch(_) {}
-
 
         if(opts.openChat){ document.getElementById('chat-tab').click(); setTimeout(()=>selectHistoryChat(0),60); }
       }catch(e){
@@ -1148,21 +1141,6 @@
       document.getElementById('chatHeader').textContent = `${it.composant || 'Équipement'} — ID ${it.id} • Dernière: ${it.meta?.last||'-'} • Prochaine: ${it.meta?.next||'-'}`;
       renderIAContent(document.getElementById('chatHtml'), it.content || '—');
       renderThread(document.getElementById('chatThread'), it.thread||[]);
-      // Rebuild a minimal eq from history meta to populate cards
-      try {
-        const meta = it.meta || {};
-        const eqMeta = {
-          conformite: meta.conformite || 'N/A',
-          risque: meta.risque,
-          zone_gaz: meta.zone_g || null,
-          zone_poussieres: meta.zone_d || null,
-          marquage_atex: it.marquage_atex || ''
-        };
-        buildLocalEnrichmentChat(eqMeta);
-        const ce = document.getElementById('chatEnriched');
-        if (ce) ce.style.display = 'block';
-      } catch(_) {}
-
     }
     function clearChatHistory(){
       setChatHistory([]); document.getElementById('iaDetails').innerHTML=''; document.getElementById('chatHtml').innerHTML='';
@@ -1309,8 +1287,85 @@
         return { reasons, palliatives, preventives, refs, costs };
       };
     })();
+
+    // === Attachment Viewer (Lightbox) ===
+    let _attList = [], _attIndex = 0, _attViewerModal;
+    function openAttachmentById(attId){
+      const idx = _attList.findIndex(a => a.id === attId);
+      if (idx >= 0){ _attIndex = idx; openAttachment(_attIndex); }
+    }
+    function openAttachment(index){
+      if(!_attList.length) return;
+      _attIndex = (index + _attList.length) % _attList.length;
+      const att = _attList[_attIndex];
+      const stage = document.getElementById('attViewerStage');
+      const title = document.getElementById('attViewerTitle');
+      const meta  = document.getElementById('attViewerMeta');
+      const openA = document.getElementById('attOpen');
+      stage.innerHTML = '';
+      title.textContent = att.name || 'Aperçu';
+      meta.textContent = (att.mime || 'application/octet-stream') + ' — ' + (att.name || '');
+      openA.href = att.url;
+
+      const isImg = /^image\//.test(att.mime || '') || /\.(png|jpe?g|webp|gif)$/i.test(att.name||'');
+      const isPdf = (att.mime === 'application/pdf') || /\.pdf$/i.test(att.name||'');
+
+      if (isImg){
+        const img = document.createElement('img');
+        img.src = att.url;
+        img.alt = att.name || '';
+        img.className = 'img-fluid';
+        stage.appendChild(img);
+      } else if (isPdf){
+        const iframe = document.createElement('iframe');
+        iframe.src = att.url;
+        iframe.title = att.name || 'PDF';
+        iframe.style = 'width:100%; height:100%; border:0; background:#222;';
+        stage.appendChild(iframe);
+      } else {
+        const box = document.createElement('div');
+        box.className = 'text-center text-white-50 p-4';
+        box.innerHTML = '<div class="mb-2"><i data-lucide="file"></i></div><div>Ce format ne peut pas être prévisualisé ici.</div>';
+        stage.appendChild(box);
+      }
+
+      if (window.lucide) lucide.createIcons();
+      const el = document.getElementById('attViewerModal');
+      _attViewerModal = bootstrap.Modal.getOrCreateInstance(el);
+      _attViewerModal.show();
+    }
+
+    document.addEventListener('click', (e)=>{
+      if(e.target && e.target.id === 'attPrev'){ e.preventDefault(); openAttachment(_attIndex-1); }
+      if(e.target && e.target.id === 'attNext'){ e.preventDefault(); openAttachment(_attIndex+1); }
+    });
 </script>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Attachment Viewer (Lightbox) -->
+  <div class="modal fade" id="attViewerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-0">
+          <h5 class="modal-title text-white" id="attViewerTitle">Aperçu</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body d-flex align-items-center justify-content-center p-0">
+          <div id="attViewerStage" class="w-100 h-100 d-flex align-items-center justify-content-center"></div>
+        </div>
+        <div class="modal-footer border-0 justify-content-between">
+          <div class="text-white-50 small" id="attViewerMeta"></div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-light" id="attPrev"><i data-lucide="chevron-left"></i></button>
+            <button class="btn btn-outline-light" id="attNext"><i data-lucide="chevron-right"></i></button>
+            <a class="btn btn-primary" id="attOpen" href="#" target="_blank" rel="noopener">Ouvrir dans un onglet</a>
+            <button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
