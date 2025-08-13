@@ -98,7 +98,7 @@ router.post('/atex-equipments', upload.none(), async (req, res) => {
         comments, last_inspection_date, next_inspection_date, risk_assessment, grade,
         frequence, zone_type, zone_gaz, zone_poussiere, ia_history, attachments)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULL,NULL,$9,$10,NULL,$11,$12,NULL,NULL,NULL,'V',
-               COALESCE($13,3),$14,$15,$16,$17)
+               COALESCE($13,3),$14,$15,$16,$17,$18)
        RETURNING id`,
       [
         nullIfEmpty(b.risque),
@@ -456,6 +456,7 @@ router.get('/atex-help/:id', async (req, res) => {
 
 // -------------------- INSPECTION (fix 404) --------------------
 
+
 router.post('/atex-inspect', express.json(), async (req, res) => {
   const pool = getPool(req);
   try {
@@ -463,9 +464,7 @@ router.post('/atex-inspect', express.json(), async (req, res) => {
     if (!id) return res.status(400).json({ error: 'equipment_id_required' });
     const date = (req.body?.inspection_date || req.query?.inspection_date || new Date().toISOString().slice(0,10)).slice(0,10);
     const { rowCount } = await pool.query(
-      `UPDATE public.atex_equipments
-         SET last_inspection_date = $2
-       WHERE id = $1`,
+      `UPDATE public.atex_equipments SET last_inspection_date = $2 WHERE id = $1`,
       [id, date]
     );
     if (!rowCount) return res.status(404).json({ error: 'equipment_not_found' });
@@ -475,6 +474,7 @@ router.post('/atex-inspect', express.json(), async (req, res) => {
     res.status(500).json({ error: 'server_error' });
   }
 });
+
 router.post('/atex-photo/:id', upload.single('photo'), async (req, res) => {
   const pool = getPool(req);
   try {
