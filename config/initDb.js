@@ -50,7 +50,16 @@ async function initDb(pool) {
       );
     `);
 
-    // === Table EPD (si utilisée) ===
+    
+// === Table SECTORS (facultative, pour liste utilisateur) ===
+await client.query(`
+  CREATE TABLE IF NOT EXISTS public.atex_sectors (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR UNIQUE
+  );
+`);
+
+// === Table EPD (si utilisée) ===
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.atex_epd_docs (
         id SERIAL PRIMARY KEY,
