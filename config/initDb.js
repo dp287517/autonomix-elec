@@ -1,16 +1,12 @@
-// initDb.js — version corrigée et idempotente
-// --------------------------------------------------
-// - Crée les tables si elles n'existent pas
-// - Ajoute les colonnes manquantes (ia_history) sans casser les types existants
-// - Ne modifie PAS les types actuels (ex.: zone_poussieres smallint conservé)
-// - Peut être appelée à chaque démarrage du serveur en toute sécurité
+// initDb.js — version corrigée & idempotente (ATEX)
+// - Crée les tables minimales si absentes (structure conforme à ton dump)
+// - Ajoute les colonnes manquantes (ia_history, attachments) sans toucher les types existants
+// - Nettoie '' -> NULL sur zone_gaz/zone_poussiere
+// - Ajoute un index utile sur identifiant
+// - Compatible Neon (SSL)
 
 const { Pool } = require('pg');
 
-/**
- * Initialise le schéma de base de données.
- * @param {Pool} [pool] - Optionnel. Si non fourni, un Pool sera instancié via les variables d'env PG.
- */
 async function initDb(pool) {
   const localPool = pool || new Pool({
     connectionString: process.env.DATABASE_URL,
@@ -21,8 +17,7 @@ async function initDb(pool) {
   try {
     await client.query('BEGIN');
 
-    // ========== TABLE atex_equipments (si elle n'existe pas) ==========
-    // On reprend la structure que tu m'as fournie, avec les types actuels.
+    // Table ATEX (structure basée sur ton état actuel)
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.atex_equipments (
         id                   SERIAL PRIMARY KEY,
@@ -53,8 +48,7 @@ async function initDb(pool) {
       );
     `);
 
-    // ========== TABLE atex_inspections (si utilisée par l'app) ==========
-    // Schéma minimal sécurisant les contraintes, ajustable selon tes besoins réels.
+    // Table inspections (minimale)
     await client.query(`
       CREATE TABLE IF NOT EXISTS public.atex_inspections (
         id            SERIAL PRIMARY KEY,
@@ -64,14 +58,17 @@ async function initDb(pool) {
       );
     `);
 
-    // ========== MIGRATIONS IDempotentes ==========
-    // 1) Historique IA (JSONB) pour stocker les threads / commentaires IA
+    // Colonnes manquantes
     await client.query(`
       ALTER TABLE public.atex_equipments
         ADD COLUMN IF NOT EXISTS ia_history JSONB;
     `);
+    await client.query(`
+      ALTER TABLE public.atex_equipments
+        ADD COLUMN IF NOT EXISTS attachments JSONB;
+    `);
 
-    // 2) Nettoyage : convertir les chaînes vides en NULL sur les zones (évite erreurs PG lors de cast/contrôles)
+    // Normalisation: '' -> NULL
     await client.query(`
       UPDATE public.atex_equipments
       SET zone_gaz = NULLIF(zone_gaz, ''),
@@ -79,7 +76,7 @@ async function initDb(pool) {
       WHERE (zone_gaz = '' OR zone_poussiere = '');
     `);
 
-    // 3) Index utiles (idempotents)
+    // Index utile (idempotent)
     await client.query(`
       DO $$ BEGIN
         IF NOT EXISTS (
