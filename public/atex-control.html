@@ -1,337 +1,1375 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
+  <title>Contrôle ATEX - Équipements</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ATEX Control</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+  <!-- 🔐 Garde d'accès -->
+  <script>
+    (async function(){
+      try{
+        const token = localStorage.getItem('autonomix_token');
+        if(!token){ window.location.href = 'login.html'; return; }
+        const API = (window.API_BASE_URL || '') + '/api';
+        const r = await fetch(API + '/me', { headers:{ Authorization: 'Bearer '+token } });
+        if(!r.ok){ localStorage.removeItem('autonomix_token'); localStorage.removeItem('autonomix_user'); window.location.href='login.html'; }
+      }catch{ window.location.href = 'login.html'; }
+    })();
+  </script>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+
   <style>
-    body { background:#f8f9fa; }
-    .table td, .table th { vertical-align: middle; }
-    .last-photo{max-height:36px;border-radius:4px}
-    .actions .btn{margin-right:4px}
-    .badge-atex{font-weight:500}
-    .modal-fullscreen .modal-body{height:calc(100vh - 140px)}
+    :root{
+      --actions-min-width: 220px;
+      --offcanvas-w: clamp(420px, 40vw, 580px);
+    }
+    body{ background:#f8f9fa; font-family:'Poppins',sans-serif; color:#333; }
+    .card{ border-radius:14px; box-shadow:0 4px 10px rgba(0,0,0,.06); }
+    .table-responsive{ overflow-x:auto; }
+    .last-photo{ max-width:52px; border-radius:6px; cursor:zoom-in; }
+    .form-text{ color:#6c757d; }
+    .small-muted{ font-size:.85rem; color:#6c757d; }
+    .link-list a{ text-decoration:none; }
+
+    .badge-conf{ font-weight:600; padding:.40rem .55rem; font-size:.82rem; border-radius:.65rem; white-space:nowrap; }
+    .badge-conf.ok{ background:#16a34a; color:#fff; }
+    .badge-conf.ko{ background:#dc2626; color:#fff; }
+    td.col-conf{ white-space:nowrap; }
+
+    .badge-st.ok{ background:#22c55e; }
+    .badge-st.soon{ background:#f59e0b; }
+    .badge-st.today{ background:#0ea5e9; }
+    .badge-st.late{ background:#ef4444; }
+    .badge-st{ color:#fff; font-weight:600; }
+
+    td.actions{ min-width:var(--actions-min-width); white-space:nowrap; }
+    @media (max-width: 992px){
+      td.actions{ display:grid; grid-template-columns: repeat(3, 1fr); gap:.4rem; }
+      td.actions .btn{ width:100%; }
+    }
+    @media (max-width: 576px){ td.actions{ grid-template-columns: 1fr; } }
+
+    .offcanvas-ia{ --bs-offcanvas-width: var(--offcanvas-w); }
+    #iaPanel{ border-left:1px solid #e5e7eb; }
+    #iaPanel .offcanvas-body{ display:flex; flex-direction:column; gap:1rem; padding-top:.75rem; }
+    .ia-history{ border:1px solid #e9ecef; border-radius:10px; overflow:hidden; max-height:55vh; overflow-y:auto; background:#fff; }
+    .ia-item{ cursor:pointer; }
+    .ia-item.active{ background:#eef2ff; border-left:3px solid #0d6efd; }
+    .ia-details{ border:1px solid #e9ecef; border-radius:10px; background:#fff; max-height:55vh; overflow:auto; padding:1rem; }
+    .chat-thread{ border:1px solid #e9ecef; border-radius:10px; background:#fff; padding:1rem; max-height:45vh; overflow:auto; }
+    .msg{ padding:.45rem .65rem; border-radius:.5rem; margin-bottom:.5rem; }
+    .msg.user{ background:#eef2ff; }
+    .msg.ia{ background:#f6f7f9; }
+    .chat-input{ display:flex; gap:.5rem; }
+    .chat-input textarea{ resize:vertical; min-height:44px; }
+
+    .dropdown-checklist{ min-width:240px; max-height:260px; overflow:auto; }
+    .filter-pills .badge{ margin-right:.4rem; margin-bottom:.4rem; }
+
+    .def-list dt{ font-weight:600; }
+    .def-list dd{ margin-bottom:.75rem; color:#475569; }
+
+    footer{ margin-top:32px; color:#6b7280; }
   </style>
 </head>
-<body>
-<div class="container-fluid py-3">
-  <div class="d-flex align-items-center justify-content-between mb-3">
-    <h3 class="mb-0">Équipements ATEX</h3>
+<body class="container my-5">
+
+  <header class="d-flex align-items-center justify-content-between mb-3">
     <div>
-      <button class="btn btn-primary" onclick="openEquipModal(null)">Ajouter</button>
+      <h1 class="mb-1">Contrôle des Équipements ATEX</h1>
+      <p class="lead mb-0">Inspecter, ajouter et suivre les conformités ATEX.</p>
     </div>
-  </div>
-
-  <div class="card">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover mb-0" id="tbl">
-          <thead class="table-light">
-            <tr>
-              <th>#</th>
-              <th>Composant</th>
-              <th>Secteur</th>
-              <th>Marquage ATEX</th>
-              <th>Zones</th>
-              <th>Prochaine insp.</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="tbody"></tbody>
-        </table>
-      </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-secondary" href="dashboard.html"><i data-lucide="home"></i> Menu</a>
+      <a class="btn btn-outline-secondary" href="atex-risk.html"><i data-lucide="scan-search"></i> Analyse</a>
+      <a class="btn btn-outline-secondary" href="epd.html"><i data-lucide="file-text"></i> EPD</a>
+      <a class="btn btn-outline-secondary" href="is-loop.html"><i data-lucide="circuit-board"></i> Boucles Exi</a>
     </div>
-  </div>
-</div>
+  </header>
 
-<!-- Viewer (images + PDF) -->
-<div class="modal fade" id="attViewerModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-fullscreen">
-    <div class="modal-content bg-dark">
-      <div class="modal-header border-0">
-        <h5 class="modal-title text-white" id="attViewerTitle">Aperçu</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body d-flex align-items-center justify-content-center p-0">
-        <div id="attViewerStage" class="w-100 h-100 d-flex align-items-center justify-content-center"></div>
-      </div>
-      <div class="modal-footer border-0 justify-content-between">
-        <div class="text-white-50 small" id="attViewerMeta"></div>
-        <div class="d-flex gap-2">
-          <button class="btn btn-outline-light" id="attPrev">&laquo;</button>
-          <button class="btn btn-outline-light" id="attNext">&raquo;</button>
-          <a class="btn btn-primary" id="attOpen" href="#" target="_blank" rel="noopener">Ouvrir</a>
-          <button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+  <ul class="nav nav-tabs" id="atexTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab">
+        <i data-lucide="list"></i> Liste
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="add-tab" data-bs-toggle="tab" data-bs-target="#add" type="button" role="tab">
+        <i data-lucide="plus"></i> Ajouter/Éditer
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="chat-tab" data-bs-toggle="tab" data-bs-target="#chat" type="button" role="tab">
+        <i data-lucide="bot"></i> Chat IA
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="import-tab" data-bs-toggle="tab" data-bs-target="#import" type="button" role="tab">
+        <i data-lucide="upload"></i> Importer
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="help-tab" data-bs-toggle="tab" data-bs-target="#help" type="button" role="tab">
+        <i data-lucide="info"></i> Explications
+      </button>
+    </li>
+  </ul>
 
-<!-- Offcanvas Ajouter/Éditer (simplifiée) -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasEquip">
-  <div class="offcanvas-header">
-    <h5 class="offcanvas-title" id="offcanvasEquipLabel">Ajouter / Éditer</h5>
-    <button type="button" id="btnFormAttachments" class="btn btn-sm btn-outline-dark ms-2"
-      onclick="if(currentEquipId){openEquipModal(currentEquipId); setTimeout(()=>document.getElementById('equipAttachments').scrollIntoView({behavior:'smooth'}),300)}">
-      📎 Pièces jointes
-    </button>
-    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-  </div>
-  <div class="offcanvas-body">
-    <form id="equipForm" onsubmit="return false;">
-      <div class="row g-2">
-        <div class="col-md-6">
-          <label class="form-label">Composant</label>
-          <input class="form-control" id="f_composant">
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Secteur</label>
-          <select class="form-select" id="secteur-input"><option value="">— Sélectionner —</option></select>
-        </div>
-      </div>
-      <div class="row g-2 mt-1">
-        <div class="col-md-6">
-          <label class="form-label">Marquage ATEX</label>
-          <input class="form-control" id="f_marquage">
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Zone G</label>
-          <input class="form-control" id="f_zoneg" placeholder="0,1,2">
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Zone D</label>
-          <input class="form-control" id="f_zoned" placeholder="20,21,22">
-        </div>
-      </div>
-      <div class="mt-3">
-        <button class="btn btn-primary" onclick="saveEquip()">Enregistrer</button>
-      </div>
-    </form>
-  </div>
-</div>
+  <div class="tab-content mt-3" id="atexTabContent">
 
-<!-- Modal Détails / Fichiers (lightbox capable) -->
-<div class="modal fade" id="equipModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Équipement</h5>
-        <div class="ms-3">
-          <div class="btn-group" role="group">
-            <a class="btn btn-sm btn-outline-secondary" id="btnExportCsv" target="_blank" rel="noopener">Export CSV</a>
-            <a class="btn btn-sm btn-outline-secondary" id="btnExportXlsx" target="_blank" rel="noopener">Export XLSX</a>
+    <!-- LISTE -->
+    <div class="tab-pane fade show active" id="list" role="tabpanel">
+      <div class="card mb-3">
+        <div class="card-header d-flex align-items-center justify-content-between flex-wrap">
+          <h5 class="mb-0">Filtres</h5>
+          <div class="d-flex gap-2">
+            <button id="btnClearFilters" class="btn btn-sm btn-outline-secondary"><i data-lucide="eraser"></i> Effacer</button>
+            <button id="btnApplyFilters" class="btn btn-sm btn-primary"><i data-lucide="filter"></i> Appliquer</button>
           </div>
         </div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div id="equipAttachments" class="mb-3">
-          <div class="d-flex align-items-center justify-content-between">
-            <h6 class="mb-0">Fichiers (photos/documents)</h6>
-            <form id="uploadForm" class="d-flex gap-2" onsubmit="return false;">
-              <input type="file" id="attFiles" multiple class="form-control form-control-sm" style="max-width:320px">
-              <button class="btn btn-sm btn-outline-primary" onclick="uploadAttachments()">Uploader</button>
-            </form>
+        <div class="card-body">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+              <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown">
+                  <i data-lucide="building-2"></i> Secteur
+                </button>
+                <div class="dropdown-menu p-2 dropdown-checklist" id="dd-secteurs"></div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown">
+                  <i data-lucide="map-pin"></i> Bâtiment
+                </button>
+                <div class="dropdown-menu p-2 dropdown-checklist" id="dd-batiments"></div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown">
+                  <i data-lucide="shield-check"></i> Conformité
+                </button>
+                <div class="dropdown-menu p-2 dropdown-checklist" id="dd-conformite">
+                  <div class="form-check"><input class="form-check-input" type="checkbox" value="Conforme" id="ckc1"><label class="form-check-label" for="ckc1">Conforme</label></div>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" value="Non Conforme" id="ckc2"><label class="form-check-label" for="ckc2">Non Conforme</label></div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown">
+                  <i data-lucide="calendar-check-2"></i> Statut
+                </button>
+                <div class="dropdown-menu p-2 dropdown-checklist" id="dd-statut">
+                  <div class="form-check"><input class="form-check-input" type="checkbox" value="late" id="cks1"><label class="form-check-label" for="cks1">En retard</label></div>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" value="today" id="cks2"><label class="form-check-label" for="cks2">Aujourd’hui</label></div>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" value="soon" id="cks3"><label class="form-check-label" for="cks3">Bientôt</label></div>
+                  <div class="form-check"><input class="form-check-input" type="checkbox" value="ok" id="cks4"><label class="form-check-label" for="cks4">OK</label></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-6">
+              <input id="filterText" class="form-control" placeholder="Recherche composant / type / marquage…">
+            </div>
+            <div class="col-md-6 text-end">
+              <div id="activePills" class="filter-pills"></div>
+            </div>
           </div>
-          <div id="attGrid" class="row g-2 mt-2"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Liste des Équipements</h5>
+          <div class="d-flex gap-2 flex-wrap">
+            <button id="btnBulkDelete" class="btn btn-outline-danger" disabled><i data-lucide="trash-2"></i> Supprimer sélection</button>
+            <button id="btnSync" class="btn btn-info"><i data-lucide="refresh-cw"></i> Sync</button>
+          </div>
+        </div>
+        <div class="card-body table-responsive">
+          <table class="table table-striped align-middle">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="chkAll"></th>
+                <th>ID</th><th>Composant</th><th>Secteur</th><th>Bâtiment</th>
+                <th>Local</th><th>Zone G</th><th>Zone D</th><th>Conformité</th><th>Statut</th><th>Risque</th>
+                <th>Dernière</th><th>Prochaine</th><th>Photo</th><th style="min-width:var(--actions-min-width)">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="equipmentsTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- AJOUT / EDIT -->
+    <div class="tab-pane fade" id="add" role="tabpanel">
+      <div class="card">
+        <div class="card-body">
+          <form id="equipForm" novalidate>
+            <input type="hidden" id="equipId">
+            <div class="row">
+              <div class="col-md-6">
+                <label class="form-label">Secteur</label>
+                <div class="input-group">
+                  <select id="secteur-input" class="form-select" required></select>
+                  <button class="btn btn-outline-secondary" type="button" id="btnAddSecteur" title="Ajouter un secteur">➕</button>
+                </div>
+                <div class="form-text">Clique sur ➕ pour créer un nouveau secteur.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Bâtiment</label>
+                <div class="input-group">
+                  <input id="batiment-input" class="form-control" required placeholder="Ex: B06, B11…">
+                  <button class="btn btn-outline-secondary" type="button" id="btnFillBatLocal" title="Préremplir">↻</button>
+                </div>
+                <div class="form-text">↻ préremplit Bâtiment/Local selon les dernières saisies pour ce secteur.</div>
+              </div>
+            </div>
+
+            <div class="row mt-3">
+              <div class="col-md-6">
+                <label class="form-label">Local</label>
+                <input id="local-input" class="form-control" required>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Zone ATEX (Gaz)</label>
+                <select id="zone-g-input" class="form-select">
+                  <option value="">— aucune —</option>
+                  <option value="0">0 (Gaz)</option>
+                  <option value="1">1 (Gaz)</option>
+                  <option value="2">2 (Gaz)</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Zone ATEX (Poussières)</label>
+                <select id="zone-d-input" class="form-select">
+                  <option value="">— aucune —</option>
+                  <option value="20">20 (Poussières)</option>
+                  <option value="21">21 (Poussières)</option>
+                  <option value="22">22 (Poussières)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row mt-3">
+              <div class="col-md-6">
+                <label class="form-label">Composant*</label>
+                <div class="input-group">
+                  <input id="composant-input" class="form-control" required>
+                  <button class="btn btn-outline-secondary" type="button" id="btnDupLast" title="Remplir depuis le dernier type">⎘</button>
+                </div>
+                <div class="form-text">⎘ charge le dernier couple Composant/Type/Fabricant utilisé.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Fabricant*</label>
+                <input id="fournisseur-input" class="form-control" required>
+              </div>
+            </div>
+
+            <div class="row mt-3">
+              <div class="col-md-6">
+                <label class="form-label">Type (référence)*</label>
+                <input id="type-input" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Identifiant</label>
+                <input id="identifiant-input" class="form-control">
+              </div>
+            </div>
+
+            <div class="row mt-3">
+              <div class="col-md-6">
+                <label class="form-label">Marquage ATEX*</label>
+                <input id="marquage_atex-input" class="form-control" placeholder="Ex: II 2G Ex d IIC T4 Gb / II 2D Ex tb IIIC T135°C Db" required>
+                <div class="form-text">Tu peux saisir **Gaz** et **Poussières** dans la même ligne (séparés par ‘/’) si besoin.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Dernière inspection</label>
+                <input type="date" id="last-inspection-input" class="form-control">
+                <div class="form-text">La prochaine sera recalculée.</div>
+              </div>
+            </div>
+
+            <div class="row mt-3">
+              <div class="col-md-6">
+                <label class="form-label">Photo / Doc</label>
+                <input type="file" id="photo-input" class="form-control" accept="image/*,.pdf">
+                <div class="form-text">Les images sont compressées automatiquement avant envoi.</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Commentaires</label>
+                <textarea id="comments-input" class="form-control" rows="2"></textarea>
+              </div>
+            </div>
+
+            <div class="mt-4 d-flex gap-2 flex-wrap">
+              <button type="button" id="btnSave" class="btn btn-success"><i data-lucide="save"></i> Enregistrer</button>
+              <button type="button" id="btnCancel" class="btn btn-secondary"><i data-lucide="arrow-left"></i> Annuler</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHAT IA -->
+    <div class="tab-pane fade" id="chat" role="tabpanel">
+      <div class="row g-3">
+        <div class="col-lg-4">
+          <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <strong><i data-lucide="history"></i> Historique</strong>
+              <button class="btn btn-sm btn-outline-secondary" id="btnClearChat"><i data-lucide="eraser"></i> Effacer</button>
+            </div>
+            <div class="card-body p-0">
+              <ul class="list-group list-group-flush" id="iaHistoryListChat" style="max-height:60vh; overflow:auto"></ul>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-8">
+          <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <strong><i data-lucide="bot"></i> Aide IA</strong>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary" id="btnReanalyse"><i data-lucide="sparkles"></i> Ré‑analyser</button>
+                <button class="btn btn-sm btn-outline-secondary" id="btnCopier"><i data-lucide="copy"></i> Copier</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div id="chatLoading" class="text-center text-muted" style="display:none">
+                <div class="spinner-border" role="status" aria-hidden="true"></div>
+                <div class="mt-2">Analyse en cours…</div>
+              </div>
+
+              <div id="chatHeader" class="mb-2 small-muted"></div>
+
+              <div id="chatHtml" class="border rounded p-3" style="min-height:200px"></div>
+              <div id="chatEnriched" class="mt-3" style="display:none">
+                <h6>Synthèse actionnable</h6>
+                <div id="chatWhy" class="mb-2"></div>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                      <strong>Mesures palliatives</strong>
+                      <ul id="chatPalliative" class="mb-0"></ul>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                      <strong>Mesures préventives</strong>
+                      <ul id="chatPreventive" class="mb-0"></ul>
+                    </div>
+                  </div>
+                </div>
+                <div class="row g-3 mt-1">
+                  <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                      <strong>Références & changements</strong>
+                      <ul id="chatRefs" class="mb-0"></ul>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                      <strong>Estimation des coûts (£)</strong>
+                      <ul id="chatCosts" class="mb-0"></ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mt-3">
+                  <h6>Suggestions d’achat (automatiques)</h6>
+                  <div id="autoLinks" class="link-list"></div>
+                <div class="mt-3">
+                  <h6>Pièces & Liens d’achat (manuel)</h6>
+                  <div class="row g-2 align-items-end">
+                    <div class="col-md-7">
+                      <label class="form-label">Type de pièce</label>
+                      <select id="partType" class="form-select">
+                        <option value="capteur">Capteur de pression ATEX (ex: IFM PN7092)</option>
+                        <option value="boite_e">Boîte de jonction Ex e (R. STAHL)</option>
+                        <option value="boite_d">Boîte de jonction Ex d (R. STAHL)</option>
+                        <option value="formation">Formation / Audit ATEX</option>
+                      </select>
+                    </div>
+                    <div class="col-md-5">
+                      <button id="btnPartLinks" class="btn btn-outline-primary w-100"><i data-lucide="link"></i> Proposer des liens</button>
+                    </div>
+                  </div>
+                  <div class="mt-2 small-muted">Les liens ouvrent les distributeurs/fabricants (IFM, R.STAHL, RS UK) pour comparer et obtenir un prix réel.</div>
+                  <div id="partLinks" class="mt-2 link-list"></div>
+                </div>
+
+                </div>
+              </div>
+
+              <hr class="my-3">
+              <h6 class="mb-2">Discussion sur le même sujet</h6>
+              <div id="chatThread" class="chat-thread"></div>
+              <div class="chat-input mt-2">
+                <textarea id="chatPrompt" class="form-control" placeholder="Pose ta question complémentaire…"></textarea>
+                <button class="btn btn-primary" id="btnSend"><i data-lucide="send"></i></button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IMPORT -->
+    <div class="tab-pane fade" id="import" role="tabpanel">
+      <div class="card">
+        <div class="card-body">
+          <p><strong>Colonnes minimales requises</strong> (ordre attendu) :</p>
+          <div class="mb-2">
+            <span class="badge bg-light text-dark">secteur</span>
+            <span class="badge bg-light text-dark">batiment</span>
+            <span class="badge bg-light text-dark">local</span>
+            <span class="badge bg-light text-dark">composant</span>
+            <span class="badge bg-light text-dark">fabricant</span>
+            <span class="badge bg-light text-dark">type</span>
+            <span class="badge bg-light text-dark">identifiant</span>
+            <span class="badge bg-light text-dark">zone_gaz</span>
+            <span class="badge bg-light text-dark">zone_poussieres</span>
+            <span class="badge bg-light text-dark">marquage_atex</span>
+            <span class="badge bg-light text-dark">last_inspection_date</span>
+          </div>
+
+          <div class="d-flex gap-2 flex-wrap mb-3">
+            <a class="btn btn-outline-secondary" href="/api/atex-import-columns" target="_blank" rel="noopener">
+              <i data-lucide="list"></i> Voir la définition JSON
+            </a>
+            <a class="btn btn-outline-primary" href="/api/atex-import-template" target="_blank" rel="noopener">
+              <i data-lucide="download"></i> Télécharger modèle CSV
+            </a>
+            <a class="btn btn-outline-primary" href="/api/atex-import-template.xlsx" target="_blank" rel="noopener">
+              <i data-lucide="download"></i> Télécharger modèle XLSX
+            </a>
+          </div>
+
+          <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" class="form-control mb-3">
+          <button id="btnImport" class="btn btn-primary"><i data-lucide="upload"></i> Importer</button>
+          <div class="form-text mt-2">Les routes d’import & modèles sont fournies côté serveur.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPLICATIONS -->
+    <div class="tab-pane fade" id="help" role="tabpanel">
+      <div class="card">
+        <div class="card-body">
+          <h5>Explications des paramètres</h5>
+          <dl class="def-list">
+            <dt>Échéance (prochaine inspection)</dt>
+            <dd>Calculée à partir de la dernière inspection + fréquence (par défaut 3 ans). Mise à jour automatiquement à chaque inspection.</dd>
+            <dt>Risque (0–5)</dt>
+            <dd>Basé sur la zone la plus sévère (0/20 → 5, 1/21 → 3, 2/22 → 1) augmenté de +2 si Non Conforme. Limité entre 0 et 5.</dd>
+            <dt>Conformité</dt>
+            <dd>Comparaison du marquage ATEX avec les exigences **gaz** et **poussières**. L’état global est **Non Conforme** si l’une des deux filières (G/D) n’est pas satisfaite.</dd>
+          </dl>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-<script>
-const $ = sel => document.querySelector(sel);
-const $$ = sel => Array.from(document.querySelectorAll(sel));
-let _attList = [], _attIndex = 0, _attViewerModal;
-let currentEquipId = null;
-let equipments = [];
+  <!-- Modals & Offcanvas (inchangés) -->
+  <div class="modal fade" id="photoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Photo</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body text-center"><img id="photoModalImg" src="" class="img-fluid" alt="Photo équipement"></div>
+        <div class="modal-footer"><a id="photoDownload" class="btn btn-outline-secondary" download>Télécharger</a><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
+      </div>
+    </div>
+  </div>
 
-// ---------- Fetch & render list ----------
-async function loadList(){
-  const r = await fetch('/api/atex-equipments');
-  const data = await r.json();
-  equipments = Array.isArray(data) ? data : [];
-  const tbody = $('#tbody');
-  tbody.innerHTML = '';
-  equipments.forEach(eq => {
-    const zg = eq.zone_gaz || eq.zone_type || '';
-    const zd = eq.zone_poussiere || (eq.zone_poussieres != null ? String(eq.zone_poussieres) : '');
-    const tr = document.createElement('tr');
-    const marq = eq.marquage_atex ? '<span class="badge bg-secondary badge-atex">'+eq.marquage_atex+'</span>' : '';
-    tr.innerHTML = ''
-      + '<td>'+eq.id+'</td>'
-      + '<td>'+ (eq.composant || '') +' '+ marq +'</td>'
-      + '<td>'+ (eq.secteur || '') +'</td>'
-      + '<td>'+ (eq.marquage_atex || '') +'</td>'
-      + '<td>'+ (zg || '—') +' / '+ (zd || '—') +'</td>'
-      + '<td>'+ (eq.next_inspection_date || '') +'</td>'
-      + '<td class="actions">'
-        + '<button class="btn btn-sm btn-outline-primary" onclick="openEquipModal('+eq.id+')">Voir</button>'
-        + '<button class="btn btn-sm btn-outline-dark ms-1" onclick="openEquipModal('+eq.id+'); setTimeout(()=>document.getElementById(\'equipAttachments\').scrollIntoView({behavior:\'smooth\'}),300)">📎 Pièces jointes ('+(eq.attachments_count||0)+')</button>'
-        + '<button class="btn btn-sm '+(eq.has_ia_history ? 'btn-success' : 'btn-outline-secondary')+' ms-1" onclick="openIA('+eq.id+')" title="IA Analysis"><i data-lucide="sparkles"></i> IA</button>'
-      + '</td>';
-    tbody.appendChild(tr);
-  });
-  if (window.lucide) window.lucide.createIcons();
-}
-loadList();
+  <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title text-danger"><i data-lucide="trash-2"></i> Confirmer la suppression</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <p id="deleteMsg">Voulez-vous vraiment supprimer cet équipement ATEX ?</p>
+          <div id="deleteMeta" class="small-muted"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-danger" id="confirmDeleteBtn">Supprimer</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-// ---------- Sectors ----------
-async function loadSecteurs(){
-  const r = await fetch('/api/atex-secteurs');
-  const secteurs = await r.json();
-  const sel = $('#secteur-input');
-  sel.innerHTML = '<option value="">— Sélectionner —</option>';
-  (Array.isArray(secteurs) ? secteurs : []).forEach(s => {
-    const name = (typeof s === 'string') ? s : (s && s.name) ? s.name : '';
-    if(!name) return;
-    const o = document.createElement('option'); o.value = name; o.text = name; sel.appendChild(o);
-  });
-}
-loadSecteurs();
+  <!-- Offcanvas IA (inchangé) -->
+  <div class="offcanvas offcanvas-end offcanvas-ia" tabindex="-1" id="iaPanel" data-bs-scroll="true" data-bs-backdrop="false" aria-labelledby="iaPanelLabel">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title" id="iaPanelLabel"><i data-lucide="bot"></i> Aide IA</h5>
+      <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body">
+      <div class="row g-3">
+        <div class="col-12">
+          <div id="iaHeader" class="small-muted"></div>
+          <div class="ia-badges mb-2"></div>
+        </div>
+        <div class="col-12">
+          <div class="ia-history">
+            <ul class="list-group list-group-flush" id="iaHistoryList"></ul>
+          </div>
+        </div>
+        <div class="col-12">
+          <div id="iaLoading" class="text-center text-muted" style="display:none">
+            <div class="spinner-border" role="status" aria-hidden="true"></div>
+            <div class="mt-2">Analyse en cours…</div>
+          </div>
+          <div id="iaDetails" class="ia-details" style="display:none"></div>
+        </div>
+        <div class="col-12">
+          <h6>Discussion</h6>
+          <div id="iaThread" class="chat-thread"></div>
+          <div class="chat-input mt-2">
+            <textarea id="iaPrompt" class="form-control" placeholder="Question complémentaire…"></textarea>
+            <button class="btn btn-outline-primary" id="iaSend"><i data-lucide="send"></i></button>
+          </div>
+        </div>
+        <div class="col-12 d-flex gap-2 flex-wrap">
+          <button class="btn btn-outline-primary" id="btnOpenInChat"><i data-lucide="panel-right-open"></i> Ouvrir dans Chat IA</button>
+          <button class="btn btn-outline-secondary" id="btnClearChat2"><i data-lucide="eraser"></i> Effacer historique</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-// ---------- Attachments viewer ----------
-function openAttachment(index){
-  if(!_attList.length) return;
-  _attIndex = (index + _attList.length) % _attList.length;
-  const att = _attList[_attIndex];
-  const stage = document.getElementById('attViewerStage');
-  const title = document.getElementById('attViewerTitle');
-  const meta  = document.getElementById('attViewerMeta');
-  const openA = document.getElementById('attOpen');
-  stage.innerHTML = '';
-  title.textContent = att.name || 'Aperçu';
-  meta.textContent = (att.mime || 'application/octet-stream') + ' — ' + (att.name || '');
-  openA.href = att.url;
-  const isImg = /^image\//.test(att.mime || '') || /\.(png|jpe?g|webp|gif)$/i.test(att.name||'');
-  const isPdf = (att.mime === 'application/pdf') || /\.pdf$/i.test(att.name||'');
-  if (isImg){
-    const img = document.createElement('img');
-    img.src = att.url;
-    img.alt = att.name || '';
-    img.className = 'img-fluid';
-    stage.appendChild(img);
-  } else if (isPdf){
-    const iframe = document.createElement('iframe');
-    iframe.src = att.url;
-    iframe.title = att.name || 'PDF';
-    iframe.style = 'width:100%; height:100%; border:0; background:#222;';
-    stage.appendChild(iframe);
-  } else {
-    const box = document.createElement('div');
-    box.className = 'text-center text-white-50 p-4';
-    box.innerHTML = '<div class="mb-2">Fichier non prévisualisable</div>';
-    stage.appendChild(box);
-  }
-  const el = document.getElementById('attViewerModal');
-  _attViewerModal = bootstrap.Modal.getOrCreateInstance(el);
-  _attViewerModal.show();
-}
-document.addEventListener('click', function(e){
-  if (e.target && e.target.id === 'attPrev'){ e.preventDefault(); openAttachment(_attIndex-1); }
-  if (e.target && e.target.id === 'attNext'){ e.preventDefault(); openAttachment(_attIndex+1); }
-});
+  <footer class="text-center small mt-4">© AutonomiX — Tous droits réservés</footer>
+  <div class="toast-container position-fixed top-0 end-0 p-3" id="toasts" style="z-index: 2000;"></div>
 
-// ---------- Equipment modal ----------
-async function openEquipModal(id){
-  currentEquipId = id;
-  // export buttons
-  document.getElementById('btnExportCsv').href = '/api/atex-attachments/'+id+'/export.csv';
-  document.getElementById('btnExportXlsx').href = '/api/atex-attachments/'+id+'/export.xlsx';
-  // load attachments
-  await loadAttachments(id);
-  const el = document.getElementById('equipModal');
-  bootstrap.Modal.getOrCreateInstance(el).show();
-}
-async function loadAttachments(id){
-  const r = await fetch('/api/atex-attachments/'+id);
-  const list = await r.json();
-  _attList = Array.isArray(list) ? list : [];
-  const grid = document.getElementById('attGrid');
-  grid.innerHTML = '';
-  _attList.forEach((a,idx)=>{
-    const col = document.createElement('div'); col.className = 'col-6 col-md-3';
-    const card = document.createElement('div'); card.className = 'border rounded p-2 h-100';
-    const isImg = /^image\//.test(a.mime || '') || /\.(png|jpe?g|webp|gif)$/i.test(a.name||'');
-    const isPdf = (a.mime === 'application/pdf') || /\.pdf$/i.test(a.name||'');
-    if (isImg){
-      card.innerHTML = '<div class="ratio ratio-1x1 mb-2"><img src="'+a.url+'" alt="'+(a.name||'')+'" class="w-100 h-100 object-fit-cover rounded" onclick="openAttachment('+idx+')"></div>';
-    } else if (isPdf){
-      card.innerHTML = '<div class="ratio ratio-1x1 mb-2 d-flex align-items-center justify-content-center bg-light rounded" onclick="openAttachment('+idx+')">PDF</div>';
-    } else {
-      card.innerHTML = '<div class="ratio ratio-1x1 mb-2 d-flex align-items-center justify-content-center bg-light rounded" onclick="openAttachment('+idx+')">Fichier</div>';
+  <script>
+    if (window.lucide){ window.lucide.createIcons(); }
+
+    const API = {
+      secteurs: '/api/atex-secteurs',
+      equipments: '/api/atex-equipments',
+      equipment: (id) => '/api/atex-equipments/' + id,
+      importExcel: '/api/atex-import-excel',
+      importColumns: '/api/atex-import-columns',
+      importCsvTpl: '/api/atex-import-template',
+      importXlsxTpl: '/api/atex-import-template.xlsx',
+      inspect: '/api/atex-inspect',
+      help: (id) => '/api/atex-help/' + id,
+      chat: '/api/atex-chat',
+      photo: (id) => '/api/atex-photo/' + id
+    };
+
+    let equipments = [];
+    let currentIA = null;
+    const CHAT_KEY = 'atexIAHistoryV6';
+    const AUTO_CONTEXT_KEY = 'atexAutoContext';
+    const LAST_TYPE_KEY = 'atexLastType';
+
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+    function showToast(message, variant='primary'){
+      const id='t'+Date.now();
+      const html = `
+        <div id="${id}" class="toast text-bg-${variant} border-0 mb-2" role="alert">
+          <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+          </div>
+        </div>`;
+      $('#toasts').insertAdjacentHTML('beforeend', html);
+      const t = new bootstrap.Toast($('#'+id), {delay:3000}); t.show();
+      setTimeout(()=> $('#'+id)?.remove(), 3500);
     }
-    const footer = document.createElement('div');
-    footer.className = 'd-flex align-items-center justify-content-between';
-    footer.innerHTML = '<small class="text-truncate me-2" style="max-width:160px">'+(a.name||'')+'</small>'
-      + '<button class="btn btn-sm btn-outline-danger" onclick="removeAttachment(\''+a.id+'\')">Suppr</button>';
-    card.appendChild(footer);
-    col.appendChild(card);
-    grid.appendChild(col);
-  });
-}
-async function uploadAttachments(){
-  if (!currentEquipId) return;
-  const input = document.getElementById('attFiles');
-  if (!input.files || !input.files.length) return;
-  const fd = new FormData();
-  Array.from(input.files).forEach(f => fd.append('files', f));
-  await fetch('/api/atex-attachments/'+currentEquipId, { method:'POST', body:fd });
-  await loadAttachments(currentEquipId);
-  await loadList();
-}
-async function removeAttachment(attId){
-  if (!currentEquipId) return;
-  await fetch('/api/atex-attachments/'+currentEquipId+'/'+attId, { method:'DELETE' });
-  await loadAttachments(currentEquipId);
-  await loadList();
-}
 
-// ---------- IA ----------
-async function openIA(id){
-  const r = await fetch('/api/atex-help/'+id);
-  if (!r.ok) { alert('Aucune analyse IA disponible'); return; }
-  const json = await r.json();
-  const html = String(json.response || '');
-  const m = document.createElement('div');
-  m.className = 'modal fade';
-  m.innerHTML = '<div class="modal-dialog modal-lg"><div class="modal-content">'
-    + '<div class="modal-header"><h5 class="modal-title">Analyse IA</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>'
-    + '<div class="modal-body">'+html+'</div>'
-    + '</div></div>';
-  document.body.appendChild(m);
-  const mdl = new bootstrap.Modal(m);
-  mdl.show();
-  m.addEventListener('hidden.bs.modal', ()=> m.remove(), { once:true });
-}
+    function fmtDate(d){
+      if(!d) return 'N/A';
+      const date = new Date(d); if(isNaN(date)) return d;
+      const dd=String(date.getDate()).padStart(2,'0'), mm=String(date.getMonth()+1).padStart(2,'0'), yyyy=date.getFullYear();
+      return `${dd}-${mm}-${yyyy}`;
+    }
+    function addYearsISO(dateISO, nbYears){
+      const d = new Date(dateISO);
+      if (isNaN(d)) return null;
+      d.setFullYear(d.getFullYear() + (nbYears||0));
+      return d.toISOString();
+    }
+    function stripCodeFences(s){
+      if(typeof s!=='string') return '';
+      return s.replace(/(?:html)?\s*[\r\n]?/gi,'').replace(/$/,'').trim();
+    }
+    function renderIAContent(el, raw){
+      let s = stripCodeFences(raw || '').trim();
+      const looksHTML = /<\/?[a-z][\s\S]*>/i.test(s);
+      if(!looksHTML){
+        s = s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\r?\n/g,"<br>");
+      }
+      el.innerHTML = s;
+    }
 
-// ---------- Save (simplified) ----------
-async function saveEquip(){
-  const payload = {
-    composant: document.getElementById('f_composant').value,
-    secteur: document.getElementById('secteur-input').value,
-    marquage_atex: document.getElementById('f_marquage').value,
-    zone_gaz: document.getElementById('f_zoneg').value,
-    zone_poussiere: document.getElementById('f_zoned').value
-  };
-  if (currentEquipId){
-    await fetch('/api/atex-equipments/'+currentEquipId, { method:'PUT', body: toForm(payload) });
-  } else {
-    await fetch('/api/atex-equipments', { method:'POST', body: toForm(payload) });
-  }
-  loadList();
-}
+    function computeStatus(nextDate){
+      if(!nextDate) return 'ok';
+      const d = new Date(nextDate); if(isNaN(d)) return 'ok';
+      const today = new Date(); today.setHours(0,0,0,0);
+      const dn = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const diffDays = Math.round((dn - today)/(1000*60*60*24));
+      if (diffDays < 0) return 'late';
+      if (diffDays === 0) return 'today';
+      if (diffDays <= 30) return 'soon';
+      return 'ok';
+    }
+    function statusBadge(st){
+      if(st==='late') return '<span class="badge badge-st late">En retard</span>';
+      if(st==='today') return '<span class="badge badge-st today">Aujourd’hui</span>';
+      if(st==='soon') return '<span class="badge badge-st soon">Bientôt</span>';
+      return '<span class="badge badge-st ok">OK</span>';
+    }
 
-function toForm(obj){
-  const fd = new FormData();
-  Object.keys(obj).forEach(k => fd.append(k, obj[k] ?? ''));
-  return fd;
-}
+    // ===== PERSISTANCE =====
+    function getChatHistory(){ try{ return JSON.parse(localStorage.getItem(CHAT_KEY) || '[]'); }catch{return []} }
+    function setChatHistory(h){ localStorage.setItem(CHAT_KEY, JSON.stringify(h)); }
+    function addToHistory(item){
+      const h=getChatHistory();
+      const idx = h.findIndex(x=>x.id===item.id);
+      if (idx>=0) h[idx]=item; else h.unshift(item);
+      setChatHistory(h.slice(0,300));
+      renderHistory(); renderHistoryChat();
+    }
+    function getAutoContext(){ try{ return JSON.parse(localStorage.getItem(AUTO_CONTEXT_KEY) || '{}'); }catch{return {}} }
+    function setAutoContext(obj){ localStorage.setItem(AUTO_CONTEXT_KEY, JSON.stringify(obj||{})); }
+    function getLastType(){ try{ return JSON.parse(localStorage.getItem(LAST_TYPE_KEY) || '{}'); }catch{return {}} }
+    function setLastType(obj){ localStorage.setItem(LAST_TYPE_KEY, JSON.stringify(obj||{})); }
+
+    // ===== INIT =====
+    document.addEventListener('DOMContentLoaded', () => {
+      $('#btnApplyFilters').addEventListener('click', applyFilters);
+      $('#btnClearFilters').addEventListener('click', clearFilters);
+      $('#btnSync').addEventListener('click', loadEquipments);
+      $('#chkAll').addEventListener('change', toggleAll);
+      $('#btnBulkDelete').addEventListener('click', openBulkDelete);
+      $('#btnSave').addEventListener('click', saveEquipment);
+      $('#btnCancel').addEventListener('click', ()=>{ document.getElementById('list-tab').click(); });
+      $('#btnAddSecteur').addEventListener('click', openModalSecteur);
+      $('#btnFillBatLocal').addEventListener('click', prefillBatLocal);
+      $('#btnDupLast').addEventListener('click', fillFromLastType);
+      $('#btnImport').addEventListener('click', importExcel);
+      $('#btnClearChat').addEventListener('click', clearChatHistory);
+      $('#btnReanalyse').addEventListener('click', () => currentIA && openIA(currentIA, {forceReload:true, openChat:true}));
+      $('#btnCopier').addEventListener('click', copyChat);
+      $('#btnSend').addEventListener('click', sendChatFromTab);
+
+      $('#btnOpenInChat').addEventListener('click', () => {
+        const off = bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('iaPanel'));
+        off.hide();
+        const h = getChatHistory();
+        let idx = h.findIndex(x => x.id === currentIA);
+        if (idx < 0) idx = 0;
+        document.getElementById('chat-tab').click();
+        setTimeout(() => { if (h.length) selectHistoryChat(idx); }, 50);
+      });
+      $('#btnClearChat2').addEventListener('click', clearChatHistory);
+      $('#iaSend').addEventListener('click', sendChatFromPanel);
+
+      document.getElementById('chat-tab').addEventListener('shown.bs.tab', () => {
+        const h = getChatHistory();
+        if (!h.length) return;
+        let idx = h.findIndex(x => x.id === currentIA);
+        if (idx < 0) idx = 0;
+        selectHistoryChat(idx);
+      });
+
+      loadSecteurs();
+      loadEquipments();
+      renderHistory(); renderHistoryChat();
+    });
+
+    // ===== LISTE =====
+    function hasIAHistory(id){
+      const h = getChatHistory();
+      const it = h.find(x=>x.id===id);
+      if (!it) return false;
+      const hasContent = !!(it.content && it.content.trim());
+      const hasThread  = Array.isArray(it.thread) && it.thread.length>0;
+      return hasContent || hasThread;
+    }
+
+    async function loadEquipments(){
+      try{
+        const r = await fetch(API.equipments);
+        if(!r.ok) throw new Error('Erreur chargement');
+        equipments = await r.json();
+
+        // Fallback prochaine date
+        equipments = (equipments||[]).map(eq=>{
+          if (!eq.next_inspection_date && eq.last_inspection_date){
+            const freq = Number(eq.frequence)||3;
+            const iso = addYearsISO(eq.last_inspection_date, freq);
+            if (iso) eq.next_inspection_date = iso;
+          }
+          return eq;
+        });
+
+        buildFilterLists();
+        renderTable();
+      }catch(e){ showToast('Erreur: '+(e.message||e),'danger'); }
+    }
+
+    function renderTable(list=equipments){
+      const tbody = $('#equipmentsTable'); tbody.innerHTML='';
+      list.forEach(eq=>{
+        const zg = eq.zone_gaz || (['0','1','2'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
+        const zd = (eq.zone_poussieres || eq.zone_poussiere) || (['20','21','22'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
+        const risk = eq.risque ?? '—';
+        const isNC = String(eq.conformite||'').toLowerCase().includes('non');
+        const confBadge = isNC ? `<span class="badge-conf ko">Non&nbsp;Conforme</span>` : `<span class="badge-conf ok">Conforme</span>`;
+        const st = computeStatus(eq.next_inspection_date);
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><input type="checkbox" class="rowchk" data-id="${eq.id}"></td>
+          <td>${eq.id ?? ''}</td>
+          <td>${eq.composant || ''}</td>
+          <td>${eq.secteur || ''}</td>
+          <td>${eq.batiment || ''}</td>
+          <td>${eq.local || ''}</td>
+          <td>${zg || '—'}</td>
+          <td>${zd || '—'}</td>
+          <td class="col-conf">${confBadge}</td>
+          <td>${statusBadge(st)}</td>
+          <td>${risk}</td>
+          <td>${fmtDate(eq.last_inspection_date)}</td>
+          <td>${fmtDate(eq.next_inspection_date)}</td>
+          <td>${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" onclick="openPhoto('${encodeURIComponent(eq.photo)}')">` : '<span class="text-muted">—</span>'}</td>
+          <td class="actions">
+            <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(${eq.id})" title="Éditer"><i data-lucide="edit-3"></i></button>
+            <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${eq.id}, '${(eq.composant||'').replace(/'/g,"\\'")}')" title="Supprimer"><i data-lucide="trash-2"></i></button>
+            <button class="btn btn-sm ${eq.has_ia_history ? 'btn-success' : 'btn-outline-secondary'}" onclick="openIA(${eq.id})" title="IA Analysis"><i data-lucide="sparkles"></i> IA</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      window.lucide?.createIcons();
+      $$('.rowchk').forEach(c => c.addEventListener('change', updateBulkBtn));
+    }
+
+    // ===== FILTRES =====
+    const activeFilters = { secteurs: new Set(), batiments: new Set(), conformites: new Set(), statut: new Set(), text: '' };
+    function buildFilterLists(){
+      const secteurs = [...new Set(equipments.map(e=>e.secteur).filter(Boolean))].sort();
+      const bats = [...new Set(equipments.map(e=>e.batiment).filter(Boolean))].sort();
+
+      const secBox = $('#dd-secteurs'); secBox.innerHTML='';
+      secteurs.forEach((s,i)=>{
+        const id='cks_'+i;
+        secBox.insertAdjacentHTML('beforeend', `<div class="form-check"><input class="form-check-input" type="checkbox" value="${s}" id="${id}"><label class="form-check-label" for="${id}">${s}</label></div>`);
+      });
+      secBox.querySelectorAll('input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.secteurs, inp.value, inp.checked)));
+
+      const batBox = $('#dd-batiments'); batBox.innerHTML='';
+      bats.forEach((s,i)=>{
+        const id='ckb_'+i;
+        batBox.insertAdjacentHTML('beforeend', `<div class="form-check"><input class="form-check-input" type="checkbox" value="${s}" id="${id}"><label class="form-check-label" for="${id}">${s}</label></div>`);
+      });
+      batBox.querySelectorAll('input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.batiments, inp.value, inp.checked)));
+
+      $$('#dd-conformite input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.conformites, inp.value, inp.checked)));
+      $$('#dd-statut input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.statut, inp.value, inp.checked)));
+
+      $('#filterText').addEventListener('input', (e)=>{ activeFilters.text = e.target.value.toLowerCase(); renderPills(); applyFilters(); });
+      renderPills();
+    }
+    function toggleFilterSet(set, value, checked){ if(checked) set.add(value); else set.delete(value); renderPills(); }
+    function clearFilters(){
+      activeFilters.secteurs.clear(); activeFilters.batiments.clear();
+      activeFilters.conformites.clear(); activeFilters.statut.clear(); activeFilters.text='';
+      $$('#dd-secteurs input, #dd-batiments input, #dd-conformite input, #dd-statut input').forEach(i=>i.checked=false);
+      $('#filterText').value=''; renderPills(); applyFilters();
+    }
+    function renderPills(){
+      const box = $('#activePills'); box.innerHTML='';
+      const pill = (l)=>`<span class="badge text-bg-light">${l}</span>`;
+      activeFilters.secteurs.forEach(s=> box.insertAdjacentHTML('beforeend', pill('Secteur: '+s)));
+      activeFilters.batiments.forEach(s=> box.insertAdjacentHTML('beforeend', pill('Bâtiment: '+s)));
+      activeFilters.conformites.forEach(s=> box.insertAdjacentHTML('beforeend', pill('Conf: '+s)));
+      activeFilters.statut.forEach(s=> {
+        const m = {late:'En retard', today:'Aujourd’hui', soon:'Bientôt', ok:'OK'}; box.insertAdjacentHTML('beforeend', pill('Statut: '+(m[s]||s)));
+      });
+      if (activeFilters.text) box.insertAdjacentHTML('beforeend', pill('Texte: '+activeFilters.text));
+    }
+    function applyFilters(){
+      let filtered = equipments.slice();
+      if(activeFilters.secteurs.size) filtered = filtered.filter(e=> activeFilters.secteurs.has(e.secteur));
+      if(activeFilters.batiments.size) filtered = filtered.filter(e=> activeFilters.batiments.has(e.batiment));
+      if(activeFilters.conformites.size) filtered = filtered.filter(e=> activeFilters.conformites.has(e.conformite));
+      if(activeFilters.statut.size) filtered = filtered.filter(e=> activeFilters.statut.has(computeStatus(e.next_inspection_date)));
+      if(activeFilters.text) filtered = filtered.filter(e=>{
+        const blob = [e.composant,e.type,e.marquage_atex,e.identifiant,e.comments].join(' ').toLowerCase();
+        return blob.includes(activeFilters.text);
+      });
+      renderTable(filtered);
+    }
+
+    // ===== BULK DELETE =====
+    function updateBulkBtn(){ const sel = $$('.rowchk:checked').map(i=>+i.dataset.id); $('#btnBulkDelete').disabled = sel.length===0; }
+    function toggleAll(e){ const checked = e.target.checked; $$('.rowchk').forEach(c=>{ c.checked = checked; }); updateBulkBtn(); }
+    function openBulkDelete(){
+      const sel = $$('.rowchk:checked').map(i=>+i.dataset.id);
+      if(!sel.length) return;
+      $('#deleteMsg').textContent = `Supprimer ${sel.length} équipement(s) sélectionné(s) ?`;
+      $('#deleteMeta').textContent = 'IDs: ' + sel.join(', ');
+      bootstrap.Modal.getOrCreateInstance($('#deleteModal')).show();
+      $('#confirmDeleteBtn').onclick = ()=>confirmBulkDelete(sel);
+    }
+    async function confirmBulkDelete(ids){
+      try{
+        await Promise.all(ids.map(id => fetch(API.equipment(id), {method:'DELETE'})));
+        showToast('Suppression en masse OK','success');
+        await loadEquipments();
+      }catch(e){ showToast('Erreur suppression masse: '+(e.message||e),'danger'); }
+      finally{ bootstrap.Modal.getOrCreateInstance($('#deleteModal')).hide(); }
+    }
+
+    // ===== SECTEURS / PREFILL =====
+    async function loadSecteurs(){
+      try{
+        const r = await fetch(API.secteurs);
+        const secteurs = await r.json();
+        const sel = $('#secteur-input');
+        sel.innerHTML = '<option value="" disabled selected>— Sélectionner —</option>';
+        secteurs.forEach(s=>{
+          const name = (typeof s === 'string') ? s : (s && s.name) ? s.name : '';
+          if(!name) return;
+          const o=document.createElement('option'); o.value=name; o.text=name; sel.appendChild(o);
+        });
+      }catch{}
+    }
+    function openModalSecteur(){
+      const html=`
+      <div class="modal fade" id="modalSecteur" tabindex="-1">
+        <div class="modal-dialog"><div class="modal-content">
+          <div class="modal-header"><h5 class="modal-title">Nouveau secteur</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+          <div class="modal-body">
+            <input id="newSecteurName" class="form-control" placeholder="Nom du secteur">
+            <div id="secteurSaveMsg" class="small-muted mt-2"></div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+            <button class="btn btn-primary" id="saveSecteurBtn">Enregistrer</button>
+          </div>
+        </div></div>
+      </div>`;
+      document.body.insertAdjacentHTML('beforeend', html);
+      const el = $('#modalSecteur'), modal = new bootstrap.Modal(el); modal.show();
+      el.querySelector('#saveSecteurBtn').addEventListener('click', async ()=>{
+        const name=(el.querySelector('#newSecteurName').value||'').trim();
+        if(!name){ el.querySelector('#secteurSaveMsg').textContent='Nom requis.'; return; }
+        try{
+          const r = await fetch(API.secteurs,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+          if(!r.ok) throw new Error('Erreur API');
+          await loadSecteurs(); $('#secteur-input').value=name; showToast('Secteur enregistré','success'); modal.hide(); el.remove();
+        }catch(err){ el.querySelector('#secteurSaveMsg').textContent='Erreur: '+(err.message||err); }
+      }, {once:true});
+      el.addEventListener('hidden.bs.modal', ()=> el.remove(), {once:true});
+    }
+    function prefillBatLocal(){
+      const ctx = getAutoContext();
+      const secteur = $('#secteur-input').value || '';
+      const last = ctx[secteur] || {};
+      if(last.batiment) $('#batiment-input').value = last.batiment;
+      if(last.local) $('#local-input').value = last.local;
+    }
+    function fillFromLastType(){
+      const last = getLastType();
+      if(last.composant) $('#composant-input').value = last.composant;
+      if(last.fournisseur) $('#fournisseur-input').value = last.fournisseur;
+      if(last.type) $('#type-input').value = last.type;
+      showToast('Champs remplis depuis le dernier type enregistré.','info');
+    }
+
+    // ===== ENREGISTREMENT =====
+    async function resizeImageToDataURL(file, maxW=1600, maxH=1600, quality=0.85){
+      return await new Promise((resolve,reject)=>{
+        if(!file || !file.type.startsWith('image/')) return resolve(null);
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = ()=>{
+          let {width:w, height:h} = img;
+          const ratio = Math.min(maxW/w, maxH/h, 1);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(w*ratio);
+          canvas.height = Math.round(h*ratio);
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img,0,0,canvas.width,canvas.height);
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          URL.revokeObjectURL(url);
+          resolve(dataUrl);
+        };
+        img.onerror = reject;
+        img.src = url;
+      });
+    }
+    async function uploadPhotoMultipart(id, file){
+      const fd = new FormData(); fd.append('photo', file);
+      const r = await fetch(API.photo(id), { method: 'POST', body: fd });
+      if(!r.ok) throw new Error('Upload photo: '+r.status);
+      return await r.json();
+    }
+    async function saveEquipment(){
+      const required=['secteur-input','local-input','composant-input','fournisseur-input','type-input','marquage_atex-input'];
+      const missing=required.filter(id=>!$('#'+id).value);
+      if(missing.length){ showToast('Champs manquants : '+missing.join(', '),'warning'); return; }
+
+      const id = $('#equipId').value || null;
+      const zone_g = $('#zone-g-input').value || '';
+      const zone_d = $('#zone-d-input').value || '';
+
+      // mémos
+      const secteur = $('#secteur-input').value;
+      const ctx = getAutoContext(); ctx[secteur] = { batiment: $('#batiment-input').value, local: $('#local-input').value }; setAutoContext(ctx);
+      setLastType({ composant: $('#composant-input').value, fournisseur: $('#fournisseur-input').value, type: $('#type-input').value });
+
+      const file = $('#photo-input').files[0] || null;
+      let photoBase64 = null;
+      if (file && file.size > 180*1024 && id) {
+        try { await uploadPhotoMultipart(id, file); showToast('Photo envoyée (multipart)','success'); }
+        catch (e) { showToast('Échec upload photo: '+(e.message||e),'danger'); }
+      } else if (file) {
+        photoBase64 = await resizeImageToDataURL(file);
+      }
+
+      const data = {
+        secteur, batiment: $('#batiment-input').value, local: $('#local-input').value,
+        composant: $('#composant-input').value, fournisseur: $('#fournisseur-input').value,
+        type: $('#type-input').value, identifiant: $('#identifiant-input').value,
+        marquage_atex: $('#marquage_atex-input').value, comments: $('#comments-input').value,
+        zone_gaz: zone_g || null, zone_poussieres: zone_d || null, zone_poussiere: zone_d || null,
+        photo: photoBase64
+      };
+
+      const method = id ? 'PUT' : 'POST';
+      const url = id ? API.equipment(id) : API.equipments;
+
+      try{
+        const r = await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+        if(!r.ok) {
+          const errTxt = await r.text();
+          if (r.status===413 || /trop volumineuse|too large/i.test(errTxt)) {
+            showToast('Image trop lourde. Enregistre, puis ré‑ajoute la photo (multipart).','warning');
+          } else {
+            throw new Error('Erreur enregistrement');
+          }
+        }
+        const saved = await r.json();
+        if (!id && file && file.size > 180*1024 && saved?.id) { await uploadPhotoMultipart(saved.id, file); }
+
+        const last = $('#last-inspection-input').value;
+        if(last){
+          await fetch(API.inspect,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({equipment_id:saved.id,status:'done',inspection_date:last})});
+        }
+        showToast('Équipement sauvegardé.','success');
+        await loadEquipments(); document.getElementById('list-tab').click();
+      }catch(e){ showToast('Erreur: '+(e.message||e),'danger'); }
+    }
+
+    async function editEquipment(id){
+      try{
+        const r = await fetch(API.equipment(id)); if(!r.ok) throw new Error('Erreur chargement équipement');
+        const eq = await r.json();
+        $('#equipId').value = eq.id;
+        $('#secteur-input').value = eq.secteur || '';
+        $('#batiment-input').value = eq.batiment || '';
+        $('#local-input').value = eq.local || '';
+        $('#zone-g-input').value = eq.zone_gaz || (['0','1','2'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
+        $('#zone-d-input').value = (eq.zone_poussieres || eq.zone_poussiere) || (['20','21','22'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
+        $('#composant-input').value = eq.composant || '';
+        $('#fournisseur-input').value = eq.fournisseur || '';
+        $('#type-input').value = eq.type || '';
+        $('#identifiant-input').value = eq.identifiant || '';
+        $('#marquage_atex-input').value = eq.marquage_atex || '';
+        $('#comments-input').value = eq.comments || '';
+        $('#last-inspection-input').value = eq.last_inspection_date ? new Date(eq.last_inspection_date).toISOString().slice(0,10) : '';
+        $('#add-tab').click();
+      }catch(e){ showToast('Erreur édition: '+(e.message||e),'danger'); }
+    }
+
+    // SUPPRESSION simple
+    let toDeleteId = null;
+    function openDeleteModal(id, label=''){
+      toDeleteId=id;
+      $('#deleteMsg').textContent = 'Voulez-vous vraiment supprimer cet équipement ATEX ?';
+      $('#deleteMeta').textContent = label ? `Équipement : ${label} (ID ${id})` : `ID ${id}`;
+      bootstrap.Modal.getOrCreateInstance($('#deleteModal')).show();
+      $('#confirmDeleteBtn').onclick = confirmDeleteOne;
+    }
+    async function confirmDeleteOne(){
+      if(!toDeleteId) return;
+      try{
+        const r = await fetch(API.equipment(toDeleteId), {method:'DELETE'});
+        if(!r.ok) throw new Error('Erreur suppression');
+        showToast('Supprimé !','success'); await loadEquipments();
+      }catch(e){ showToast('Erreur: '+(e.message||e),'danger'); }
+      finally{
+        bootstrap.Modal.getOrCreateInstance($('#deleteModal')).hide(); toDeleteId=null;
+      }
+    }
+    window.openDeleteModal = openDeleteModal;
+
+    // IMPORT
+    async function importExcel(){
+      const f = $('#excelFile').files[0];
+      if(!f) return showToast('Sélectionnez un fichier (CSV/Excel)','warning');
+      const fd = new FormData(); fd.append('excel', f);
+      try{
+        const r = await fetch(API.importExcel,{method:'POST',body:fd});
+        if(!r.ok) throw new Error('Erreur import');
+        showToast('Import réussi !','success'); await loadEquipments();
+      }catch(e){ showToast('Erreur import: '+(e.message||e),'danger'); }
+    }
+
+    // IA (inchangé hors contenus)
+    function renderBadges(eq){
+      const box = document.querySelector('#iaPanel .ia-badges'); box.innerHTML='';
+      const wrap = document.createElement('div');
+      wrap.className='ia-badges';
+      wrap.innerHTML = `
+        <span class="badge ${String(eq.conformite||'').toLowerCase().includes('non')?'text-bg-danger':'text-bg-success'}">${eq.conformite||'N/A'}</span>
+        <span class="badge text-bg-secondary">Risque ${eq.risque ?? '-'}</span>
+        <span class="badge text-bg-secondary">G:${eq.zone_gaz||'-'} / D:${eq.zone_poussieres||'-'}</span>
+      `;
+      document.querySelector('#iaPanel .ia-badges').replaceWith(wrap);
+    }
+    function getThread(id){ const h=getChatHistory(); const it=h.find(x=>x.id===id); return (it && it.thread)||[]; }
+    function setThread(id, thread){
+      const h=getChatHistory(); let it=h.find(x=>x.id===id);
+      if(!it){ it={id, content:'', meta:{}, thread:[], enriched:null, composant:'Équipement', date:new Date().toISOString()}; h.unshift(it); }
+      it.thread = thread; setChatHistory(h);
+    }
+    function renderThread(el, thread){
+      el.innerHTML = '';
+      thread.forEach(m=>{
+        const div = document.createElement('div');
+        div.className = 'msg ' + (m.role==='user'?'user':'ia');
+        if(m.role==='assistant'){
+          const holder = document.createElement('div');
+          renderIAContent(holder, m.content);
+          div.innerHTML = holder.innerHTML;
+        }else{
+          div.textContent = m.content;
+        }
+        el.appendChild(div);
+      });
+      el.scrollTop = el.scrollHeight;
+    }
+    function buildLocalEnrichmentChat(eq){
+      // … (identique à ta version précédente, conservé) …
+      return { reasons:[], palliatives:[], preventives:[], refs:[], costs:[] };
+    }
+    async function openIA(id, opts={}){
+      currentIA = id;
+      const off = bootstrap.Offcanvas.getOrCreateInstance($('#iaPanel')); off.show();
+      $('#iaHeader').textContent = ''; $('#iaDetails').style.display='none'; $('#iaLoading').style.display='block';
+
+      try{
+        const [eqR, helpR] = await Promise.all([ fetch(API.equipment(id)), fetch(API.help(id)) ]);
+        if(!eqR.ok) throw new Error('Équipement introuvable');
+        const eq = await eqR.json();
+        const help = await helpR.json();
+
+        $('#iaHeader').textContent = `${eq.composant || 'Équipement'} — ID ${eq.id} • Dernière: ${fmtDate(eq.last_inspection_date)} • Prochaine: ${fmtDate(eq.next_inspection_date)}`;
+        renderBadges(eq);
+
+        const cleaned = stripCodeFences(help?.response || 'Aucune analyse IA disponible.');
+        renderIAContent(document.getElementById('iaDetails'), cleaned);
+
+        try { const enr = buildLocalEnrichmentChat(eq); document.getElementById('chatEnriched').style.display='block'; } catch(_){}
+
+        addToHistory({
+          id: eq.id, composant: eq.composant || 'Équipement', date: new Date().toISOString(),
+          content: cleaned, enriched: null,
+          meta: { conformite: eq.conformite || 'N/A', risque: eq.risque ?? '-', zone_g: eq.zone_gaz||'-', zone_d: eq.zone_poussieres||'-', last: fmtDate(eq.last_inspection_date), next: fmtDate(eq.next_inspection_date) },
+          thread: getThread(eq.id)
+        });
+
+        $('#iaLoading').style.display='none'; $('#iaDetails').style.display='block';
+        renderThread(document.getElementById('iaThread'), getThread(eq.id));
+
+        if(opts.openChat){ document.getElementById('chat-tab').click(); setTimeout(()=>selectHistoryChat(0),60); }
+      }catch(e){
+        $('#iaLoading').style.display='none';
+        $('#iaDetails').style.display='block';
+        renderIAContent(document.getElementById('iaDetails'), `<div class="alert alert-danger">Erreur IA: ${e.message||e}</div>`);
+      }
+    }
+    window.openIA = openIA;
+
+    function renderHistory(activeId=null){
+      const list = $('#iaHistoryList'); list.innerHTML='';
+      const h=getChatHistory(); if(!h.length){ list.innerHTML='<li class="list-group-item text-muted">Aucun historique.</li>'; return; }
+      h.forEach((it,idx)=>{
+        const li=document.createElement('li');
+        li.className='list-group-item ia-item'+(it.id===activeId?' active':'');
+        li.textContent = `${it.composant || 'Équipement'} • ${new Date(it.date).toLocaleString('fr-FR')}`;
+        li.title='Réouvrir cette analyse';
+        li.onclick = ()=> {
+          renderIAContent(document.getElementById('iaDetails'), it.content);
+          renderThread(document.getElementById('iaThread'), it.thread||[]);
+          $$('#iaHistoryList .ia-item').forEach(x=>x.classList.remove('active'));
+          li.classList.add('active'); currentIA = it.id;
+          document.getElementById('chat-tab').click();
+          selectHistoryChat(idx);
+        };
+        list.appendChild(li);
+      });
+    }
+    function renderHistoryChat(){
+      const list = $('#iaHistoryListChat'); list.innerHTML='';
+      const h=getChatHistory(); if(!h.length){ list.innerHTML='<li class="list-group-item text-muted">Aucun historique.</li>'; return; }
+      h.forEach((it,idx)=>{
+        const li=document.createElement('li');
+        li.className='list-group-item d-flex flex-column';
+        li.style.cursor='pointer';
+        li.innerHTML = `<div><strong>${it.composant || 'Équipement'}</strong></div><div class="small-muted">${new Date(it.date).toLocaleString('fr-FR')}</div>`;
+        li.onclick = ()=> selectHistoryChat(idx);
+        list.appendChild(li);
+      });
+    }
+    function selectHistoryChat(index){
+      const h=getChatHistory(); const it=h[index]; if(!it) return;
+      currentIA = it.id;
+      document.getElementById('chatHeader').textContent = `${it.composant || 'Équipement'} — ID ${it.id} • Dernière: ${it.meta?.last||'-'} • Prochaine: ${it.meta?.next||'-'}`;
+      renderIAContent(document.getElementById('chatHtml'), it.content || '—'); document.getElementById('chatEnriched').style.display='block'; try{ buildLocalEnrichmentChat({ conformite: it.meta?.conformite, zone_gaz: it.meta?.zone_g, zone_poussieres: it.meta?.zone_d, marquage_atex: '' }); }catch(_){}
+      renderThread(document.getElementById('chatThread'), it.thread||[]);
+    }
+    function clearChatHistory(){
+      setChatHistory([]); document.getElementById('iaDetails').innerHTML=''; document.getElementById('chatHtml').innerHTML='';
+      document.getElementById('chatHeader').textContent=''; document.getElementById('chatThread').innerHTML='';
+      renderHistory(); renderHistoryChat(); showToast('Historique effacé','info');
+    }
+    function copyChat(){
+      const text = (document.getElementById('chatHtml').innerText || '') + '\n\n' + (document.getElementById('chatThread').innerText || '');
+      navigator.clipboard.writeText(text).then(()=>showToast('Contenu copié','success'));
+    }
+    async function sendChatFromTab(){ const text = ($('#chatPrompt').value || '').trim(); if(!text || !currentIA) return; await sendChat(text, 'tab'); $('#chatPrompt').value=''; }
+    async function sendChatFromPanel(){ const text = ($('#iaPrompt').value || '').trim(); if(!text || !currentIA) return; await sendChat(text, 'panel'); $('#iaPrompt').value=''; }
+    async function sendChat(text, origin){
+      try{
+        const eqR = await fetch(API.equipment(currentIA)); if(!eqR.ok) throw new Error('Équipement introuvable');
+        const eq = await eqR.json();
+
+        const h = getChatHistory(); const item = h.find(x=>x.id===currentIA);
+        const historyForApi = (item?.thread || []).map(m=>({ role: m.role==='assistant'?'assistant':'user', content: m.content }));
+        const resp = await fetch(API.chat, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ question: text, equipment: null, history: historyForApi }) });
+        const data = await resp.json(); const iaText = data?.response || 'Réponse indisponible.';
+
+        const thread = getThread(currentIA); thread.push({role:'user', content:text}); thread.push({role:'assistant', content:iaText}); setThread(currentIA, thread);
+        renderThread(origin==='panel' ? document.getElementById('iaThread') : document.getElementById('chatThread'), thread);
+      }catch(e){ showToast('Erreur chat: '+(e.message||e),'danger'); }
+    }
+
+    // Photo modal
+    function openPhoto(encoded){ const src = decodeURIComponent(encoded); $('#photoModalImg').src = src; $('#photoDownload').href = src; bootstrap.Modal.getOrCreateInstance($('#photoModal')).show(); }
+    window.openPhoto = openPhoto;
+  
+    // === AutonomiX IA helpers (restored) ===
+    document.addEventListener('click', function(e){
+      if(e.target && e.target.id === 'btnPartLinks'){ e.preventDefault(); buildPartLinks(); }
+    });
+
+    function buildPartLinks(){
+      const type = (document.getElementById('partType')?.value || '').toLowerCase();
+      const holder = document.getElementById('partLinks');
+      if(!holder) return;
+      let links = [];
+      if(type === 'capteur'){
+        links = [
+          { label: 'IFM PN7092 — capteur pression ATEX', href: 'https://www.ifm.com/' },
+          { label: 'RS UK — recherche capteur pression ATEX', href: 'https://uk.rs-online.com/' }
+        ];
+      }else if(type === 'boite_e'){
+        links = [
+          { label: 'R. STAHL — Boîtes de jonction Ex e', href: 'https://r-stahl.com/' },
+          { label: 'RS UK — coffrets Ex e', href: 'https://uk.rs-online.com/' }
+        ];
+      }else if(type === 'boite_d'){
+        links = [
+          { label: 'R. STAHL — Boîtes de jonction Ex d', href: 'https://r-stahl.com/' },
+          { label: 'RS UK — coffrets Ex d', href: 'https://uk.rs-online.com/' }
+        ];
+      }else if(type === 'formation'){
+        links = [
+          { label: 'Formation / Audit ATEX (recherche)', href: 'https://www.google.com/search?q=formation+ATEX+audit' }
+        ];
+      }
+      holder.innerHTML = links.map(l => `<a class="d-block" href="${l.href}" target="_blank" rel="noopener">${l.label}</a>`).join('') || '<div class="text-muted">Aucun lien pour ce type.</div>';
+    }
+
+    function requiredCategoryForZone(zg, zd){
+      const zgNum = String(zg||'').replace(/[^0-9]/g,'') || '';
+      const zdNum = String(zd||'').replace(/[^0-9]/g,'') || '';
+      if(zgNum === '0' || zdNum === '20') return 'II 1GD';
+      if(zgNum === '1' || zdNum === '21') return 'II 2GD';
+      return 'II 3GD';
+    }
+
+    function buildDynamicSuggestions(eq){
+      const cont = document.getElementById('autoLinks');
+      if(!cont) return;
+      cont.innerHTML = '';
+      const isNC = String(eq?.conformite || '').toLowerCase().includes('non');
+      if(!isNC){ cont.innerHTML = '<div class="text-muted small">Aucune suggestion (équipement conforme).</div>'; return; }
+
+      const req = requiredCategoryForZone(eq?.zone_gaz, eq?.zone_poussieres);
+      const items = [];
+      const comp = (eq?.composant || '').toLowerCase();
+
+      if(comp.includes('pression') || comp.includes('capteur')){
+        items.push({ label: 'Capteur de pression ATEX — IFM PN7092 (réf.)', href: 'https://www.ifm.com/' });
+      }
+      items.push({ label: 'Boîte de jonction Ex e — R. STAHL', href: 'https://r-stahl.com/' });
+      items.push({ label: 'Boîte de jonction Ex d — R. STAHL', href: 'https://r-stahl.com/' });
+      items.push({ label: 'Distributeur — RS UK (recherche par référence)', href: 'https://uk.rs-online.com/' });
+
+      cont.innerHTML = `
+        <div class="small mb-2 text-muted">Catégorie requise estimée : ${req}</div>
+        ${items.map(it => `<a class="d-block" href="${it.href}" target="_blank" rel="noopener">${it.label}</a>`).join('')}
+      `;
+    }
+
+    // Override buildLocalEnrichmentChat to actually populate cards and trigger auto-links
+    if (typeof buildLocalEnrichmentChat !== 'function') {
+      // ensure function exists
+      function buildLocalEnrichmentChat(){}
+    }
+    (function(){
+      const original = buildLocalEnrichmentChat;
+      buildLocalEnrichmentChat = function(eq){
+        const reasons = [];
+        const palliatives = [];
+        const preventives = [];
+        const refs = [];
+        const costs = [];
+
+        const isNC = String(eq?.conformite || '').toLowerCase().includes('non');
+        const zg = eq?.zone_gaz || eq?.zone_type || '';
+        const zd = eq?.zone_poussieres || eq?.zone_poussiere || '';
+
+        if(isNC){ reasons.push('Non‑conformité déclarée sur la fiche.'); }
+        else { reasons.push('Aucune non‑conformité déclarée.'); }
+        if(zg) reasons.push('Présence de zone gaz: ' + zg);
+        if(zd) reasons.push('Présence de zone poussières: ' + zd);
+        if(eq?.marquage_atex) reasons.push('Marquage actuel: ' + eq.marquage_atex);
+
+        if(isNC){
+          palliatives.push('Sécuriser la zone et éviter toute source d’inflammation.');
+          palliatives.push('Mettre en place une surveillance accrue jusqu’au remplacement.');
+          preventives.push('Choisir matériel avec marquage compatible (Ex, catégorie, T‑class).');
+          preventives.push('Mettre à jour documentation & marquage local.');
+          refs.push('Directive ATEX 2014/34/UE — catégories 1/2/3 (Ga/Gb/Gc).');
+          costs.push('Capteur ATEX: £150–£350 (indicatif)');
+          costs.push('Boîte Ex e/d: £80–£250 (indicatif)');
+        }else{
+          palliatives.push('Aucune mesure palliative requise.');
+          preventives.push('Maintenir la conformité via inspection périodique.');
+        }
+
+        const mapList = (arr)=> arr.map(x=>`<li>${x}</li>`).join('') || '<li>—</li>';
+        const el = (id)=> document.getElementById(id);
+
+        if(el('chatWhy')) el('chatWhy').innerHTML = '<ul>'+mapList(reasons)+'</ul>';
+        if(el('chatPalliative')) el('chatPalliative').innerHTML = mapList(palliatives);
+        if(el('chatPreventive')) el('chatPreventive').innerHTML = mapList(preventives);
+        if(el('chatRefs')) el('chatRefs').innerHTML = mapList(refs);
+        if(el('chatCosts')) el('chatCosts').innerHTML = mapList(costs);
+
+        try { buildDynamicSuggestions(eq); } catch(e){}
+        return { reasons, palliatives, preventives, refs, costs };
+      };
+    })();
+
+    // === Attachment Viewer (Lightbox) ===
+    let _attList = [], _attIndex = 0, _attViewerModal;
+    function openAttachmentById(attId){
+      const idx = _attList.findIndex(a => a.id === attId);
+      if (idx >= 0){ _attIndex = idx; openAttachment(_attIndex); }
+    }
+    function openAttachment(index){
+      if(!_attList.length) return;
+      _attIndex = (index + _attList.length) % _attList.length;
+      const att = _attList[_attIndex];
+      const stage = document.getElementById('attViewerStage');
+      const title = document.getElementById('attViewerTitle');
+      const meta  = document.getElementById('attViewerMeta');
+      const openA = document.getElementById('attOpen');
+      stage.innerHTML = '';
+      title.textContent = att.name || 'Aperçu';
+      meta.textContent = (att.mime || 'application/octet-stream') + ' — ' + (att.name || '');
+      openA.href = att.url;
+
+      const isImg = /^image\//.test(att.mime || '') || /\.(png|jpe?g|webp|gif)$/i.test(att.name||'');
+      const isPdf = (att.mime === 'application/pdf') || /\.pdf$/i.test(att.name||'');
+
+      if (isImg){
+        const img = document.createElement('img');
+        img.src = att.url;
+        img.alt = att.name || '';
+        img.className = 'img-fluid';
+        stage.appendChild(img);
+      } else if (isPdf){
+        const iframe = document.createElement('iframe');
+        iframe.src = att.url;
+        iframe.title = att.name || 'PDF';
+        iframe.style = 'width:100%; height:100%; border:0; background:#222;';
+        stage.appendChild(iframe);
+      } else {
+        const box = document.createElement('div');
+        box.className = 'text-center text-white-50 p-4';
+        box.innerHTML = '<div class="mb-2"><i data-lucide="file"></i></div><div>Ce format ne peut pas être prévisualisé ici.</div>';
+        stage.appendChild(box);
+      }
+
+      if (window.lucide) lucide.createIcons();
+      const el = document.getElementById('attViewerModal');
+      _attViewerModal = bootstrap.Modal.getOrCreateInstance(el);
+      _attViewerModal.show();
+    }
+
+    document.addEventListener('click', (e)=>{
+      if(e.target && e.target.id === 'attPrev'){ e.preventDefault(); openAttachment(_attIndex-1); }
+      if(e.target && e.target.id === 'attNext'){ e.preventDefault(); openAttachment(_attIndex+1); }
+    });
 </script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Attachment Viewer (Lightbox) -->
+  <div class="modal fade" id="attViewerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+      <div class="modal-content bg-dark">
+        <div class="modal-header border-0">
+          <h5 class="modal-title text-white" id="attViewerTitle">Aperçu</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body d-flex align-items-center justify-content-center p-0">
+          <div id="attViewerStage" class="w-100 h-100 d-flex align-items-center justify-content-center"></div>
+        </div>
+        <div class="modal-footer border-0 justify-content-between">
+          <div class="text-white-50 small" id="attViewerMeta"></div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-light" id="attPrev"><i data-lucide="chevron-left"></i></button>
+            <button class="btn btn-outline-light" id="attNext"><i data-lucide="chevron-right"></i></button>
+            <a class="btn btn-primary" id="attOpen" href="#" target="_blank" rel="noopener">Ouvrir dans un onglet</a>
+            <button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
