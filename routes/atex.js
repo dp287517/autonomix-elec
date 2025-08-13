@@ -434,7 +434,10 @@ router.get('/atex-help/:id', async (req, res) => {
         body: 'Pour ces zones, la catégorie minimale recommandée est <strong>'+cat+'</strong>.'
       }
     ];
-    const html = '<div class="row g-3">'
+    const html = '<div class="mb-3">'
+  + '<h6 class="mb-1">Explication synthétique</h6>'
+  + '<div class="small">Ce résumé présente l’état de conformité, les raisons principales et les actions recommandées. Les quatre cartes ci‑dessous détaillent <em>Pourquoi</em>, les <em>Mesures palliatives</em>, les <em>Mesures préventives</em>, et la <em>Catégorie requise</em> estimée en fonction des zones ATEX.</div>'
+  + '</div>' + '<div class="row g-3">''
       + cards.map(c =>
         '<div class="col-md-6"><div class="border rounded p-3 h-100">'
         + '<strong>'+c.title+'</strong>'
@@ -450,4 +453,56 @@ router.get('/atex-help/:id', async (req, res) => {
   }
 });
 
+
+// -------------------- INSPECTION (fix 404) --------------------
+router.post('/atex-inspect', express.json(), async (req, res) => {
+  const pool = getPool(req);
+  try {
+    const id = Number(req.body?.equipment_id);
+    const date = req.body?.inspection_date || new Date().toISOString().slice(0,10);
+    if (!id) return res.status(400).json({ error: 'equipment_id_required' });
+    // Update last_inspection_date; trigger will roll next_inspection_date
+    await pool.query(
+      `UPDATE public.atex_equipments
+         SET last_inspection_date = $2
+       WHERE id = $1`,
+      [id, date]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('POST /atex-inspect', e);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// -------------------- PHOTO (fix 404) --------------------
+router.post('/atex-photo/:id', upload.single('photo'), async (req, res) => {
+  const pool = getPool(req);
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'bad_id' });
+    if (!req.file) return res.status(400).json({ error: 'no_file' });
+    const mime = req.file.mimetype || 'image/jpeg';
+    const dataUrl = `data:${mime};base64,${req.file.buffer.toString('base64')}`;
+    await pool.query(`UPDATE public.atex_equipments SET photo = $2 WHERE id = $1`, [id, dataUrl]);
+    res.json({ ok: true, id });
+  } catch (e) {
+    console.error('POST /atex-photo/:id', e);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
+router.get('/atex-photo/:id', async (req, res) => {
+  const pool = getPool(req);
+  try {
+    const id = Number(req.params.id);
+    const { rows } = await pool.query(`SELECT photo FROM public.atex_equipments WHERE id = $1`, [id]);
+    if (!rows.length || !rows[0].photo) return res.status(404).json({ error: 'not_found' });
+    // photo is a data URL; just return JSON for simplicity
+    res.json({ url: rows[0].photo });
+  } catch (e) {
+    console.error('GET /atex-photo/:id', e);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
 module.exports = router;
