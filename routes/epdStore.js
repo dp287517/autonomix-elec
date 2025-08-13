@@ -1,5 +1,5 @@
+// main/routes/epdStore.js — CRUD + upload (idempotent)
 
-// main/routes/epdStore.js — version robuste avec auth optionnelle (inchangé fonctionnel, petites sécurités)
 const express = require('express');
 const router = express.Router();
 const path = require('path');
@@ -8,7 +8,6 @@ const multer = require('multer');
 const crypto = require('crypto');
 const { pool } = require('../config/db');
 
-// 🔐 Auth middleware (robuste / optionnel)
 let requireAuth = (_req, _res, next) => next();
 try {
   const auth = require('../auth');
@@ -16,13 +15,12 @@ try {
     (auth && typeof auth.requireAuth === 'function' && auth.requireAuth) ||
     (typeof auth === 'function' && auth);
   if (typeof candidate === 'function') requireAuth = candidate;
-  else console.warn('[epdStore] Module auth trouvé mais sans middleware `requireAuth` fonctionnel. Routes non protégées (dev).');
+  else console.warn('[epdStore] auth module présent mais pas de middleware `requireAuth` exploitable (dev).');
 } catch {
-  console.warn('[epdStore] Module auth absent. Routes non protégées (dev).');
+  console.warn('[epdStore] auth module absent (dev).');
 }
 router.use(requireAuth);
 
-// ====== DB bootstrap
 async function ensureTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS atex_epd_docs (
@@ -58,7 +56,6 @@ async function ensureTable() {
   `);
 }
 
-// ====== Upload pièces jointes (statique: /uploads)
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -70,7 +67,7 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}_${base}${ext}`);
   }
 });
-const upload = multer({ storage, limits: { fileSize: 25 * 1024 * 1024 } }); // 25MB max
+const upload = multer({ storage, limits: { fileSize: 25 * 1024 * 1024 } });
 
 router.post('/upload', upload.array('files', 10), async (req, res) => {
   try {
@@ -84,7 +81,7 @@ router.post('/upload', upload.array('files', 10), async (req, res) => {
   }
 });
 
-// ====== CRUD EPD
+/** LIST */
 router.get('/epd', async (req, res, next) => {
   try {
     await ensureTable();
@@ -111,6 +108,7 @@ router.get('/epd', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/** CREATE */
 router.post('/epd', async (req, res, next) => {
   try {
     await ensureTable();
@@ -124,6 +122,7 @@ router.post('/epd', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/** READ */
 router.get('/epd/:id', async (req, res, next) => {
   try {
     await ensureTable();
@@ -133,6 +132,7 @@ router.get('/epd/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/** UPDATE (full) */
 router.put('/epd/:id', async (req, res, next) => {
   try {
     await ensureTable();
@@ -154,6 +154,7 @@ router.put('/epd/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/** PATCH status */
 router.patch('/epd/:id/status', async (req, res, next) => {
   try {
     await ensureTable();
@@ -169,6 +170,7 @@ router.patch('/epd/:id/status', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/** DELETE */
 router.delete('/epd/:id', async (req, res, next) => {
   try {
     await ensureTable();
