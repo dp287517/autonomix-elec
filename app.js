@@ -1,58 +1,50 @@
+// app.js
+
 const express = require('express');
-const path = require('path');
-const cors = require('cors');
 const morgan = require('morgan');
 const helmet = require('helmet');
 const compression = require('compression');
-const { pool } = require('../config/db');
-const initDb = require('../config/initDb');
-const atexRouter = require('../routes/atex');
+const cors = require('cors');
+const dotenv = require('dotenv');
 
+dotenv.config();
+
+// Chargement tolérant de la connexion DB
+let pool;
+try {
+  ({ pool } = require('./config/db')); // si db.js est dans config/
+} catch (err) {
+  console.warn('⚠️ Fichier config/db.js introuvable, tentative de chargement direct depuis la racine…');
+  ({ pool } = require('./db')); // si db.js est à la racine du projet
+}
+
+const path = require('path');
+
+// Initialisation de l'app
 const app = express();
 
-// Security & perf
+// Middlewares
+app.use(morgan('dev'));
 app.use(helmet());
 app.use(compression());
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// CORS
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
-app.use(cors({ origin: CORS_ORIGIN }));
+// Routes
+const atexRoutes = require('./routes/atex');
+app.use('/api', atexRoutes);
 
-// Body parsers
-const BODY_LIMIT = process.env.BODY_LIMIT || '5mb';
-app.use(express.json({ limit: BODY_LIMIT }));
-app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
+// Fichiers statiques
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Logging
-app.use(morgan('dev'));
-
-// Static
-app.use(express.static(path.join(__dirname, '..', 'public')));
-
-// Attach pool for legacy middlewares if needed
-app.locals.pool = pool;
-
-// Health
-app.get('/healthz', (req, res) => res.json({ ok: true }));
-
-// API routes
-app.use('/api', (req, res, next) => { req.pool = pool; next(); }, atexRouter);
-
-// Entrypoints
-app.get('/atex-control', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'atex-control.html'));
+// Route de test
+app.get('/ping', (req, res) => {
+  res.send('pong');
 });
 
-// Initialize DB then start server
+// Lancement serveur
 const PORT = process.env.PORT || 3000;
-(async () => {
-  try {
-    await initDb(pool);
-    app.listen(PORT, () => console.log(`[server] listening on http://localhost:${PORT}`));
-  } catch (e) {
-    console.error('DB init failed', e);
-    process.exit(1);
-  }
-})();
-
-module.exports = app;
+app.listen(PORT, () => {
+  console.log(`🚀 Serveur lancé sur le port ${PORT}`);
+});
