@@ -1,4 +1,4 @@
-// public/js/app_guard.js — garde front multi-compte
+// public/js/app_guard.js — multi-account aware guard for static pages
 (() => {
   const API = (window.API_BASE_URL || '') + '/api';
   const STORAGE_SEL = 'autonomix_selected_account_id';
@@ -16,18 +16,18 @@
     }catch{ return null; }
   }
 
-  window.guardApp = async function guardApp({ suite='ATEX', appKey, minTier, redirect='subscription_atex.html' }){
+  window.guardApp = async function guardApp({ suite='ATEX', minTier=0, redirect='subscription_atex.html' }){
     const accountId = Number(new URLSearchParams(window.location.search).get('account_id')) || selectedAccountId();
     const lic = await getLicense(suite, accountId);
     const tier = lic?.tier ?? 0;
-    if (tier < (minTier||0)) {
+    if (tier < minTier) {
       window.location.href = `${redirect}?account_id=${accountId || ''}`;
       return false;
     }
     return true;
   }
 
-  // Mode déclaratif via <html data-suite data-min-tier data-redirect>
+  // Declarative guard via <html data-suite data-min-tier data-redirect>
   document.addEventListener('DOMContentLoaded', async ()=>{
     const root = document.documentElement;
     const suite = root.getAttribute('data-suite');
