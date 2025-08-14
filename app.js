@@ -171,3 +171,14 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+
+// Invitations — gérer les membres & sièges
+(() => {
+  try {
+    const inviteRoutes = require('./routes/accounts_invite');
+    app.use('/api', inviteRoutes);
+    console.log('✅ Mounted /api (accounts_invite)');
+  } catch (e) {
+    console.warn('⚠️ accounts_invite route not mounted:', e?.message);
+  }
+})();
