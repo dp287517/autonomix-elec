@@ -25,10 +25,8 @@
         try {
           localStorage.removeItem(storageKey(USAGE_KEY_BASE));
           localStorage.removeItem(storageKey(LAST_ATEX_KEY_BASE));
-          // also clear any legacy global keys once
           localStorage.removeItem(USAGE_KEY_BASE);
           localStorage.removeItem(LAST_ATEX_KEY_BASE);
-          // Et reset sur le serveur aussi, si possible (on peut ajouter une route plus tard, mais pour l'instant on ignore)
           console.info('[dashboard] usage reset for', scopeSuffix());
         } catch {}
       }
@@ -42,12 +40,11 @@
     }
   }
 
-  // Nouvelle fonction : Récupérer les usages du serveur
   async function fetchUsageFromServer() {
     const token = localStorage.getItem('autonomix_token') || '';
     if (!token) return {};
     try {
-      const r = await fetch(`${API}/usage?apps=ATEX Control,EPD,IS Loop`, { // Ajoute les apps que tu veux, ou laisse vide pour toutes
+      const r = await fetch(`${API}/usage?apps=ATEX Control,EPD,IS Loop`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!r.ok) throw new Error('Erreur fetch usage');
@@ -55,11 +52,10 @@
       return serverUsage;
     } catch (e) {
       console.warn('[dashboard] Erreur fetch usage serveur:', e);
-      return {}; // Fallback à vide si erreur
+      return {};
     }
   }
 
-  // Merger local et serveur (priorité au serveur)
   function mergeUsage(local, server) {
     const merged = { ...local };
     Object.keys(server).forEach(app => {
@@ -78,11 +74,10 @@
     localStorage.setItem(storageKey(USAGE_KEY_BASE), JSON.stringify(map || {}));
   }
 
-  // Nouvelle bump : Envoie au serveur d'abord, puis update local
   async function bump(app){
     const token = localStorage.getItem('autonomix_token') || '';
+    console.log('[dashboard] Token utilisé pour bump:', token); // Log pour debug
     if (!token) {
-      // Si pas de token, fallback à local seulement
       const u = getUsage();
       const v = (u[app]?.count || 0) + 1;
       u[app] = { count: v, last: new Date().toISOString() };
@@ -91,7 +86,6 @@
     }
 
     try {
-      // Envoie au serveur
       const r = await fetch(`${API}/usage/bump`, {
         method: 'POST',
         headers: {
@@ -102,14 +96,11 @@
       });
       if (!r.ok) throw new Error('Erreur bump');
       const serverData = await r.json();
-
-      // Update local avec la réponse serveur
       const u = getUsage();
       u[app] = { count: serverData.count, last: serverData.last_at };
       setUsage(u);
     } catch (e) {
       console.warn('[dashboard] Erreur bump serveur:', e);
-      // Fallback à local si erreur
       const u = getUsage();
       const v = (u[app]?.count || 0) + 1;
       u[app] = { count: v, last: new Date().toISOString() };
@@ -122,12 +113,19 @@
     return (u[app]?.count || 0) + ' lancement' + ((u[app]?.count || 0) > 1 ? 's' : '');
   }
 
+  // Définir la fonction go AVANT son utilisation
+  async function go(href, app){
+    console.log('[dashboard] Clic sur app:', app, 'href:', href); // Log pour debug
+    await bump(app);
+    if(href && href !== '#') location.href = href;
+  }
+
   function renderSmartShortcuts(){
     const box = document.getElementById('smartShortcuts'); if(!box) return; box.innerHTML='';
     const usage = Object.entries(getUsage())
       .sort((a,b)=> (b[1].count || 0) - (a[1].count || 0))
-      .slice(0,3); // Top 3 par exemple
-    const host = box.querySelector('.host') || box; // Assume un .host ou direct
+      .slice(0,3);
+    const host = box.querySelector('.host') || box;
     usage.forEach(([app, data])=>{
       const card = document.createElement('div'); card.className='mini';
       card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
@@ -137,7 +135,7 @@
         </div>
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
       </div>`;
-      card.onclick = ()=> go('#', app); // Adapter href si besoin
+      card.onclick = () => go('#', app);
       host.appendChild(card);
     });
   }
@@ -160,7 +158,7 @@
         </div>
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
       </div>`;
-      card.onclick = ()=> go(a.href, a.key);
+      card.onclick = () => go(a.href, a.key);
       host.appendChild(card);
     });
   }
@@ -177,8 +175,7 @@
       card.addEventListener('click', async ()=>{
         if(disabled) return;
         if(group==='ATEX') localStorage.setItem(storageKey(LAST_ATEX_KEY_BASE), app);
-        await bump(app); // Utilise la nouvelle bump sync
-        if(href && href !== '#') location.href = href;
+        await go(href, app); // Utilise go directement
       });
     });
   }
@@ -194,12 +191,10 @@
 
   document.addEventListener('DOMContentLoaded', async ()=>{
     await guard();
-    // Nouvelle étape : Sync usages au chargement
     const serverUsage = await fetchUsageFromServer();
     const localUsage = getUsage();
     const merged = mergeUsage(localUsage, serverUsage);
     setUsage(merged);
-    // Rafraîchir l'affichage après sync
     setupLogout();
     wireCards();
     renderSmartShortcuts();
