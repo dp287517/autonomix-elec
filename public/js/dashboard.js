@@ -18,17 +18,17 @@
       const data = await r.json();
       currentUser = { email: data.email, account_id: data.account_id, role: data.role };
 
-      // ---- One-time migration from legacy (global) keys to namespaced keys ----
-      try {
-        const legacyUsage = localStorage.getItem(USAGE_KEY_BASE);
-        if (legacyUsage && !localStorage.getItem(storageKey(USAGE_KEY_BASE))) {
-          localStorage.setItem(storageKey(USAGE_KEY_BASE), legacyUsage);
-        }
-        const legacyLast = localStorage.getItem(LAST_ATEX_KEY_BASE);
-        if (legacyLast && !localStorage.getItem(storageKey(LAST_ATEX_KEY_BASE))) {
-          localStorage.setItem(storageKey(LAST_ATEX_KEY_BASE), legacyLast);
-        }
-      } catch {}
+      // --- optional one-shot reset via URL hash ---
+      if (location.hash && /reset-usage/i.test(location.hash)) {
+        try {
+          localStorage.removeItem(storageKey(USAGE_KEY_BASE));
+          localStorage.removeItem(storageKey(LAST_ATEX_KEY_BASE));
+          // also clear legacy global keys once
+          localStorage.removeItem(USAGE_KEY_BASE);
+          localStorage.removeItem(LAST_ATEX_KEY_BASE);
+          console.info('[dashboard] usage reset for account', currentUser.account_id);
+        } catch {}
+      }
 
       const emailEl = document.getElementById('userEmail');
       if (emailEl) emailEl.textContent = `${currentUser.email || ''} • compte #${currentUser.account_id ?? '—'} • ${currentUser.role || ''}`;
@@ -75,11 +75,7 @@
     const lastAtex = localStorage.getItem(storageKey(LAST_ATEX_KEY_BASE));
     const smartLine = document.getElementById('smartLine');
     if(smartLine){
-      if(lastAtex){
-        smartLine.textContent = `Reprendre sur ${lastAtex} (ATEX).`;
-      } else {
-        smartLine.textContent = 'Personnalisées selon tes usages récents.';
-      }
+      smartLine.textContent = lastAtex ? `Reprendre sur ${lastAtex} (ATEX).` : 'Personnalisées selon tes usages récents.';
     }
   }
 
@@ -139,7 +135,6 @@
   function setupLogout(){
     const btn=document.getElementById('logoutBtn');
     if(btn) btn.addEventListener('click', ()=>{
-      // On garde les compteurs (namespacés par account_id), pour persister d'une session à l'autre.
       localStorage.removeItem('autonomix_token');
       localStorage.removeItem('autonomix_user');
       location.href = 'login.html';
