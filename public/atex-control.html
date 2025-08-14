@@ -550,7 +550,7 @@
         <div class="col-12 d-flex gap-2 flex-wrap">
           <button class="btn btn-outline-primary" id="btnOpenInChat"><i data-lucide="panel-right-open"></i> Ouvrir dans Chat IA</button>
           <button class="btn btn-outline-danger" id="btnClearOne"><i data-lucide="trash-2"></i> Effacer discussion</button>
-          
+          \1
         </div>
       </div>
     </div>
@@ -584,7 +584,6 @@
 
     const $ = sel => document.querySelector(sel);
     const $$ = sel => Array.from(document.querySelectorAll(sel));
-    const on = (el, ev, cb, opts) => { if (el && el.addEventListener) el.addEventListener(ev, cb, opts); };
 
     function showToast(message, variant='primary'){
       const id='t'+Date.now();
@@ -660,23 +659,23 @@
 
     // ===== INIT =====
     document.addEventListener('DOMContentLoaded', () => {
-      on($('#btnApplyFilters'), 'click', applyFilters);
-      on($('#btnClearFilters'), 'click', clearFilters);
-      $('#btnSync')?.addEventListener('click', loadEquipments);
-      $('#chkAll')?.addEventListener('change', toggleAll);
-      $('#btnBulkDelete')?.addEventListener('click', openBulkDelete);
-      $('#btnSave')?.addEventListener('click', saveEquipment);
-      $('#btnCancel')?.addEventListener('click', ()=>{ document.getElementById('list-tab').click(); });
-      $('#btnAddSecteur')?.addEventListener('click', openModalSecteur);
-      $('#btnFillBatLocal')?.addEventListener('click', prefillBatLocal);
-      $('#btnDupLast')?.addEventListener('click', fillFromLastType);
-      $('#btnImport')?.addEventListener('click', importExcel);
-      $('#btnClearChat')?.addEventListener('click', clearChatHistory);
-      $('#btnReanalyse')?.addEventListener('click', () => currentIA && openIA(currentIA, {forceReload:true, openChat:true}));
-      $('#btnCopier')?.addEventListener('click', copyChat);
-      $('#btnSend')?.addEventListener('click', sendChatFromTab);
+      $('#btnApplyFilters').addEventListener('click', applyFilters);
+      $('#btnClearFilters').addEventListener('click', clearFilters);
+      $('#btnSync').addEventListener('click', loadEquipments);
+      $('#chkAll').addEventListener('change', toggleAll);
+      $('#btnBulkDelete').addEventListener('click', openBulkDelete);
+      $('#btnSave').addEventListener('click', saveEquipment);
+      $('#btnCancel').addEventListener('click', ()=>{ document.getElementById('list-tab').click(); });
+      $('#btnAddSecteur').addEventListener('click', openModalSecteur);
+      $('#btnFillBatLocal').addEventListener('click', prefillBatLocal);
+      $('#btnDupLast').addEventListener('click', fillFromLastType);
+      $('#btnImport').addEventListener('click', importExcel);
+      $('#btnClearChat').addEventListener('click', clearChatHistory);
+      $('#btnReanalyse').addEventListener('click', () => currentIA && openIA(currentIA, {forceReload:true, openChat:true}));
+      $('#btnCopier').addEventListener('click', copyChat);
+      $('#btnSend').addEventListener('click', sendChatFromTab);
 
-      $('#btnOpenInChat')?.addEventListener('click', () => {
+      $('#btnOpenInChat').addEventListener('click', () => {
         const off = bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('iaPanel'));
         off.hide();
         const h = getChatHistory();
@@ -685,10 +684,10 @@
         document.getElementById('chat-tab').click();
         setTimeout(() => { if (h.length) selectHistoryChat(idx); }, 50);
       });
-      $('#btnClearChat2')?.addEventListener('click', clearChatHistory);
-      $('#iaSend')?.addEventListener('click', sendChatFromPanel);
+      $('#btnClearChat2').addEventListener('click', clearChatHistory);
+      $('#iaSend').addEventListener('click', sendChatFromPanel);
 
-      document.getElementById('chat-tab')?.addEventListener('shown.bs.tab', () => {
+      document.getElementById('chat-tab').addEventListener('shown.bs.tab', () => {
         const h = getChatHistory();
         if (!h.length) return;
         let idx = h.findIndex(x => x.id === currentIA);
@@ -793,7 +792,7 @@
       $$('#dd-conformite input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.conformites, inp.value, inp.checked)));
       $$('#dd-statut input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.statut, inp.value, inp.checked)));
 
-      $('#filterText')?.addEventListener('input', (e)=>{ activeFilters.text = e.target.value.toLowerCase(); renderPills(); applyFilters(); });
+      $('#filterText').addEventListener('input', (e)=>{ activeFilters.text = e.target.value.toLowerCase(); renderPills(); applyFilters(); });
       renderPills();
     }
     function toggleFilterSet(set, value, checked){ if(checked) set.add(value); else set.delete(value); renderPills(); }
@@ -1357,9 +1356,8 @@
     });
 </script>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-function deleteCurrentDiscussion(){
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js">
+    function deleteCurrentDiscussion(){
       if(!currentIA){ return; }
       const h = getChatHistory();
       const idx = h.findIndex(x => x.id === currentIA);
@@ -1376,8 +1374,7 @@ function deleteCurrentDiscussion(){
         renderHistory(); renderHistoryChat();
       }
     }
-</script>
-
+    </script>
 
   <!-- Attachment Viewer (Lightbox) -->
   <div class="modal fade" id="attViewerModal" tabindex="-1" aria-hidden="true">
