@@ -1,7 +1,7 @@
 // routes/subscriptions.js
 const router = require('express').Router();
 const { pool } = require('../config/db');
-const { requireAuth, requireRole } = require('../middlewares/authz');
+const { requireAuth, requireRole } = require('../middleware/authz');
 
 // assure tables minimalistes si besoin
 async function ensureTables() {
