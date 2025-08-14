@@ -10,8 +10,6 @@
     .card{ background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); border-color: rgba(255,255,255,.12); }
     .plan{ background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.1); border-radius:18px; padding:18px; height:100%; }
     .tag{ display:inline-block; padding:4px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.1); color:#d6d6d6; font-size:12px; }
-    .locked{ opacity:.55; }
-    .check{ width:18px; height:18px; }
   </style>
 </head>
 <body class="container py-4">
@@ -66,7 +64,7 @@
     <div class="col-12 col-lg-6">
       <div class="card p-3">
         <h2 class="h6">Inviter quelqu’un sur le compte</h2>
-        <p class="text-secondary">L’invitation augmente automatiquement le nombre de sièges sur ATEX et assigne un siège.</p>
+        <p class="text-secondary">L’invitation augmente automatiquement le nombre de sièges et assigne un siège.</p>
         <div class="input-group mb-2">
           <input type="email" id="inviteEmail" class="form-control" placeholder="email@domaine.com">
           <select id="inviteRole" class="form-select" style="max-width:160px">
@@ -82,6 +80,30 @@
       <div class="card p-3">
         <h2 class="h6">Membres & sièges</h2>
         <div id="membersBox" class="small text-secondary">Chargement…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mt-4">
+    <div class="col-12">
+      <div class="card p-3">
+        <h2 class="h6">Créer un nouvel espace de travail</h2>
+        <div class="row g-2 align-items-end">
+          <div class="col-12 col-md-5">
+            <label class="form-label">Nom de l’espace</label>
+            <input type="text" id="newAccountName" class="form-control" placeholder="Ex: Atelier Sud – Ligne A">
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="copyPlan">
+              <label class="form-check-label" for="copyPlan">Copier le plan ATEX actuel</label>
+            </div>
+          </div>
+          <div class="col-12 col-md-3 text-end">
+            <button id="createAccountBtn" class="btn btn-outline-light w-100">Créer</button>
+          </div>
+        </div>
+        <div id="createMsg" class="small text-secondary mt-2"></div>
       </div>
     </div>
   </div>
