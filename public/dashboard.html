@@ -46,7 +46,7 @@
     .footer{ color:#9ca3af; font-size:12px; margin:24px 0; }
     .ico{ width:22px; height:22px; } .ico-lg{ width:26px; height:26px; } .opacity-70{ opacity:.7; }
     .btn-outline{ border:1px solid var(--ring); background:var(--glass); color:#e7e7e7; border-radius:12px; padding:8px 12px; }
-    .btn-outline:hover{ border-color:rgba(255,255,255,.18); }
+    .btn-outline:hover{ border-color:rgba(255,255,255,.18); } /* ← fix alpha */
     a, a:visited{ color:var(--accent); text-decoration:none; } a:hover{ color:var(--accent-2); }
     #atexSubCards{ display:none; }
     .locked{ opacity: .6; position: relative; }
@@ -103,7 +103,7 @@
             <span class="tag">Suite: ATEX</span>
             <span class="chip" id="chipAtexLicense">Licence: …</span>
             <span class="chip" id="chipAtexUsage" data-chip="usage">0 lancement</span>
-            <!-- le lien "Gérer l’abonnement" est volontairement retiré de l'entête -->
+            <span class="tag"><a href="subscription_atex.html">Gérer l’abonnement</a></span>
           </div>
         </article>
       </div>
