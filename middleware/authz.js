@@ -1,9 +1,4 @@
-// middlewares/authz.js
-// Étape 2 — AuthN/AuthZ multi-tenant
-// - Décode le JWT
-// - Vérifie l'appartenance user -> account (user_accounts)
-// - Expose req.user, req.account_id, req.role
-
+// middleware/authz.js — AuthN/AuthZ multi-tenant (fix: no 402)
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/db');
 
@@ -25,9 +20,7 @@ async function requireAuth(req, res, next) {
         `SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`,
         [req.user.id, req.account_id]
       );
-      if (!r.rowCount) {
-        return res.status(403).json({ error: 'forbidden_account' });
-      }
+      if (!r.rowCount) return res.status(403).json({ error: 'forbidden_account' });
       req.role = r.rows[0].role;
     }
     next();
