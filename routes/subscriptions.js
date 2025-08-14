@@ -1,7 +1,9 @@
-// routes/subscriptions.js
+// routes/subscriptions.js — change plan per account (admin+)
 const router = require('express').Router();
 const { pool } = require('../config/db');
-const { requireAuth, requireRole } = require('../middleware/authz');
+const { requireAuth } = require('../middleware/authz');
+
+function roleRank(r){ return r==='owner'?3 : r==='admin'?2 : r==='member'?1 : 0; }
 
 async function ensureTables() {
   await pool.query(`
@@ -12,78 +14,77 @@ async function ensureTables() {
       app_code TEXT NOT NULL,
       scope TEXT NOT NULL CHECK (scope IN ('user','account')),
       tier INT NOT NULL DEFAULT 0,
-      seats_total INT, -- seatful si NOT NULL
+      seats_total INT,
       status TEXT NOT NULL DEFAULT 'active',
       started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       ends_at TIMESTAMPTZ
     );
   `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS public.license_assignments (
-      subscription_id BIGINT NOT NULL REFERENCES public.subscriptions(id) ON DELETE CASCADE,
-      user_id BIGINT NOT NULL,
-      assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      PRIMARY KEY (subscription_id, user_id)
-    );
-  `);
 }
 
-async function getOrCreateAccountSub({ accountId, appCode, defaultTier = 0 }) {
-  await ensureTables();
-  const q = await pool.query(`
-    SELECT id, tier, seats_total, status
-    FROM public.subscriptions
-    WHERE account_id=$1 AND app_code=$2 AND scope='account' AND status='active'
-    ORDER BY tier DESC LIMIT 1
-  `, [accountId, appCode]);
-
-  if (q.rowCount) return q.rows[0];
-
-  const ins = await pool.query(`
-    INSERT INTO public.subscriptions(account_id, app_code, scope, tier, seats_total, status)
-    VALUES ($1,$2,'account',$3,1,'active')
-    RETURNING id, tier, seats_total, status
-  `, [accountId, appCode, defaultTier]);
-  return ins.rows[0];
+async function getRole(userId, accountId){
+  const r = await pool.query(`SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`, [userId, accountId]);
+  return r.rowCount ? r.rows[0].role : null;
 }
 
-// GET plan courant (seatful)
 router.get('/subscriptions/:appCode', requireAuth, async (req, res) => {
   try {
+    await ensureTables();
     const { appCode } = req.params;
-    const s = await getOrCreateAccountSub({ accountId: req.account_id, appCode, defaultTier: 0 });
-    res.json({ app: appCode, tier: s.tier, scope: 'account', status: s.status, seats_total: s.seats_total ?? 1 });
+    const accountId = Number(req.query.account_id) || req.account_id;
+    if (!accountId) return res.status(400).json({ error: 'missing_account_id' });
+
+    const role = await getRole(req.user.id, accountId);
+    if (!role) return res.status(403).json({ error: 'forbidden_account' });
+
+    const s = await pool.query(`
+      SELECT id, tier, seats_total, status FROM public.subscriptions
+      WHERE account_id=$1 AND app_code=$2 AND scope='account' AND status='active'
+      ORDER BY tier DESC LIMIT 1`,
+      [accountId, appCode]
+    );
+    if (!s.rowCount) return res.json({ app: appCode, account_id: accountId, role, tier: 0, scope: 'account', status: 'none', seats_total: 1 });
+    const row = s.rows[0];
+    res.json({ app: appCode, account_id: accountId, role, tier: row.tier, scope: 'account', status: row.status, seats_total: row.seats_total ?? 1 });
   } catch (e) {
     console.error('[GET /subscriptions/:appCode] error', e);
     res.status(500).json({ error: 'server_error' });
   }
 });
 
-// POST changer de plan (owner/admin) — garde seats_total >= 1
-router.post('/subscriptions/:appCode', requireAuth, requireRole('owner','admin'), async (req, res) => {
+router.post('/subscriptions/:appCode', requireAuth, async (req, res) => {
   try {
     await ensureTables();
     const { appCode } = req.params;
+    const accountId = Number(req.query.account_id) || req.account_id;
+    if (!accountId) return res.status(400).json({ error: 'missing_account_id' });
+
+    const roleRow = await pool.query(`SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`, [req.user.id, accountId]);
+    const role = roleRow.rowCount ? roleRow.rows[0].role : null;
+    if (!role || roleRank(role) < 2) return res.status(403).json({ error: 'forbidden_role' }); // admin+
+
     let { tier } = req.body || {};
     tier = Number.isFinite(+tier) ? +tier : 0;
 
+    // cancel previous actives
     await pool.query(
-      `UPDATE public.subscriptions
-       SET status='canceled', ends_at=NOW()
+      `UPDATE public.subscriptions SET status='canceled', ends_at=NOW()
        WHERE account_id=$1 AND app_code=$2 AND scope='account' AND status='active'`,
-      [req.account_id, appCode]
+      [accountId, appCode]
     );
+
+    // keep seats if any, else start at 1
+    const lastSeats = await pool.query(`SELECT MAX(seats_total) AS s FROM public.subscriptions WHERE account_id=$1 AND app_code=$2`, [accountId, appCode]);
+    const seats = Math.max(1, +(lastSeats.rows[0]?.s || 0));
 
     const ins = await pool.query(
       `INSERT INTO public.subscriptions(account_id, app_code, scope, tier, seats_total, status)
-       VALUES ($1,$2,'account',$3, GREATEST(1, (
-         SELECT COALESCE(MAX(seats_total), 0) FROM public.subscriptions WHERE account_id=$1 AND app_code=$2
-       )), 'active')
+       VALUES ($1,$2,'account',$3,$4,'active')
        RETURNING id, tier, seats_total`,
-      [req.account_id, appCode, tier]
+      [accountId, appCode, tier, seats]
     );
 
-    res.status(201).json({ ok: true, app: appCode, tier: ins.rows[0].tier, scope: 'account', seats_total: ins.rows[0].seats_total });
+    res.status(201).json({ ok: true, app: appCode, account_id: accountId, tier: ins.rows[0].tier, scope: 'account', seats_total: ins.rows[0].seats_total });
   } catch (e) {
     console.error('[POST /subscriptions/:appCode] error', e);
     res.status(500).json({ error: 'server_error' });

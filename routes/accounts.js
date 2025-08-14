@@ -1,54 +1,70 @@
-// routes/accounts.js
-// Étape 2 — Comptes & membres (minimal)
-const express = require('express');
-const router = express.Router();
+// routes/accounts.js — create/list workspaces (multi-account)
+const router = require('express').Router();
 const { pool } = require('../config/db');
-// FIX: dossier correct = 'middleware' (singulier), pas 'middlewares'
-const { requireAuth, requireRole } = require('../middleware/authz');
+const { requireAuth } = require('../middleware/authz');
 
-// Lister les comptes de l'utilisateur
-router.get('/accounts', requireAuth, async (req, res) => {
-  try {
+async function ensureCoreTables(){
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.users (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT,
+      password TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.accounts (
+      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.user_accounts (
+      user_id BIGINT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+      account_id BIGINT NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+      role TEXT NOT NULL CHECK (role IN ('owner','admin','member')),
+      PRIMARY KEY (user_id, account_id)
+    );
+  `);
+}
+
+router.get('/accounts/mine', requireAuth, async (req, res) => {
+  try{
+    await ensureCoreTables();
     const r = await pool.query(`
-      SELECT a.id, a.name, a.parent_account_id, ua.role
-      FROM public.accounts a
-      JOIN public.user_accounts ua ON ua.account_id=a.id
+      SELECT a.id, a.name, ua.role
+      FROM public.user_accounts ua
+      JOIN public.accounts a ON a.id = ua.account_id
       WHERE ua.user_id=$1
-      ORDER BY a.id ASC
+      ORDER BY a.name ASC
     `, [req.user.id]);
-    res.json(r.rows);
-  } catch (e) {
-    console.error('[GET /accounts] error', e);
+    // Try infer current from JWT, else first
+    const current = req.account_id || r.rows[0]?.id || null;
+    res.json({ accounts: r.rows, current_account_id: current });
+  }catch(e){
+    console.error('[GET /accounts/mine] error', e);
     res.status(500).json({ error: 'server_error' });
   }
 });
 
-// Ajouter un membre dans un compte (owner/admin)
-router.post('/accounts/:id/members', requireAuth, requireRole('owner','admin'), async (req, res) => {
-  try {
-    const accountId = Number(req.params.id);
-    const { user_id, role } = req.body || {};
+router.post('/accounts', requireAuth, async (req, res) => {
+  try{
+    await ensureCoreTables();
+    const name = (req.body?.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'missing_name' });
 
-    if (!user_id || !role) return res.status(400).json({ error: 'missing_fields' });
-    if (!['owner','admin','member'].includes(role)) return res.status(400).json({ error: 'invalid_role' });
+    const acc = await pool.query(`INSERT INTO public.accounts(name) VALUES ($1) RETURNING id, name`, [name]);
+    const accountId = acc.rows[0].id;
+    await pool.query(`
+      INSERT INTO public.user_accounts(user_id, account_id, role) VALUES ($1,$2,'owner')
+      ON CONFLICT (user_id, account_id) DO UPDATE SET role='owner'
+    `, [req.user.id, accountId]);
 
-    // Vérifie que le caller appartient au compte ciblé
-    const ok = await pool.query(
-      `SELECT 1 FROM public.user_accounts WHERE user_id=$1 AND account_id=$2`,
-      [req.user.id, accountId]
-    );
-    if (!ok.rowCount) return res.status(403).json({ error: 'forbidden_account' });
-
-    await pool.query(
-      `INSERT INTO public.user_accounts(user_id, account_id, role)
-       VALUES ($1,$2,$3)
-       ON CONFLICT (user_id, account_id) DO UPDATE SET role=EXCLUDED.role`,
-      [user_id, accountId, role]
-    );
-
-    res.json({ ok: true });
-  } catch (e) {
-    console.error('[POST /accounts/:id/members] error', e);
+    res.status(201).json({ id: accountId, name, role: 'owner' });
+  }catch(e){
+    console.error('[POST /accounts] error', e);
     res.status(500).json({ error: 'server_error' });
   }
 });
