@@ -5,13 +5,28 @@
   let currentUser = null;
 
   // === Process / Config pour futures apps ===
-  // Ajoute ici de nouvelles apps ATEX si besoin (title/href/key obligatoires)
   const APPS = [
     { key: 'ATEX Control', title: 'ATEX Control', href: 'atex-control.html', group: 'ATEX', sub: 'Gestion des équipements, inspections, conformité' },
     { key: 'EPD',          title: 'EPD',          href: 'epd.html',         group: 'ATEX', sub: 'Dossier / étude explosion (à venir)' },
     { key: 'IS Loop',      title: 'IS Loop',      href: 'is-loop.html',     group: 'ATEX', sub: 'Calculs boucles Exi (à venir)' },
   ];
   function atexApps(){ return APPS.filter(a => a.group === 'ATEX'); }
+
+  // Politique d’accès par app (réutilisable pour d’autres suites)
+  const ACCESS_POLICY = {
+    'ATEX': {
+      tiers: {
+        'ATEX Control': 0,   // free
+        'EPD': 1,            // personal
+        'IS Loop': 2         // pro
+      }
+    }
+  };
+  function isAllowed(appKey, suiteCode, userTier){
+    const p = ACCESS_POLICY[suiteCode]?.tiers || {};
+    const need = p[appKey] ?? 0;
+    return (userTier >= need);
+  }
 
   function scopeSuffix(){
     const acc = (currentUser && currentUser.account_id != null) ? String(currentUser.account_id) : 'anon';
@@ -52,7 +67,6 @@
     const token = localStorage.getItem('autonomix_token') || '';
     if (!token) return {};
     try {
-      // Utilise la liste APPS pour construire la query
       const appsList = atexApps().map(a => a.key).join(',');
       const r = await fetch(`${API}/usage?apps=${encodeURIComponent(appsList)}`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -173,16 +187,11 @@
           <span class="chip" data-chip="usage" data-app="${app.key}">0 lancement</span>
         </div>
       `;
-      art.addEventListener('click', async ()=>{
-        localStorage.setItem(storageKey(LAST_ATEX_KEY_BASE), app.key);
-        await go(app.href, app.key);
-      });
       host.appendChild(art);
     });
   }
 
   async function fetchLicense(appCode){
-    // Endpoint “léger” côté serveur (voir section backend)
     const token = localStorage.getItem('autonomix_token') || '';
     if (!token) return null;
     try{
@@ -208,7 +217,6 @@
   }
 
   function applyUsageLabels(){
-    // met à jour “X lancements” sur la card principale et les sous-cards
     const chipMain = document.getElementById('chipAtexUsage');
     if (chipMain) chipMain.textContent = 'Suite ATEX · ' + (labelUsage('ATEX') || '0 lancement');
     document.querySelectorAll('[data-chip="usage"][data-app]').forEach(el=>{
@@ -226,6 +234,35 @@
     });
   }
 
+  function applyLicensingGating(userTier){
+    document.querySelectorAll('#atexSubCards article.app-card').forEach(art=>{
+      const appKey = art.getAttribute('data-app');
+      const href = art.getAttribute('data-href');
+      const ok = isAllowed(appKey, 'ATEX', userTier);
+      const usageChip = art.querySelector('[data-chip="usage"]');
+
+      // reset click
+      const clone = art.cloneNode(true);
+      art.parentNode.replaceChild(clone, art);
+      const node = clone;
+
+      if (!ok) {
+        node.classList.add('locked');
+        const lock = document.createElement('div');
+        lock.style.position='absolute';
+        lock.style.top='12px'; lock.style.right='12px';
+        lock.className='tag';
+        lock.textContent='Verrouillé';
+        node.appendChild(lock);
+
+        if (usageChip) usageChip.textContent = 'Nécessite un plan supérieur';
+        node.onclick = () => { location.href = 'subscription_atex.html'; };
+      } else {
+        node.onclick = async ()=> { await go(href, appKey); };
+      }
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', async ()=>{
     await guard();
     const serverUsage = await fetchUsageFromServer();
@@ -233,22 +270,24 @@
     const merged = mergeUsage(localUsage, serverUsage);
     setUsage(merged);
 
-    // Rendu & events
     renderAtexSubCards();
     wireMainAtexCard();
     applyUsageLabels();
     renderSmartShortcuts();
     setupLogout();
 
-    // Récupération licence ATEX (affiche “Licence: Tier X / non attribuée”)
     const lic = await fetchLicense('ATEX');
     const chipLic = document.getElementById('chipAtexLicense');
     if (chipLic){
       chipLic.textContent = lic?.tier
-        ? `Licence: Tier ${lic.tier}${lic.scope ? ' • '+lic.scope : ''}`
+        ? `Licence: ${lic.tier===2?'Pro': lic.tier===1?'Personal':'Free'}${lic.scope ? ' • '+lic.scope : ''}`
         : 'Licence: non attribuée';
     }
 
-    console.info('[dashboard] prêt (scope', scopeSuffix(), ')');
+    // gating des sous-cards selon le tier
+    const userTier = lic?.tier ?? 0;
+    applyLicensingGating(userTier);
+
+    console.info('[dashboard] prêt');
   });
 })();
