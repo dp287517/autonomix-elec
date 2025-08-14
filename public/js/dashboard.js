@@ -16,8 +16,20 @@
       const r = await fetch(`${API}/me`, { headers:{ Authorization:`Bearer ${token}` } });
       if(!r.ok) throw new Error();
       const data = await r.json();
-      // /api/me renvoie { email, account_id, role } (pas data.user.email)
       currentUser = { email: data.email, account_id: data.account_id, role: data.role };
+
+      // ---- One-time migration from legacy (global) keys to namespaced keys ----
+      try {
+        const legacyUsage = localStorage.getItem(USAGE_KEY_BASE);
+        if (legacyUsage && !localStorage.getItem(storageKey(USAGE_KEY_BASE))) {
+          localStorage.setItem(storageKey(USAGE_KEY_BASE), legacyUsage);
+        }
+        const legacyLast = localStorage.getItem(LAST_ATEX_KEY_BASE);
+        if (legacyLast && !localStorage.getItem(storageKey(LAST_ATEX_KEY_BASE))) {
+          localStorage.setItem(storageKey(LAST_ATEX_KEY_BASE), legacyLast);
+        }
+      } catch {}
+
       const emailEl = document.getElementById('userEmail');
       if (emailEl) emailEl.textContent = `${currentUser.email || ''} • compte #${currentUser.account_id ?? '—'} • ${currentUser.role || ''}`;
     }catch{
@@ -127,13 +139,9 @@
   function setupLogout(){
     const btn=document.getElementById('logoutBtn');
     if(btn) btn.addEventListener('click', ()=>{
+      // On garde les compteurs (namespacés par account_id), pour persister d'une session à l'autre.
       localStorage.removeItem('autonomix_token');
       localStorage.removeItem('autonomix_user');
-      // Ne pas effacer l'historique global, mais on peut aussi nettoyer les clés liées au compte courant
-      if (currentUser && currentUser.account_id != null){
-        localStorage.removeItem(storageKey(USAGE_KEY_BASE));
-        localStorage.removeItem(storageKey(LAST_ATEX_KEY_BASE));
-      }
       location.href = 'login.html';
     });
   }
