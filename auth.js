@@ -71,7 +71,6 @@ router.post('/register', async (req, res) => {
     );
     const accountId = acc.rows[0].id;
 
-    // INSERT utilisateur avec name pour respecter NOT NULL éventuel
     const u = await pool.query(
       `INSERT INTO public.users(email, name, password)
        VALUES ($1,$2,$3)
@@ -127,12 +126,12 @@ router.post('/login', async (req, res) => {
         `INSERT INTO public.accounts(name) VALUES ($1) RETURNING id`,
         [(email.split('@')[0] || 'Mon compte') + "'s account"]
       );
-      accountId = acc.rows[0].id;
-      role = 'owner';
-      await pool.query(
-        `INSERT INTO public.user_accounts(user_id, account_id, role) VALUES ($1,$2,$3)`,
-        [user.id, accountId, role]
-      );
+        accountId = acc.rows[0].id;
+        role = 'owner';
+        await pool.query(
+          `INSERT INTO public.user_accounts(user_id, account_id, role) VALUES ($1,$2,$3)`,
+          [user.id, accountId, role]
+        );
     }
 
     const token = signToken({ email: user.email, uid: user.id, account_id: accountId, role });
