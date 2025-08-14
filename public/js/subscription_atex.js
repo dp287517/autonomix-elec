@@ -8,12 +8,14 @@
   async function getCurrent(){
     const r = await fetch(`${API}/subscriptions/${APP}`, { headers: authHeaders() });
     if (!r.ok) throw new Error('http '+r.status);
-    return r.json(); // { app, tier, scope, status }
+    return r.json(); // { app, tier, scope, status, seats_total }
   }
-
-  function tierLabel(t){
-    return t===2?'Pro': t===1?'Personal': 'Free';
+  async function getMembers(){
+    const r = await fetch(`${API}/accounts/members/${APP}`, { headers: authHeaders() });
+    if (!r.ok) throw new Error('http '+r.status);
+    return r.json(); // { app, members: [...] }
   }
+  function tierLabel(t){ return t===2?'Pro': t===1?'Personal': 'Free'; }
 
   async function setPlan(tier){
     const r = await fetch(`${API}/subscriptions/${APP}`, {
@@ -33,23 +35,69 @@
     location.href = 'dashboard.html#plan-updated';
   }
 
+  async function invite(email, role){
+    const r = await fetch(`${API}/accounts/invite`, {
+      method:'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ email, role, appCode: APP })
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(()=>({}));
+      throw new Error(e?.error || ('Erreur HTTP '+r.status));
+    }
+    return r.json();
+  }
+
+  function renderMembers(box, data){
+    if (!data?.members?.length) { box.textContent = 'Aucun membre.'; return; }
+    const ul = document.createElement('ul');
+    ul.className = 'list-unstyled mb-0';
+    data.members.forEach(m=>{
+      const li = document.createElement('li');
+      li.innerHTML = `<strong>${m.email}</strong> — ${m.role} ${m.has_seat?'• a un siège':'• sans siège'}`;
+      ul.appendChild(li);
+    });
+    box.innerHTML = '';
+    box.appendChild(ul);
+  }
+
   document.addEventListener('DOMContentLoaded', async ()=>{
-    // afficher plan courant
     try {
       const cur = await getCurrent();
-      const el = document.getElementById('currentPlan');
-      el.textContent = `Licence actuelle : ${tierLabel(cur.tier)} (scope: ${cur.scope || '—'})`;
+      document.getElementById('currentPlan').textContent =
+        `Licence actuelle : ${tierLabel(cur.tier)} (scope: ${cur.scope || 'account'}) • sièges: ${cur.seats_total ?? 1}`;
     } catch {
-      const el = document.getElementById('currentPlan');
-      el.textContent = `Licence actuelle : inconnue (connecte-toi)`;
+      document.getElementById('currentPlan').textContent = `Licence actuelle : inconnue (connecte-toi)`;
     }
 
-    // clics sur boutons
     document.querySelectorAll('[data-plan]').forEach(btn=>{
       btn.addEventListener('click', async ()=>{
         const t = +btn.getAttribute('data-plan');
         await setPlan(t);
       });
+    });
+
+    try{
+      const data = await getMembers();
+      renderMembers(document.getElementById('membersBox'), data);
+    }catch{
+      document.getElementById('membersBox').textContent = 'Impossible de charger les membres (droits owner/admin requis).';
+    }
+
+    document.getElementById('inviteBtn').addEventListener('click', async ()=>{
+      const email = document.getElementById('inviteEmail').value.trim();
+      const role  = document.getElementById('inviteRole').value;
+      const msg = document.getElementById('inviteMsg');
+      if(!email){ msg.textContent = 'Indique un email.'; return; }
+      msg.textContent = 'Invitation en cours…';
+      try{
+        const res = await invite(email, role);
+        msg.textContent = `Invitation envoyée à ${res.invited}. Sièges: ${res.seats_total}`;
+        const data = await getMembers();
+        renderMembers(document.getElementById('membersBox'), data);
+      }catch(e){
+        msg.textContent = 'Erreur: ' + e.message;
+      }
     });
   });
 })();
