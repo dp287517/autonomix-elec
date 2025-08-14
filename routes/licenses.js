@@ -1,8 +1,8 @@
 // routes/licenses.js
 const router = require('express').Router();
 const { pool } = require('../config/db');
+const { requireAuth } = require('../middlewares/authz');
 
-// Reprise de la logique requireLicense, mais en lecture seule
 async function getAllowedTierAndScope({ userId, accountId, appCode }) {
   // Licence user
   const userLic = await pool.query(`
@@ -41,11 +41,8 @@ async function getAllowedTierAndScope({ userId, accountId, appCode }) {
   return { tier: 0, scope: 'account', source: 'seat_unassigned' };
 }
 
-router.get('/licenses/:appCode', async (req, res) => {
+router.get('/licenses/:appCode', requireAuth, async (req, res) => {
   try {
-    if (!req.user?.id || !req.account_id) {
-      return res.status(401).json({ error: 'unauthenticated' });
-    }
     const { appCode } = req.params;
     const info = await getAllowedTierAndScope({
       userId: req.user.id,
