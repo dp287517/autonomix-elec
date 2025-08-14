@@ -1,7 +1,7 @@
 // routes/licenses.js
 const router = require('express').Router();
 const { pool } = require('../config/db');
-const { requireAuth } = require('../middleware/authz'); // hydrate req.user/account_id/role
+const { requireAuth } = require('../middleware/authz'); // dossier 'middleware' (singulier)
 
 async function getAllowedTierAndScope({ userId, accountId, appCode }) {
   // Licence utilisateur
@@ -16,7 +16,7 @@ async function getAllowedTierAndScope({ userId, accountId, appCode }) {
     return { tier: userLic.rows[0].tier || 0, scope: 'user', source: 'direct' };
   }
 
-  // Licence compte (seatless ou seats)
+  // Licence compte seatful/seatless
   const accLic = await pool.query(`
     SELECT s.id, s.tier, s.seats_total
     FROM public.subscriptions s
@@ -31,14 +31,7 @@ async function getAllowedTierAndScope({ userId, accountId, appCode }) {
   if (lic.seats_total === null) {
     return { tier: lic.tier || 0, scope: 'account', source: 'seatless' };
   }
-  const seat = await pool.query(`
-    SELECT 1 FROM public.license_assignments la
-    WHERE la.subscription_id=$1 AND la.user_id=$2 LIMIT 1
-  `, [lic.id, userId]);
-  if (seat.rowCount) {
-    return { tier: lic.tier || 0, scope: 'account', source: 'seat' };
-  }
-  return { tier: 0, scope: 'account', source: 'seat_unassigned' };
+  return { tier: lic.tier || 0, scope: 'account', source: 'seatful', seats_total: lic.seats_total };
 }
 
 router.get('/licenses/:appCode', requireAuth, async (req, res) => {
