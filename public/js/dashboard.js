@@ -124,16 +124,14 @@
       .sort((a,b)=> (b[1].count || 0) - (a[1].count || 0))
       .slice(0,3);
     const host = box.querySelector('.host') || box;
-    // Liste des apps avec leurs URLs correctes
     const appUrls = {
       'ATEX Control': 'atex-control.html',
       'EPD': 'epd.html',
       'IS Loop': 'is-loop.html'
     };
     usage.forEach(([app, data])=>{
-      // Ignore ATEX-last
       if (app === 'ATEX-last') return;
-      const href = appUrls[app] || '#'; // URL par défaut si inconnue
+      const href = appUrls[app] || '#';
       const card = document.createElement('div'); card.className='mini';
       card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
         <div>
@@ -147,48 +145,33 @@
     });
   }
 
-  function renderAtexGroup(){
-    const host = document.getElementById('atexGroup'); if(!host) return; box.innerHTML=''; // host, pas box
-    const last = localStorage.getItem(storageKey(LAST_ATEX_KEY_BASE)) || 'ATEX Control';
-    const apps = [
-      { title:'Dernier utilisé', key:'ATEX-last', href: last==='EPD' ? 'epd.html' : (last==='IS Loop' ? 'is-loop.html' : 'atex-control.html'), sub: 'Ouvre directement le dernier module ATEX' },
-      { title:'ATEX Control', key:'ATEX Control', href:'atex-control.html', sub: 'Gestion équipements / inspections' },
-      { title:'EPD', key:'EPD', href:'epd.html', sub: 'Dossier explosion (coming soon)' },
-      { title:'IS Loop', key:'IS Loop', href:'is-loop.html', sub: 'Boucles Exi (coming soon)' },
-    ];
-    apps.forEach(a=>{
-      const card = document.createElement('div'); card.className='mini';
-      card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
-        <div>
-          <div style="font-weight:600">${a.title}</div>
-          <div class="opacity-70" style="font-size:12px">${a.sub}</div>
-        </div>
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
-      </div>`;
-      card.onclick = () => go(a.href, a.key);
-      host.appendChild(card);
-    });
-  }
-
   function wireCards(){
     document.querySelectorAll('.app-card').forEach(card=>{
       const href = card.getAttribute('data-href');
-      const app  = card.getAttribute('data-app');
-      const group= card.getAttribute('data-group');
+      const app = card.getAttribute('data-app');
+      const group = card.getAttribute('data-group');
       const disabled = card.hasAttribute('data-disabled');
       if(disabled){ card.style.opacity=.45; card.style.pointerEvents='none'; }
       const chip = card.querySelector('[data-chip="usage"]');
       if(chip){ chip.textContent = labelUsage(app); }
       card.addEventListener('click', async ()=>{
         if(disabled) return;
-        if(group==='ATEX') localStorage.setItem(storageKey(LAST_ATEX_KEY_BASE), app);
-        await go(href, app);
+        if(app === 'ATEX'){
+          const subCards = document.getElementById('atexSubCards');
+          if(subCards){
+            subCards.style.display = subCards.style.display === 'none' ? 'block' : 'none';
+            console.log('[dashboard] Toggle ATEX subcards:', subCards.style.display);
+          }
+        } else {
+          if(group === 'ATEX') localStorage.setItem(storageKey(LAST_ATEX_KEY_BASE), app);
+          await go(href, app);
+        }
       });
     });
   }
 
   function setupLogout(){
-    const btn=document.getElementById('logoutBtn');
+    const btn = document.getElementById('logoutBtn');
     if(btn) btn.addEventListener('click', ()=>{
       localStorage.removeItem('autonomix_token');
       localStorage.removeItem('autonomix_user');
@@ -205,7 +188,6 @@
     setupLogout();
     wireCards();
     renderSmartShortcuts();
-    renderAtexGroup();
     console.info('[dashboard] scope', scopeSuffix(), 'usages synced from server');
   });
 })();
