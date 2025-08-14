@@ -1,4 +1,4 @@
-// public/js/app_guard.js — multi-account aware from localStorage
+// public/js/app_guard.js — garde front multi-compte
 (() => {
   const API = (window.API_BASE_URL || '') + '/api';
   const STORAGE_SEL = 'autonomix_selected_account_id';
@@ -27,7 +27,7 @@
     return true;
   }
 
-  // Declarative guard via <html data-suite data-min-tier data-redirect>
+  // Mode déclaratif via <html data-suite data-min-tier data-redirect>
   document.addEventListener('DOMContentLoaded', async ()=>{
     const root = document.documentElement;
     const suite = root.getAttribute('data-suite');
