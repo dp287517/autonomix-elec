@@ -1,10 +1,10 @@
 // routes/licenses.js
 const router = require('express').Router();
 const { pool } = require('../config/db');
-const { requireAuth } = require('../middlewares/authz');
+const { requireAuth } = require('../middlewares/authz'); // hydrate req.user/account_id/role
 
 async function getAllowedTierAndScope({ userId, accountId, appCode }) {
-  // Licence user
+  // Licence utilisateur
   const userLic = await pool.query(`
     SELECT tier, status, ends_at
     FROM public.subscriptions
@@ -16,7 +16,7 @@ async function getAllowedTierAndScope({ userId, accountId, appCode }) {
     return { tier: userLic.rows[0].tier || 0, scope: 'user', source: 'direct' };
   }
 
-  // Licence account
+  // Licence compte (seatless ou seats)
   const accLic = await pool.query(`
     SELECT s.id, s.tier, s.seats_total
     FROM public.subscriptions s
