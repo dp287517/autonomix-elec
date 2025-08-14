@@ -28,6 +28,7 @@
           // also clear any legacy global keys once
           localStorage.removeItem(USAGE_KEY_BASE);
           localStorage.removeItem(LAST_ATEX_KEY_BASE);
+          // Et reset sur le serveur aussi, si possible (on peut ajouter une route plus tard, mais pour l'instant on ignore)
           console.info('[dashboard] usage reset for', scopeSuffix());
         } catch {}
       }
@@ -41,57 +42,109 @@
     }
   }
 
+  // Nouvelle fonction : Récupérer les usages du serveur
+  async function fetchUsageFromServer() {
+    const token = localStorage.getItem('autonomix_token') || '';
+    if (!token) return {};
+    try {
+      const r = await fetch(`${API}/usage?apps=ATEX Control,EPD,IS Loop`, { // Ajoute les apps que tu veux, ou laisse vide pour toutes
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!r.ok) throw new Error('Erreur fetch usage');
+      const serverUsage = await r.json();
+      return serverUsage;
+    } catch (e) {
+      console.warn('[dashboard] Erreur fetch usage serveur:', e);
+      return {}; // Fallback à vide si erreur
+    }
+  }
+
+  // Merger local et serveur (priorité au serveur)
+  function mergeUsage(local, server) {
+    const merged = { ...local };
+    Object.keys(server).forEach(app => {
+      merged[app] = {
+        count: server[app].count || 0,
+        last: server[app].last_at || new Date().toISOString()
+      };
+    });
+    return merged;
+  }
+
   function getUsage(){
     try{ return JSON.parse(localStorage.getItem(storageKey(USAGE_KEY_BASE)) || '{}'); }catch{ return {}; }
   }
   function setUsage(map){
     localStorage.setItem(storageKey(USAGE_KEY_BASE), JSON.stringify(map || {}));
   }
-  function bump(app){
-    const u=getUsage(); const v=(u[app]?.count||0)+1;
-    u[app] = { count:v, last:new Date().toISOString() };
-    setUsage(u);
+
+  // Nouvelle bump : Envoie au serveur d'abord, puis update local
+  async function bump(app){
+    const token = localStorage.getItem('autonomix_token') || '';
+    if (!token) {
+      // Si pas de token, fallback à local seulement
+      const u = getUsage();
+      const v = (u[app]?.count || 0) + 1;
+      u[app] = { count: v, last: new Date().toISOString() };
+      setUsage(u);
+      return;
+    }
+
+    try {
+      // Envoie au serveur
+      const r = await fetch(`${API}/usage/bump`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ app })
+      });
+      if (!r.ok) throw new Error('Erreur bump');
+      const serverData = await r.json();
+
+      // Update local avec la réponse serveur
+      const u = getUsage();
+      u[app] = { count: serverData.count, last: serverData.last_at };
+      setUsage(u);
+    } catch (e) {
+      console.warn('[dashboard] Erreur bump serveur:', e);
+      // Fallback à local si erreur
+      const u = getUsage();
+      const v = (u[app]?.count || 0) + 1;
+      u[app] = { count: v, last: new Date().toISOString() };
+      setUsage(u);
+    }
+  }
+
+  function labelUsage(app){
+    const u = getUsage();
+    return (u[app]?.count || 0) + ' lancement' + ((u[app]?.count || 0) > 1 ? 's' : '');
   }
 
   function renderSmartShortcuts(){
     const box = document.getElementById('smartShortcuts'); if(!box) return; box.innerHTML='';
     const usage = Object.entries(getUsage())
-      .sort((a,b)=> (b[1].count||0)-(a[1].count||0))
-      .slice(0, 6);
-
-    const defaults = [
-      { title:'ATEX Control', href:'atex-control.html' },
-      { title:'EPD', href:'epd.html' },
-      { title:'IS Loop', href:'is-loop.html' },
-    ];
-
-    const entries = usage.length ? usage.map(([k,v])=>({ title:k, href: pickHref(k), meta:v })) : defaults;
-    entries.forEach(e=>{
-      const div = document.createElement('div');
-      div.className = 'mini';
-      div.innerHTML = `<div style="font-weight:600">${e.title}</div><div class="opacity-70" style="font-size:12px">${labelUsage(e.title)}</div>`;
-      div.onclick = ()=> go(e.href, e.title);
-      box.appendChild(div);
+      .sort((a,b)=> (b[1].count || 0) - (a[1].count || 0))
+      .slice(0,3); // Top 3 par exemple
+    const host = box.querySelector('.host') || box; // Assume un .host ou direct
+    usage.forEach(([app, data])=>{
+      const card = document.createElement('div'); card.className='mini';
+      card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:600">${app}</div>
+          <div class="opacity-70" style="font-size:12px">${data.count} lancements</div>
+        </div>
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </div>`;
+      card.onclick = ()=> go('#', app); // Adapter href si besoin
+      host.appendChild(card);
     });
-
-    const lastAtex = localStorage.getItem(storageKey(LAST_ATEX_KEY_BASE));
-    const smartLine = document.getElementById('smartLine');
-    if(smartLine){
-      smartLine.textContent = lastAtex ? `Reprendre sur ${lastAtex} (ATEX).` : 'Personnalisées selon tes usages récents.';
-    }
-  }
-
-  function labelUsage(app){ const u=getUsage()[app]||{}; return u.count ? `${u.count} lancement${u.count>1?'s':''}` : 'Nouveau'; }
-  function pickHref(app){
-    if(/atex control/i.test(app)) return 'atex-control.html';
-    if(/^epd$/i.test(app)) return 'epd.html';
-    if(/is\s*loop/i.test(app)) return 'is-loop.html';
-    return '#';
   }
 
   function renderAtexGroup(){
     const host = document.getElementById('atexGroup'); if(!host) return; host.innerHTML='';
-    const last = localStorage.getItem(storageKey(LAST_ATEX_KEY_BASE));
+    const last = localStorage.getItem(storageKey(LAST_ATEX_KEY_BASE)) || 'ATEX Control';
     const apps = [
       { title:'Dernier utilisé', key:'ATEX-last', href: last==='EPD' ? 'epd.html' : (last==='IS Loop' ? 'is-loop.html' : 'atex-control.html'), sub: 'Ouvre directement le dernier module ATEX' },
       { title:'ATEX Control', key:'ATEX Control', href:'atex-control.html', sub: 'Gestion équipements / inspections' },
@@ -121,17 +174,13 @@
       if(disabled){ card.style.opacity=.45; card.style.pointerEvents='none'; }
       const chip = card.querySelector('[data-chip="usage"]');
       if(chip){ chip.textContent = labelUsage(app); }
-      card.addEventListener('click', ()=>{
+      card.addEventListener('click', async ()=>{
         if(disabled) return;
         if(group==='ATEX') localStorage.setItem(storageKey(LAST_ATEX_KEY_BASE), app);
-        go(href, app);
+        await bump(app); // Utilise la nouvelle bump sync
+        if(href && href !== '#') location.href = href;
       });
     });
-  }
-
-  function go(href, app){
-    bump(app);
-    if(href && href !== '#') location.href = href;
   }
 
   function setupLogout(){
@@ -145,10 +194,16 @@
 
   document.addEventListener('DOMContentLoaded', async ()=>{
     await guard();
+    // Nouvelle étape : Sync usages au chargement
+    const serverUsage = await fetchUsageFromServer();
+    const localUsage = getUsage();
+    const merged = mergeUsage(localUsage, serverUsage);
+    setUsage(merged);
+    // Rafraîchir l'affichage après sync
     setupLogout();
     wireCards();
     renderSmartShortcuts();
     renderAtexGroup();
-    console.info('[dashboard] scope', scopeSuffix());
+    console.info('[dashboard] scope', scopeSuffix(), 'usages synced from server');
   });
 })();
