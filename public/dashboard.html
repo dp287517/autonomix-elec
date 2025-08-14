@@ -48,8 +48,8 @@
     .btn-outline{ border:1px solid var(--ring); background:var(--glass); color:#e7e7e7; border-radius:12px; padding:8px 12px; }
     .btn-outline:hover{ border-color:rgba(255,255,255,.18); }
     a, a:visited{ color:var(--accent); text-decoration:none; } a:hover{ color:var(--accent-2); }
-    /* sous-cards ATEX */
     #atexSubCards{ display:none; }
+    .locked{ opacity: .6; position: relative; }
   </style>
 </head>
 <body>
@@ -57,15 +57,10 @@
     <div class="container d-flex align-items-center justify-content-between">
       <div class="d-flex align-items-center gap-3">
         <div class="brand">AutonomiX</div>
-        <span class="chip">
-          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2v4"/><path d="M12 18v4"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83"/>
-            <path d="M2 12h4"/><path d="M18 12h4"/><path d="M4.93 19.07l2.83-2.83"/><path d="M16.24 7.76l2.83-2.83"/>
-          </svg>
-          Tableau de bord
-        </span>
+        <span class="chip">Tableau de bord</span>
       </div>
       <div class="d-flex align-items-center gap-3">
+        <a href="subscription_atex.html" class="btn btn-outline-light btn-sm">Gérer l’abonnement ATEX</a>
         <span id="userEmail" class="opacity-70 small"></span>
         <button id="logoutBtn" class="btn-outline">Se déconnecter</button>
       </div>
@@ -103,11 +98,12 @@
             <span class="tag">Suite: ATEX</span>
             <span class="chip" id="chipAtexLicense">Licence: …</span>
             <span class="chip" id="chipAtexUsage" data-chip="usage">0 lancement</span>
+            <span class="chip"><a href="subscription_atex.html">Gérer l’abonnement</a></span>
           </div>
         </article>
       </div>
 
-      <!-- SOUS-CARDS ATEX (dépliées au clic sur ATEX) -->
+      <!-- SOUS-CARDS ATEX -->
       <div class="apps mt-2" id="atexSubCards"></div>
     </section>
 
@@ -116,6 +112,6 @@
 
   <script>window.API_BASE_URL = window.API_BASE_URL || '';</script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="/js/dashboard.js?v=7" defer></script>
+  <script src="js/dashboard.js" defer></script>
 </body>
 </html>
