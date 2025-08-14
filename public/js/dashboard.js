@@ -20,7 +20,6 @@
       const data = await r.json();
       currentUser = { email: data.email, account_id: data.account_id, role: data.role };
 
-      // Reset on explicit hash (per-account+user)
       if (location.hash && /reset-usage/i.test(location.hash)) {
         try {
           localStorage.removeItem(storageKey(USAGE_KEY_BASE));
@@ -76,7 +75,7 @@
 
   async function bump(app){
     const token = localStorage.getItem('autonomix_token') || '';
-    console.log('[dashboard] Token utilisé pour bump:', token); // Log pour debug
+    console.log('[dashboard] Token utilisé pour bump:', token);
     if (!token) {
       const u = getUsage();
       const v = (u[app]?.count || 0) + 1;
@@ -113,9 +112,8 @@
     return (u[app]?.count || 0) + ' lancement' + ((u[app]?.count || 0) > 1 ? 's' : '');
   }
 
-  // Définir la fonction go AVANT son utilisation
   async function go(href, app){
-    console.log('[dashboard] Clic sur app:', app, 'href:', href); // Log pour debug
+    console.log('[dashboard] Clic sur app:', app, 'href:', href);
     await bump(app);
     if(href && href !== '#') location.href = href;
   }
@@ -126,7 +124,16 @@
       .sort((a,b)=> (b[1].count || 0) - (a[1].count || 0))
       .slice(0,3);
     const host = box.querySelector('.host') || box;
+    // Liste des apps avec leurs URLs correctes
+    const appUrls = {
+      'ATEX Control': 'atex-control.html',
+      'EPD': 'epd.html',
+      'IS Loop': 'is-loop.html'
+    };
     usage.forEach(([app, data])=>{
+      // Ignore ATEX-last
+      if (app === 'ATEX-last') return;
+      const href = appUrls[app] || '#'; // URL par défaut si inconnue
       const card = document.createElement('div'); card.className='mini';
       card.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center">
         <div>
@@ -135,13 +142,13 @@
         </div>
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
       </div>`;
-      card.onclick = () => go('#', app);
+      card.onclick = () => go(href, app);
       host.appendChild(card);
     });
   }
 
   function renderAtexGroup(){
-    const host = document.getElementById('atexGroup'); if(!host) return; host.innerHTML='';
+    const host = document.getElementById('atexGroup'); if(!host) return; box.innerHTML=''; // host, pas box
     const last = localStorage.getItem(storageKey(LAST_ATEX_KEY_BASE)) || 'ATEX Control';
     const apps = [
       { title:'Dernier utilisé', key:'ATEX-last', href: last==='EPD' ? 'epd.html' : (last==='IS Loop' ? 'is-loop.html' : 'atex-control.html'), sub: 'Ouvre directement le dernier module ATEX' },
@@ -175,7 +182,7 @@
       card.addEventListener('click', async ()=>{
         if(disabled) return;
         if(group==='ATEX') localStorage.setItem(storageKey(LAST_ATEX_KEY_BASE), app);
-        await go(href, app); // Utilise go directement
+        await go(href, app);
       });
     });
   }
