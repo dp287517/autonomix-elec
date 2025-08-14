@@ -88,7 +88,7 @@ try {
   console.warn('⚠️ usage.js not mounted:', e?.message);
 }
 
-// Accounts (routes optionnelles)
+// Accounts (optionnel)
 (() => {
   try {
     const accountsRoutes = require('./routes/accounts');
@@ -105,7 +105,7 @@ try {
   }
 })();
 
-// Licenses — lecture du tier/scope (protégé par requireAuth)
+// Licenses
 (() => {
   try {
     const licensesRoutes = require('./routes/licenses');
@@ -116,7 +116,7 @@ try {
   }
 })();
 
-// Subscriptions — gérer l’abonnement ATEX (owner/admin)
+// Subscriptions
 (() => {
   try {
     const subsRoutes = require('./routes/subscriptions');
@@ -124,6 +124,17 @@ try {
     console.log('✅ Mounted /api (subscriptions)');
   } catch (e) {
     console.warn('⚠️ subscriptions route not mounted:', e?.message);
+  }
+})();
+
+// Invitations (members & seats)
+(() => {
+  try {
+    const inviteRoutes = require('./routes/accounts_invite');
+    app.use('/api', inviteRoutes);
+    console.log('✅ Mounted /api (accounts_invite)');
+  } catch (e) {
+    console.warn('⚠️ accounts_invite route not mounted:', e?.message);
   }
 })();
 
@@ -171,14 +182,3 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
-
-// Invitations — gérer les membres & sièges
-(() => {
-  try {
-    const inviteRoutes = require('./routes/accounts_invite');
-    app.use('/api', inviteRoutes);
-    console.log('✅ Mounted /api (accounts_invite)');
-  } catch (e) {
-    console.warn('⚠️ accounts_invite route not mounted:', e?.message);
-  }
-})();
