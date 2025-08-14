@@ -1,7 +1,7 @@
 // routes/licenses.js
 const router = require('express').Router();
 const { pool } = require('../config/db');
-const { requireAuth } = require('../middlewares/authz'); // hydrate req.user/account_id/role
+const { requireAuth } = require('../middleware/authz'); // hydrate req.user/account_id/role
 
 async function getAllowedTierAndScope({ userId, accountId, appCode }) {
   // Licence utilisateur
