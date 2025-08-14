@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root{
-      --bg: #0b0c0f; --card: #111318; --muted: #a3a3a3; --ring: rgba(255,255,255,.08);
+      --bg: #0b0c0f; --card: #111318; --muted: #a3a3a3; --ring: rgba(255,255,255,.1);
       --glass: rgba(255,255,255,.06); --accent: #5ac8fa; --accent-2: #64d2ff; --radius: 22px;
     }
     *{ box-sizing: border-box; } html, body{ height:100%; }
@@ -60,7 +60,6 @@
         <span class="chip">Tableau de bord</span>
       </div>
       <div class="d-flex align-items-center gap-3">
-        <a href="subscription_atex.html" class="btn btn-outline-light btn-sm">Gérer l’abonnement ATEX</a>
         <span id="userEmail" class="opacity-70 small"></span>
         <button id="logoutBtn" class="btn-outline">Se déconnecter</button>
       </div>
@@ -98,7 +97,7 @@
             <span class="tag">Suite: ATEX</span>
             <span class="chip" id="chipAtexLicense">Licence: …</span>
             <span class="chip" id="chipAtexUsage" data-chip="usage">0 lancement</span>
-            <span class="chip"><a href="subscription_atex.html">Gérer l’abonnement</a></span>
+            <!-- le lien "Gérer l’abonnement" est volontairement retiré de l'entête -->
           </div>
         </article>
       </div>
