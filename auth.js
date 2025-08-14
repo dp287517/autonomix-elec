@@ -42,13 +42,11 @@ router.post('/register', async (req, res) => {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: 'missing_fields' });
 
-    // Empêche les doublons
     const dupli = await pool.query(`SELECT 1 FROM public.users WHERE email=$1 LIMIT 1`, [email]);
     if (dupli.rowCount) return res.status(409).json({ error: 'email_exists' });
 
     const hash = await bcrypt.hash(password, SALT_ROUNDS);
 
-    // Tables multi-tenant minimales (si absentes)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS public.accounts (
         id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -64,10 +62,8 @@ router.post('/register', async (req, res) => {
         PRIMARY KEY (user_id, account_id)
       );`);
 
-    // Nom d'affichage par défaut (évite NOT NULL sur certaines bases existantes)
     const displayName = (email.split('@')[0] || 'Utilisateur').trim();
 
-    // Crée le compte (tenant) en premier
     const accName = displayName + "'s account";
     const acc = await pool.query(
       `INSERT INTO public.accounts(name) VALUES ($1) RETURNING id`,
@@ -75,7 +71,7 @@ router.post('/register', async (req, res) => {
     );
     const accountId = acc.rows[0].id;
 
-    // ✅ INSERT utilisateur AVEC name pour respecter une éventuelle contrainte NOT NULL
+    // INSERT utilisateur avec name pour respecter NOT NULL éventuel
     const u = await pool.query(
       `INSERT INTO public.users(email, name, password)
        VALUES ($1,$2,$3)
@@ -84,7 +80,6 @@ router.post('/register', async (req, res) => {
     );
     const user = u.rows[0];
 
-    // Lien user -> account (owner)
     await pool.query(
       `INSERT INTO public.user_accounts(user_id, account_id, role) VALUES ($1,$2,'owner')`,
       [user.id, accountId]
@@ -95,8 +90,6 @@ router.post('/register', async (req, res) => {
   } catch (e) {
     console.error('[POST /register] code=', e.code, ' detail=', e.detail, ' msg=', e.message);
     if (e && e.code === '23505') return res.status(409).json({ error: 'email_exists' });
-    // (Optionnel en dev) décommenter pour exposer plus de détails :
-    // return res.status(500).json({ error: 'server_error', code: e.code, detail: e.detail, message: e.message });
     return res.status(500).json({ error: 'server_error' });
   }
 });
