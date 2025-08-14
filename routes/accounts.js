@@ -3,7 +3,8 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/db');
-const { requireAuth, requireRole } = require('../middlewares/authz');
+// FIX: dossier correct = 'middleware' (singulier), pas 'middlewares'
+const { requireAuth, requireRole } = require('../middleware/authz');
 
 // Lister les comptes de l'utilisateur
 router.get('/accounts', requireAuth, async (req, res) => {
