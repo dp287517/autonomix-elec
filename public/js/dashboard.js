@@ -4,29 +4,31 @@
   const LAST_ATEX_KEY_BASE = 'autonomix_last_atex_app';
   let currentUser = null;
 
-  function storageKey(base){
-    const acc = currentUser && currentUser.account_id ? String(currentUser.account_id) : 'anon';
-    return `${base}:${acc}`;
+  function scopeSuffix(){
+    const acc = (currentUser && currentUser.account_id != null) ? String(currentUser.account_id) : 'anon';
+    const user = (currentUser && currentUser.email) ? String(currentUser.email).toLowerCase() : 'anon';
+    return `${acc}:${user}`;
   }
+  function storageKey(base){ return `${base}:${scopeSuffix()}`; }
 
   async function guard() {
     const token = localStorage.getItem('autonomix_token') || '';
     if (!token) { location.href = 'login.html'; return; }
     try{
       const r = await fetch(`${API}/me`, { headers:{ Authorization:`Bearer ${token}` } });
-      if(!r.ok) throw new Error();
+      if(!r.ok) throw new Error(`me ${r.status}`);
       const data = await r.json();
       currentUser = { email: data.email, account_id: data.account_id, role: data.role };
 
-      // --- optional one-shot reset via URL hash ---
+      // Reset on explicit hash (per-account+user)
       if (location.hash && /reset-usage/i.test(location.hash)) {
         try {
           localStorage.removeItem(storageKey(USAGE_KEY_BASE));
           localStorage.removeItem(storageKey(LAST_ATEX_KEY_BASE));
-          // also clear legacy global keys once
+          // also clear any legacy global keys once
           localStorage.removeItem(USAGE_KEY_BASE);
           localStorage.removeItem(LAST_ATEX_KEY_BASE);
-          console.info('[dashboard] usage reset for account', currentUser.account_id);
+          console.info('[dashboard] usage reset for', scopeSuffix());
         } catch {}
       }
 
@@ -147,5 +149,6 @@
     wireCards();
     renderSmartShortcuts();
     renderAtexGroup();
+    console.info('[dashboard] scope', scopeSuffix());
   });
 })();
