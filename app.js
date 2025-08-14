@@ -18,7 +18,7 @@ app.set('trust proxy', 1);
 // Logs HTTP
 app.use(morgan('dev'));
 
-// CSP (identique à ta version d’origine)
+// CSP
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -127,7 +127,7 @@ try {
   }
 })();
 
-// ATEX (souvent des middlewares stricts) — en dernier
+// ATEX — en dernier
 (() => {
   try {
     const atexRoutes = require('./routes/atex');
