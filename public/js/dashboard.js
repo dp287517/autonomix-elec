@@ -4,6 +4,15 @@
   const LAST_ATEX_KEY_BASE = 'autonomix_last_atex_app';
   let currentUser = null;
 
+  // === Process / Config pour futures apps ===
+  // Ajoute ici de nouvelles apps ATEX si besoin (title/href/key obligatoires)
+  const APPS = [
+    { key: 'ATEX Control', title: 'ATEX Control', href: 'atex-control.html', group: 'ATEX', sub: 'Gestion des équipements, inspections, conformité' },
+    { key: 'EPD',          title: 'EPD',          href: 'epd.html',         group: 'ATEX', sub: 'Dossier / étude explosion (à venir)' },
+    { key: 'IS Loop',      title: 'IS Loop',      href: 'is-loop.html',     group: 'ATEX', sub: 'Calculs boucles Exi (à venir)' },
+  ];
+  function atexApps(){ return APPS.filter(a => a.group === 'ATEX'); }
+
   function scopeSuffix(){
     const acc = (currentUser && currentUser.account_id != null) ? String(currentUser.account_id) : 'anon';
     const user = (currentUser && currentUser.email) ? String(currentUser.email).toLowerCase() : 'anon';
@@ -43,7 +52,9 @@
     const token = localStorage.getItem('autonomix_token') || '';
     if (!token) return {};
     try {
-      const r = await fetch(`${API}/usage?apps=ATEX Control,EPD,IS Loop`, {
+      // Utilise la liste APPS pour construire la query
+      const appsList = atexApps().map(a => a.key).join(',');
+      const r = await fetch(`${API}/usage?apps=${encodeURIComponent(appsList)}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!r.ok) throw new Error('Erreur fetch usage');
@@ -75,7 +86,6 @@
 
   async function bump(app){
     const token = localStorage.getItem('autonomix_token') || '';
-    console.log('[dashboard] Token utilisé pour bump:', token);
     if (!token) {
       const u = getUsage();
       const v = (u[app]?.count || 0) + 1;
@@ -83,14 +93,10 @@
       setUsage(u);
       return;
     }
-
     try {
       const r = await fetch(`${API}/usage/bump`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ app })
       });
       if (!r.ok) throw new Error('Erreur bump');
@@ -113,7 +119,6 @@
   }
 
   async function go(href, app){
-    console.log('[dashboard] Clic sur app:', app, 'href:', href);
     await bump(app);
     if(href && href !== '#') location.href = href;
   }
@@ -124,11 +129,7 @@
       .sort((a,b)=> (b[1].count || 0) - (a[1].count || 0))
       .slice(0,3);
     const host = box.querySelector('.host') || box;
-    const appUrls = {
-      'ATEX Control': 'atex-control.html',
-      'EPD': 'epd.html',
-      'IS Loop': 'is-loop.html'
-    };
+    const appUrls = Object.fromEntries(APPS.map(a => [a.key, a.href]));
     usage.forEach(([app, data])=>{
       if (app === 'ATEX-last') return;
       const href = appUrls[app] || '#';
@@ -145,28 +146,74 @@
     });
   }
 
-  function wireCards(){
-    document.querySelectorAll('.app-card').forEach(card=>{
-      const href = card.getAttribute('data-href');
-      const app = card.getAttribute('data-app');
-      const group = card.getAttribute('data-group');
-      const disabled = card.hasAttribute('data-disabled');
-      if(disabled){ card.style.opacity=.45; card.style.pointerEvents='none'; }
-      const chip = card.querySelector('[data-chip="usage"]');
-      if(chip){ chip.textContent = labelUsage(app); }
-      card.addEventListener('click', async ()=>{
-        if(disabled) return;
-        if(app === 'ATEX'){
-          const subCards = document.getElementById('atexSubCards');
-          if(subCards){
-            subCards.style.display = subCards.style.display === 'none' ? 'block' : 'none';
-            console.log('[dashboard] Toggle ATEX subcards:', subCards.style.display);
-          }
-        } else {
-          if(group === 'ATEX') localStorage.setItem(storageKey(LAST_ATEX_KEY_BASE), app);
-          await go(href, app);
-        }
+  function renderAtexSubCards(){
+    const host = document.getElementById('atexSubCards'); if(!host) return;
+    host.innerHTML = '';
+    atexApps().forEach(app=>{
+      const art = document.createElement('article');
+      art.className = 'app-card';
+      art.setAttribute('data-href', app.href);
+      art.setAttribute('data-app', app.key);
+      art.setAttribute('data-group', 'ATEX');
+      art.innerHTML = `
+        <div class="app-head">
+          <div class="app-icon">
+            <svg class="ico-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M9 12h6M12 9v6"/>
+            </svg>
+          </div>
+          <div>
+            <div class="app-title">${app.title}</div>
+            <div class="app-sub">${app.sub || ''}</div>
+          </div>
+        </div>
+        <div class="mt-3 d-flex align-items-center gap-2">
+          <span class="tag">Suite: ATEX</span>
+          <span class="chip" data-chip="usage" data-app="${app.key}">0 lancement</span>
+        </div>
+      `;
+      art.addEventListener('click', async ()=>{
+        localStorage.setItem(storageKey(LAST_ATEX_KEY_BASE), app.key);
+        await go(app.href, app.key);
       });
+      host.appendChild(art);
+    });
+  }
+
+  async function fetchLicense(appCode){
+    // Endpoint “léger” côté serveur (voir section backend)
+    const token = localStorage.getItem('autonomix_token') || '';
+    if (!token) return null;
+    try{
+      const r = await fetch(`${API}/licenses/${encodeURIComponent(appCode)}`, {
+        headers: { Authorization:`Bearer ${token}` }
+      });
+      if(!r.ok) throw new Error('licence http '+r.status);
+      return await r.json(); // { app, tier, scope, source }
+    }catch(e){
+      console.warn('[dashboard] licence error', e);
+      return null;
+    }
+  }
+
+  function wireMainAtexCard(){
+    const main = document.getElementById('cardATEX');
+    const sub = document.getElementById('atexSubCards');
+    if(!main || !sub) return;
+
+    main.addEventListener('click', ()=>{
+      sub.style.display = (sub.style.display === 'none' || !sub.style.display) ? 'grid' : 'none';
+    });
+  }
+
+  function applyUsageLabels(){
+    // met à jour “X lancements” sur la card principale et les sous-cards
+    const chipMain = document.getElementById('chipAtexUsage');
+    if (chipMain) chipMain.textContent = 'Suite ATEX · ' + (labelUsage('ATEX') || '0 lancement');
+    document.querySelectorAll('[data-chip="usage"][data-app]').forEach(el=>{
+      const k = el.getAttribute('data-app');
+      el.textContent = labelUsage(k);
     });
   }
 
@@ -185,9 +232,23 @@
     const localUsage = getUsage();
     const merged = mergeUsage(localUsage, serverUsage);
     setUsage(merged);
-    setupLogout();
-    wireCards();
+
+    // Rendu & events
+    renderAtexSubCards();
+    wireMainAtexCard();
+    applyUsageLabels();
     renderSmartShortcuts();
-    console.info('[dashboard] scope', scopeSuffix(), 'usages synced from server');
+    setupLogout();
+
+    // Récupération licence ATEX (affiche “Licence: Tier X / non attribuée”)
+    const lic = await fetchLicense('ATEX');
+    const chipLic = document.getElementById('chipAtexLicense');
+    if (chipLic){
+      chipLic.textContent = lic?.tier
+        ? `Licence: Tier ${lic.tier}${lic.scope ? ' • '+lic.scope : ''}`
+        : 'Licence: non attribuée';
+    }
+
+    console.info('[dashboard] prêt (scope', scopeSuffix(), ')');
   });
 })();
