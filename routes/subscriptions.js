@@ -3,7 +3,6 @@ const router = require('express').Router();
 const { pool } = require('../config/db');
 const { requireAuth, requireRole } = require('../middleware/authz');
 
-// assure tables minimalistes si besoin
 async function ensureTables() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS public.subscriptions (
@@ -13,7 +12,7 @@ async function ensureTables() {
       app_code TEXT NOT NULL,
       scope TEXT NOT NULL CHECK (scope IN ('user','account')),
       tier INT NOT NULL DEFAULT 0,
-      seats_total INT,
+      seats_total INT, -- seatful si NOT NULL
       status TEXT NOT NULL DEFAULT 'active',
       started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       ends_at TIMESTAMPTZ
@@ -29,37 +28,45 @@ async function ensureTables() {
   `);
 }
 
-// Retourne l’abonnement account seatless (le plus simple pour ATEX)
+async function getOrCreateAccountSub({ accountId, appCode, defaultTier = 0 }) {
+  await ensureTables();
+  const q = await pool.query(`
+    SELECT id, tier, seats_total, status
+    FROM public.subscriptions
+    WHERE account_id=$1 AND app_code=$2 AND scope='account' AND status='active'
+    ORDER BY tier DESC LIMIT 1
+  `, [accountId, appCode]);
+
+  if (q.rowCount) return q.rows[0];
+
+  const ins = await pool.query(`
+    INSERT INTO public.subscriptions(account_id, app_code, scope, tier, seats_total, status)
+    VALUES ($1,$2,'account',$3,1,'active')
+    RETURNING id, tier, seats_total, status
+  `, [accountId, appCode, defaultTier]);
+  return ins.rows[0];
+}
+
+// GET plan courant (seatful)
 router.get('/subscriptions/:appCode', requireAuth, async (req, res) => {
   try {
-    await ensureTables();
     const { appCode } = req.params;
-    const acc = await pool.query(
-      `SELECT id, tier, seats_total, status, ends_at
-       FROM public.subscriptions
-       WHERE account_id=$1 AND app_code=$2 AND scope='account' AND status='active'
-         AND (ends_at IS NULL OR ends_at > NOW())
-       ORDER BY tier DESC LIMIT 1`,
-      [req.account_id, appCode]
-    );
-    if (!acc.rowCount) return res.json({ app: appCode, tier: 0, scope: 'account', status: 'none' });
-    const s = acc.rows[0];
-    res.json({ app: appCode, tier: s.tier, scope: 'account', status: s.status, seats_total: s.seats_total });
+    const s = await getOrCreateAccountSub({ accountId: req.account_id, appCode, defaultTier: 0 });
+    res.json({ app: appCode, tier: s.tier, scope: 'account', status: s.status, seats_total: s.seats_total ?? 1 });
   } catch (e) {
     console.error('[GET /subscriptions/:appCode] error', e);
     res.status(500).json({ error: 'server_error' });
   }
 });
 
-// Met à jour le plan (owner/admin)
+// POST changer de plan (owner/admin) — garde seats_total >= 1
 router.post('/subscriptions/:appCode', requireAuth, requireRole('owner','admin'), async (req, res) => {
   try {
     await ensureTables();
     const { appCode } = req.params;
     let { tier } = req.body || {};
-    tier = Number.isFinite(+tier) ? +tier : 0;   // 0=free,1=personal,2=pro
+    tier = Number.isFinite(+tier) ? +tier : 0;
 
-    // on “désactive” l’existant (soft-switch), puis on crée la sub seatless
     await pool.query(
       `UPDATE public.subscriptions
        SET status='canceled', ends_at=NOW()
@@ -69,12 +76,14 @@ router.post('/subscriptions/:appCode', requireAuth, requireRole('owner','admin')
 
     const ins = await pool.query(
       `INSERT INTO public.subscriptions(account_id, app_code, scope, tier, seats_total, status)
-       VALUES ($1,$2,'account',$3,NULL,'active')
-       RETURNING id, tier`,
+       VALUES ($1,$2,'account',$3, GREATEST(1, (
+         SELECT COALESCE(MAX(seats_total), 0) FROM public.subscriptions WHERE account_id=$1 AND app_code=$2
+       )), 'active')
+       RETURNING id, tier, seats_total`,
       [req.account_id, appCode, tier]
     );
 
-    res.status(201).json({ ok: true, app: appCode, tier: ins.rows[0].tier, scope: 'account' });
+    res.status(201).json({ ok: true, app: appCode, tier: ins.rows[0].tier, scope: 'account', seats_total: ins.rows[0].seats_total });
   } catch (e) {
     console.error('[POST /subscriptions/:appCode] error', e);
     res.status(500).json({ error: 'server_error' });
