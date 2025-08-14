@@ -1,3 +1,4 @@
+
 // routes/licenses.js — license lookup (seatful + seatless)
 const router = require('express').Router();
 const { pool } = require('../config/db');
@@ -43,7 +44,6 @@ router.get('/licenses/:appCode', requireAuth, async (req,res)=>{
     const role = await getRole(req.user.id, accountId);
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
-    // direct user license (highest wins)
     const u = await pool.query(`
       SELECT tier FROM public.subscriptions
       WHERE user_id=$1 AND app_code=$2 AND scope='user' AND status='active'
@@ -52,7 +52,6 @@ router.get('/licenses/:appCode', requireAuth, async (req,res)=>{
     `, [req.user.id, appCode]);
     if (u.rowCount) return res.json({ app: appCode, account_id: accountId, scope:'user', source:'direct', assigned:true, tier: u.rows[0].tier || 0, role });
 
-    // account license
     const a = await pool.query(`
       SELECT id, tier, seats_total FROM public.subscriptions
       WHERE account_id=$1 AND app_code=$2 AND scope='account' AND status='active'
@@ -65,7 +64,6 @@ router.get('/licenses/:appCode', requireAuth, async (req,res)=>{
     if (lic.seats_total === null) {
       return res.json({ app: appCode, account_id: accountId, scope:'account', source:'seatless', assigned:true, tier: lic.tier || 0, role });
     }
-    // seatful: must be assigned
     const seat = await pool.query(`SELECT 1 FROM public.license_assignments WHERE subscription_id=$1 AND user_id=$2 LIMIT 1`, [lic.id, req.user.id]);
     const assigned = !!seat.rowCount;
     return res.json({ app: appCode, account_id: accountId, scope:'account', source:'seatful', assigned, tier: assigned ? (lic.tier || 0) : 0, role, seats_total: lic.seats_total });

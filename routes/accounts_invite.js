@@ -1,3 +1,4 @@
+
 // routes/accounts_invite.js — invite member, seats grow automatically
 const router = require('express').Router();
 const { pool } = require('../config/db');
@@ -70,7 +71,6 @@ router.post('/accounts/invite', requireAuth, async (req, res) => {
     const { email, role: invitedRole = 'member', appCode = 'ATEX' } = req.body || {};
     if (!email) return res.status(400).json({ error: 'missing_email' });
 
-    // upsert user
     let userId = null;
     const u = await pool.query(`SELECT id FROM public.users WHERE email=$1 LIMIT 1`, [email]);
     if (u.rowCount) userId = u.rows[0].id;
@@ -79,14 +79,12 @@ router.post('/accounts/invite', requireAuth, async (req, res) => {
       userId = ins.rows[0].id;
     }
 
-    // add to account
     await pool.query(`
       INSERT INTO public.user_accounts(user_id, account_id, role)
       VALUES ($1,$2,$3)
       ON CONFLICT (user_id, account_id) DO UPDATE SET role=EXCLUDED.role
     `, [userId, accountId, invitedRole]);
 
-    // ensure seatful sub on this account
     const sub = await pool.query(`
       SELECT id, tier, seats_total FROM public.subscriptions
       WHERE account_id=$1 AND app_code=$2 AND scope='account' AND status='active'
@@ -126,7 +124,7 @@ router.get('/accounts/members/:appCode', requireAuth, async (req, res) => {
 
     const roleRow = await pool.query(`SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`, [req.user.id, accountId]);
     const role = roleRow.rowCount ? roleRow.rows[0].role : null;
-    if (!role || roleRank(role) < 2) return res.status(403).json({ error: 'forbidden_role' });
+    if (!role || (role !== 'owner' && role !== 'admin')) return res.status(403).json({ error: 'forbidden_role' });
 
     const r = await pool.query(`
       SELECT u.email, ua.role,

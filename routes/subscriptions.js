@@ -1,9 +1,8 @@
-// routes/subscriptions.js — change plan per account (admin+)
+
+// routes/subscriptions.js — change plan per account (owner-only) + auto-assign seat
 const router = require('express').Router();
 const { pool } = require('../config/db');
 const { requireAuth } = require('../middleware/authz');
-
-function roleRank(r){ return r==='owner'?3 : r==='admin'?2 : r==='member'?1 : 0; }
 
 async function ensureTables() {
   await pool.query(`
@@ -18,6 +17,14 @@ async function ensureTables() {
       status TEXT NOT NULL DEFAULT 'active',
       started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       ends_at TIMESTAMPTZ
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.license_assignments (
+      subscription_id BIGINT NOT NULL REFERENCES public.subscriptions(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL,
+      assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (subscription_id, user_id)
     );
   `);
 }
@@ -59,21 +66,18 @@ router.post('/subscriptions/:appCode', requireAuth, async (req, res) => {
     const accountId = Number(req.query.account_id) || req.account_id;
     if (!accountId) return res.status(400).json({ error: 'missing_account_id' });
 
-    const roleRow = await pool.query(`SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`, [req.user.id, accountId]);
-    const role = roleRow.rowCount ? roleRow.rows[0].role : null;
-    if (!role || roleRank(role) < 2) return res.status(403).json({ error: 'forbidden_role' }); // admin+
+    const role = await getRole(req.user.id, accountId);
+    if (role !== 'owner') return res.status(403).json({ error: 'owner_only' }); // OWNER ONLY
 
     let { tier } = req.body || {};
     tier = Number.isFinite(+tier) ? +tier : 0;
 
-    // cancel previous actives
     await pool.query(
       `UPDATE public.subscriptions SET status='canceled', ends_at=NOW()
        WHERE account_id=$1 AND app_code=$2 AND scope='account' AND status='active'`,
       [accountId, appCode]
     );
 
-    // keep seats if any, else start at 1
     const lastSeats = await pool.query(`SELECT MAX(seats_total) AS s FROM public.subscriptions WHERE account_id=$1 AND app_code=$2`, [accountId, appCode]);
     const seats = Math.max(1, +(lastSeats.rows[0]?.s || 0));
 
@@ -83,6 +87,14 @@ router.post('/subscriptions/:appCode', requireAuth, async (req, res) => {
        RETURNING id, tier, seats_total`,
       [accountId, appCode, tier, seats]
     );
+
+    const subId = ins.rows[0].id;
+    if (ins.rows[0].seats_total !== null) {
+      await pool.query(`
+        INSERT INTO public.license_assignments(subscription_id, user_id)
+        VALUES ($1,$2) ON CONFLICT DO NOTHING
+      `, [subId, req.user.id]);
+    }
 
     res.status(201).json({ ok: true, app: appCode, account_id: accountId, tier: ins.rows[0].tier, scope: 'account', seats_total: ins.rows[0].seats_total });
   } catch (e) {
