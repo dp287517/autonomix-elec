@@ -7,19 +7,18 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 
-// Sécurité: logs sur crashs non catchés
 process.on('uncaughtException', (err) => console.error('❌ Uncaught Exception:', err));
 process.on('unhandledRejection', (err) => console.error('❌ Unhandled Rejection:', err));
 
 dotenv.config();
 
 const app = express();
-app.set('trust proxy', 1); // Render/Heroku style proxies
+app.set('trust proxy', 1);
 
 // Logs HTTP
 app.use(morgan('dev'));
 
-// CSP (identique à ta version: pas d’inline scripts, libs autorisées)
+// CSP (identique à ta version d’origine)
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -55,7 +54,7 @@ app.use(
         ],
         "font-src": ["'self'", "https://fonts.gstatic.com", "data:"],
         "img-src": ["'self'", "data:", "blob:"],
-        "connect-src": ["'self'"],   // appels XHR/Fetch vers l'API même origine
+        "connect-src": ["'self'"],
         "frame-src": ["'self'"],
         "frame-ancestors": ["'self'"]
       }
@@ -80,7 +79,7 @@ try {
   console.error('❌ Failed to mount ./auth routes:', e);
 }
 
-// Compteurs usage (synchro multi-appareils)
+// Compteurs usage
 try {
   const usageRoutes = require('./usage');
   app.use('/api/usage', usageRoutes);
@@ -89,16 +88,15 @@ try {
   console.warn('⚠️ usage.js not mounted:', e?.message);
 }
 
-// Accounts (si présent)
+// Accounts (routes optionnelles)
 (() => {
   try {
-    const accountsRoutes =
-      require('./routes/accounts');        // structure /routes/...
+    const accountsRoutes = require('./routes/accounts');
     app.use('/api', accountsRoutes);
     console.log('✅ Mounted /api (accounts via routes/...)');
   } catch (e1) {
     try {
-      const accountsRoutesAlt = require('./accounts'); // ou à la racine
+      const accountsRoutesAlt = require('./accounts');
       app.use('/api', accountsRoutesAlt);
       console.log('✅ Mounted /api (accounts via ./accounts)');
     } catch (e2) {
@@ -107,7 +105,29 @@ try {
   }
 })();
 
-// ATEX (si présent) — charge en dernier (souvent des middlewares stricts)
+// Licenses — lecture du tier/scope (protégé par requireAuth)
+(() => {
+  try {
+    const licensesRoutes = require('./routes/licenses');
+    app.use('/api', licensesRoutes);
+    console.log('✅ Mounted /api (licenses)');
+  } catch (e) {
+    console.warn('⚠️ licenses route not mounted:', e?.message);
+  }
+})();
+
+// Subscriptions — gérer l’abonnement ATEX (owner/admin)
+(() => {
+  try {
+    const subsRoutes = require('./routes/subscriptions');
+    app.use('/api', subsRoutes);
+    console.log('✅ Mounted /api (subscriptions)');
+  } catch (e) {
+    console.warn('⚠️ subscriptions route not mounted:', e?.message);
+  }
+})();
+
+// ATEX (souvent des middlewares stricts) — en dernier
 (() => {
   try {
     const atexRoutes = require('./routes/atex');
@@ -115,7 +135,7 @@ try {
     console.log('✅ Mounted /api (atex via routes/...)');
   } catch (e1) {
     try {
-      const atexRoutesAlt = require('./atex'); // ou à la racine
+      const atexRoutesAlt = require('./atex');
       app.use('/api', atexRoutesAlt);
       console.log('✅ Mounted /api (atex via ./atex)');
     } catch (e2) {
@@ -124,10 +144,10 @@ try {
   }
 })();
 
-// Healthcheck simple
+// Healthcheck
 app.get('/ping', (req, res) => res.send('pong'));
 
-// Static (dossier public/)
+// Static
 app.use(express.static(path.join(__dirname, 'public')));
 
 // 404 JSON pour /api/*
@@ -135,8 +155,7 @@ app.use('/api', (req, res, next) => {
   res.status(404).json({ error: 'not_found' });
 });
 
-// Handler d’erreurs JSON pour l’API
-// (si une route throw, on évite un HTML stacktrace)
+// Handler d’erreurs JSON
 app.use((err, req, res, next) => {
   console.error('💥 API error:', err);
   if (req.path.startsWith('/api')) {
