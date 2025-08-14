@@ -1,4 +1,4 @@
-// app.js (hardened) — robust startup with guarded requires and better logs
+// app.js — serveur AutonomiX (Express, Render/Neon ready)
 const express = require('express');
 const morgan = require('morgan');
 const helmet = require('helmet');
@@ -7,18 +7,19 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 
-process.on('uncaughtException', (err) => {
-  console.error('❌ Uncaught Exception:', err);
-});
-process.on('unhandledRejection', (err) => {
-  console.error('❌ Unhandled Rejection:', err);
-});
+// Sécurité: logs sur crashs non catchés
+process.on('uncaughtException', (err) => console.error('❌ Uncaught Exception:', err));
+process.on('unhandledRejection', (err) => console.error('❌ Unhandled Rejection:', err));
 
 dotenv.config();
+
 const app = express();
+app.set('trust proxy', 1); // Render/Heroku style proxies
+
+// Logs HTTP
 app.use(morgan('dev'));
 
-// CSP (identique à ta version)
+// CSP (identique à ta version: pas d’inline scripts, libs autorisées)
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -54,7 +55,7 @@ app.use(
         ],
         "font-src": ["'self'", "https://fonts.gstatic.com", "data:"],
         "img-src": ["'self'", "data:", "blob:"],
-        "connect-src": ["'self'"],
+        "connect-src": ["'self'"],   // appels XHR/Fetch vers l'API même origine
         "frame-src": ["'self'"],
         "frame-ancestors": ["'self'"]
       }
@@ -63,13 +64,14 @@ app.use(
   })
 );
 
+// Perf & parsing
 app.use(compression());
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ===== API =====
-// AUTH (must load first)
+// ====== API ======
+// Auth (login/register/me/debug)
 try {
   const authRoutes = require('./auth');
   app.use('/api', authRoutes);
@@ -78,28 +80,70 @@ try {
   console.error('❌ Failed to mount ./auth routes:', e);
 }
 
-// ACCOUNTS (optional)
+// Compteurs usage (synchro multi-appareils)
 try {
-  const accountsRoutes = require('./routes/accounts');
-  app.use('/api', accountsRoutes);
-  console.log('✅ Mounted /api (accounts)');
+  const usageRoutes = require('./usage');
+  app.use('/api/usage', usageRoutes);
+  console.log('✅ Mounted /api/usage');
 } catch (e) {
-  console.warn('⚠️ routes/accounts.js not mounted:', e?.message);
+  console.warn('⚠️ usage.js not mounted:', e?.message);
 }
 
-// ATEX (may have strict middlewares; load last)
-try {
-  const atexRoutes = require('./routes/atex');
-  app.use('/api', atexRoutes);
-  console.log('✅ Mounted /api (atex)');
-} catch (e) {
-  console.warn('⚠️ routes/atex.js not mounted:', e?.message);
-}
+// Accounts (si présent)
+(() => {
+  try {
+    const accountsRoutes =
+      require('./routes/accounts');        // structure /routes/...
+    app.use('/api', accountsRoutes);
+    console.log('✅ Mounted /api (accounts via routes/...)');
+  } catch (e1) {
+    try {
+      const accountsRoutesAlt = require('./accounts'); // ou à la racine
+      app.use('/api', accountsRoutesAlt);
+      console.log('✅ Mounted /api (accounts via ./accounts)');
+    } catch (e2) {
+      console.warn('⚠️ accounts route not mounted:', e2?.message);
+    }
+  }
+})();
 
-// Static
+// ATEX (si présent) — charge en dernier (souvent des middlewares stricts)
+(() => {
+  try {
+    const atexRoutes = require('./routes/atex');
+    app.use('/api', atexRoutes);
+    console.log('✅ Mounted /api (atex via routes/...)');
+  } catch (e1) {
+    try {
+      const atexRoutesAlt = require('./atex'); // ou à la racine
+      app.use('/api', atexRoutesAlt);
+      console.log('✅ Mounted /api (atex via ./atex)');
+    } catch (e2) {
+      console.warn('⚠️ atex route not mounted:', e2?.message);
+    }
+  }
+})();
+
+// Healthcheck simple
+app.get('/ping', (req, res) => res.send('pong'));
+
+// Static (dossier public/)
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/ping', (req, res) => res.send('pong'));
+// 404 JSON pour /api/*
+app.use('/api', (req, res, next) => {
+  res.status(404).json({ error: 'not_found' });
+});
+
+// Handler d’erreurs JSON pour l’API
+// (si une route throw, on évite un HTML stacktrace)
+app.use((err, req, res, next) => {
+  console.error('💥 API error:', err);
+  if (req.path.startsWith('/api')) {
+    return res.status(500).json({ error: 'server_error' });
+  }
+  next(err);
+});
 
 // Boot
 const PORT = process.env.PORT || 3000;
