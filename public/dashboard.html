@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -36,13 +37,6 @@
     .app-sub{ color:var(--muted); font-size:13px; }
     .chip{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; font-size:12px; border-radius:999px; border:1px solid var(--ring); background:var(--glass); color:#d6d6d6; }
     .tag{ color:#c0c0c0; font-size:12px; }
-    .section{ margin:28px 0 16px; }
-    .section h2{ font-size:20px; font-weight:700; margin:0 0 6px; }
-    .section p{ color:var(--muted); margin:0; }
-    .grid-min{ display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:12px; }
-    .mini{ background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); border:1px solid var(--ring); border-radius:16px; padding:12px; cursor:pointer; transition:transform .2s ease; }
-    .mini:hover{ transform:translateY(-2px); }
-    .divider{ height:1px; background:var(--ring); margin:16px 0; }
     .footer{ color:#9ca3af; font-size:12px; margin:24px 0; }
     .ico{ width:22px; height:22px; } .ico-lg{ width:26px; height:26px; } .opacity-70{ opacity:.7; }
     .btn-outline{ border:1px solid var(--ring); background:var(--glass); color:#e7e7e7; border-radius:12px; padding:8px 12px; }
@@ -72,16 +66,8 @@
   </header>
 
   <main class="container py-4">
-    <section class="section">
-      <h2>Suggestions intelligentes</h2>
-      <p id="smartLine">Personnalisées selon tes usages récents.</p>
-      <div id="smartShortcuts" class="grid-min mt-2"></div>
-    </section>
-
-    <div class="divider"></div>
-
-    <section class="section">
-      <h2>Applications</h2>
+    <section>
+      <h2 class="h5">Applications</h2>
       <p class="opacity-70">Clique sur une carte pour ouvrir l’application correspondante.</p>
 
       <div class="apps mt-2">
@@ -98,11 +84,13 @@
               <div class="app-sub">Contrôle, EPD, Boucles Exi</div>
             </div>
           </div>
+
           <div class="mt-3 d-flex align-items-center gap-2 flex-wrap">
             <span class="tag">Suite: ATEX</span>
             <span class="chip" id="chipAtexLicense">Licence: …</span>
-            <span class="chip" id="chipAtexUsage" data-chip="usage">0 lancement</span>
             <span class="tag"><a href="subscription_atex.html">Gérer l’abonnement</a></span>
+            <button class="btn btn-outline btn-sm" id="createAccountBtn" type="button" title="Créer un nouvel espace">Créer un espace</button>
+            <button class="btn btn-outline btn-sm" id="deleteAccountBtn" type="button" title="Supprimer l’espace courant">Supprimer l’espace</button>
           </div>
         </article>
       </div>

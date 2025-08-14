@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="fr">
 <head>
@@ -15,7 +16,7 @@
 <body class="container py-4">
   <a href="dashboard.html" class="btn btn-outline-light btn-sm mb-3">← Retour</a>
   <h1 class="h4 mb-1">Abonnement — Suite ATEX</h1>
-  <p class="text-secondary">Free → Control · Personal → Control+EPD · Pro → Control+EPD+IS Loop</p>
+  <p id="ownerHint" class="text-secondary">Chargement…</p>
   <p id="currentPlan" class="text-secondary">Licence actuelle : chargement…</p>
 
   <div class="row g-3 mb-4">
@@ -80,30 +81,6 @@
       <div class="card p-3">
         <h2 class="h6">Membres & sièges</h2>
         <div id="membersBox" class="small text-secondary">Chargement…</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="row g-3 mt-4">
-    <div class="col-12">
-      <div class="card p-3">
-        <h2 class="h6">Créer un nouvel espace de travail</h2>
-        <div class="row g-2 align-items-end">
-          <div class="col-12 col-md-5">
-            <label class="form-label">Nom de l’espace</label>
-            <input type="text" id="newAccountName" class="form-control" placeholder="Ex: Atelier Sud – Ligne A">
-          </div>
-          <div class="col-12 col-md-4">
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="copyPlan">
-              <label class="form-check-label" for="copyPlan">Copier le plan ATEX actuel</label>
-            </div>
-          </div>
-          <div class="col-12 col-md-3 text-end">
-            <button id="createAccountBtn" class="btn btn-outline-light w-100">Créer</button>
-          </div>
-        </div>
-        <div id="createMsg" class="small text-secondary mt-2"></div>
       </div>
     </div>
   </div>
