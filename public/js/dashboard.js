@@ -1,7 +1,13 @@
 (() => {
   const API = (window.API_BASE_URL || '') + '/api';
-  const USAGE_KEY = 'autonomix_app_usage_v1';
-  const LAST_ATEX_KEY = 'autonomix_last_atex_app';
+  const USAGE_KEY_BASE = 'autonomix_app_usage_v1';
+  const LAST_ATEX_KEY_BASE = 'autonomix_last_atex_app';
+  let currentUser = null;
+
+  function storageKey(base){
+    const acc = currentUser && currentUser.account_id ? String(currentUser.account_id) : 'anon';
+    return `${base}:${acc}`;
+  }
 
   async function guard() {
     const token = localStorage.getItem('autonomix_token') || '';
@@ -10,7 +16,10 @@
       const r = await fetch(`${API}/me`, { headers:{ Authorization:`Bearer ${token}` } });
       if(!r.ok) throw new Error();
       const data = await r.json();
-      document.getElementById('userEmail').textContent = data?.user?.email || '';
+      // /api/me renvoie { email, account_id, role } (pas data.user.email)
+      currentUser = { email: data.email, account_id: data.account_id, role: data.role };
+      const emailEl = document.getElementById('userEmail');
+      if (emailEl) emailEl.textContent = `${currentUser.email || ''} • compte #${currentUser.account_id ?? '—'} • ${currentUser.role || ''}`;
     }catch{
       localStorage.removeItem('autonomix_token');
       localStorage.removeItem('autonomix_user');
@@ -18,12 +27,20 @@
     }
   }
 
-  function getUsage(){ try{ return JSON.parse(localStorage.getItem(USAGE_KEY) || '{}'); }catch{ return {}; } }
-  function setUsage(map){ localStorage.setItem(USAGE_KEY, JSON.stringify(map)); }
-  function bump(app){ const u=getUsage(); const v=(u[app]?.count||0)+1; u[app] = { count:v, last:new Date().toISOString() }; setUsage(u); }
+  function getUsage(){
+    try{ return JSON.parse(localStorage.getItem(storageKey(USAGE_KEY_BASE)) || '{}'); }catch{ return {}; }
+  }
+  function setUsage(map){
+    localStorage.setItem(storageKey(USAGE_KEY_BASE), JSON.stringify(map || {}));
+  }
+  function bump(app){
+    const u=getUsage(); const v=(u[app]?.count||0)+1;
+    u[app] = { count:v, last:new Date().toISOString() };
+    setUsage(u);
+  }
 
   function renderSmartShortcuts(){
-    const box = document.getElementById('smartShortcuts'); box.innerHTML='';
+    const box = document.getElementById('smartShortcuts'); if(!box) return; box.innerHTML='';
     const usage = Object.entries(getUsage())
       .sort((a,b)=> (b[1].count||0)-(a[1].count||0))
       .slice(0, 6);
@@ -43,9 +60,14 @@
       box.appendChild(div);
     });
 
-    const lastAtex = localStorage.getItem(LAST_ATEX_KEY);
-    if(lastAtex){
-      document.getElementById('smartLine').textContent = `Reprendre sur ${lastAtex} (ATEX).`;
+    const lastAtex = localStorage.getItem(storageKey(LAST_ATEX_KEY_BASE));
+    const smartLine = document.getElementById('smartLine');
+    if(smartLine){
+      if(lastAtex){
+        smartLine.textContent = `Reprendre sur ${lastAtex} (ATEX).`;
+      } else {
+        smartLine.textContent = 'Personnalisées selon tes usages récents.';
+      }
     }
   }
 
@@ -58,9 +80,10 @@
   }
 
   function renderAtexGroup(){
-    const host = document.getElementById('atexGroup'); host.innerHTML='';
+    const host = document.getElementById('atexGroup'); if(!host) return; host.innerHTML='';
+    const last = localStorage.getItem(storageKey(LAST_ATEX_KEY_BASE));
     const apps = [
-      { title:'Dernier utilisé', key:'ATEX-last', href: localStorage.getItem(LAST_ATEX_KEY)==='EPD' ? 'epd.html' : (localStorage.getItem(LAST_ATEX_KEY)==='IS Loop' ? 'is-loop.html' : 'atex-control.html'), sub: 'Ouvre directement le dernier module ATEX' },
+      { title:'Dernier utilisé', key:'ATEX-last', href: last==='EPD' ? 'epd.html' : (last==='IS Loop' ? 'is-loop.html' : 'atex-control.html'), sub: 'Ouvre directement le dernier module ATEX' },
       { title:'ATEX Control', key:'ATEX Control', href:'atex-control.html', sub: 'Gestion équipements / inspections' },
       { title:'EPD', key:'EPD', href:'epd.html', sub: 'Dossier explosion (coming soon)' },
       { title:'IS Loop', key:'IS Loop', href:'is-loop.html', sub: 'Boucles Exi (coming soon)' },
@@ -90,7 +113,7 @@
       if(chip){ chip.textContent = labelUsage(app); }
       card.addEventListener('click', ()=>{
         if(disabled) return;
-        if(group==='ATEX') localStorage.setItem(LAST_ATEX_KEY, app);
+        if(group==='ATEX') localStorage.setItem(storageKey(LAST_ATEX_KEY_BASE), app);
         go(href, app);
       });
     });
@@ -106,6 +129,11 @@
     if(btn) btn.addEventListener('click', ()=>{
       localStorage.removeItem('autonomix_token');
       localStorage.removeItem('autonomix_user');
+      // Ne pas effacer l'historique global, mais on peut aussi nettoyer les clés liées au compte courant
+      if (currentUser && currentUser.account_id != null){
+        localStorage.removeItem(storageKey(USAGE_KEY_BASE));
+        localStorage.removeItem(storageKey(LAST_ATEX_KEY_BASE));
+      }
       location.href = 'login.html';
     });
   }
