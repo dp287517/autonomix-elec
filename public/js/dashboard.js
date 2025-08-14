@@ -1,4 +1,5 @@
-// public/js/dashboard.js — multi-account + gating + usage + robust errors
+
+// public/js/dashboard.js — multi-account + gating + create/delete workspace + robust errors
 (() => {
   const API = (window.API_BASE_URL || '') + '/api';
   const STORAGE_SEL = 'autonomix_selected_account_id';
@@ -38,61 +39,6 @@
     });
   }
 
-  // Usage
-  const USAGE_KEY_BASE = 'autonomix_app_usage_v1';
-  function scopeSuffix(){
-    const acc = (currentUser && currentUser.account_id != null) ? String(currentUser.account_id) : 'anon';
-    const user = (currentUser && currentUser.email) ? String(currentUser.email).toLowerCase() : 'anon';
-    return `${acc}:${user}`;
-  }
-  function storageKey(base){ return `${base}:${scopeSuffix()}`; }
-  function getUsage(){ try{ return JSON.parse(localStorage.getItem(storageKey(USAGE_KEY_BASE)) || '{}'); }catch{ return {}; } }
-  function setUsage(map){ localStorage.setItem(storageKey(USAGE_KEY_BASE), JSON.stringify(map || {})); }
-  async function fetchUsageFromServer() {
-    const token = localStorage.getItem('autonomix_token') || '';
-    if (!token) return {};
-    try {
-      const r = await fetch(`${API}/usage?apps=ATEX Control,EPD,IS Loop`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!r.ok) throw new Error('Erreur fetch usage');
-      return await r.json();
-    } catch { return {}; }
-  }
-  function mergeUsage(local, server) {
-    const merged = { ...local };
-    Object.keys(server).forEach(app => {
-      merged[app] = { count: server[app].count || 0, last: server[app].last_at || new Date().toISOString() };
-    });
-    return merged;
-  }
-  function labelUsage(app){ const u = getUsage(); return (u[app]?.count || 0) + ' lancement' + ((u[app]?.count || 0) > 1 ? 's' : ''); }
-  async function bump(app){
-    const token = localStorage.getItem('autonomix_token') || '';
-    if (!token) {
-      const u = getUsage(); const v = (u[app]?.count || 0) + 1; u[app] = { count: v, last: new Date().toISOString() }; setUsage(u); return;
-    }
-    try {
-      const r = await fetch(`${API}/usage/bump`, {
-        method: 'POST', headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}` }, body: JSON.stringify({ app })
-      });
-      if (!r.ok) throw 0;
-      const s = await r.json(); const u = getUsage(); u[app] = { count: s.count, last: s.last_at }; setUsage(u);
-    } catch {
-      const u = getUsage(); const v = (u[app]?.count || 0) + 1; u[app] = { count: v, last: new Date().toISOString() }; setUsage(u);
-    }
-  }
-  async function go(href, app){ await bump(app); if(href && href !== '#') location.href = href; }
-  function renderSmartShortcuts(accountId){
-    const box = document.getElementById('smartShortcuts'); if(!box) return; box.innerHTML='';
-    const usage = Object.entries(getUsage()).sort((a,b)=> (b[1].count || 0) - (a[1].count || 0)).slice(0,3);
-    const appUrls = { 'ATEX Control':'atex-control.html', 'EPD':'epd.html', 'IS Loop':'is-loop.html' };
-    usage.forEach(([app])=>{
-      const href = (appUrls[app] || '#') + (accountId ? `?account_id=${accountId}` : '');
-      const a = document.createElement('a'); a.href = href; a.className='mini d-block'; a.textContent = `${app} — ${labelUsage(app)}`;
-      a.addEventListener('click', async (e)=>{ e.preventDefault(); await go(href, app); });
-      box.appendChild(a);
-    });
-  }
-
   // Multi-compte
   function selectedAccountId(){ return Number(localStorage.getItem(STORAGE_SEL) || '0') || null; }
   function setSelectedAccountId(v){ localStorage.setItem(STORAGE_SEL, String(v)); }
@@ -114,6 +60,30 @@
       if(!r.ok) return null; return await r.json();
     }catch{ return null; }
   }
+  async function createAccountFlow(){
+    const name = prompt('Nom du nouvel espace de travail ?');
+    if (!name || !name.trim()) return;
+    const token = localStorage.getItem('autonomix_token') || '';
+    const r = await fetch(`${API}/accounts`, { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${token}` }, body: JSON.stringify({ name: name.trim() }) });
+    if (!r.ok) { const e = await r.json().catch(()=>({})); alert('Erreur création: ' + (e?.error || r.status)); return; }
+    const acc = await r.json();
+    setSelectedAccountId(acc.id);
+    alert(`Espace créé: ${acc.name} (#${acc.id}). Choisis maintenant un abonnement (bouton "Gérer l’abonnement").`);
+    location.href = `subscription_atex.html?account_id=${acc.id}`;
+  }
+  async function deleteAccountFlow(accountId, role){
+    if (role !== 'owner') { alert("Seul l'owner peut supprimer l'espace."); return; }
+    if (!confirm("⚠️ Supprimer cet espace ? Cette action est irréversible.")) return;
+    if (!confirm("Confirme encore : toutes les données liées à cet espace seront supprimées.")) return;
+    const token = localStorage.getItem('autonomix_token') || '';
+    const r = await fetch(`${API}/accounts/${accountId}`, { method:'DELETE', headers: { Authorization:`Bearer ${token}` } });
+    if (!r.ok) { const e = await r.json().catch(()=>({})); alert('Erreur suppression: ' + (e?.error || r.status)); return; }
+    const mine = await myAccounts();
+    const fallback = mine.accounts.find(a => a.id !== accountId)?.id || mine.current_account_id || null;
+    setSelectedAccountId(fallback || '');
+    location.reload();
+  }
+
   function renderAccountSwitcher(list, current){
     const sel = document.getElementById('accountSwitcher'); if (!sel) return;
     sel.innerHTML = '';
@@ -140,7 +110,7 @@
             <div class="fw-bold">${app.title}</div>
             <div class="text-secondary small">${app.sub || ''}</div>
           </div>
-          <span class="chip" data-chip="usage" data-app="${app.key}">${labelUsage(app.key)}</span>
+          <span class="chip" data-chip="usage" data-app="${app.key}"></span>
         </div>`;
       host.appendChild(art);
     });
@@ -153,6 +123,15 @@
       sub.style.display = (sub.style.display === 'none' || !sub.style.display) ? 'grid' : 'none';
     });
   }
+  function wireActions(accountId, role){
+    const createBtn = document.getElementById('createAccountBtn');
+    const delBtn = document.getElementById('deleteAccountBtn');
+    if (createBtn) createBtn.onclick = () => createAccountFlow();
+    if (delBtn) {
+      if (role !== 'owner') delBtn.style.display = 'none';
+      delBtn.onclick = () => deleteAccountFlow(accountId, role);
+    }
+  }
   function applyLicensingGating(userTier){
     document.querySelectorAll('#atexSubCards article.app-card').forEach(art=>{
       const appKey = art.getAttribute('data-app');
@@ -160,39 +139,37 @@
       const ok = isAllowed(appKey, 'ATEX', userTier);
       const clone = art.cloneNode(true); art.parentNode.replaceChild(clone, art);
       const node = clone;
+      const chip = node.querySelector('[data-chip="usage"]');
+      if (chip) chip.textContent = ok ? 'Disponible' : 'Verrouillé';
       if (!ok) {
         node.classList.add('locked');
-        const lock = document.createElement('div');
-        lock.style.position='absolute'; lock.style.top='12px'; lock.style.right='12px';
-        lock.className='tag'; lock.textContent='Verrouillé';
-        node.appendChild(lock);
         node.onclick = () => { location.href = 'subscription_atex.html'; };
       } else {
-        node.onclick = async () => { await go(href, appKey); };
+        node.onclick = () => { location.href = href; };
       }
     });
   }
 
-  // Boot
   document.addEventListener('DOMContentLoaded', async ()=>{
     await guard(); setupLogout();
-    const serverUsage = await fetchUsageFromServer();
-    const localUsage = getUsage(); setUsage(mergeUsage(localUsage, serverUsage));
     try{
       const mine = await myAccounts();
-      const preferred = selectedAccountId() || mine.current_account_id || (mine.accounts[0]?.id || null);
+      const preferredFromURL = Number(new URLSearchParams(location.search).get('account_id')) || null;
+      const preferred = preferredFromURL || selectedAccountId() || mine.current_account_id || (mine.accounts[0]?.id || null);
       if (preferred) setSelectedAccountId(preferred);
       renderAccountSwitcher(mine.accounts, preferred);
       renderAtexSubCards(preferred); wireMainAtexCard();
+
       const lic = await fetchLicense('ATEX', preferred);
       const chipLic = document.getElementById('chipAtexLicense');
       if (chipLic){
         chipLic.textContent = lic?.tier
-          ? `Licence: ${tierName(lic.tier)}${lic.scope ? ' • '+lic.scope : ''}${lic.assigned===false ? ' • seat requis' : ''}`
-          : 'Licence: non attribuée';
+          ? `Licence: ${tierName(lic.tier)}${lic.assigned===false ? ' • seat requis' : ''}`
+          : 'Licence: Free (par défaut)';
       }
       applyLicensingGating(lic?.tier ?? 0);
-      renderSmartShortcuts(preferred);
+      const role = lic?.role || (mine.accounts.find(a => a.id === preferred)?.role) || 'member';
+      wireActions(preferred, role);
     }catch(e){
       console.error(e); alert('Impossible de charger vos espaces de travail.');
     }

@@ -1,3 +1,4 @@
+
 // public/js/app_guard.js — multi-account aware guard for static pages
 (() => {
   const API = (window.API_BASE_URL || '') + '/api';
@@ -27,7 +28,6 @@
     return true;
   }
 
-  // Declarative guard via <html data-suite data-min-tier data-redirect>
   document.addEventListener('DOMContentLoaded', async ()=>{
     const root = document.documentElement;
     const suite = root.getAttribute('data-suite');
