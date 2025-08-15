@@ -27,6 +27,7 @@
   }
 
   let currentUser = null;
+  let __currentRole = 'member';
   async function guard() {
     const token = localStorage.getItem('autonomix_token') || '';
     if (!token) { location.href = 'login.html'; return; }
@@ -254,22 +255,45 @@
       const chipLic = document.getElementById('chipAtexLicense');
       if (lic && lic.forbidden){
         if (chipLic) chipLic.textContent = 'Acces refuse a cet espace';
-        applyLicensingGating(lic);
-        let meRole = '—';
-        const arr = mine.accounts || mine;
-        for (let i=0;i<arr.length;i++){ if (String(arr[i].id||arr[i].account_id) === String(preferred)){ meRole = arr[i].role; break; } }
+        // CTA for owners: change manage link text and show it
+        const manageLink = document.getElementById('manageAtexLink');
+        if (manageLink){
+          const url = new URL(window.location.origin + '/subscription_atex.html');
+          url.searchParams.set('account_id', preferred);
+          manageLink.href = url.toString();
+          if (meRole === 'owner'){
+            manageLink.style.display='';
+            manageLink.textContent = 'Choisir un abonnement';
+          }
+        }
+        // Make sub-cards clickable to subscription if owner
+        if (meRole === 'owner'){
+          document.querySelectorAll('#atexSubCards article.app-card').forEach(function(node){
+            node.classList.remove('locked');
+            node.onclick = function(){
+              const url = new URL(window.location.origin + '/subscription_atex.html');
+              url.searchParams.set('account_id', preferred);
+              location.href = url.toString();
+            };
+            const chip = node.querySelector('[data-chip=\"usage\"]');
+            if (chip) chip.textContent = 'Choisir un abonnement';
+          });
+        } else {
+          applyLicensingGating(lic);
+        }
         wireActions(preferred, meRole);
         return;
       }
+      }
       if (chipLic){
         const serverT = (lic && typeof lic.tier==='number') ? lic.tier : 0;
-        chipLic.textContent = 'Licence: ' + labelFromServerTier(serverT>=1 && serverT<=3 ? serverT : (serverT+1));
+        chipLic.textContent = 'Licence: ' + (serverT>=1 && serverT<=3 ? (serverT===3?'Pro':(serverT===2?'Personal':'Free')) : ((serverT+1)===3?'Pro':((serverT+1)===2?'Personal':'Free')));
       }
     applyLicensingGating(lic);
       const role = (function(){
         const arr = mine.accounts || mine;
-        for (let i=0;i<arr.length;i++){ if (String(arr[i].id||arr[i].account_id) === String(preferred)){ return arr[i].role; } }
-        return 'member';
+        for (let i=0;i<arr.length;i++){ if (String(arr[i].id||arr[i].account_id) === String(preferred)){ __currentRole = arr[i].role; return arr[i].role; } }
+        __currentRole = 'member'; return 'member';
       })();
       wireActions(preferred, role);
     }catch(e){

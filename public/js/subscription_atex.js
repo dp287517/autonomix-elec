@@ -17,10 +17,10 @@
   // Server tier is 1..3 (1=Free, 2=Personal, 3=Pro)
   const toServerTierFromUi = (ui)=> (ui>=0 && ui<=2) ? (ui+1) : 1; // map 0,1,2 -> 1,2,3
   const normalizeServerTier = (t)=> {
-    const n = Number(t||0);
-    if (n===0 || n===1 || n===2) return n+1; // handle legacy 0..2
-    if (n===3) return 3;
-    return (n>=1 && n<=3) ? n : 1;
+    const n = Number(t);
+    if (n>=1 && n<=3) return n;      // already server scale
+    if (n>=0 && n<=2) return n+1;    // legacy 0..2 -> 1..3
+    return 1;
   };
   const labelFromServerTier = (st)=> (st===3 ? 'Pro' : (st===2 ? 'Personal' : 'Free'));
 
@@ -113,6 +113,20 @@
   }
 
   document.addEventListener('DOMContentLoaded', async ()=>{
+    // Add pricing to plan buttons
+    const priceMap = {1:'0€', 2:'29€', 3:'39€'}; // server tiers
+    document.querySelectorAll('button[data-plan]').forEach(btn=>{
+      const ui = Number(btn.getAttribute('data-plan')); // 0..2
+      const srv = (ui>=0&&ui<=2)?(ui+1):1;
+      const base = btn.getAttribute('data-label') || btn.textContent.trim() || 'Choisir';
+      btn.textContent = `${base} — ${priceMap[srv]}`;
+    });
+    // explicit id buttons, if present
+    [['#btn-tier-free',1,'Free'],['#btn-tier-personal',2,'Personal'],['#btn-tier-pro',3,'Pro']].forEach(([sel,srv,label])=>{
+      const el = document.querySelector(sel);
+      if (el){ el.textContent = `Choisir ${label} — ${priceMap[srv]}`; }
+    });
+
     const aid = selectedAccId();
     if (!aid){ setCurrentPlan('Aucun espace sélectionné'); return; }
 
@@ -136,17 +150,29 @@
     setCurrentPlan('Licence actuelle : ' + labelFromServerTier(curSrvTier));
     armButtons(curSrvTier, isOwner);
 
-    // Members & seats
+    
+    // Members & seats (with emails list)
     try{
       const r = await fetch(`${API}/accounts/members/${APP}?account_id=${aid}`, { headers: authHeaders() });
       if (r.status === 403) setMembersBox('Accès restreint (owner/admin requis).');
       else if (r.ok){
         const d = await r.json();
-        const total = (d.members||[]).length;
-        const seats = (d.members||[]).filter(m=>m.has_seat).length;
-        setMembersBox(`Membres: ${total} • Sièges assignés: ${seats}`);
+        const arr = d.members || [];
+        const total = arr.length;
+        const seats = arr.filter(m=>m.has_seat).length;
+        let html = `Membres: ${total} • Sièges assignés: ${seats}`;
+        if (arr.length){
+          html += '<ul class="mt-2 mb-0" style="padding-left:18px;">' + arr.map(m=>{
+            const role = (m.role||'').toLowerCase();
+            const seat = m.has_seat ? 'oui' : 'non';
+            const mail = m.email || '';
+            return `<li>${mail} — ${role} — siège: ${seat}</li>`;
+          }).join('') + '</ul>';
+        }
+        const box = document.getElementById('membersBox'); if (box) box.innerHTML = html;
       } else setMembersBox('Erreur chargement des membres.');
     }catch{ setMembersBox('Erreur réseau pour membres.'); }
+
 
     // Invite wiring
     const inviteBtn = document.getElementById('inviteBtn');
