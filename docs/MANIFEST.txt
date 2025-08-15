@@ -1,0 +1,14 @@
+
+AutonomiX v8.2 (complet)
+- middleware/authz.js
+- routes/accounts.js
+- routes/licenses.js
+- routes/subscriptions.js
+- routes/accounts_invite.js
+- public/dashboard.html
+- public/subscription_atex.html
+- public/js/dashboard.js
+- public/js/subscription_atex.js
+- public/js/app_guard.js
+- public/js/license_guard.js
+- docs/suite_integration_checklist.md
