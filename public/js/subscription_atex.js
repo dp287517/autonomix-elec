@@ -1,5 +1,4 @@
 
-// public/js/subscription_atex.js — plans + invite (owner-only plan change)
 (() => {
   const API = (window.API_BASE_URL || '') + '/api';
   const STORAGE_SEL = 'autonomix_selected_account_id';
@@ -49,6 +48,12 @@
     return r.json();
   }
 
+  function ownersText(owners){
+    if (!owners || !owners.length) return 'Owner inconnu';
+    if (owners.length === 1) return `Owner : ${owners[0].email}`;
+    return 'Owners : ' + owners.map(o => o.email).join(', ');
+  }
+
   function renderMembers(box, data){
     if (!data?.members?.length) { box.textContent = 'Aucun membre.'; return; }
     const ul = document.createElement('ul'); ul.className = 'list-unstyled mb-0';
@@ -65,21 +70,28 @@
 
     try {
       const m = await me();
+      const cur = await getCurrent(accId);
       const ownerHint = document.getElementById('ownerHint');
       ownerHint.textContent = (m.role === 'owner')
         ? `Tu es owner de l’espace #${accId}. Tu peux changer le type d’abonnement.`
-        : `Tu es ${m.role || 'membre'} sur l’espace #${accId}. Seul l’owner peut changer le type d’abonnement.`;
+        : `Tu es ${m.role || 'membre'} sur l’espace #${accId}. ${ownersText(cur.owners)}.`;
+
+      document.getElementById('currentPlan').textContent =
+        `Compte #${accId} • Licence actuelle : ${tierLabel(cur.tier)} (scope: ${cur.scope || 'account'}) • sièges: ${cur.seats_total ?? 1}`;
+
       if (m.role !== 'owner') {
         document.querySelectorAll('[data-plan]').forEach(btn => { btn.disabled = true; btn.classList.add('disabled'); });
       }
-    } catch { /* ignore */ }
-
-    try {
-      const cur = await getCurrent(accId);
-      document.getElementById('currentPlan').textContent =
-        `Compte #${accId} • Licence actuelle : ${tierLabel(cur.tier)} (scope: ${cur.scope || 'account'}) • sièges: ${cur.seats_total ?? 1}`;
     } catch {
       document.getElementById('currentPlan').textContent = `Licence actuelle : inconnue (connecte-toi)`;
+    }
+
+    try{
+      const data = await getMembers(accId);
+      renderMembers(document.getElementById('membersBox'), data);
+    }catch{
+      const box = document.getElementById('membersBox');
+      if (box) box.textContent = 'Impossible de charger les membres (droits owner/admin requis).';
     }
 
     document.querySelectorAll('[data-plan]').forEach(btn=>{
@@ -88,13 +100,6 @@
         await setPlan(accId, t);
       });
     });
-
-    try{
-      const data = await getMembers(accId);
-      renderMembers(document.getElementById('membersBox'), data);
-    }catch{
-      document.getElementById('membersBox').textContent = 'Impossible de charger les membres (droits owner/admin requis).';
-    }
 
     document.getElementById('inviteBtn').addEventListener('click', async ()=>{
       const email = document.getElementById('inviteEmail').value.trim();

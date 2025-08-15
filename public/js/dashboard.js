@@ -1,5 +1,4 @@
 
-// public/js/dashboard.js — multi-account + gating + create/delete workspace + robust errors
 (() => {
   const API = (window.API_BASE_URL || '') + '/api';
   const STORAGE_SEL = 'autonomix_selected_account_id';
@@ -14,7 +13,6 @@
   function atexApps(){ return APPS.filter(a => a.group==='ATEX'); }
   function isAllowed(appKey, suiteCode, userTier){ const need = ACCESS_POLICY[suiteCode]?.tiers?.[appKey] ?? 0; return userTier >= need; }
 
-  // Auth
   let currentUser = null;
   async function guard() {
     const token = localStorage.getItem('autonomix_token') || '';
@@ -39,9 +37,9 @@
     });
   }
 
-  // Multi-compte
   function selectedAccountId(){ return Number(localStorage.getItem(STORAGE_SEL) || '0') || null; }
-  function setSelectedAccountId(v){ localStorage.setItem(STORAGE_SEL, String(v)); }
+  function setSelectedAccountId(v){ if (v!=null) localStorage.setItem(STORAGE_SEL, String(v)); }
+
   async function myAccounts(){
     const token = localStorage.getItem('autonomix_token') || '';
     const r = await fetch(`${API}/accounts/mine`, { headers: { Authorization:`Bearer ${token}` } });
@@ -52,14 +50,18 @@
     }
     return r.json();
   }
+
   async function fetchLicense(appCode, accountId){
     const token = localStorage.getItem('autonomix_token') || '';
     if (!token || !accountId) return null;
     try{
       const r = await fetch(`${API}/licenses/${encodeURIComponent(appCode)}?account_id=${accountId}`, { headers: { Authorization:`Bearer ${token}` } });
-      if(!r.ok) return null; return await r.json();
+      if (r.status === 403) return { forbidden: true };
+      if(!r.ok) return null; 
+      return await r.json();
     }catch{ return null; }
   }
+
   async function createAccountFlow(){
     const name = prompt('Nom du nouvel espace de travail ?');
     if (!name || !name.trim()) return;
@@ -71,6 +73,7 @@
     alert(`Espace créé: ${acc.name} (#${acc.id}). Choisis maintenant un abonnement (bouton "Gérer l’abonnement").`);
     location.href = `subscription_atex.html?account_id=${acc.id}`;
   }
+
   async function deleteAccountFlow(accountId, role){
     if (role !== 'owner') { alert("Seul l'owner peut supprimer l'espace."); return; }
     if (!confirm("⚠️ Supprimer cet espace ? Cette action est irréversible.")) return;
@@ -80,7 +83,8 @@
     if (!r.ok) { const e = await r.json().catch(()=>({})); alert('Erreur suppression: ' + (e?.error || r.status)); return; }
     const mine = await myAccounts();
     const fallback = mine.accounts.find(a => a.id !== accountId)?.id || mine.current_account_id || null;
-    setSelectedAccountId(fallback || '');
+    if (fallback) setSelectedAccountId(fallback);
+    else localStorage.removeItem(STORAGE_SEL);
     location.reload();
   }
 
@@ -95,6 +99,7 @@
     });
     sel.addEventListener('change', ()=>{ setSelectedAccountId(sel.value); location.reload(); });
   }
+
   function renderAtexSubCards(accountId){
     const host = document.getElementById('atexSubCards'); if(!host) return;
     host.innerHTML = '';
@@ -115,6 +120,7 @@
       host.appendChild(art);
     });
   }
+
   function wireMainAtexCard(){
     const main = document.getElementById('cardATEX');
     const sub = document.getElementById('atexSubCards');
@@ -123,6 +129,7 @@
       sub.style.display = (sub.style.display === 'none' || !sub.style.display) ? 'grid' : 'none';
     });
   }
+
   function wireActions(accountId, role){
     const createBtn = document.getElementById('createAccountBtn');
     const delBtn = document.getElementById('deleteAccountBtn');
@@ -132,6 +139,7 @@
       delBtn.onclick = () => deleteAccountFlow(accountId, role);
     }
   }
+
   function applyLicensingGating(userTier){
     document.querySelectorAll('#atexSubCards article.app-card').forEach(art=>{
       const appKey = art.getAttribute('data-app');
@@ -154,14 +162,24 @@
     await guard(); setupLogout();
     try{
       const mine = await myAccounts();
-      const preferredFromURL = Number(new URLSearchParams(location.search).get('account_id')) || null;
-      const preferred = preferredFromURL || selectedAccountId() || mine.current_account_id || (mine.accounts[0]?.id || null);
-      if (preferred) setSelectedAccountId(preferred);
+      const fromURL = Number(new URLSearchParams(location.search).get('account_id'));
+      const stored = selectedAccountId();
+      const preferred = Number.isFinite(fromURL) && fromURL ? fromURL : (stored || mine.current_account_id || (mine.accounts[0]?.id || null));
+      // Only set the storage if URL overrides or storage was empty
+      if ((Number.isFinite(fromURL) && fromURL) || !stored) setSelectedAccountId(preferred);
+
       renderAccountSwitcher(mine.accounts, preferred);
       renderAtexSubCards(preferred); wireMainAtexCard();
 
       const lic = await fetchLicense('ATEX', preferred);
       const chipLic = document.getElementById('chipAtexLicense');
+      if (lic && lic.forbidden){
+        if (chipLic) chipLic.textContent = 'Accès refusé à cet espace';
+        applyLicensingGating(0);
+        const meRole = mine.accounts.find(a => a.id === preferred)?.role || '—';
+        wireActions(preferred, meRole);
+        return;
+      }
       if (chipLic){
         chipLic.textContent = lic?.tier
           ? `Licence: ${tierName(lic.tier)}${lic.assigned===false ? ' • seat requis' : ''}`
