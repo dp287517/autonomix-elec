@@ -178,7 +178,7 @@
       const clone = art.cloneNode(true); art.parentNode.replaceChild(clone, art);
       const node = clone;
       const chip = node.querySelector('[data-chip="usage"]');
-      if (chip) chip.textContent = ok ? 'Disponible' : `Niveau requis: ${tierName(need)}`;
+      if (chip) chip.textContent = ok ? 'Disponible' : ('Niveau requis: ' + tierName(need));
       if (!ok) {
         node.classList.add('locked');
         node.onclick = () => { location.href = `subscription_atex.html?account_id=${new URLSearchParams(location.search).get('account_id') || (localStorage.getItem('autonomix_selected_account_id')||'')}`; };
