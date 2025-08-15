@@ -1,5 +1,4 @@
 
-// middleware/authz.js — AuthN/AuthZ multi-tenant (fix: no 402)
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/db');
 
