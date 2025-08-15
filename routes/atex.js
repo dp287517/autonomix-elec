@@ -7,7 +7,7 @@ const { requireAuth } = require('../middleware/authz');
 const { requireLicense } = require('../middleware/entitlements');
 
 // Toutes les routes ATEX nécessitent : user connecté + licence ATEX (tier >= 1)
-router.use(requireAuth, requireLicense('ATEX', 1));
+router.use(requireAuth, requireLicense('ATEX', 0));
 
 /**
  * GET /api/atex-equipments
