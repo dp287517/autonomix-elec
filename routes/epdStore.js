@@ -1,4 +1,10 @@
-// main/routes/epdStore.js — CRUD + upload (idempotent)
+// routes/epdStore.js — CRUD + upload (secured with ATEX tier >= 2)
+//
+// Drop-in replacement for your previous epdStore.js (or main/routes/epdStore.js).
+// Changes vs prior version:
+//  - Adds `requireLicense('ATEX', 2)` to ensure only ATEX Personal/Pro (tier>=2) can use EPD features.
+//  - Keeps endpoints identical to avoid front-end changes.
+//  - Small hardening around upload dir creation.
 
 const express = require('express');
 const router = express.Router();
@@ -8,6 +14,7 @@ const multer = require('multer');
 const crypto = require('crypto');
 const { pool } = require('../config/db');
 
+// ===== Auth + Entitlements =====
 let requireAuth = (_req, _res, next) => next();
 try {
   const auth = require('../auth');
@@ -19,7 +26,21 @@ try {
 } catch {
   console.warn('[epdStore] auth module absent (dev).');
 }
-router.use(requireAuth);
+
+let requireLicense = (_app, _tier) => (_req, _res, next) => next();
+try {
+  const ent = require('../middleware/entitlements');
+  if (ent && typeof ent.requireLicense === 'function') {
+    requireLicense = ent.requireLicense;
+  } else {
+    console.warn('[epdStore] entitlements module présent mais pas de `requireLicense` (dev).');
+  }
+} catch {
+  console.warn('[epdStore] entitlements module absent (dev).');
+}
+
+// All EPD endpoints require: logged-in user + ATEX tier >= 2 (Personal/Pro)
+router.use(requireAuth, requireLicense('ATEX', 2));
 
 async function ensureTable() {
   await pool.query(`
@@ -57,7 +78,11 @@ async function ensureTable() {
 }
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+try {
+  if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+} catch (e) {
+  console.warn('[epdStore] unable to create uploads directory:', e?.message || e);
+}
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
