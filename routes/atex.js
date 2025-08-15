@@ -1,30 +1,62 @@
-// routes/atex.js — ATEX Control (Free) + secteurs robustes + filtrage par espace
+// routes/atex.js — ATEX Control (Free) + secteurs robustes + schéma idempotent
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/db');
 
-let { requireAuth } = (() => {
-  try { return require('../middleware/authz'); } catch { return {}; }
-})();
+let { requireAuth } = (() => { try { return require('../middleware/authz'); } catch { return {}; } })();
 requireAuth = requireAuth || ((_req,_res,next)=>next());
 
-let { requireLicense } = (() => {
-  try { return require('../middleware/entitlements'); } catch { return {}; }
-})();
+let { requireLicense } = (() => { try { return require('../middleware/entitlements'); } catch { return {}; } })();
 requireLicense = requireLicense || (()=>(_req,_res,next)=>next());
 
-// ATEX Control doit être accessible en Free => minTier=0
+// ATEX Control accessible en Free (tier 0)
 router.use(requireAuth, requireLicense('ATEX', 0));
 
-/** Vérifie si la colonne account_id existe sur atex_equipments */
 async function hasEquipAccountColumn(){
   const q = await pool.query(`
-    SELECT 1
-    FROM information_schema.columns
+    SELECT 1 FROM information_schema.columns
     WHERE table_schema='public' AND table_name='atex_equipments' AND column_name='account_id'
     LIMIT 1
   `);
   return q.rowCount > 0;
+}
+
+async function ensureSecteursSchema(){
+  // Crée la table si absente
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.atex_secteurs (
+      id SERIAL PRIMARY KEY,
+      account_id BIGINT,
+      name VARCHAR(120),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  // Ajoute les colonnes manquantes / contrainte unique si besoin
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='atex_secteurs' AND column_name='account_id'
+      ) THEN
+        ALTER TABLE public.atex_secteurs ADD COLUMN account_id BIGINT;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='atex_secteurs' AND column_name='name'
+      ) THEN
+        ALTER TABLE public.atex_secteurs ADD COLUMN name VARCHAR(120);
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'atex_secteurs_account_name_key'
+      ) THEN
+        ALTER TABLE public.atex_secteurs
+          ADD CONSTRAINT atex_secteurs_account_name_key UNIQUE(account_id, name);
+      END IF;
+    END
+    $$;
+  `);
 }
 
 /* =========================
@@ -37,7 +69,6 @@ router.get('/atex-equipments', async (req, res) => {
 
     const hasCol = await hasEquipAccountColumn();
 
-    // Recherche / pagination légères
     const q = (req.query.q || '').trim();
     const limit = Math.min(parseInt(req.query.limit||'100',10), 500);
     const offset = Math.max(parseInt(req.query.offset||'0',10), 0);
@@ -58,7 +89,6 @@ router.get('/atex-equipments', async (req, res) => {
         LIMIT $${params.length-1} OFFSET $${params.length};
       `;
     } else {
-      // Fallback ancien schéma: filtre via membership du créateur
       where.push(`ua.account_id = $1`);
       if (q) { params.push(`%${q}%`); where.push(`(e.identifiant ILIKE $${params.length} OR e.composant ILIKE $${params.length})`); }
       params.push(limit, offset);
@@ -88,48 +118,32 @@ router.get('/atex-secteurs', async (req, res) => {
     const accountId = req.account_id;
     if (!accountId) return res.status(400).json({ error: 'account_required' });
 
-    // Table custom secteurs (créée si besoin)
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS public.atex_secteurs (
-        id SERIAL PRIMARY KEY,
-        account_id BIGINT NOT NULL,
-        name VARCHAR(120) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(account_id, name)
-      );
-    `);
+    await ensureSecteursSchema();
 
     const hasCol = await hasEquipAccountColumn();
 
-    // 1) Secteurs depuis équipements (distincts)
     let fromEquip;
     if (hasCol) {
       fromEquip = await pool.query(
         `SELECT DISTINCT e.secteur AS name
          FROM public.atex_equipments e
          WHERE e.secteur IS NOT NULL AND btrim(e.secteur) <> '' AND e.account_id = $1
-         ORDER BY 1 ASC`,
-        [accountId]
+         ORDER BY 1 ASC`, [accountId]
       );
     } else {
-      // Fallback ancien schéma sans e.account_id
       fromEquip = await pool.query(
         `SELECT DISTINCT e.secteur AS name
          FROM public.atex_equipments e
          JOIN public.user_accounts ua ON ua.user_id = e.created_by
          WHERE e.secteur IS NOT NULL AND btrim(e.secteur) <> '' AND ua.account_id = $1
-         ORDER BY 1 ASC`,
-        [accountId]
+         ORDER BY 1 ASC`, [accountId]
       );
     }
 
-    // 2) Secteurs custom
     const fromCustom = await pool.query(
-      `SELECT name FROM public.atex_secteurs WHERE account_id=$1 ORDER BY 1 ASC`,
-      [accountId]
+      `SELECT name FROM public.atex_secteurs WHERE account_id=$1 ORDER BY 1 ASC`, [accountId]
     );
 
-    // Merge unique
     const seen = new Set();
     const out = [];
     for (const r of fromEquip.rows) {
@@ -151,11 +165,13 @@ router.post('/atex-secteurs', async (req, res) => {
   try {
     const accountId = req.account_id;
     if (!accountId) return res.status(400).json({ error: 'account_required' });
+    await ensureSecteursSchema();
     const name = (req.body && req.body.name || '').trim();
     if (!name) return res.status(400).json({ error: 'name_required' });
     await pool.query(
       `INSERT INTO public.atex_secteurs(account_id, name)
-       VALUES ($1,$2) ON CONFLICT (account_id, name) DO NOTHING`,
+       VALUES ($1,$2)
+       ON CONFLICT (account_id, name) DO NOTHING`,
       [accountId, name]
     );
     res.json({ ok: true, name });
