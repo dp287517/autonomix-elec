@@ -1,4 +1,4 @@
-// routes/accounts.js — v3: workspaces list/create/soft-delete + owners
+// routes/accounts.js — v3
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/db');
@@ -20,7 +20,6 @@ async function ensureAccountsSoftDelete(){
     $$;`);
 }
 
-// GET /api/accounts/mine -> [{ account_id, account_name, role }]
 router.get('/accounts/mine', requireAuth, async (req, res) => {
   try {
     await ensureAccountsSoftDelete();
@@ -41,7 +40,6 @@ router.get('/accounts/mine', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/accounts/:id/owners -> ["email", ...]
 router.get('/accounts/:id/owners', requireAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -62,7 +60,6 @@ router.get('/accounts/:id/owners', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/accounts  {name}
 router.post('/accounts', requireAuth, async (req, res) => {
   try {
     await ensureAccountsSoftDelete();
@@ -86,7 +83,6 @@ router.post('/accounts', requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/accounts/:id  -> soft delete (owner requis sur CET espace)
 router.delete('/accounts/:id', requireAuth, async (req, res) => {
   try {
     await ensureAccountsSoftDelete();
