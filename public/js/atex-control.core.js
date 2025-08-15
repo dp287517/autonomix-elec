@@ -121,13 +121,13 @@
         const h = getChatHistory();
         let idx = h.findIndex(x => x.id === currentIA);
         if (idx < 0) idx = 0;
-        document.getElementById('chat-tab').click();
+        var __ct=document.getElementById('chat-tab'); if(__ct) __ct.click();
         setTimeout(() => { if (h.length) selectHistoryChat(idx); }, 50);
       });
-      $('#btnClearChat2').addEventListener('click', clearChatHistory);
-      $('#iaSend').addEventListener('click', sendChatFromPanel);
+      var __c=document.querySelector('#btnClearChat2'); if(__c) __c.addEventListener('click', clearChatHistory);
+      var __s=document.querySelector('#iaSend'); if(__s) __s.addEventListener('click', sendChatFromPanel);
 
-      document.getElementById('chat-tab').addEventListener('shown.bs.tab', () => {
+      var __ct2=document.getElementById('chat-tab'); if(__ct2) __ct2.addEventListener('shown.bs.tab', () => {
         const h = getChatHistory();
         if (!h.length) return;
         let idx = h.findIndex(x => x.id === currentIA);
@@ -550,7 +550,7 @@
         $('#iaLoading').style.display='none'; $('#iaDetails').style.display='block';
         renderThread(document.getElementById('iaThread'), getThread(eq.id));
 
-        if(opts.openChat){ document.getElementById('chat-tab').click(); setTimeout(()=>selectHistoryChat(0),60); }
+        if(opts.openChat){ var __ct=document.getElementById('chat-tab'); if(__ct) __ct.click(); setTimeout(()=>selectHistoryChat(0),60); }
       }catch(e){
         $('#iaLoading').style.display='none';
         $('#iaDetails').style.display='block';
@@ -572,7 +572,7 @@
           renderThread(document.getElementById('iaThread'), it.thread||[]);
           $$('#iaHistoryList .ia-item').forEach(x=>x.classList.remove('active'));
           li.classList.add('active'); currentIA = it.id;
-          document.getElementById('chat-tab').click();
+          var __ct=document.getElementById('chat-tab'); if(__ct) __ct.click();
           selectHistoryChat(idx);
         };
         list.appendChild(li);
