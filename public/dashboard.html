@@ -38,6 +38,8 @@
     a, a:visited{ color:var(--accent); text-decoration:none; } a:hover{ color:var(--accent-2); }
     #atexSubCards{ display:none; }
     .locked{ opacity: .6; position: relative; }
+  
+    .owner-only{ display:none !important; }
   </style>
 </head>
 <body>
@@ -82,7 +84,7 @@
             <span class="chip" id="chipAtexLicense">Licence: …</span>
             <span class="tag"><a id="manageAtexLink" href="#">Gérer l’abonnement</a></span>
             <button class="btn btn-outline btn-sm" id="createAccountBtn" type="button" title="Créer un nouvel espace">Créer un espace</button>
-            <button class="btn btn-outline btn-sm" id="deleteAccountBtn" type="button" title="Supprimer l’espace courant">Supprimer l’espace</button>
+            <button class="btn btn-outline btn-sm" id="deleteAccountBtn" class="owner-only" type="button" title="Supprimer l’espace courant">Supprimer l’espace</button>
           </div>
         </article>
       </div>
