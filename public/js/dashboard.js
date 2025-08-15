@@ -10,7 +10,16 @@
   ];
   const ACCESS_POLICY = { 'ATEX': { tiers: { 'ATEX Control':0, 'EPD':1, 'IS Loop':2 } } };
   function tierName(t){ return t===2?'Pro': (t===1?'Personal':'Free'); }
-  function normalizeTierForLabel(t){ return (typeof t==='number'? t : 0); }
+  function fromServerTier(t){
+    if (typeof t !== 'number') return 0;
+    if (t>=1 && t<=3) return t-1; // server 1..3 -> 0..2
+    if (t>=0 && t<=2) return t;   // already 0..2
+    return 0;
+  }
+  function labelFromServerTier(t){
+    if (t===3) return 'Pro'; if (t===2) return 'Personal'; return 'Free';
+  }
+  function normalizeTierForLabel(t){ if (typeof t==='number' && t>2) return 2; if (typeof t==='number' && t<0) return 0; return t; }
   function atexApps(){ return APPS.filter(a=>a.group==='ATEX'); }
   function minTierFor(appKey, suiteCode){
     return (ACCESS_POLICY[suiteCode] && ACCESS_POLICY[suiteCode].tiers && ACCESS_POLICY[suiteCode].tiers[appKey] !== undefined)
@@ -203,7 +212,7 @@
     if (!lic || lic.forbidden) { lockAllSubCards('Acces refuse a cet espace'); return; }
     if (lic.source === 'seatful' && lic.assigned === false) { lockAllSubCards('Aucun siege assigne sur cet espace'); return; }
 
-    const userTier = lic && typeof lic.tier === 'number' ? lic.tier : 0;
+    const userTier = fromServerTier(lic && typeof lic.tier === 'number' ? lic.tier : 0);
     document.querySelectorAll('#atexSubCards article.app-card').forEach(function(art){
       const appKey = art.getAttribute('data-app');
       const href = art.getAttribute('data-href');
@@ -253,11 +262,10 @@
         return;
       }
       if (chipLic){
-        const labelTier = (lic && typeof lic.tier==='number') ? lic.tier : 0;
-        const label = 'Licence: ' + tierName(labelTier);
-        chipLic.textContent = label;
+        const serverT = (lic && typeof lic.tier==='number') ? lic.tier : 0;
+        chipLic.textContent = 'Licence: ' + labelFromServerTier(serverT>=1 && serverT<=3 ? serverT : (serverT+1));
       }
-      applyLicensingGating(lic);
+    applyLicensingGating(lic);
       const role = (function(){
         const arr = mine.accounts || mine;
         for (let i=0;i<arr.length;i++){ if (String(arr[i].id||arr[i].account_id) === String(preferred)){ return arr[i].role; } }
