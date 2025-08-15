@@ -130,11 +130,25 @@
     });
   }
 
+  
   function wireActions(accountId, role){
     const createBtn = document.getElementById('createAccountBtn');
     const delBtn = document.getElementById('deleteAccountBtn');
     const manageLink = document.getElementById('manageAtexLink');
     if (manageLink) manageLink.href = `subscription_atex.html?account_id=${accountId}`;
+    if (createBtn) createBtn.onclick = () => createAccountFlow();
+    if (delBtn) {
+      if (role === 'owner') {
+        delBtn.classList.remove('owner-only');
+        delBtn.style.display = 'inline-block';
+      } else {
+        delBtn.classList.add('owner-only');
+        delBtn.style.display = 'none';
+      }
+      delBtn.onclick = () => deleteAccountFlow(accountId, role);
+    }
+  }
+`;
     if (createBtn) createBtn.onclick = () => createAccountFlow();
     if (delBtn) {
       if (role !== 'owner') delBtn.style.display = 'none';
