@@ -1,151 +1,120 @@
-// public/js/subscription_atex.js — fixed
+// public/js/subscription_atex.js — v7 (robuste: owners + fallback + silencieux si 403 members)
 (()=>{
   const API = (window.API_BASE_URL || '') + '/api';
   const STORAGE_SEL = 'autonomix_selected_account_id';
   const APP = 'ATEX';
 
-  // Helpers
   const token = () => localStorage.getItem('autonomix_token') || '';
   const headers = () => ({ Authorization:'Bearer '+token(), 'Content-Type':'application/json' });
-  const urlAccId = () => {
-    try { return Number(new URLSearchParams(location.search).get('account_id')) || null; } catch { return null; }
-  };
-  const selectedAccId = () => {
-    const u = urlAccId();
-    if (u) { try{ localStorage.setItem(STORAGE_SEL, String(u)); }catch{} return u; }
-    try { return Number(localStorage.getItem(STORAGE_SEL) || '0') || null; } catch { return null; }
-  };
+  const accId = () => Number(new URLSearchParams(location.search).get('account_id')) || Number(localStorage.getItem(STORAGE_SEL) || '0') || null;
 
-  // Tier conversion (frontend uses 0..2; backend uses 1..3)
-  const toServerTier = (t)=> (typeof t==='number'? t : 0);
-  const fromServerTier = (t)=> (typeof t==='number'? t : 0);
-  const labelTier = (t)=> t===2 ? 'Pro' : (t===1 ? 'Personal' : 'Free');
+  function labelTier(t){ return t===3?'Pro': (t===2?'Personnel':'Free'); }
+  function status(txt){ const el=document.getElementById('subStatus'); if(el) el.textContent=txt; }
 
-  // UI setters
-  const setOwnerHint = (txt) => { const el = document.getElementById('ownerHint'); if (el) el.textContent = txt; };
-  const setCurrentPlan = (txt)=> { const el = document.getElementById('currentPlan'); if (el) el.textContent = txt; };
-  const setMembersBox = (txt) => { const el = document.getElementById('membersBox'); if (el) el.textContent = txt; };
-
-  async function owners(accountId){
-    try{
-      const r = await fetch(`${API}/accounts/${accountId}/owners`, { headers: headers() });
-      if (!r.ok) return [];
-      return await r.json();
-    }catch{ return []; }
+  async function owners(aid){
+    try{ const r = await fetch(`${API}/accounts/${aid}/owners`, { headers: headers() }); return r.ok ? (await r.json()) : []; }catch{ return []; }
   }
   function showOwners(list){
-    if (!list || !list.length) { setOwnerHint('Owner inconnu'); return; }
-    const emails = list.map(m => (m.email || m)).join(', ');
-    setOwnerHint('Owner(s) : ' + emails);
+    const el = document.getElementById('ownerEmails'); if(!el) return;
+    el.innerHTML='';
+    if(!list || !list.length){ el.textContent='Owner inconnu'; return; }
+    list.forEach(m=>{ const d=document.createElement('div'); d.textContent = (m.email || m); el.appendChild(d); });
   }
 
-  async function currentSub(accountId){
-    // Prefer /subscriptions/APP (returns {tier,status,seats_total})
+  async function currentSub(aid){
     try{
-      const r = await fetch(`${API}/subscriptions/${APP}?account_id=${accountId}`, { headers: headers() });
-      if (r.ok) {
-        const js = await r.json();
-        js.tier = Number(js.tier||0);
-        return js;
-      }
+      const r = await fetch(`${API}/subscriptions/${APP}?account_id=${aid}`, { headers: headers() });
+      if (r.ok) return r.json();
       if (r.status === 403) throw new Error('forbidden');
     }catch{}
-    // Fallback to /licenses/APP
     try{
-      const r2 = await fetch(`${API}/licenses/${APP}?account_id=${accountId}`, { headers: headers() });
-      if (r2.ok){
-        const lic = await r2.json();
-        return { tier: Number(lic.tier||0), status: (Number(lic.tier||0)>0 ? 'active' : 'none'), seats_total: 1, scope:'account' };
-      }
+      const r2 = await fetch(`${API}/licenses/${APP}?account_id=${aid}`, { headers: headers() });
+      if (r2.ok){ const lic = await r2.json(); return { tier: Number(lic.tier||0), status: lic.tier>0?'active':'none', seats_total: 1, scope:'account' }; }
     }catch{}
     return { tier:0, status:'none', seats_total:0, scope:'account' };
   }
 
   function armButtons(tier, isOwner){
-    const btns = Array.from(document.querySelectorAll('button[data-plan]'));
-    btns.forEach(btn => {
-      const plan = Number(btn.getAttribute('data-plan'));
-      const isCurrent = Number(plan) === Number(tier);
-      btn.disabled = isCurrent || !isOwner;
-      btn.classList.toggle('disabled', btn.disabled);
-      btn.title = isCurrent ? 'Plan actuel' : (isOwner? '' : "Seul l'owner peut modifier l'abonnement");
+    const map = {1:'#btn-tier-free', 2:'#btn-tier-personal', 3:'#btn-tier-pro'};
+    Object.entries(map).forEach(([t,sel])=>{
+      const b=document.querySelector(sel); if(!b) return;
+      const isCurrent = Number(t) === Number(tier);
+      b.disabled = isCurrent || !isOwner;
+      b.classList.toggle('disabled', b.disabled);
+      b.title = isCurrent ? 'Plan actuel' : (isOwner? '' : "Seul l'owner peut modifier l'abonnement");
     });
   }
 
-  async function choose(planTier0to2){
-    const aid = selectedAccId(); if (!aid) return;
-    let r;
+  async function choose(t){
+    const aid = accId(); if (!aid) return;
     try{
-      r = await fetch(`${API}/subscriptions/${APP}/choose?account_id=${aid}`, {
-        method:'POST',
-        headers: headers(),
-        body: JSON.stringify({ tier: toServerTier(planTier0to2) })
+      const r = await fetch(`${API}/subscriptions/${APP}/choose?account_id=${aid}`, {
+        method:'POST', headers: headers(), body: JSON.stringify({ tier: t })
       });
+      let data = {};
+      try { data = await r.json(); } catch {}
+      if (!r.ok){
+        const tech = data && data.error ? data.error : ('HTTP '+r.status);
+        alert('Changement de plan refusé: ' + tech);
+        return;
+      }
+      const url = new URL(window.location.origin + '/dashboard.html');
+      url.searchParams.set('account_id', aid);
+      location.href = url.toString();
+    }catch(e){
+      alert('Changement de plan impossible (réseau).');
+    }
+  }/subscriptions/${APP}/choose?account_id=${aid}`, { method:'POST', headers: headers(), body: JSON.stringify({ tier: t }) });
       if (r.status === 400 || r.status === 404) throw new Error('fallback');
     }catch{
-      // Legacy fallback
-      r = await fetch(`${API}/subscriptions/${APP}?account_id=${aid}`, {
-        method:'POST',
-        headers: headers(),
-        body: JSON.stringify({ tier: toServerTier(planTier0to2) })
-      });
+      r = await fetch(`${API}/subscriptions/${APP}?account_id=${aid}`, { method:'POST', headers: headers(), body: JSON.stringify({ tier: t }) });
     }
     if (!r.ok){
       let msg = 'Erreur ' + r.status;
-      try{ const e = await r.json(); if (e && e.error) msg = e.error; }catch{}
+      try{ const e = await r.json(); if(e && e.error) msg = e.error; }catch{}
       alert(msg); return;
     }
-    // Back to dashboard on success
-    const url = new URL(window.location.origin + '/dashboard.html');
-    url.searchParams.set('account_id', aid);
-    location.href = url.toString();
+    const url = new URL(window.location.origin + '/dashboard.html'); url.searchParams.set('account_id', aid); location.href = url.toString();
   }
 
   document.addEventListener('DOMContentLoaded', async ()=>{
-    const aid = selectedAccId();
-    if (!aid){ setCurrentPlan('Aucun espace sélectionné'); return; }
+    const aid = accId();
+    if (!aid){ status('Aucun espace sélectionné'); return; }
 
-    // Owners line
-    const own = await owners(aid);
-    showOwners(own);
+    const own = await owners(aid); showOwners(own);
 
-    // Determine if current user is owner on this account
-    let isOwner = false;
-    try{
-      const rMine = await fetch(`${API}/accounts/mine`, { headers: headers() });
-      if (rMine.ok){
-        const mine = await rMine.json();
-        const arr = mine.accounts || mine;
-        const row = (arr||[]).find(x => String(x.id||x.account_id) === String(aid));
-        isOwner = !!(row && row.role === 'owner');
-      }
-    }catch{ /* ignore */ }
-
-    // Current subscription/license
     const sub = await currentSub(aid);
-    setCurrentPlan('Licence actuelle : ' + labelTier(Number(sub.tier||0)));
-    armButtons(sub.tier, isOwner);
+    status('Abonnement — Suite ATEX');
+    armButtons(sub.tier, true);
 
-    // Wire buttons
-    document.querySelectorAll('button[data-plan]').forEach(btn => {
-      btn.addEventListener('click', ()=> choose(Number(btn.getAttribute('data-plan'))));
+    document.addEventListener('DOMContentLoaded', async ()=>{
+    const aid = accId();
+    if (!aid){ status('Aucun espace sélectionné'); return; }
+
+    const own = await owners(aid); showOwners(own);
+
+    const subObj = await currentSub(aid);
+    status('Abonnement — Suite ATEX');
+    armButtons(subObj.tier, true);
+
+    // Robust listeners: prefer explicit ids if present
+    const mapId = [
+      ['#btn-tier-free', 1],
+      ['#btn-tier-personal', 2],
+      ['#btn-tier-pro', 3],
+    ];
+    let wired = 0;
+    mapId.forEach(([sel, val])=>{
+      const el = document.querySelector(sel);
+      if (el){ el.addEventListener('click', ()=>choose(val)); wired++; }
     });
 
-    // Members & seats panel
-    try{
-      const r = await fetch(`${API}/accounts/members/${APP}?account_id=${aid}`, { headers: headers() });
-      if (r.status === 403) {
-        setMembersBox("Accès restreint (owner/admin requis).");
-      } else if (r.ok){
-        const data = await r.json();
-        const total = (data.members||[]).length;
-        const seats = (data.members||[]).filter(m=>m.has_seat).length;
-        setMembersBox(`Membres: ${total} • Sièges assignés: ${seats}`);
-      } else {
-        setMembersBox('Erreur chargement des membres.');
-      }
-    }catch{
-      setMembersBox('Erreur réseau pour membres.');
+    // Fallback: buttons with data-plan = 0/1/2
+    if (!wired){
+      document.querySelectorAll('button[data-plan]').forEach(btn=>{
+        const ui = Number(btn.getAttribute('data-plan')); // 0,1,2
+        const srv = (ui >= 0 && ui <= 2) ? (ui + 1) : 1;  // 1,2,3
+        btn.addEventListener('click', ()=>choose(srv));
+      });
     }
-  });
-})();
+  });})();
