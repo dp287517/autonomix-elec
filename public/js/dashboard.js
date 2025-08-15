@@ -9,6 +9,12 @@
   ];
   const ACCESS_POLICY = { 'ATEX': { tiers: { 'ATEX Control':0, 'EPD':1, 'IS Loop':2 } } };
   function tierName(t){ return t===2?'Pro': (t===1?'Personal':'Free'); }
+  function normalizeTierForLabel(t){
+    // DB may use 1..3; UI labels expect 0..2
+    if (typeof t === 'number' && t > 2) return 2; // treat 3 as Pro
+    if (typeof t === 'number' && t < 0) return 0;
+    return t;
+  }
   function atexApps(){ return APPS.filter(function(a){ return a.group==='ATEX'; }); }
   function minTierFor(appKey, suiteCode){
     return (ACCESS_POLICY[suiteCode] && ACCESS_POLICY[suiteCode].tiers && ACCESS_POLICY[suiteCode].tiers[appKey] !== undefined)
@@ -180,6 +186,12 @@
       var url = new URL(window.location.origin + '/subscription_atex.html');
       url.searchParams.set('account_id', accountId);
       manageLink.href = url.toString();
+      if (role !== 'owner') {
+        // Hide the manage link for non-owners
+        manageLink.style.display = 'none';
+      } else {
+        manageLink.style.display = '';
+      }
     }
     if (createBtn) createBtn.onclick = function(){ createAccountFlow(); };
     if (delBtn) {
@@ -257,7 +269,8 @@
         return;
       }
       if (chipLic){
-        var label = (lic && typeof lic.tier==='number' && lic.tier>0) ? ('Licence: ' + tierName(lic.tier)) : 'Licence: Free (par defaut)';
+        var labelTier = (lic && typeof lic.tier==='number') ? normalizeTierForLabel(lic.tier) : 0;
+        var label = 'Licence: ' + tierName(labelTier);
         if (lic && lic.source === 'seatful' && lic.assigned === false) label += ' • siege requis';
         chipLic.textContent = label;
       }
