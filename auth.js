@@ -1,4 +1,5 @@
-// auth.js — Routes d'authentification (racine du projet)
+
+// auth.js — normalized email auth + invited account claim (root level, next to app.js)
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -13,154 +14,89 @@ function signToken({ email, uid, account_id, role }) {
   return jwt.sign({ sub: email, uid, account_id, role }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
 }
 
-async function ensureUsersTable() {
+async function ensureUsersTable(){
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS public.users (
-      id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS public.users(
+      id BIGSERIAL PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
-      name TEXT,
-      password TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      password TEXT
     );
   `);
 }
 
-router.get('/debug/ping', (req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
-router.get('/debug/db', async (req, res) => {
-  try {
-    const r = await pool.query('SELECT NOW() AS now');
-    res.json({ ok: true, now: r.rows[0].now });
-  } catch (e) {
-    console.error('[GET /debug/db] error', e);
-    res.status(500).json({ ok: false, error: e.message });
-  }
-});
-
-router.post('/register', async (req, res) => {
-  try {
+router.post('/signup', async (req, res) => {
+  try{
     await ensureUsersTable();
-    const { email, password } = req.body || {};
+    let email = (req.body.email || '').trim().toLowerCase();
+    const password = req.body.password || '';
     if (!email || !password) return res.status(400).json({ error: 'missing_fields' });
 
-    const dupli = await pool.query(`SELECT 1 FROM public.users WHERE email=$1 LIMIT 1`, [email]);
-    if (dupli.rowCount) return res.status(409).json({ error: 'email_exists' });
+    // If user exists with same lower(email)
+    const ex = await pool.query(`SELECT id, email, password FROM public.users WHERE LOWER(email)=LOWER($1) LIMIT 1`, [email]);
+    if (ex.rowCount){
+      const u = ex.rows[0];
+      // If invited placeholder (no password yet), claim it by setting password
+      if (!u.password){
+        const hash = await bcrypt.hash(password, SALT_ROUNDS);
+        await pool.query(`UPDATE public.users SET password=$1, email=LOWER($2) WHERE id=$3`, [hash, email, u.id]);
+        const token = signToken({ email, uid: u.id });
+        return res.json({ token });
+      }
+      return res.status(409).json({ error: 'email_exists' });
+    }
 
+    // Fresh insert
     const hash = await bcrypt.hash(password, SALT_ROUNDS);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS public.accounts (
-        id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-        name TEXT NOT NULL,
-        parent_account_id BIGINT REFERENCES public.accounts(id) ON DELETE SET NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );`);
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS public.user_accounts (
-        user_id BIGINT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-        account_id BIGINT NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
-        role TEXT NOT NULL CHECK (role IN ('owner','admin','member')),
-        PRIMARY KEY (user_id, account_id)
-      );`);
-
-    const displayName = (email.split('@')[0] || 'Utilisateur').trim();
-
-    const accName = displayName + "'s account";
-    const acc = await pool.query(
-      `INSERT INTO public.accounts(name) VALUES ($1) RETURNING id`,
-      [accName]
-    );
-    const accountId = acc.rows[0].id;
-
-    const u = await pool.query(
-      `INSERT INTO public.users(email, name, password)
-       VALUES ($1,$2,$3)
-       RETURNING id, email`,
-      [email, displayName, hash]
-    );
-    const user = u.rows[0];
-
-    await pool.query(
-      `INSERT INTO public.user_accounts(user_id, account_id, role) VALUES ($1,$2,'owner')`,
-      [user.id, accountId]
-    );
-
-    const token = signToken({ email: user.email, uid: user.id, account_id: accountId, role: 'owner' });
-    return res.status(201).json({ token });
-  } catch (e) {
-    console.error('[POST /register] code=', e.code, ' detail=', e.detail, ' msg=', e.message);
-    if (e && e.code === '23505') return res.status(409).json({ error: 'email_exists' });
+    const ins = await pool.query(`INSERT INTO public.users(email, password) VALUES(LOWER($1), $2) RETURNING id`, [email, hash]);
+    const uid = ins.rows[0].id;
+    const token = signToken({ email, uid });
+    return res.json({ token });
+  }catch(e){
+    console.error('[POST /signup] error', e);
     return res.status(500).json({ error: 'server_error' });
   }
 });
 
 router.post('/login', async (req, res) => {
-  try {
+  try{
     await ensureUsersTable();
-    const { email, password } = req.body || {};
+    let email = (req.body.email || '').trim().toLowerCase();
+    const password = req.body.password || '';
     if (!email || !password) return res.status(400).json({ error: 'missing_fields' });
 
-    const r = await pool.query(
-      `SELECT id, email, password FROM public.users WHERE email=$1 LIMIT 1`,
-      [email]
-    );
+    const r = await pool.query(`SELECT id, email, password FROM public.users WHERE LOWER(email)=LOWER($1) LIMIT 1`, [email]);
     if (!r.rowCount) return res.status(401).json({ error: 'invalid_credentials' });
     const user = r.rows[0];
+    if (!user.password) return res.status(401).json({ error: 'set_password_required' });
 
     const ok = await bcrypt.compare(password, user.password);
     if (!ok) return res.status(401).json({ error: 'invalid_credentials' });
 
-    const a = await pool.query(`
-      SELECT ua.account_id, ua.role
-      FROM public.user_accounts ua
-      WHERE ua.user_id=$1
-      ORDER BY ua.account_id ASC
-      LIMIT 1
-    `, [user.id]);
-
-    let accountId = null, role = null;
-    if (a.rowCount) {
-      accountId = a.rows[0].account_id;
-      role = a.rows[0].role;
-    } else {
-      const acc = await pool.query(
-        `INSERT INTO public.accounts(name) VALUES ($1) RETURNING id`,
-        [(email.split('@')[0] || 'Mon compte') + "'s account"]
-      );
-        accountId = acc.rows[0].id;
-        role = 'owner';
-        await pool.query(
-          `INSERT INTO public.user_accounts(user_id, account_id, role) VALUES ($1,$2,$3)`,
-          [user.id, accountId, role]
-        );
-    }
-
-    const token = signToken({ email: user.email, uid: user.id, account_id: accountId, role });
+    const token = signToken({ email: user.email.toLowerCase(), uid: user.id });
     return res.json({ token });
-  } catch (e) {
-    console.error('[POST /login] code=', e.code, ' detail=', e.detail, ' msg=', e.message);
+  }catch(e){
+    console.error('[POST /login] error', e);
     return res.status(500).json({ error: 'server_error' });
   }
 });
 
+// Return who I am, and optionally my role on a specific account
 router.get('/me', async (req, res) => {
-  try {
-    const auth = req.headers.authorization || '';
-    const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-    if (!token) return res.status(401).json({ error: 'unauthenticated' });
+  try{
+    const auth = (req.headers.authorization || '').split(' ')[1] || '';
+    const payload = jwt.verify(auth, JWT_SECRET);
 
-    const payload = jwt.verify(token, JWT_SECRET);
-    let role = payload.role || null;
-
-    if (payload.account_id && payload.uid) {
-      const r = await pool.query(
-        `SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`,
-        [payload.uid, payload.account_id]
-      );
+    let account_id = null, role = null;
+    if (req.query && req.query.account_id){
+      account_id = Number(req.query.account_id);
+      const r = await pool.query(`SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`, [payload.uid, account_id]);
       if (r.rowCount) role = r.rows[0].role;
+    } else {
+      const r = await pool.query(`SELECT account_id, role FROM public.user_accounts WHERE user_id=$1 ORDER BY account_id ASC LIMIT 1`, [payload.uid]);
+      if (r.rowCount){ account_id = r.rows[0].account_id; role = r.rows[0].role; }
     }
-
-    res.json({ email: payload.sub, account_id: payload.account_id || null, role });
-  } catch (e) {
+    res.json({ email: payload.sub, account_id, role });
+  }catch(e){
     console.error('[GET /me] error', e);
     return res.status(401).json({ error: 'invalid_token' });
   }
