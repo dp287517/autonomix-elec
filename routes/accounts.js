@@ -70,14 +70,12 @@ router.get('/accounts/mine', requireAuth, async (req, res) => {
   }
 });
 
+// Visible même si l'utilisateur n'est pas membre, pour pouvoir contacter le propriétaire
 router.get('/accounts/:id/owners', requireAuth, async (req, res) => {
   try{
     await ensureCoreTables();
     const accountId = Number(req.params.id);
     if (!accountId) return res.status(400).json({ error: 'bad_account_id' });
-    // Only members of the account can view owners
-    const m = await pool.query(`SELECT 1 FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`, [req.user.id, accountId]);
-    if (!m.rowCount) return res.status(403).json({ error: 'forbidden_account' });
     const r = await pool.query(`
       SELECT u.email, COALESCE(u.name, '') AS name
       FROM public.user_accounts ua
