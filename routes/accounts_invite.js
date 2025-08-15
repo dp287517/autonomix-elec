@@ -1,5 +1,4 @@
 
-// routes/accounts_invite.js — invite member, seats grow automatically
 const router = require('express').Router();
 const { pool } = require('../config/db');
 const { requireAuth } = require('../middleware/authz');
@@ -66,7 +65,7 @@ router.post('/accounts/invite', requireAuth, async (req, res) => {
 
     const roleRow = await pool.query(`SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`, [req.user.id, accountId]);
     const role = roleRow.rowCount ? roleRow.rows[0].role : null;
-    if (!role || roleRank(role) < 2) return res.status(403).json({ error: 'forbidden_role' });
+    if (!role || (role !== 'owner' && role !== 'admin')) return res.status(403).json({ error: 'forbidden_role' });
 
     const { email, role: invitedRole = 'member', appCode = 'ATEX' } = req.body || {};
     if (!email) return res.status(400).json({ error: 'missing_email' });

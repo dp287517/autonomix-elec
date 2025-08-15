@@ -1,5 +1,4 @@
 
-// routes/accounts.js — create/list/delete workspaces + /me
 const router = require('express').Router();
 const { pool } = require('../config/db');
 const { requireAuth } = require('../middleware/authz');
@@ -39,7 +38,7 @@ router.get('/me', requireAuth, async (req, res) => {
     if (!account_id) {
       const r = await pool.query(`
         SELECT account_id, role FROM public.user_accounts
-        WHERE user_id=$1 ORDER BY role='owner' DESC, role='admin' DESC LIMIT 1
+        WHERE user_id=$1 ORDER BY role='owner' DESC, role='admin' DESC, account_id ASC LIMIT 1
       `, [req.user.id]);
       if (r.rowCount){
         account_id = r.rows[0].account_id;
@@ -67,6 +66,28 @@ router.get('/accounts/mine', requireAuth, async (req, res) => {
     res.json({ accounts: r.rows, current_account_id: current });
   }catch(e){
     console.error('[GET /accounts/mine] error', e);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
+router.get('/accounts/:id/owners', requireAuth, async (req, res) => {
+  try{
+    await ensureCoreTables();
+    const accountId = Number(req.params.id);
+    if (!accountId) return res.status(400).json({ error: 'bad_account_id' });
+    // Only members of the account can view owners
+    const m = await pool.query(`SELECT 1 FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`, [req.user.id, accountId]);
+    if (!m.rowCount) return res.status(403).json({ error: 'forbidden_account' });
+    const r = await pool.query(`
+      SELECT u.email, COALESCE(u.name, '') AS name
+      FROM public.user_accounts ua
+      JOIN public.users u ON u.id = ua.user_id
+      WHERE ua.account_id=$1 AND ua.role='owner'
+      ORDER BY u.email ASC
+    `, [accountId]);
+    res.json({ account_id: accountId, owners: r.rows });
+  }catch(e){
+    console.error('[GET /accounts/:id/owners] error', e);
     res.status(500).json({ error: 'server_error' });
   }
 });

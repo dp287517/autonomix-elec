@@ -1,5 +1,4 @@
 
-// routes/subscriptions.js — change plan per account (owner-only) + auto-assign seat
 const router = require('express').Router();
 const { pool } = require('../config/db');
 const { requireAuth } = require('../middleware/authz');
@@ -34,6 +33,17 @@ async function getRole(userId, accountId){
   return r.rowCount ? r.rows[0].role : null;
 }
 
+async function getOwners(accountId){
+  const r = await pool.query(`
+    SELECT u.email, COALESCE(u.name,'') AS name
+    FROM public.user_accounts ua
+    JOIN public.users u ON u.id = ua.user_id
+    WHERE ua.account_id=$1 AND ua.role='owner'
+    ORDER BY u.email ASC
+  `, [accountId]);
+  return r.rows;
+}
+
 router.get('/subscriptions/:appCode', requireAuth, async (req, res) => {
   try {
     await ensureTables();
@@ -44,15 +54,17 @@ router.get('/subscriptions/:appCode', requireAuth, async (req, res) => {
     const role = await getRole(req.user.id, accountId);
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
+    const owners = await getOwners(accountId);
+
     const s = await pool.query(`
       SELECT id, tier, seats_total, status FROM public.subscriptions
       WHERE account_id=$1 AND app_code=$2 AND scope='account' AND status='active'
       ORDER BY tier DESC LIMIT 1`,
       [accountId, appCode]
     );
-    if (!s.rowCount) return res.json({ app: appCode, account_id: accountId, role, tier: 0, scope: 'account', status: 'none', seats_total: 1 });
+    if (!s.rowCount) return res.json({ app: appCode, account_id: accountId, role, tier: 0, scope: 'account', status: 'none', seats_total: 1, owners });
     const row = s.rows[0];
-    res.json({ app: appCode, account_id: accountId, role, tier: row.tier, scope: 'account', status: row.status, seats_total: row.seats_total ?? 1 });
+    res.json({ app: appCode, account_id: accountId, role, tier: row.tier, scope: 'account', status: row.status, seats_total: row.seats_total ?? 1, owners });
   } catch (e) {
     console.error('[GET /subscriptions/:appCode] error', e);
     res.status(500).json({ error: 'server_error' });
@@ -67,7 +79,7 @@ router.post('/subscriptions/:appCode', requireAuth, async (req, res) => {
     if (!accountId) return res.status(400).json({ error: 'missing_account_id' });
 
     const role = await getRole(req.user.id, accountId);
-    if (role !== 'owner') return res.status(403).json({ error: 'owner_only' }); // OWNER ONLY
+    if (role !== 'owner') return res.status(403).json({ error: 'owner_only' });
 
     let { tier } = req.body || {};
     tier = Number.isFinite(+tier) ? +tier : 0;

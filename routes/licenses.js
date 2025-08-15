@@ -1,5 +1,4 @@
 
-// routes/licenses.js — license lookup (seatful + seatless)
 const router = require('express').Router();
 const { pool } = require('../config/db');
 const { requireAuth } = require('../middleware/authz');
