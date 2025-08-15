@@ -1,4 +1,5 @@
-(() => {
+// public/js/dashboard.js — fixed (manage link hidden for non-owners + normalized license label)
+(()=>{
   const API = (window.API_BASE_URL || '') + '/api';
   const STORAGE_SEL = 'autonomix_selected_account_id';
 
@@ -9,28 +10,23 @@
   ];
   const ACCESS_POLICY = { 'ATEX': { tiers: { 'ATEX Control':0, 'EPD':1, 'IS Loop':2 } } };
   function tierName(t){ return t===2?'Pro': (t===1?'Personal':'Free'); }
-  function normalizeTierForLabel(t){
-    // DB may use 1..3; UI labels expect 0..2
-    if (typeof t === 'number' && t > 2) return 2; // treat 3 as Pro
-    if (typeof t === 'number' && t < 0) return 0;
-    return t;
-  }
-  function atexApps(){ return APPS.filter(function(a){ return a.group==='ATEX'; }); }
+  function normalizeTierForLabel(t){ if (typeof t==='number' && t>2) return 2; if (typeof t==='number' && t<0) return 0; return t; }
+  function atexApps(){ return APPS.filter(a=>a.group==='ATEX'); }
   function minTierFor(appKey, suiteCode){
     return (ACCESS_POLICY[suiteCode] && ACCESS_POLICY[suiteCode].tiers && ACCESS_POLICY[suiteCode].tiers[appKey] !== undefined)
       ? ACCESS_POLICY[suiteCode].tiers[appKey] : 0;
   }
 
-  var currentUser = null;
+  let currentUser = null;
   async function guard() {
-    var token = localStorage.getItem('autonomix_token') || '';
+    const token = localStorage.getItem('autonomix_token') || '';
     if (!token) { location.href = 'login.html'; return; }
     try{
-      var r = await fetch(API + '/me', { headers:{ Authorization:'Bearer ' + token } });
+      const r = await fetch(API + '/me', { headers:{ Authorization:'Bearer ' + token } });
       if(!r.ok) throw new Error('me ' + r.status);
-      var data = await r.json();
+      const data = await r.json();
       currentUser = { email: data.email, account_id: data.account_id, role: data.role };
-      var emailEl = document.getElementById('userEmail');
+      const emailEl = document.getElementById('userEmail');
       if (emailEl) {
         emailEl.textContent = (currentUser.email || '') + ' • compte #' +
           (currentUser.account_id != null ? currentUser.account_id : '—') +
@@ -42,7 +38,7 @@
     }
   }
   function setupLogout(){
-    var btn = document.getElementById('logoutBtn');
+    const btn = document.getElementById('logoutBtn');
     if(btn) btn.addEventListener('click', function(){
       localStorage.removeItem('autonomix_token'); localStorage.removeItem('autonomix_user');
       location.href = 'login.html';
@@ -53,8 +49,8 @@
   function setSelectedAccountId(v){ if (v!=null) localStorage.setItem(STORAGE_SEL, String(v)); }
 
   async function myAccounts(){
-    var token = localStorage.getItem('autonomix_token') || '';
-    var r = await fetch(API + '/accounts/mine', { headers: { Authorization:'Bearer ' + token } });
+    const token = localStorage.getItem('autonomix_token') || '';
+    const r = await fetch(API + '/accounts/mine', { headers: { Authorization:'Bearer ' + token } });
     if(!r.ok){
       if (r.status === 401) { localStorage.removeItem('autonomix_token'); location.href = 'login.html'; }
       if (r.status === 403) { alert("Tu n'as pas les droits pour lister les espaces (403)."); }
@@ -64,10 +60,10 @@
   }
 
   async function fetchLicense(appCode, accountId){
-    var token = localStorage.getItem('autonomix_token') || '';
+    const token = localStorage.getItem('autonomix_token') || '';
     if (!token || !accountId) return null;
     try{
-      var r = await fetch(API + '/licenses/' + encodeURIComponent(appCode) + '?account_id=' + accountId, { headers: { Authorization:'Bearer ' + token } });
+      const r = await fetch(API + '/licenses/' + encodeURIComponent(appCode) + '?account_id=' + accountId, { headers: { Authorization:'Bearer ' + token } });
       if (r.status === 403) return { forbidden: true };
       if(!r.ok) return null; 
       return await r.json();
@@ -75,18 +71,17 @@
   }
 
   async function createAccountFlow(){
-    var name = prompt('Nom du nouvel espace de travail ?');
+    const name = prompt('Nom du nouvel espace de travail ?');
     if (!name || !name.trim()) return;
-    var token = localStorage.getItem('autonomix_token') || '';
-    var r = await fetch(API + '/accounts', { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + token }, body: JSON.stringify({ name: name.trim() }) });
-    if (!r.ok) { var e = await r.json().catch(function(){return {};}); alert('Erreur creation: ' + (e && e.error ? e.error : r.status)); return; }
-    var acc = await r.json();
-    // On attend { account_id, account_name } côté API moderne; sinon compat { id, name }
-    var newId   = acc.account_id != null ? acc.account_id : acc.id;
-    var newName = acc.account_name || acc.name || 'Nouvel espace';
+    const token = localStorage.getItem('autonomix_token') || '';
+    const r = await fetch(API + '/accounts', { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + token }, body: JSON.stringify({ name: name.trim() }) });
+    if (!r.ok) { const e = await r.json().catch(()=>({})); alert('Erreur creation: ' + (e && e.error ? e.error : r.status)); return; }
+    const acc = await r.json();
+    const newId   = acc.account_id != null ? acc.account_id : acc.id;
+    const newName = acc.account_name || acc.name || 'Nouvel espace';
     setSelectedAccountId(newId);
     alert('Espace cree: ' + newName + ' (#' + newId + '). Choisis maintenant un abonnement (bouton "Gerer l abonnement").');
-    var url = new URL(window.location.origin + '/subscription_atex.html');
+    const url = new URL(window.location.origin + '/subscription_atex.html');
     url.searchParams.set('account_id', newId);
     location.href = url.toString();
   }
@@ -95,50 +90,49 @@
     if (role !== 'owner') { alert("Seul l'owner peut supprimer l'espace."); return; }
     if (!confirm("Supprimer cet espace ? Cette action est irreversible.")) return;
     if (!confirm("Confirme encore : toutes les donnees liees a cet espace seront supprimees.")) return;
-    var token = localStorage.getItem('autonomix_token') || '';
-    var r = await fetch(API + '/accounts/' + accountId, { method:'DELETE', headers: { Authorization:'Bearer ' + token } });
-    if (!r.ok) { var e = await r.json().catch(function(){return {};}); alert('Erreur suppression: ' + (e && e.error ? e.error : r.status)); return; }
-    // Recharger la liste et choisir un fallback
-    var mine = await myAccounts();
-    var list = mine.accounts || mine; // compat
-    var fallback = null;
-    for (var i=0;i<list.length;i++){ if (String(list[i].id) !== String(accountId)){ fallback = list[i].id; break; } }
+    const token = localStorage.getItem('autonomix_token') || '';
+    const r = await fetch(API + '/accounts/' + accountId, { method:'DELETE', headers: { Authorization:'Bearer ' + token } });
+    if (!r.ok) { const e = await r.json().catch(()=>({})); alert('Erreur suppression: ' + (e && e.error ? e.error : r.status)); return; }
+    const mine = await myAccounts();
+    const list = mine.accounts || mine;
+    let fallback = null;
+    for (let i=0;i<list.length;i++){ if (String(list[i].id) !== String(accountId)){ fallback = list[i].id; break; } }
     if (fallback) setSelectedAccountId(fallback);
     else localStorage.removeItem(STORAGE_SEL);
     location.href = 'dashboard.html';
   }
 
   function renderAccountSwitcher(mine, current){
-    var list = mine.accounts || mine; // compat
-    var sel = document.getElementById('accountSwitcher'); if (!sel) return;
+    const list = mine.accounts || mine;
+    const sel = document.getElementById('accountSwitcher'); if (!sel) return;
     sel.innerHTML = '';
     list.forEach(function(acc){
-      var id   = acc.id || acc.account_id;
-      var name = acc.name || acc.account_name;
-      var role = acc.role || acc.user_role || 'member';
-      var opt = document.createElement('option');
+      const id   = acc.id || acc.account_id;
+      const name = acc.name || acc.account_name;
+      const role = acc.role || acc.user_role || 'member';
+      const opt = document.createElement('option');
       opt.value = id; opt.textContent = name + ' — ' + role;
       if (String(id) === String(current)) opt.selected = true;
       sel.appendChild(opt);
     });
     sel.addEventListener('change', function () {
       setSelectedAccountId(sel.value);
-      var url = new URL(window.location.href);
+      const url = new URL(window.location.href);
       url.searchParams.set('account_id', sel.value);
       window.location.href = url.toString();
     });
   }
 
   function renderAtexSubCards(accountId){
-    var host = document.getElementById('atexSubCards'); if(!host) return;
+    const host = document.getElementById('atexSubCards'); if(!host) return;
     host.innerHTML = '';
     atexApps().forEach(function(app){
-      var art = document.createElement('article');
+      const art = document.createElement('article');
       art.className = 'app-card';
       art.setAttribute('data-href', app.href + '?account_id=' + accountId);
       art.setAttribute('data-app', app.key);
       art.setAttribute('data-group', 'ATEX');
-      var html = '' +
+      const html = '' +
         '<div class="d-flex justify-content-between align-items-center">' +
           '<div>' +
             '<div class="fw-bold">' + app.title + '</div>' +
@@ -149,45 +143,35 @@
       art.innerHTML = html;
       host.appendChild(art);
     });
-    // s'assurer qu'au 1er render elles sont cachées si le CSS les cache par défaut
-    // rien ici; le toggle se base sur getComputedStyle
-  }
-
-  function toggleSubcards(){
-    var sub = document.getElementById('atexSubCards');
-    if(!sub) return;
-    var hidden = getComputedStyle(sub).display === 'none' || sub.classList.contains('hidden') || sub.classList.contains('d-none');
-    if (hidden){
-      sub.style.display = 'grid';
-      sub.classList.remove('hidden'); sub.classList.remove('d-none');
-    } else {
-      sub.style.display = 'none';
-      sub.classList.add('hidden');
-    }
   }
 
   function wireMainAtexCard(){
-    var main = document.getElementById('cardATEX');
-    var sub = document.getElementById('atexSubCards');
+    const main = document.getElementById('cardATEX');
+    const sub = document.getElementById('atexSubCards');
     if(!main || !sub) return;
     main.addEventListener('click', function(e){
-      // ignorer un clic sur "Gérer l'abonnement"
-      var manage = e.target && e.target.closest && e.target.closest('#manageAtexLink');
+      const manage = e.target && e.target.closest && e.target.closest('#manageAtexLink');
       if (manage) return;
-      toggleSubcards();
+      const hidden = getComputedStyle(sub).display === 'none' || sub.classList.contains('hidden') || sub.classList.contains('d-none');
+      if (hidden){
+        sub.style.display = 'grid';
+        sub.classList.remove('hidden'); sub.classList.remove('d-none');
+      } else {
+        sub.style.display = 'none';
+        sub.classList.add('hidden');
+      }
     });
   }
 
   function wireActions(accountId, role){
-    var createBtn = document.getElementById('createAccountBtn');
-    var delBtn = document.getElementById('deleteAccountBtn');
-    var manageLink = document.getElementById('manageAtexLink');
+    const createBtn = document.getElementById('createAccountBtn');
+    const delBtn = document.getElementById('deleteAccountBtn');
+    const manageLink = document.getElementById('manageAtexLink');
     if (manageLink) {
-      var url = new URL(window.location.origin + '/subscription_atex.html');
+      const url = new URL(window.location.origin + '/subscription_atex.html');
       url.searchParams.set('account_id', accountId);
       manageLink.href = url.toString();
       if (role !== 'owner') {
-        // Hide the manage link for non-owners
         manageLink.style.display = 'none';
       } else {
         manageLink.style.display = '';
@@ -209,7 +193,7 @@
   function lockAllSubCards(reasonMsg){
     document.querySelectorAll('#atexSubCards article.app-card').forEach(function(node){
       node.classList.add('locked');
-      var chip = node.querySelector('[data-chip="usage"]');
+      const chip = node.querySelector('[data-chip=\"usage\"]');
       if (chip) chip.textContent = reasonMsg || 'Acces verrouille';
       node.onclick = function(){ alert(reasonMsg || 'Acces verrouille'); };
     });
@@ -219,22 +203,22 @@
     if (!lic || lic.forbidden) { lockAllSubCards('Acces refuse a cet espace'); return; }
     if (lic.source === 'seatful' && lic.assigned === false) { lockAllSubCards('Aucun siege assigne sur cet espace'); return; }
 
-    var userTier = lic && typeof lic.tier === 'number' ? lic.tier : 0;
+    const userTier = lic && typeof lic.tier === 'number' ? lic.tier : 0;
     document.querySelectorAll('#atexSubCards article.app-card').forEach(function(art){
-      var appKey = art.getAttribute('data-app');
-      var href = art.getAttribute('data-href');
-      var need = minTierFor(appKey, 'ATEX');
-      var ok = userTier >= need;
-      var clone = art.cloneNode(true); art.parentNode.replaceChild(clone, art);
-      var node = clone;
-      var chip = node.querySelector('[data-chip="usage"]');
+      const appKey = art.getAttribute('data-app');
+      const href = art.getAttribute('data-href');
+      const need = minTierFor(appKey, 'ATEX');
+      const ok = userTier >= need;
+      const clone = art.cloneNode(true); art.parentNode.replaceChild(clone, art);
+      const node = clone;
+      const chip = node.querySelector('[data-chip=\"usage\"]');
       if (chip) chip.textContent = ok ? 'Disponible' : ('Niveau requis: ' + tierName(need));
       if (!ok) {
         node.classList.add('locked');
         node.onclick = function(){
-          var params = new URLSearchParams(location.search);
-          var acc = params.get('account_id') || (localStorage.getItem(STORAGE_SEL) || '');
-          var url = new URL(window.location.origin + '/subscription_atex.html');
+          const params = new URLSearchParams(location.search);
+          const acc = params.get('account_id') || (localStorage.getItem(STORAGE_SEL) || '');
+          const url = new URL(window.location.origin + '/subscription_atex.html');
           if (acc) url.searchParams.set('account_id', acc);
           location.href = url.toString();
         };
@@ -247,37 +231,36 @@
   document.addEventListener('DOMContentLoaded', async function(){
     await guard(); setupLogout();
     try{
-      var mine = await myAccounts();
-      var fromURL = Number((new URLSearchParams(location.search)).get('account_id'));
-      var stored = selectedAccountId();
-      var list = mine.accounts || mine; // compat
-      var preferred = (Number.isFinite(fromURL) && fromURL) ? fromURL : (stored || (list[0] ? (list[0].id || list[0].account_id) : null));
+      const mine = await myAccounts();
+      const fromURL = Number((new URLSearchParams(location.search)).get('account_id'));
+      const stored = selectedAccountId();
+      const list = mine.accounts || mine;
+      const preferred = (Number.isFinite(fromURL) && fromURL) ? fromURL : (stored || (list[0] ? (list[0].id || list[0].account_id) : null));
       if ((Number.isFinite(fromURL) && fromURL) || !stored) setSelectedAccountId(preferred);
 
       renderAccountSwitcher(mine, preferred);
       renderAtexSubCards(preferred); wireMainAtexCard();
 
-      var lic = await fetchLicense('ATEX', preferred);
-      var chipLic = document.getElementById('chipAtexLicense');
+      const lic = await fetchLicense('ATEX', preferred);
+      const chipLic = document.getElementById('chipAtexLicense');
       if (lic && lic.forbidden){
         if (chipLic) chipLic.textContent = 'Acces refuse a cet espace';
         applyLicensingGating(lic);
-        var meRole = '—';
-        var arr = mine.accounts || mine;
-        for (var i=0;i<arr.length;i++){ if (String(arr[i].id||arr[i].account_id) === String(preferred)){ meRole = arr[i].role; break; } }
+        let meRole = '—';
+        const arr = mine.accounts || mine;
+        for (let i=0;i<arr.length;i++){ if (String(arr[i].id||arr[i].account_id) === String(preferred)){ meRole = arr[i].role; break; } }
         wireActions(preferred, meRole);
         return;
       }
       if (chipLic){
-        var labelTier = (lic && typeof lic.tier==='number') ? normalizeTierForLabel(lic.tier) : 0;
-        var label = 'Licence: ' + tierName(labelTier);
-        if (lic && lic.source === 'seatful' && lic.assigned === false) label += ' • siege requis';
+        const labelTier = (lic && typeof lic.tier==='number') ? normalizeTierForLabel(lic.tier) : 0;
+        const label = 'Licence: ' + tierName(labelTier);
         chipLic.textContent = label;
       }
       applyLicensingGating(lic);
-      var role = (function(){
-        var arr = mine.accounts || mine;
-        for (var i=0;i<arr.length;i++){ if (String(arr[i].id||arr[i].account_id) === String(preferred)){ return arr[i].role; } }
+      const role = (function(){
+        const arr = mine.accounts || mine;
+        for (let i=0;i<arr.length;i++){ if (String(arr[i].id||arr[i].account_id) === String(preferred)){ return arr[i].role; } }
         return 'member';
       })();
       wireActions(preferred, role);
