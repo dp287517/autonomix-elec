@@ -213,4 +213,84 @@ router.delete('/atex-equipments/:id', async (req, res) => {
   }
 });
 
+
+
+/**
+ * ===== SECTEURS (liste + ajout) =====
+ * GET /api/atex-secteurs
+ *   -> retourne la liste des secteurs connus de l'espace (distincts des équipements + personnalisés)
+ * POST /api/atex-secteurs { name }
+ *   -> ajoute un secteur personnalisé (en base) pour l'espace
+ */
+async function ensureSecteursTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.atex_secteurs (
+      id SERIAL PRIMARY KEY,
+      account_id BIGINT NOT NULL,
+      name VARCHAR(120) NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(account_id, name)
+    );
+  `);
+}
+
+router.get('/atex-secteurs', async (req, res) => {
+  try {
+    const accountId = req.account_id;
+    if (!accountId) return res.status(400).json({ error: 'account_required' });
+    await ensureSecteursTable();
+
+    const fromEquip = await pool.query(
+      `SELECT DISTINCT secteur AS name
+       FROM public.atex_equipments
+       WHERE account_id = $1 AND secteur IS NOT NULL AND btrim(secteur) <> ''
+       ORDER BY 1 ASC`,
+      [accountId]
+    );
+    const fromCustom = await pool.query(
+      `SELECT name
+       FROM public.atex_secteurs
+       WHERE account_id=$1
+       ORDER BY 1 ASC`,
+      [accountId]
+    );
+
+    // merge unique
+    const seen = new Set();
+    const out = [];
+    for (const r of fromEquip.rows) {
+      const n = (r.name || '').trim();
+      if (n && !seen.has(n)) { seen.add(n); out.push(n); }
+    }
+    for (const r of fromCustom.rows) {
+      const n = (r.name || '').trim();
+      if (n && !seen.has(n)) { seen.add(n); out.push(n); }
+    }
+    res.json(out);
+  } catch (e) {
+    console.error('[GET /atex-secteurs] error', e);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
+router.post('/atex-secteurs', async (req, res) => {
+  try {
+    const accountId = req.account_id;
+    if (!accountId) return res.status(400).json({ error: 'account_required' });
+    const name = (req.body?.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'name_required' });
+    await ensureSecteursTable();
+    await pool.query(
+      `INSERT INTO public.atex_secteurs(account_id, name)
+       VALUES ($1,$2) ON CONFLICT (account_id, name) DO NOTHING`,
+      [accountId, name]
+    );
+    res.json({ ok: true, name });
+  } catch (e) {
+    console.error('[POST /atex-secteurs] error', e);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
+
 module.exports = router;
