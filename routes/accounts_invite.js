@@ -1,7 +1,7 @@
 
 const router = require('express').Router();
 const { pool } = require('../config/db');
-const { requireAuth } = require('../middleware/authz']);
+const { requireAuth } = require('../middleware/authz');
 
 function roleRank(r){ return r==='owner'?3 : r==='admin'?2 : r==='member'?1 : 0; }
 
