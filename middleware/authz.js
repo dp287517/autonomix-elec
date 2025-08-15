@@ -68,8 +68,8 @@ async function requireAuth(req, res, next) {
     }
 
     req.user = { uid, email: payload.sub };
-    // Back-compat: expose id too for legacy routes
-    req.user.id = req.user.uid;
+    // Back-compat for routes using req.user.id
+    req.user.id = uid;
     req.account_id = accId;
     req.role = role;
 
