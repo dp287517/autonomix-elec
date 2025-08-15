@@ -63,7 +63,7 @@ router.post('/accounts/invite', requireAuth, async (req, res) => {
     const accountId = Number(req.query.account_id) || req.account_id;
     if (!accountId) return res.status(400).json({ error: 'missing_account_id' });
 
-    const roleRow = await pool.query(`SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`, [req.user.id, accountId]);
+    const roleRow = await pool.query(`SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`, [(req.user.uid || req.user.id), accountId]);
     const role = roleRow.rowCount ? roleRow.rows[0].role : null;
     if (!role || (role !== 'owner' && role !== 'admin')) return res.status(403).json({ error: 'forbidden_role' });
 
@@ -121,7 +121,7 @@ router.get('/accounts/members/:appCode', requireAuth, async (req, res) => {
     const accountId = Number(req.query.account_id) || req.account_id;
     if (!accountId) return res.status(400).json({ error: 'missing_account_id' });
 
-    const roleRow = await pool.query(`SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`, [req.user.id, accountId]);
+    const roleRow = await pool.query(`SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`, [(req.user.uid || req.user.id), accountId]);
     const role = roleRow.rowCount ? roleRow.rows[0].role : null;
     if (!role || (role !== 'owner' && role !== 'admin')) return res.status(403).json({ error: 'forbidden_role' });
 
