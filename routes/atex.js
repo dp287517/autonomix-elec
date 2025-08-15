@@ -222,6 +222,27 @@ router.delete('/atex-equipments/:id', async (req, res) => {
  * POST /api/atex-secteurs { name }
  *   -> ajoute un secteur personnalisé (en base) pour l'espace
  */
+
+async function ensureEquipmentsAccountColumn() {
+  try {
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='atex_equipments' AND column_name='account_id'
+        ) THEN
+          ALTER TABLE public.atex_equipments ADD COLUMN account_id BIGINT;
+          CREATE INDEX IF NOT EXISTS idx_atex_equip_account ON public.atex_equipments(account_id);
+        END IF;
+      END
+      $$;
+    `);
+  } catch (e) {
+    console.warn('[ensureEquipmentsAccountColumn] warning:', e && e.message ? e.message : e);
+  }
+}
+
 async function ensureSecteursTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS public.atex_secteurs (
@@ -239,11 +260,14 @@ router.get('/atex-secteurs', async (req, res) => {
     const accountId = req.account_id;
     if (!accountId) return res.status(400).json({ error: 'account_required' });
     await ensureSecteursTable();
+    await ensureEquipmentsAccountColumn();
 
     const fromEquip = await pool.query(
-      `SELECT DISTINCT secteur AS name
-       FROM public.atex_equipments
-       WHERE account_id = $1 AND secteur IS NOT NULL AND btrim(secteur) <> ''
+      `SELECT DISTINCT e.secteur AS name
+       FROM public.atex_equipments e
+       LEFT JOIN public.user_accounts ua ON ua.user_id = e.created_by
+       WHERE (e.secteur IS NOT NULL AND btrim(e.secteur) <> '')
+         AND (e.account_id = $1 OR (e.account_id IS NULL AND ua.account_id = $1))
        ORDER BY 1 ASC`,
       [accountId]
     );
@@ -255,7 +279,6 @@ router.get('/atex-secteurs', async (req, res) => {
       [accountId]
     );
 
-    // merge unique
     const seen = new Set();
     const out = [];
     for (const r of fromEquip.rows) {
