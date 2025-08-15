@@ -15,13 +15,25 @@ async function requireAuth(req, res, next) {
     req.account_id = payload.account_id || null;
     req.role = payload.role || null;
 
+    // IMPORTANT CHANGE:
+    // Do NOT block globally if token carries an account_id where the user is not a member.
+    // Just unset account context; each endpoint will enforce membership as needed.
     if (req.account_id) {
-      const r = await pool.query(
-        `SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`,
-        [req.user.id, req.account_id]
-      );
-      if (!r.rowCount) return res.status(403).json({ error: 'forbidden_account' });
-      req.role = r.rows[0].role;
+      try {
+        const r = await pool.query(
+          `SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`,
+          [req.user.id, req.account_id]
+        );
+        if (!r.rowCount) {
+          req.account_id = null;
+          req.role = null;
+        } else {
+          req.role = r.rows[0].role;
+        }
+      } catch(e) {
+        // On DB error, don't crash the whole request
+        req.account_id = null; req.role = null;
+      }
     }
     next();
   } catch (e) {
