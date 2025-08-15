@@ -4,14 +4,17 @@
   const STORAGE_SEL = 'autonomix_selected_account_id';
 
   const APPS = [
-    { key: 'ATEX Control', title: 'ATEX Control', href: 'atex-control.html', group: 'ATEX', sub: 'Gestion des équipements, inspections, conformité' },
-    { key: 'EPD',          title: 'EPD',          href: 'epd.html',         group: 'ATEX', sub: 'Dossier / étude explosion' },
-    { key: 'IS Loop',      title: 'IS Loop',      href: 'is-loop.html',     group: 'ATEX', sub: 'Calculs boucles Exi' },
+    { key: 'ATEX Control', title: 'ATEX Control', href: 'atex-control.html', group: 'ATEX', sub: 'Gestion des equipements, inspections, conformite' },
+    { key: 'EPD',          title: 'EPD',          href: 'epd.html',         group: 'ATEX', sub: 'Dossier / etude explosion' },
+    { key: 'IS Loop',      title: 'IS Loop',      href: 'is-loop.html',     group: 'ATEX', sub: 'Calculs boucles Exi' }
   ];
   const ACCESS_POLICY = { 'ATEX': { tiers: { 'ATEX Control':0, 'EPD':1, 'IS Loop':2 } } };
   function tierName(t){ return t===2?'Pro': (t===1?'Personal':'Free'); }
   function atexApps(){ return APPS.filter(function(a){ return a.group==='ATEX'; }); }
-  function minTierFor(appKey, suiteCode){ return (ACCESS_POLICY[suiteCode] && ACCESS_POLICY[suiteCode].tiers && ACCESS_POLICY[suiteCode].tiers[appKey] !== undefined) ? ACCESS_POLICY[suiteCode].tiers[appKey] : 0; }
+  function minTierFor(appKey, suiteCode){
+    return (ACCESS_POLICY[suiteCode] && ACCESS_POLICY[suiteCode].tiers && ACCESS_POLICY[suiteCode].tiers[appKey] !== undefined)
+      ? ACCESS_POLICY[suiteCode].tiers[appKey] : 0;
+  }
 
   var currentUser = null;
   async function guard() {
@@ -71,17 +74,19 @@
     if (!name || !name.trim()) return;
     var token = localStorage.getItem('autonomix_token') || '';
     var r = await fetch(API + '/accounts', { method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + token }, body: JSON.stringify({ name: name.trim() }) });
-    if (!r.ok) { var e = await r.json().catch(function(){return {};}); alert('Erreur création: ' + (e && e.error ? e.error : r.status)); return; }
+    if (!r.ok) { var e = await r.json().catch(function(){return {};}); alert('Erreur creation: ' + (e && e.error ? e.error : r.status)); return; }
     var acc = await r.json();
     setSelectedAccountId(acc.id);
-    alert('Espace créé: ' + acc.name + ' (#' + acc.id + '). Choisis maintenant un abonnement (bouton "Gérer l’abonnement").');
-    location.href = 'subscription_atex.html?account_id=' + acc.id;
+    alert('Espace cree: ' + acc.name + ' (#' + acc.id + '). Choisis maintenant un abonnement (bouton "Gerer l abonnement").');
+    var url = new URL(window.location.origin + '/subscription_atex.html');
+    url.searchParams.set('account_id', acc.id);
+    location.href = url.toString();
   }
 
   async function deleteAccountFlow(accountId, role){
     if (role !== 'owner') { alert("Seul l'owner peut supprimer l'espace."); return; }
-    if (!confirm("⚠️ Supprimer cet espace ? Cette action est irréversible.")) return;
-    if (!confirm("Confirme encore : toutes les données liées à cet espace seront supprimées.")) return;
+    if (!confirm("Supprimer cet espace ? Cette action est irreversible.")) return;
+    if (!confirm("Confirme encore : toutes les donnees liees a cet espace seront supprimees.")) return;
     var token = localStorage.getItem('autonomix_token') || '';
     var r = await fetch(API + '/accounts/' + accountId, { method:'DELETE', headers: { Authorization:'Bearer ' + token } });
     if (!r.ok) { var e = await r.json().catch(function(){return {};}); alert('Erreur suppression: ' + (e && e.error ? e.error : r.status)); return; }
@@ -103,7 +108,12 @@
       if (String(acc.id) === String(current)) opt.selected = true;
       sel.appendChild(opt);
     });
-    sel.addEventListener('change', function(){ setSelectedAccountId(sel.value); location.reload(); });
+    sel.addEventListener('change', function () {
+      setSelectedAccountId(sel.value);
+      var url = new URL(window.location.href);
+      url.searchParams.set('account_id', sel.value);
+      window.location.href = url.toString();
+    });
   }
 
   function renderAtexSubCards(accountId){
@@ -141,7 +151,11 @@
     var createBtn = document.getElementById('createAccountBtn');
     var delBtn = document.getElementById('deleteAccountBtn');
     var manageLink = document.getElementById('manageAtexLink');
-    if (manageLink) manageLink.href = 'subscription_atex.html?account_id=' + accountId;
+    if (manageLink) {
+      var url = new URL(window.location.origin + '/subscription_atex.html');
+      url.searchParams.set('account_id', accountId);
+      manageLink.href = url.toString();
+    }
     if (createBtn) createBtn.onclick = function(){ createAccountFlow(); };
     if (delBtn) {
       if (role === 'owner') {
@@ -159,14 +173,14 @@
     document.querySelectorAll('#atexSubCards article.app-card').forEach(function(node){
       node.classList.add('locked');
       var chip = node.querySelector('[data-chip="usage"]');
-      if (chip) chip.textContent = reasonMsg || 'Accès verrouillé';
-      node.onclick = function(){ alert(reasonMsg || "Accès verrouillé"); };
+      if (chip) chip.textContent = reasonMsg || 'Acces verrouille';
+      node.onclick = function(){ alert(reasonMsg || 'Acces verrouille'); };
     });
   }
 
   function applyLicensingGating(lic){
-    if (!lic || lic.forbidden) { lockAllSubCards("Accès refusé à cet espace"); return; }
-    if (lic.source === 'seatful' && lic.assigned === false) { lockAllSubCards("Aucun siège assigné sur cet espace"); return; }
+    if (!lic || lic.forbidden) { lockAllSubCards('Acces refuse a cet espace'); return; }
+    if (lic.source === 'seatful' && lic.assigned === false) { lockAllSubCards('Aucun siege assigne sur cet espace'); return; }
 
     var userTier = lic && typeof lic.tier === 'number' ? lic.tier : 0;
     document.querySelectorAll('#atexSubCards article.app-card').forEach(function(art){
@@ -181,8 +195,11 @@
       if (!ok) {
         node.classList.add('locked');
         node.onclick = function(){
-          var targetAcc = (new URLSearchParams(location.search)).get('account_id') || (localStorage.getItem('autonomix_selected_account_id') || '');
-          location.href = 'subscription_atex.html?account_id=' + targetAcc;
+          var params = new URLSearchParams(location.search);
+          var acc = params.get('account_id') || (localStorage.getItem(STORAGE_SEL) || '');
+          var url = new URL(window.location.origin + '/subscription_atex.html');
+          if (acc) url.searchParams.set('account_id', acc);
+          location.href = url.toString();
         };
       } else {
         node.onclick = function(){ location.href = href; };
@@ -205,7 +222,7 @@
       var lic = await fetchLicense('ATEX', preferred);
       var chipLic = document.getElementById('chipAtexLicense');
       if (lic && lic.forbidden){
-        if (chipLic) chipLic.textContent = 'Accès refusé à cet espace';
+        if (chipLic) chipLic.textContent = 'Acces refuse a cet espace';
         applyLicensingGating(lic);
         var meRole = '—';
         for (var i=0;i<mine.accounts.length;i++){ if (mine.accounts[i].id === preferred){ meRole = mine.accounts[i].role; break; } }
@@ -213,8 +230,8 @@
         return;
       }
       if (chipLic){
-        var label = (lic && typeof lic.tier==='number' && lic.tier>0) ? ('Licence: ' + tierName(lic.tier)) : 'Licence: Free (par défaut)';
-        if (lic && lic.source === 'seatful' && lic.assigned === false) label += ' • siège requis';
+        var label = (lic && typeof lic.tier==='number' && lic.tier>0) ? ('Licence: ' + tierName(lic.tier)) : 'Licence: Free (par defaut)';
+        if (lic && lic.source === 'seatful' && lic.assigned === false) label += ' • siege requis';
         chipLic.textContent = label;
       }
       applyLicensingGating(lic);
