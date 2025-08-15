@@ -262,15 +262,32 @@ router.get('/atex-secteurs', async (req, res) => {
     await ensureSecteursTable();
     await ensureEquipmentsAccountColumn();
 
-    const fromEquip = await pool.query(
+    let fromEquip;
+try {
+  fromEquip = await pool.query(
+    `SELECT DISTINCT e.secteur AS name
+     FROM public.atex_equipments e
+     LEFT JOIN public.user_accounts ua ON ua.user_id = e.created_by
+     WHERE (e.secteur IS NOT NULL AND btrim(e.secteur) <> '')
+       AND (e.account_id = $1 OR (e.account_id IS NULL AND ua.account_id = $1))
+     ORDER BY 1 ASC`,
+    [accountId]
+  );
+} catch (err) {
+  if (err && err.code === '42703') {
+    fromEquip = await pool.query(
       `SELECT DISTINCT e.secteur AS name
        FROM public.atex_equipments e
        LEFT JOIN public.user_accounts ua ON ua.user_id = e.created_by
        WHERE (e.secteur IS NOT NULL AND btrim(e.secteur) <> '')
-         AND (e.account_id = $1 OR (e.account_id IS NULL AND ua.account_id = $1))
+         AND ua.account_id = $1
        ORDER BY 1 ASC`,
       [accountId]
     );
+  } else {
+    throw err;
+  }
+}
     const fromCustom = await pool.query(
       `SELECT name
        FROM public.atex_secteurs
