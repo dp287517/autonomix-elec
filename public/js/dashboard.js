@@ -11,7 +11,7 @@
   const ACCESS_POLICY = { 'ATEX': { tiers: { 'ATEX Control':0, 'EPD':1, 'IS Loop':2 } } };
   const tierName = (t)=> t===2?'Pro': t===1?'Personal':'Free';
   function atexApps(){ return APPS.filter(a => a.group==='ATEX'); }
-  function isAllowed(appKey, suiteCode, userTier){ const need = ACCESS_POLICY[suiteCode]?.tiers?.[appKey] ?? 0; return userTier >= need; }
+  function minTierFor(appKey, suiteCode){ return ACCESS_POLICY[suiteCode]?.tiers?.[appKey] ?? 0; }
 
   let currentUser = null;
   async function guard() {
@@ -133,6 +133,8 @@
   function wireActions(accountId, role){
     const createBtn = document.getElementById('createAccountBtn');
     const delBtn = document.getElementById('deleteAccountBtn');
+    const manageLink = document.getElementById('manageAtexLink');
+    if (manageLink) manageLink.href = `subscription_atex.html?account_id=${accountId}`;
     if (createBtn) createBtn.onclick = () => createAccountFlow();
     if (delBtn) {
       if (role !== 'owner') delBtn.style.display = 'none';
@@ -140,18 +142,32 @@
     }
   }
 
-  function applyLicensingGating(userTier){
+  function lockAllSubCards(reasonMsg){
+    document.querySelectorAll('#atexSubCards article.app-card').forEach(node=>{
+      node.classList.add('locked');
+      const chip = node.querySelector('[data-chip="usage"]');
+      if (chip) chip.textContent = reasonMsg || 'Accès verrouillé';
+      node.onclick = () => { alert(reasonMsg || "Accès verrouillé"); };
+    });
+  }
+
+  function applyLicensingGating(lic){
+    if (!lic || lic.forbidden) { lockAllSubCards("Accès refusé à cet espace"); return; }
+    if (lic.source === 'seatful' && lic.assigned === false) { lockAllSubCards("Aucun siège assigné sur cet espace"); return; }
+
+    const userTier = lic?.tier ?? 0;
     document.querySelectorAll('#atexSubCards article.app-card').forEach(art=>{
       const appKey = art.getAttribute('data-app');
       const href = art.getAttribute('data-href');
-      const ok = isAllowed(appKey, 'ATEX', userTier);
+      const need = (ACCESS_POLICY['ATEX']?.tiers?.[appKey] ?? 0);
+      const ok = userTier >= need;
       const clone = art.cloneNode(true); art.parentNode.replaceChild(clone, art);
       const node = clone;
       const chip = node.querySelector('[data-chip="usage"]');
-      if (chip) chip.textContent = ok ? 'Disponible' : 'Verrouillé';
+      if (chip) chip.textContent = ok ? 'Disponible' : `Niveau requis: ${tierName(need)}`;
       if (!ok) {
         node.classList.add('locked');
-        node.onclick = () => { location.href = 'subscription_atex.html'; };
+        node.onclick = () => { location.href = `subscription_atex.html?account_id=${new URLSearchParams(location.search).get('account_id') || (localStorage.getItem('autonomix_selected_account_id')||'')}`; };
       } else {
         node.onclick = () => { location.href = href; };
       }
@@ -165,7 +181,6 @@
       const fromURL = Number(new URLSearchParams(location.search).get('account_id'));
       const stored = selectedAccountId();
       const preferred = Number.isFinite(fromURL) && fromURL ? fromURL : (stored || mine.current_account_id || (mine.accounts[0]?.id || null));
-      // Only set the storage if URL overrides or storage was empty
       if ((Number.isFinite(fromURL) && fromURL) || !stored) setSelectedAccountId(preferred);
 
       renderAccountSwitcher(mine.accounts, preferred);
@@ -175,17 +190,17 @@
       const chipLic = document.getElementById('chipAtexLicense');
       if (lic && lic.forbidden){
         if (chipLic) chipLic.textContent = 'Accès refusé à cet espace';
-        applyLicensingGating(0);
+        applyLicensingGating(lic);
         const meRole = mine.accounts.find(a => a.id === preferred)?.role || '—';
         wireActions(preferred, meRole);
         return;
       }
       if (chipLic){
-        chipLic.textContent = lic?.tier
-          ? `Licence: ${tierName(lic.tier)}${lic.assigned===false ? ' • seat requis' : ''}`
-          : 'Licence: Free (par défaut)';
+        let label = lic?.tier ? `Licence: ${tierName(lic.tier)}` : 'Licence: Free (par défaut)';
+        if (lic?.source === 'seatful' && lic?.assigned === false) label += ' • siège requis';
+        chipLic.textContent = label;
       }
-      applyLicensingGating(lic?.tier ?? 0);
+      applyLicensingGating(lic);
       const role = lic?.role || (mine.accounts.find(a => a.id === preferred)?.role) || 'member';
       wireActions(preferred, role);
     }catch(e){
