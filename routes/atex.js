@@ -1,182 +1,102 @@
-// routes/atex.js — ATEX Control (Free) + secteurs robustes + schéma idempotent
+// routes/atex.js — v5 (scopage strict par account_id)
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/db');
-
 let { requireAuth } = (() => { try { return require('../middleware/authz'); } catch { return {}; } })();
 requireAuth = requireAuth || ((_req,_res,next)=>next());
 
-let { requireLicense } = (() => { try { return require('../middleware/entitlements'); } catch { return {}; } })();
-requireLicense = requireLicense || (()=>(_req,_res,next)=>next());
-
-// ATEX Control accessible en Free (tier 0)
-router.use(requireAuth, requireLicense('ATEX', 0));
-
-async function hasEquipAccountColumn(){
-  const q = await pool.query(`
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema='public' AND table_name='atex_equipments' AND column_name='account_id'
-    LIMIT 1
-  `);
-  return q.rowCount > 0;
+async function roleOnAccount(userId, accountId){
+  const r = await pool.query(`SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2`, [userId, accountId]);
+  return r.rowCount ? r.rows[0].role : null;
 }
 
-async function ensureSecteursSchema(){
-  // Crée la table si absente
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS public.atex_secteurs (
-      id SERIAL PRIMARY KEY,
-      account_id BIGINT,
-      name VARCHAR(120),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-  // Ajoute les colonnes manquantes / contrainte unique si besoin
-  await pool.query(`
-    DO $$
-    BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema='public' AND table_name='atex_secteurs' AND column_name='account_id'
-      ) THEN
-        ALTER TABLE public.atex_secteurs ADD COLUMN account_id BIGINT;
-      END IF;
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema='public' AND table_name='atex_secteurs' AND column_name='name'
-      ) THEN
-        ALTER TABLE public.atex_secteurs ADD COLUMN name VARCHAR(120);
-      END IF;
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint
-        WHERE conname = 'atex_secteurs_account_name_key'
-      ) THEN
-        ALTER TABLE public.atex_secteurs
-          ADD CONSTRAINT atex_secteurs_account_name_key UNIQUE(account_id, name);
-      END IF;
-    END
-    $$;
-  `);
-}
-
-/* =========================
- *   EQUIPEMENTS (listing)
- * ========================= */
-router.get('/atex-equipments', async (req, res) => {
+// GET équipements filtrés par espace
+router.get('/atex-equipments', requireAuth, async (req, res) => {
   try {
-    const accountId = req.account_id;
-    if (!accountId) return res.status(400).json({ error: 'account_required' });
+    const uid = req.user && req.user.uid;
+    const accountId = Number(req.query.account_id);
+    if (!uid) return res.status(401).json({ error: 'unauthenticated' });
+    if (!accountId) return res.status(400).json({ error: 'bad_request' });
 
-    const hasCol = await hasEquipAccountColumn();
+    const role = await roleOnAccount(uid, accountId);
+    if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
-    const q = (req.query.q || '').trim();
-    const limit = Math.min(parseInt(req.query.limit||'100',10), 500);
-    const offset = Math.max(parseInt(req.query.offset||'0',10), 0);
-
-    const params = [accountId];
-    const where = [];
-    let sql;
-
-    if (hasCol) {
-      where.push(`e.account_id = $1`);
-      if (q) { params.push(`%${q}%`); where.push(`(e.identifiant ILIKE $${params.length} OR e.composant ILIKE $${params.length})`); }
-      params.push(limit, offset);
-      sql = `
-        SELECT e.*
-        FROM public.atex_equipments e
-        WHERE ${where.join(' AND ')}
-        ORDER BY e.id DESC
-        LIMIT $${params.length-1} OFFSET $${params.length};
-      `;
-    } else {
-      where.push(`ua.account_id = $1`);
-      if (q) { params.push(`%${q}%`); where.push(`(e.identifiant ILIKE $${params.length} OR e.composant ILIKE $${params.length})`); }
-      params.push(limit, offset);
-      sql = `
-        SELECT e.*
-        FROM public.atex_equipments e
-        JOIN public.user_accounts ua ON ua.user_id = e.created_by
-        WHERE ${where.join(' AND ')}
-        ORDER BY e.id DESC
-        LIMIT $${params.length-1} OFFSET $${params.length};
-      `;
-    }
-
-    const r = await pool.query(sql, params);
-    res.json(r.rows || []);
+    const q = await pool.query(
+      `SELECT id, risque, secteur, batiment, local, composant, fournisseur, type,
+              identifiant, interieur, exterieur, categorie_minimum, marquage_atex,
+              photo, conformite, comments, last_inspection_date, next_inspection_date,
+              risk_assessment, grade, frequence, zone_type, zone_gaz, zone_poussiere,
+              zone_poussieres, ia_history, attachments, account_id, created_by
+       FROM public.atex_equipments
+       WHERE account_id = $1
+       ORDER BY id DESC`,
+      [accountId]
+    );
+    return res.json(q.rows || []);
   } catch (e) {
     console.error('[GET /atex-equipments] error', e);
     res.status(500).json({ error: 'server_error' });
   }
 });
 
-/* =========================
- *       SECTEURS
- * ========================= */
-router.get('/atex-secteurs', async (req, res) => {
+// GET secteurs distincts filtrés par espace
+router.get('/atex-secteurs', requireAuth, async (req, res) => {
   try {
-    const accountId = req.account_id;
-    if (!accountId) return res.status(400).json({ error: 'account_required' });
+    const uid = req.user && req.user.uid;
+    const accountId = Number(req.query.account_id);
+    if (!uid) return res.status(401).json({ error: 'unauthenticated' });
+    if (!accountId) return res.status(400).json({ error: 'bad_request' });
 
-    await ensureSecteursSchema();
+    const role = await roleOnAccount(uid, accountId);
+    if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
-    const hasCol = await hasEquipAccountColumn();
-
-    let fromEquip;
-    if (hasCol) {
-      fromEquip = await pool.query(
-        `SELECT DISTINCT e.secteur AS name
-         FROM public.atex_equipments e
-         WHERE e.secteur IS NOT NULL AND btrim(e.secteur) <> '' AND e.account_id = $1
-         ORDER BY 1 ASC`, [accountId]
-      );
-    } else {
-      fromEquip = await pool.query(
-        `SELECT DISTINCT e.secteur AS name
-         FROM public.atex_equipments e
-         JOIN public.user_accounts ua ON ua.user_id = e.created_by
-         WHERE e.secteur IS NOT NULL AND btrim(e.secteur) <> '' AND ua.account_id = $1
-         ORDER BY 1 ASC`, [accountId]
-      );
-    }
-
-    const fromCustom = await pool.query(
-      `SELECT name FROM public.atex_secteurs WHERE account_id=$1 ORDER BY 1 ASC`, [accountId]
+    const q = await pool.query(
+      `SELECT DISTINCT secteur AS name
+       FROM public.atex_equipments
+       WHERE account_id = $1 AND secteur IS NOT NULL AND secteur <> ''
+       ORDER BY name ASC`,
+      [accountId]
     );
-
-    const seen = new Set();
-    const out = [];
-    for (const r of fromEquip.rows) {
-      const n = (r.name || '').trim();
-      if (n && !seen.has(n)) { seen.add(n); out.push(n); }
-    }
-    for (const r of fromCustom.rows) {
-      const n = (r.name || '').trim();
-      if (n && !seen.has(n)) { seen.add(n); out.push(n); }
-    }
-    res.json(out);
+    return res.json(q.rows || []);
   } catch (e) {
     console.error('[GET /atex-secteurs] error', e);
     res.status(500).json({ error: 'server_error' });
   }
 });
 
-router.post('/atex-secteurs', async (req, res) => {
+// POST création équipement (force le scope et l'auteur)
+router.post('/atex-equipments', requireAuth, async (req, res) => {
   try {
-    const accountId = req.account_id;
-    if (!accountId) return res.status(400).json({ error: 'account_required' });
-    await ensureSecteursSchema();
-    const name = (req.body && req.body.name || '').trim();
-    if (!name) return res.status(400).json({ error: 'name_required' });
-    await pool.query(
-      `INSERT INTO public.atex_secteurs(account_id, name)
-       VALUES ($1,$2)
-       ON CONFLICT (account_id, name) DO NOTHING`,
-      [accountId, name]
+    const uid = req.user && req.user.uid;
+    const accountId = Number(req.query.account_id || req.body?.account_id);
+    if (!uid) return res.status(401).json({ error: 'unauthenticated' });
+    if (!accountId) return res.status(400).json({ error: 'bad_request' });
+
+    const role = await roleOnAccount(uid, accountId);
+    if (!role) return res.status(403).json({ error: 'forbidden_account' });
+
+    const b = req.body || {};
+    const fields = [
+      'risque','secteur','batiment','local','composant','fournisseur','type',
+      'identifiant','interieur','exterieur','categorie_minimum','marquage_atex',
+      'photo','conformite','comments','last_inspection_date','next_inspection_date',
+      'risk_assessment','grade','frequence','zone_type','zone_gaz','zone_poussiere',
+      'zone_poussieres','ia_history','attachments'
+    ];
+    const values = fields.map(k => b[k] ?? null);
+
+    const q = await pool.query(
+      `INSERT INTO public.atex_equipments (
+         ${fields.join(', ')}, account_id, created_by
+       ) VALUES (
+         ${fields.map((_,i)=>'$'+(i+1)).join(', ')}, $${fields.length+1}, $${fields.length+2}
+       )
+       RETURNING id`,
+      [...values, accountId, uid]
     );
-    res.json({ ok: true, name });
+    return res.status(201).json({ id: q.rows[0].id });
   } catch (e) {
-    console.error('[POST /atex-secteurs] error', e);
+    console.error('[POST /atex-equipments] error', e);
     res.status(500).json({ error: 'server_error' });
   }
 });
