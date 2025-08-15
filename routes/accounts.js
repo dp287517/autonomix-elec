@@ -6,8 +6,6 @@ const { pool } = require('../config/db');
 let { requireAuth } = (() => { try { return require('../middleware/authz'); } catch { return {}; } })();
 requireAuth = requireAuth || ((_req,_res,next)=>next());
 
-// GET /api/accounts/mine
-// -> [{ account_id, account_name, role }]
 router.get('/accounts/mine', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -27,7 +25,6 @@ router.get('/accounts/mine', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/accounts/:id/owners -> liste des owners (email)
 router.get('/accounts/:id/owners', requireAuth, async (req, res) => {
   try {
     const id = Number(req.params.id);
