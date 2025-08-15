@@ -199,7 +199,18 @@
       renderAtexSubCards(preferred); wireMainAtexCard();
 
       // Fetch license
+      
       const lic = await fetchLicense('ATEX', preferred);
+      // Determine role early
+      const role = (list.find(x => String(x.id||x.account_id)===String(preferred))?.role) || 'member';
+      // If this is a brand-new space (no license yet) and I'm owner, jump straight to subscription page
+      if (lic && lic.forbidden && role === 'owner'){
+        const url = new URL(window.location.origin + '/subscription_atex.html');
+        url.searchParams.set('account_id', preferred);
+        setTimeout(()=>{ location.href = url.toString(); }, 150);
+        return;
+      }
+
       const chipLic = document.getElementById('chipAtexLicense');
       if (lic && lic.forbidden){
         if (chipLic) chipLic.textContent = 'Acces refuse a cet espace';
@@ -219,7 +230,6 @@
       applyLicensingGating(lic);
 
       // Role-specific actions
-      const role = (list.find(x => String(x.id||x.account_id)===String(preferred))?.role) || 'member';
       wireActions(preferred, role);
     }catch(e){
       console.error(e); alert('Impossible de charger vos espaces de travail.');
