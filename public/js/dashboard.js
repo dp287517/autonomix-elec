@@ -10,7 +10,7 @@
   ];
   const ACCESS_POLICY = { 'ATEX': { tiers: { 'ATEX Control':0, 'EPD':1, 'IS Loop':2 } } };
   function tierName(t){ return t===2?'Pro': (t===1?'Personal':'Free'); }
-  function normalizeTierForLabel(t){ if (typeof t==='number' && t>2) return 2; if (typeof t==='number' && t<0) return 0; return t; }
+  function normalizeTierForLabel(t){ return (typeof t==='number'? t : 0); }
   function atexApps(){ return APPS.filter(a=>a.group==='ATEX'); }
   function minTierFor(appKey, suiteCode){
     return (ACCESS_POLICY[suiteCode] && ACCESS_POLICY[suiteCode].tiers && ACCESS_POLICY[suiteCode].tiers[appKey] !== undefined)
@@ -253,7 +253,7 @@
         return;
       }
       if (chipLic){
-        const labelTier = (lic && typeof lic.tier==='number') ? normalizeTierForLabel(lic.tier) : 0;
+        const labelTier = (lic && typeof lic.tier==='number') ? lic.tier : 0;
         const label = 'Licence: ' + tierName(labelTier);
         chipLic.textContent = label;
       }

@@ -17,8 +17,8 @@
   };
 
   // Tier conversion (frontend uses 0..2; backend uses 1..3)
-  const toServerTier   = (t)=> (typeof t==='number' ? (t<=0?1 : (t>=2?3 : t+1)) : 1);
-  const fromServerTier = (t)=> (typeof t==='number' && t>0 ? Math.max(0, Math.min(2, t-1)) : 0);
+  const toServerTier = (t)=> (typeof t==='number'? t : 0);
+  const fromServerTier = (t)=> (typeof t==='number'? t : 0);
   const labelTier = (t)=> t===2 ? 'Pro' : (t===1 ? 'Personal' : 'Free');
 
   // UI setters
@@ -45,7 +45,7 @@
       const r = await fetch(`${API}/subscriptions/${APP}?account_id=${accountId}`, { headers: headers() });
       if (r.ok) {
         const js = await r.json();
-        js.tier = fromServerTier(Number(js.tier||0));
+        js.tier = Number(js.tier||0);
         return js;
       }
       if (r.status === 403) throw new Error('forbidden');
@@ -55,7 +55,7 @@
       const r2 = await fetch(`${API}/licenses/${APP}?account_id=${accountId}`, { headers: headers() });
       if (r2.ok){
         const lic = await r2.json();
-        return { tier: fromServerTier(Number(lic.tier||0)), status: (Number(lic.tier||0)>0 ? 'active' : 'none'), seats_total: 1, scope:'account' };
+        return { tier: Number(lic.tier||0), status: (Number(lic.tier||0)>0 ? 'active' : 'none'), seats_total: 1, scope:'account' };
       }
     }catch{}
     return { tier:0, status:'none', seats_total:0, scope:'account' };
