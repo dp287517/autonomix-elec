@@ -12,6 +12,7 @@
     const password = passEl?.value || '';
     const confirm  = confirmEl?.value || '';
 
+    // reset message
     if (msgEl) { msgEl.className = 'small'; msgEl.textContent = ''; }
 
     if (!email || !password || !confirm) {
@@ -27,7 +28,12 @@
       const r = await fetch(`${API}/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({
+          email,
+          password
+          // Si un jour tu ajoutes un champ "name" dans le formulaire :
+          // name: (document.getElementById('name')?.value || '').trim()
+        })
       });
       const data = await r.json().catch(() => ({}));
 
@@ -37,9 +43,11 @@
         return;
       }
 
-      // on connecte directement après inscription
+      // Token OK → purge tout ancien espace mémorisé pour éviter un 403 au premier chargement
       localStorage.setItem('autonomix_token', data.token);
-      localStorage.setItem('autonomix_user', JSON.stringify({ email }));
+      localStorage.removeItem('selected_account_id');
+      localStorage.setItem('autonomix_user', JSON.stringify(data.user || { email }));
+
       if (msgEl) { msgEl.classList.remove('text-danger'); msgEl.classList.add('text-success'); msgEl.textContent = 'Compte créé ! Redirection…'; }
       setTimeout(() => location.href = 'dashboard.html', 600);
     } catch (e) {
@@ -51,11 +59,12 @@
     const btn = document.getElementById('btnSignup');
     if (btn) btn.addEventListener('click', doSignup);
 
-    // Entrée au clavier
-    const inputs = ['email', 'password', 'confirm'].map(id => document.getElementById(id)).filter(Boolean);
+    // Entrée clavier
+    const inputs = ['email', 'password', 'confirm']
+      .map(id => document.getElementById(id))
+      .filter(Boolean);
     inputs.forEach(inp => inp.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter') { ev.preventDefault(); doSignup(); }
     }));
   });
 })();
-
