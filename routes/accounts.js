@@ -37,17 +37,11 @@ router.post('/accounts', requireAuth, async (req, res) => {
     const acc = insAcc.rows[0];
 
     await client.query(
-      `INSERT INTO public.user_accounts(user_id, account_id, role) VALUES($1,$2,'owner')
+      `INSERT INTO public.user_accounts(user_id, account_id, role)
+       VALUES($1,$2,'owner')
        ON CONFLICT (user_id, account_id) DO NOTHING`,
       [req.user.id, acc.id]
     );
-
-    // Optionnel: créer une ligne de “subscription active” par défaut (Free, 1 siège)
-    await client.query(`
-      INSERT INTO public.active_subscriptions(account_id, app_code, active_tier, active_seats)
-      VALUES($1,'ATEX',1,1)
-      ON CONFLICT (account_id, app_code) DO NOTHING
-    `, [acc.id]);
 
     await client.query('COMMIT');
     return res.json({ account_id: acc.id, name: acc.name });
@@ -88,7 +82,7 @@ router.delete('/accounts/:accountId', requireAuth, async (req, res) => {
     const accountId = Number(req.params.accountId);
     if (!accountId) return res.status(400).json({ error: 'bad_account_id' });
 
-    // Vérifie que l’appelant est owner de CE compte (pas juste “un owner ailleurs”)
+    // Vérifie que l’appelant est owner du compte ciblé
     const who = await client.query(`
       SELECT 1 FROM public.user_accounts
       WHERE user_id = $1 AND account_id = $2 AND role = 'owner'
@@ -98,9 +92,17 @@ router.delete('/accounts/:accountId', requireAuth, async (req, res) => {
 
     await client.query('BEGIN');
 
+    // Supprime membership
     await client.query(`DELETE FROM public.user_accounts WHERE account_id=$1`, [accountId]);
-    await client.query(`DELETE FROM public.active_subscriptions WHERE account_id=$1`, [accountId]);
-    await client.query(`DELETE FROM public.subscriptions WHERE account_id=$1`, [accountId]);
+
+    // Supprime subscriptions si la table existe
+    try {
+      await client.query(`DELETE FROM public.subscriptions WHERE account_id=$1`, [accountId]);
+    } catch (e) {
+      if (e.code !== '42P01') throw e; // ignore "table n'existe pas"
+    }
+
+    // Supprime le compte
     await client.query(`DELETE FROM public.accounts WHERE id=$1`, [accountId]);
 
     await client.query('COMMIT');
