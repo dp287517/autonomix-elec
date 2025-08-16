@@ -1,4 +1,4 @@
-// routes/accounts_invite.js — invite + liste des membres (monté sous /api)
+// routes/accounts_invite.js — invite + liste des membres
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/db');
@@ -6,16 +6,13 @@ const { requireAuth, requireRole } = require('../middleware/authz');
 
 /**
  * GET /accounts/members/:appCode?account_id=ID
- * -> { app, account_id, members: [{email, role, has_seat}], seats_total }
- * Par défaut: visible aux owner/admin (change requireRole->requireAuth si tu veux ouvrir aux members).
  */
-router.get('/accounts/members/:appCode', requireAuth, requireRole('owner', 'admin'), async (req, res) => {
+router.get('/accounts/members/:appCode', requireAuth, requireRole('owner','admin'), async (req, res) => {
   try {
     const accountId = Number(req.query.account_id);
     const appCode = req.params.appCode;
     if (!accountId) return res.status(400).json({ error: 'missing_account_id' });
 
-    // membres de l’espace
     const m = await pool.query(`
       SELECT u.email, ua.role
       FROM public.user_accounts ua
@@ -24,7 +21,6 @@ router.get('/accounts/members/:appCode', requireAuth, requireRole('owner', 'admi
       ORDER BY u.email ASC
     `, [accountId]);
 
-    // politique simple: 1 siège par membre (tu peux ajuster si tu gères des sièges distincts)
     const members = m.rows.map(r => ({ email: r.email, role: r.role, has_seat: true }));
     const seats_total = members.length;
 
@@ -38,16 +34,15 @@ router.get('/accounts/members/:appCode', requireAuth, requireRole('owner', 'admi
 /**
  * POST /accounts/invite?account_id=ID
  * body: { email, role='member', appCode:'ATEX' }
- * -> { invited, role, seats_total }
  */
 router.post('/accounts/invite', requireAuth, requireRole('owner','admin'), async (req, res) => {
   try {
     const accountId = Number(req.query.account_id);
     if (!accountId) return res.status(400).json({ error: 'missing_account_id' });
     const email = (req.body.email || '').trim().toLowerCase();
-    const role = (req.body.role || 'member');
+    const role  = (req.body.role  || 'member');
 
-    // l’invitant doit être owner/admin de l’espace
+    // Vérifier permission de l'invitant
     const chk = await pool.query(
       `SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`,
       [ (req.user.uid || req.user.id), accountId ]
@@ -55,24 +50,34 @@ router.post('/accounts/invite', requireAuth, requireRole('owner','admin'), async
     if (!chk.rowCount) return res.status(403).json({ error: 'forbidden_account' });
     if (!['owner','admin'].includes(chk.rows[0].role)) return res.status(403).json({ error: 'forbidden_role' });
 
-    // upsert utilisateur par LOWER(email)
+    // Upsert user: email + name (name NOT NULL dans ton schéma)
+    const displayName = email.split('@')[0]; // simple fallback
     let uid = null;
-    const u = await pool.query(`SELECT id FROM public.users WHERE LOWER(email)=LOWER($1) LIMIT 1`, [email]);
+
+    const u = await pool.query(`SELECT id, name FROM public.users WHERE LOWER(email)=LOWER($1) LIMIT 1`, [email]);
     if (u.rowCount) {
       uid = u.rows[0].id;
+      // Compléter le name s'il est null
+      if (!u.rows[0].name) {
+        await pool.query(`UPDATE public.users SET name=$2 WHERE id=$1`, [uid, displayName]);
+      }
     } else {
-      const nu = await pool.query(`INSERT INTO public.users(email) VALUES(LOWER($1)) RETURNING id`, [email]);
+      // Insérer en respectant NOT NULL sur name
+      const nu = await pool.query(
+        `INSERT INTO public.users(email, name) VALUES(LOWER($1), $2) RETURNING id`,
+        [email, displayName]
+      );
       uid = nu.rows[0].id;
     }
 
-    // upsert membership
+    // Upsert membership
     await pool.query(`
       INSERT INTO public.user_accounts(user_id, account_id, role)
       VALUES($1,$2,$3)
       ON CONFLICT (user_id, account_id) DO UPDATE SET role=EXCLUDED.role
     `, [uid, accountId, role]);
 
-    // recalcul seats = nb de membres
+    // sièges = nb de membres (règle simple)
     const c = await pool.query(`SELECT COUNT(*)::int AS n FROM public.user_accounts WHERE account_id=$1`, [accountId]);
     const seats_total = c.rows[0].n;
 
