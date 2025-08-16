@@ -2,10 +2,13 @@
 (function () {
   const API = (window.API_BASE_URL || '') + '/api';
   const STORAGE_SEL = 'selected_account_id';
+
+  // ---------- helpers ----------
   const token = () => localStorage.getItem('autonomix_token') || '';
   const authHeaders = () => ({ Authorization: 'Bearer ' + token() });
+  const $ = (sel) => document.querySelector(sel);
 
-  // tiers: 1=Free, 2=Personal, 3=Pro
+  // tiers backend: 1=Free, 2=Personal, 3=Pro
   const APPS = [
     { key: 'ATEX Control', title: 'ATEX Control', group: 'ATEX', sub: 'Gestion des equipements, inspections, conformite', href: 'atex-control.html', minTier: 1 },
     { key: 'EPD',          title: 'EPD',          group: 'ATEX', sub: 'Dossier / etude explosion',                         href: 'epd.html',           minTier: 2 },
@@ -13,30 +16,43 @@
   ];
   const tierName = (t) => (t === 3 ? 'Pro' : t === 2 ? 'Personal' : 'Free');
 
-  // ---------- DOM helpers ----------
-  const $ = (sel) => document.querySelector(sel);
-  const createEl = (tag, attrs = {}, children = []) => {
-    const el = document.createElement(tag);
-    for (const [k, v] of Object.entries(attrs)) {
-      if (k === 'class') el.className = v;
-      else if (k === 'text') el.textContent = v;
-      else if (k === 'html') el.innerHTML = v;
-      else el.setAttribute(k, v);
-    }
-    children.forEach(c => el.appendChild(c));
-    return el;
-  };
+  // Styles pour le verrouillage visuel des cards
+  function ensureLockStyles() {
+    if (document.getElementById('cards-lock-css')) return;
+    const css = `
+      .app-card{ position:relative; border-radius:14px; padding:12px; background:#fff; box-shadow:0 2px 10px rgba(0,0,0,.06); transition:transform .05s ease; }
+      .app-card:not(.disabled):hover{ transform:translateY(-1px); }
+      .app-card.disabled{ opacity:.55; filter:grayscale(0.15); cursor:not-allowed; }
+      .app-card .app-title{ font-weight:700; margin-bottom:4px; }
+      .app-card .app-sub{ font-size:.9rem; opacity:.8; }
+      .app-card.disabled .lock{
+        position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+        text-align:center; padding:10px; font-weight:700; color:#111; background:linear-gradient(transparent 35%, rgba(255,255,255,.92) 60%);
+        pointer-events:none;
+      }
+      .app-card.disabled .lock small{ display:block; font-weight:500; opacity:.8; margin-top:4px; }
+      #atexSubCards.hidden{ display:none !important; }
+    `;
+    const tag = document.createElement('style');
+    tag.id = 'cards-lock-css';
+    tag.textContent = css;
+    document.head.appendChild(tag);
+  }
 
   // ---------- API ----------
   async function myAccounts() {
     const r = await fetch(`${API}/accounts/mine`, { headers: authHeaders(), cache: 'no-store' });
-    if (r.status === 401) { localStorage.removeItem('autonomix_token'); location.href = 'login.html'; return []; }
+    if (r.status === 401) {
+      localStorage.removeItem('autonomix_token');
+      location.href = 'login.html';
+      return [];
+    }
     if (!r.ok) throw new Error(`accounts/mine ${r.status}`);
     const data = await r.json().catch(() => ({}));
     return Array.isArray(data.accounts) ? data.accounts : [];
   }
 
-  async function getMe(accountId = null) {
+  async function getMe(accountId) {
     const url = new URL(API + '/me', window.location.origin);
     if (accountId != null) url.searchParams.set('account_id', accountId);
     const r = await fetch(url.toString(), { headers: authHeaders(), cache: 'no-store' });
@@ -64,7 +80,7 @@
       const e = await r.json().catch(() => ({}));
       throw new Error(e && e.error ? e.error : ('HTTP ' + r.status));
     }
-    return r.json(); // { account_id, name }
+    return r.json(); // {account_id, name}
   }
 
   async function deleteAccount(accountId) {
@@ -76,7 +92,7 @@
     return r.json();
   }
 
-  // ---------- pref helpers ----------
+  // ---------- préférences ----------
   function getPreferredAccountIdFromURL() {
     const u = new URL(window.location.href);
     return u.searchParams.get('account_id');
@@ -95,12 +111,13 @@
 
   // ---------- UI ----------
   function renderAccountSwitcher(accounts, selectedId) {
-    const select = $('#accountSwitcher'); // <select id="accountSwitcher"> dans ton HTML
+    const select = $('#accountSwitcher'); // <select id="accountSwitcher">
     if (!select) return;
 
     select.innerHTML = '';
     if (!accounts.length) {
-      const opt = createEl('option', { value: '', text: 'Aucun espace' });
+      const opt = document.createElement('option');
+      opt.value = ''; opt.textContent = 'Aucun espace';
       select.appendChild(opt);
       select.disabled = true;
       return;
@@ -111,7 +128,9 @@
       const id = String(a.id || a.account_id);
       const name = a.name || ('Espace #' + id);
       const role = a.role || '';
-      const opt = createEl('option', { value: id, text: `${name} — ${role}` });
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = `${name} — ${role}`;
       if (String(selectedId) === id) opt.selected = true;
       select.appendChild(opt);
     }
@@ -122,7 +141,9 @@
     };
   }
 
+  // (corrigée) — cards visibles, mais verrouillées si non incluses dans le plan
   function renderAtexSubCards(accountId, tier) {
+    ensureLockStyles();
     const sub = $('#atexSubCards');
     if (!sub) return;
     sub.innerHTML = '';
@@ -133,20 +154,37 @@
 
     APPS.filter(a => a.group === 'ATEX').forEach(app => {
       const allowed = t >= app.minTier;
-      const card = createEl('div', { class: 'app-card' + (allowed ? '' : ' disabled') });
-      const title = createEl('div', { class: 'app-title', text: app.title });
-      const desc  = createEl('div', { class: 'app-sub',   text: app.sub });
-      card.appendChild(title); card.appendChild(desc);
+      const card = document.createElement('div');
+      card.className = 'app-card' + (allowed ? '' : ' disabled');
+
+      const title = document.createElement('div');
+      title.className = 'app-title';
+      title.textContent = app.title;
+
+      const desc = document.createElement('div');
+      desc.className = 'app-sub';
+      desc.textContent = app.sub;
+
+      card.appendChild(title);
+      card.appendChild(desc);
 
       if (allowed) {
+        // clic = ouvre l’app
         card.addEventListener('click', () => {
           const url = new URL(window.location.origin + '/' + app.href);
           url.searchParams.set('account_id', accountId);
           location.href = url.toString();
         });
       } else {
-        card.title = `Nécessite le plan ${tierName(app.minTier)}`;
+        // bandeau de verrouillage
+        const need = (app.minTier === 3 ? 'Pro' : app.minTier === 2 ? 'Personal' : 'Free');
+        const lock = document.createElement('div');
+        lock.className = 'lock';
+        lock.innerHTML = `Débloquez avec niveau ${need}<small>(actuellement: ${tierName(t)})</small>`;
+        card.appendChild(lock);
+        card.title = `Nécessite le plan ${need}`;
       }
+
       sub.appendChild(card);
     });
   }
@@ -173,7 +211,6 @@
       const u = new URL(window.location.origin + '/subscription_atex.html');
       if (accountId != null) u.searchParams.set('account_id', accountId);
       manage.href = u.toString();
-      // member → pas de gestion abonnement
       if (role !== 'owner' && role !== 'admin') manage.classList.add('disabled');
       else manage.classList.remove('disabled');
     }
@@ -224,7 +261,6 @@
       const r = (me && me.role) ? me.role : (accounts.find(a => String(a.id || a.account_id) === String(accountId))?.role || '');
       const emailEl = $('#userEmail');
       if (emailEl) emailEl.textContent = `${me.email || ''} • compte #${accountId} • ${r || ''}`;
-      // actions
       wireActions(accountId, r || 'member');
     } catch (_) { /* noop */ }
 
@@ -236,14 +272,14 @@
       if (e.code === 403) {
         const chip = $('#chipAtexLicense');
         if (chip) chip.textContent = 'Acces refuse a cet espace';
-        renderAtexSubCards(accountId, 1); // fallback Free visuel
+        renderAtexSubCards(accountId, 1); // fallback visuel Free
         return;
       }
       console.error(e); alert('Erreur chargement licence.');
       return;
     }
 
-    // tier sécurisé
+    // tier sécurisé (force >=1)
     let t = Number(lic && lic.tier);
     if (!Number.isFinite(t) || t < 1) t = 1;
 
@@ -251,7 +287,6 @@
     if (chip) chip.textContent = `Licence: ${tierName(t)}`;
     renderAtexSubCards(accountId, t);
 
-    // toggle ATEX main card
     wireMainAtexCard();
   }
 
@@ -276,15 +311,23 @@
   async function boot() {
     if (!token()) { location.href = 'login.html'; return; }
 
+    // logout
     const logout = $('#logoutBtn');
     if (logout) {
-      logout.onclick = () => { localStorage.removeItem('autonomix_token'); localStorage.removeItem('autonomix_user'); location.href = 'login.html'; };
+      logout.onclick = () => {
+        localStorage.removeItem('autonomix_token');
+        localStorage.removeItem('autonomix_user');
+        localStorage.removeItem(STORAGE_SEL);
+        location.href = 'login.html';
+      };
     }
 
     try {
       const accounts = await myAccounts();
+      // sélecteur dès maintenant (même vide) pour feedback UI
+      renderAccountSwitcher(accounts, null);
+
       if (!accounts.length) {
-        renderAccountSwitcher([], null);
         wireActions(null, 'member');
         return;
       }
