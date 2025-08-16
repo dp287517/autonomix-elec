@@ -196,11 +196,11 @@
           <td>${risk}</td>
           <td>${fmtDate(eq.last_inspection_date)}</td>
           <td>${fmtDate(eq.next_inspection_date)}</td>
-          <td>${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" onclick="openPhoto('${encodeURIComponent(eq.photo)}')">` : '<span class="text-muted">—</span>'}</td>
+          <td>${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" data-action="open-photo" data-src="${encodeURIComponent(eq.photo)}">` : '<span class="text-muted">—</span>'}</td>
           <td class="actions">
-            <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(${eq.id})" title="Éditer"><i data-lucide="edit-3"></i></button>
-            <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${eq.id}, '${(eq.composant||'').replace(/'/g,"\\'")}')" title="Supprimer"><i data-lucide="trash-2"></i></button>
-            <button class="btn btn-sm ${eq.has_ia_history ? 'btn-success' : (String(eq.conformite||'').toLowerCase().includes('non') ? 'btn-warning' : 'btn-outline-secondary')}" onclick="openIA(${eq.id})" title="IA Analysis"><i data-lucide="sparkles"></i> IA</button>
+            <button class="btn btn-sm btn-outline-primary" data-action="edit-equipment" data-id="${eq.id}" title="Éditer"><i data-lucide="edit-3"></i></button>
+            <button class="btn btn-sm btn-outline-danger" data-action="delete-equipment" data-id="${eq.id}" data-label="${(eq.composant||'').replace(/'/g,"\\'")}" title="Supprimer"><i data-lucide="trash-2"></i></button>
+            <button class="btn btn-sm ${eq.has_ia_history ? 'btn-success' : (String(eq.conformite||'').toLowerCase().includes('non') ? 'btn-warning' : 'btn-outline-secondary')}" data-action="open-ia" data-id="${eq.id}" title="IA Analysis"><i data-lucide="sparkles"></i> IA</button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -386,18 +386,14 @@
       setLastType({ composant: $('#composant-input').value, fournisseur: $('#fournisseur-input').value, type: $('#type-input').value });
 
       const file = $('#photo-input').files[0] || null;
-let photoBase64 = null;
-if (file) {
-  const nameLc = (file.name || '').toLowerCase();
-  const typeLc = (file.type || '').toLowerCase();
-  const isPDF = typeLc === 'application/pdf' || nameLc.endsWith('.pdf');
-  if ((isPDF || file.size > 180*1024) && id) {
-    try { await uploadPhotoMultipart(id, file); showToast('Fichier envoyé (multipart)','success'); }
-    catch (e) { showToast('Échec upload fichier: '+(e.message||e),'danger'); }
-  } else if (!isPDF) {
-    photoBase64 = await resizeImageToDataURL(file);
-  }
-}
+      let photoBase64 = null;
+      if (file && file.size > 180*1024 && id) {
+        try { await uploadPhotoMultipart(id, file); showToast('Photo envoyée (multipart)','success'); }
+        catch (e) { showToast('Échec upload photo: '+(e.message||e),'danger'); }
+      } else if (file) {
+        photoBase64 = await resizeImageToDataURL(file);
+      }
+
       const data = {
         secteur, batiment: $('#batiment-input').value, local: $('#local-input').value,
         composant: $('#composant-input').value, fournisseur: $('#fournisseur-input').value,
@@ -798,5 +794,17 @@ if (file) {
       if(e.target && e.target.id === 'attPrev'){ e.preventDefault(); openAttachment(_attIndex-1); }
       if(e.target && e.target.id === 'attNext'){ e.preventDefault(); openAttachment(_attIndex+1); }
     });
+
+
+// Delegated actions for table buttons and images (CSP-friendly)
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const action = btn.getAttribute('data-action');
+  if (action === 'edit-equipment') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if(!isNaN(id)) editEquipment(id); return; }
+  if (action === 'delete-equipment') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); const label = btn.getAttribute('data-label')||''; if(!isNaN(id)) openDeleteModal(id,label); return; }
+  if (action === 'open-ia') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if(!isNaN(id)) openIA(id); return; }
+  if (action === 'open-photo') { e.preventDefault(); const src = btn.getAttribute('data-src')||''; if (src) openPhoto(src); return; }
+});
 
 })();
