@@ -31,9 +31,12 @@
         return;
       }
 
+      // Stocke le token puis purge tout ancien espace mémorisé (évite 403 sur dashboard)
       localStorage.setItem('autonomix_token', data.token);
-      // on garde un petit profil local pour l’UI
+      localStorage.removeItem('selected_account_id');
+      // petit profil local (facultatif)
       localStorage.setItem('autonomix_user', JSON.stringify(data.user || { email }));
+
       location.href = 'dashboard.html';
     } catch (e) {
       if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Connexion impossible (réseau).'; }
@@ -44,7 +47,7 @@
     const btn = document.getElementById('btn');
     if (btn) btn.addEventListener('click', doLogin);
 
-    // Entrée au clavier
+    // Entrée clavier
     const formInputs = [document.getElementById('email'), document.getElementById('password')].filter(Boolean);
     formInputs.forEach(inp => inp.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter') { ev.preventDefault(); doLogin(); }
