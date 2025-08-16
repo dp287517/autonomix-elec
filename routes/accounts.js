@@ -1,85 +1,116 @@
-// routes/accounts_invite.js — invite + liste des membres (monté sous /api)
+// routes/accounts.js — endpoints comptes (mine / create / owners / delete)
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/db');
-const { requireAuth, requireRole } = require('../middleware/authz');
+const { requireAuth } = require('../middleware/authz');
 
-/**
- * GET /accounts/members/:appCode?account_id=ID
- * -> { app, account_id, members: [{email, role, has_seat}], seats_total }
- * Visible aux owner/admin (si tu veux l’ouvrir aux members, remplace requireRole par requireAuth).
- */
-router.get('/accounts/members/:appCode', requireAuth, requireRole('owner', 'admin'), async (req, res) => {
+// GET /accounts/mine → {accounts:[{id,name,role}]}
+router.get('/accounts/mine', requireAuth, async (req, res) => {
   try {
-    const accountId = Number(req.query.account_id);
-    const appCode = req.params.appCode;
-    if (!accountId) return res.status(400).json({ error: 'missing_account_id' });
-
-    // membres de l’espace
-    const m = await pool.query(`
-      SELECT u.email, ua.role
-      FROM public.user_accounts ua
-      JOIN public.users u ON u.id = ua.user_id
-      WHERE ua.account_id = $1
-      ORDER BY u.email ASC
-    `, [accountId]);
-
-    // politique simple: 1 siège par membre (peut être changé plus tard)
-    const members = m.rows.map(r => ({ email: r.email, role: r.role, has_seat: true }));
-    const seats_total = members.length;
-
-    return res.json({ app: appCode, account_id: accountId, members, seats_total });
+    const r = await pool.query(`
+      SELECT a.id, a.name, ua.role
+      FROM public.accounts a
+      JOIN public.user_accounts ua ON ua.account_id = a.id
+      WHERE ua.user_id = $1
+      ORDER BY a.id ASC
+    `, [req.user.id]);
+    return res.json({ accounts: r.rows });
   } catch (e) {
-    console.error('[GET /accounts/members/:appCode] error', e);
+    console.error('[GET /accounts/mine] error', e);
     return res.status(500).json({ error: 'server_error' });
   }
 });
 
-/**
- * POST /accounts/invite?account_id=ID
- * body: { email, role='member', appCode:'ATEX' }
- * -> { invited, role, seats_total }
- */
-router.post('/accounts/invite', requireAuth, requireRole('owner','admin'), async (req, res) => {
+// POST /accounts  body: {name} → crée l’espace + te met owner
+router.post('/accounts', requireAuth, async (req, res) => {
+  const client = await pool.connect();
   try {
-    const accountId = Number(req.query.account_id);
-    if (!accountId) return res.status(400).json({ error: 'missing_account_id' });
-    const email = (req.body.email || '').trim().toLowerCase();
-    const role = (req.body.role || 'member');
+    const name = (req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'missing_name' });
 
-    // l’invitant doit être owner/admin de l’espace
-    const chk = await pool.query(
-      `SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2 LIMIT 1`,
-      [ (req.user.uid || req.user.id), accountId ]
+    await client.query('BEGIN');
+
+    const insAcc = await client.query(
+      `INSERT INTO public.accounts(name) VALUES($1) RETURNING id, name`,
+      [name]
     );
-    if (!chk.rowCount) return res.status(403).json({ error: 'forbidden_account' });
-    if (!['owner','admin'].includes(chk.rows[0].role)) return res.status(403).json({ error: 'forbidden_role' });
+    const acc = insAcc.rows[0];
 
-    // upsert utilisateur
-    let uid = null;
-    const u = await pool.query(`SELECT id FROM public.users WHERE LOWER(email)=LOWER($1) LIMIT 1`, [email]);
-    if (u.rowCount) {
-      uid = u.rows[0].id;
-    } else {
-      const nu = await pool.query(`INSERT INTO public.users(email) VALUES(LOWER($1)) RETURNING id`, [email]);
-      uid = nu.rows[0].id;
-    }
+    await client.query(
+      `INSERT INTO public.user_accounts(user_id, account_id, role) VALUES($1,$2,'owner')
+       ON CONFLICT (user_id, account_id) DO NOTHING`,
+      [req.user.id, acc.id]
+    );
 
-    // upsert membership
-    await pool.query(`
-      INSERT INTO public.user_accounts(user_id, account_id, role)
-      VALUES($1,$2,$3)
-      ON CONFLICT (user_id, account_id) DO UPDATE SET role=EXCLUDED.role
-    `, [uid, accountId, role]);
+    // Optionnel: créer une ligne de “subscription active” par défaut (Free, 1 siège)
+    await client.query(`
+      INSERT INTO public.active_subscriptions(account_id, app_code, active_tier, active_seats)
+      VALUES($1,'ATEX',1,1)
+      ON CONFLICT (account_id, app_code) DO NOTHING
+    `, [acc.id]);
 
-    // recalcul seats = nb de membres
-    const c = await pool.query(`SELECT COUNT(*)::int AS n FROM public.user_accounts WHERE account_id=$1`, [accountId]);
-    const seats_total = c.rows[0].n;
-
-    return res.json({ invited: email, role, seats_total });
+    await client.query('COMMIT');
+    return res.json({ account_id: acc.id, name: acc.name });
   } catch (e) {
-    console.error('[POST /accounts/invite] error', e);
+    await client.query('ROLLBACK');
+    console.error('[POST /accounts] error', e);
     return res.status(500).json({ error: 'server_error' });
+  } finally {
+    client.release();
+  }
+});
+
+// GET /accounts/:accountId/owners → [{email}]
+router.get('/accounts/:accountId/owners', requireAuth, async (req, res) => {
+  try {
+    const accountId = Number(req.params.accountId);
+    if (!accountId) return res.status(400).json({ error: 'bad_account_id' });
+
+    const r = await pool.query(`
+      SELECT u.email
+      FROM public.user_accounts ua
+      JOIN public.users u ON u.id = ua.user_id
+      WHERE ua.account_id = $1 AND ua.role = 'owner'
+      ORDER BY u.email ASC
+    `, [accountId]);
+
+    return res.json(r.rows);
+  } catch (e) {
+    console.error('[GET /accounts/:id/owners] error', e);
+    return res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// DELETE /accounts/:accountId  (seulement owner du compte ciblé)
+router.delete('/accounts/:accountId', requireAuth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const accountId = Number(req.params.accountId);
+    if (!accountId) return res.status(400).json({ error: 'bad_account_id' });
+
+    // Vérifie que l’appelant est owner de CE compte (pas juste “un owner ailleurs”)
+    const who = await client.query(`
+      SELECT 1 FROM public.user_accounts
+      WHERE user_id = $1 AND account_id = $2 AND role = 'owner'
+      LIMIT 1
+    `, [req.user.id, accountId]);
+    if (!who.rowCount) return res.status(403).json({ error: 'forbidden' });
+
+    await client.query('BEGIN');
+
+    await client.query(`DELETE FROM public.user_accounts WHERE account_id=$1`, [accountId]);
+    await client.query(`DELETE FROM public.active_subscriptions WHERE account_id=$1`, [accountId]);
+    await client.query(`DELETE FROM public.subscriptions WHERE account_id=$1`, [accountId]);
+    await client.query(`DELETE FROM public.accounts WHERE id=$1`, [accountId]);
+
+    await client.query('COMMIT');
+    return res.json({ ok: true, account_id: accountId });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error('[DELETE /accounts/:id] error', e);
+    return res.status(500).json({ error: 'server_error' });
+  } finally {
+    client.release();
   }
 });
 
