@@ -386,14 +386,18 @@
       setLastType({ composant: $('#composant-input').value, fournisseur: $('#fournisseur-input').value, type: $('#type-input').value });
 
       const file = $('#photo-input').files[0] || null;
-      let photoBase64 = null;
-      if (file && file.size > 180*1024 && id) {
-        try { await uploadPhotoMultipart(id, file); showToast('Photo envoyée (multipart)','success'); }
-        catch (e) { showToast('Échec upload photo: '+(e.message||e),'danger'); }
-      } else if (file) {
-        photoBase64 = await resizeImageToDataURL(file);
-      }
-
+let photoBase64 = null;
+if (file) {
+  const nameLc = (file.name || '').toLowerCase();
+  const typeLc = (file.type || '').toLowerCase();
+  const isPDF = typeLc === 'application/pdf' || nameLc.endsWith('.pdf');
+  if ((isPDF || file.size > 180*1024) && id) {
+    try { await uploadPhotoMultipart(id, file); showToast('Fichier envoyé (multipart)','success'); }
+    catch (e) { showToast('Échec upload fichier: '+(e.message||e),'danger'); }
+  } else if (!isPDF) {
+    photoBase64 = await resizeImageToDataURL(file);
+  }
+}
       const data = {
         secteur, batiment: $('#batiment-input').value, local: $('#local-input').value,
         composant: $('#composant-input').value, fournisseur: $('#fournisseur-input').value,
