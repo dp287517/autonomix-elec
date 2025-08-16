@@ -1,238 +1,139 @@
-// public/js/dashboard.js — clean build
-(()=>{
+// /public/js/dashboard.js
+(function () {
   const API = (window.API_BASE_URL || '') + '/api';
-  const STORAGE_SEL = 'autonomix_selected_account_id';
 
-  // --- Apps and access policy
-  const APPS = [
-    { key: 'ATEX Control', title: 'ATEX Control', href: 'atex-control.html', group: 'ATEX', sub: 'Gestion des equipements, inspections, conformite' },
-    { key: 'EPD',          title: 'EPD',          href: 'epd.html',         group: 'ATEX', sub: 'Dossier / etude explosion' },
-    { key: 'IS Loop',      title: 'IS Loop',      href: 'is-loop.html',     group: 'ATEX', sub: 'Calculs boucles Exi' }
-  ];
-  // Minimum tiers per app (normalized 0..2 scale). 0=Free, 1=Personal, 2=Pro
-  const ACCESS_POLICY = { 'ATEX': { tiers: { 'ATEX Control':0, 'EPD':1, 'IS Loop':2 } } };
-
-  // --- Helpers
-  function tierName0(t){ return t===2?'Pro' : (t===1?'Personal':'Free'); }
-  function fromServerTier(t){
-    if (typeof t !== 'number') return 0;
-    if (t>=1 && t<=3) return t-1;   // server 1..3 -> 0..2
-    if (t>=0 && t<=2) return t;     // already 0..2
-    return 0;
+  // ---------- utils ----------
+  function authHeaders() {
+    const t = localStorage.getItem('autonomix_token') || '';
+    return { Authorization: `Bearer ${t}` };
   }
-  function serverLabel(t){ if (t===3) return 'Pro'; if (t===2) return 'Personal'; return 'Free'; }
+  function $(sel) { return document.querySelector(sel); }
+  function show(el) { el && el.classList.remove('d-none'); }
+  function hide(el) { el && el.classList.add('d-none'); }
 
-  const token = ()=> localStorage.getItem('autonomix_token') || '';
-  const authHeaders = ()=> ({ Authorization: 'Bearer ' + token() });
-  function selectedAccountId(){ return Number(localStorage.getItem(STORAGE_SEL) || '0') || null; }
-  function setSelectedAccountId(v){ if (v!=null) localStorage.setItem(STORAGE_SEL, String(v)); }
+  // ---------- API helpers ----------
+  async function myAccounts() {
+    const r = await fetch(`${API}/accounts/mine`, { headers: authHeaders(), cache: 'no-store' });
+    if (!r.ok) throw new Error(`accounts/mine ${r.status}`);
+    const data = await r.json().catch(() => ({}));
+    return Array.isArray(data.accounts) ? data.accounts : [];
+  }
 
-  // --- Auth guard
-  async function guard(){
-    const t = token();
-    if (!t){ location.href='login.html'; return null; }
-    try{
-      const r = await fetch(API + '/me', { headers: authHeaders() });
-      if (!r.ok) throw new Error('me ' + r.status);
-      const me = await r.json();
-      const el = document.getElementById('userEmail');
-      if (el) el.textContent = `${me.email || ''} • compte #${me.account_id ?? '—'} • ${me.role || ''}`;
-      return me;
-    }catch{
-      localStorage.removeItem('autonomix_token'); localStorage.removeItem('autonomix_user');
-      location.href='login.html'; return null;
+  async function fetchLicense(appCode, accountId) {
+    const r = await fetch(`${API}/licenses/${encodeURIComponent(appCode)}?account_id=${accountId}`, {
+      headers: authHeaders(),
+      cache: 'no-store'
+    });
+    if (r.status === 403) {
+      const err = new Error('forbidden_account');
+      err.code = 403;
+      throw err;
     }
-  }
-
-  // --- Accounts
-  async function myAccounts(){
-    const r = await fetch(API + '/accounts/mine', { headers: authHeaders() });
-    if (!r.ok) throw new Error('accounts/mine ' + r.status);
+    if (!r.ok) throw new Error(`licenses ${r.status}`);
     return r.json();
   }
-  function renderAccountSwitcher(mine, current){
-    const list = mine.accounts || mine;
-    const sel = document.getElementById('accountSwitcher'); if (!sel) return;
-    sel.innerHTML='';
-    list.forEach(acc=>{
-      const id = acc.id || acc.account_id;
-      const name = acc.name || acc.account_name;
-      const role = acc.role || 'member';
-      const opt = document.createElement('option');
-      opt.value = id; opt.textContent = `${name} — ${role}`;
-      if (String(id)===String(current)) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    sel.onchange = ()=>{
-      setSelectedAccountId(sel.value);
-      const url = new URL(window.location.href);
-      url.searchParams.set('account_id', sel.value);
-      window.location.href = url.toString();
-    };
+
+  // ---------- preferred account id ----------
+  function getPreferredAccountIdFromURL() {
+    const u = new URL(window.location.href);
+    return u.searchParams.get('account_id');
+  }
+  function setPreferredAccountId(accountId, push = true) {
+    localStorage.setItem('selected_account_id', String(accountId));
+    const u = new URL(window.location.href);
+    u.searchParams.set('account_id', String(accountId));
+    if (push) window.history.replaceState({}, '', u.toString());
   }
 
-  // --- License
-  async function fetchLicense(appCode, accountId){
-    try{
-      const r = await fetch(`${API}/licenses/${encodeURIComponent(appCode)}?account_id=${accountId}`, { headers: authHeaders() });
-      if (!r.ok) return { forbidden: r.status === 403 };
-      return await r.json();
-    }catch{ return null; }
-  }
-
-  // --- UI build
-  function atexApps(){ return APPS.filter(a=>a.group==='ATEX'); }
-  function minTierFor(appKey){ return ACCESS_POLICY.ATEX.tiers[appKey] ?? 0; }
-
-  function renderAtexSubCards(accountId){
-    const host = document.getElementById('atexSubCards'); if (!host) return;
-    host.innerHTML = '';
-    atexApps().forEach(app=>{
-      const art = document.createElement('article');
-      art.className = 'app-card';
-      art.setAttribute('data-href', `${app.href}?account_id=${accountId}`);
-      art.setAttribute('data-app', app.key);
-      art.setAttribute('data-group', 'ATEX');
-      art.innerHTML = `
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <div class="fw-bold">${app.title}</div>
-            <div class="text-secondary small">${app.sub || ''}</div>
-          </div>
-          <span class="chip" data-chip="usage" data-app="${app.key}"></span>
-        </div>`;
-      host.appendChild(art);
-    });
-  }
-  function wireMainAtexCard(){
-    const main = document.getElementById('cardATEX');
-    const sub  = document.getElementById('atexSubCards');
-    if (!main || !sub) return;
-    main.addEventListener('click', (e)=>{
-      const manage = e.target && e.target.closest && e.target.closest('#manageAtexLink');
-      if (manage) return;
-      const hidden = getComputedStyle(sub).display === 'none' || sub.classList.contains('hidden') || sub.classList.contains('d-none');
-      if (hidden){ sub.style.display='grid'; sub.classList.remove('hidden','d-none'); }
-      else { sub.style.display='none'; sub.classList.add('hidden'); }
-    });
-  }
-  function wireActions(accountId, role){
-    const manageLink = document.getElementById('manageAtexLink');
-    if (manageLink){
-      const url = new URL(window.location.origin + '/subscription_atex.html');
-      url.searchParams.set('account_id', accountId);
-      manageLink.href = url.toString();
-      manageLink.style.display = (role === 'owner') ? '' : 'none';
+  // ---------- auto-recovery if 403 ----------
+  async function chooseFirstAccessibleAccount(list) {
+    for (const a of list) {
+      const id = a.id || a.account_id;
+      try {
+        await fetchLicense('ATEX', id);
+        return String(id);
+      } catch (e) {
+        if (e.code !== 403) throw e; // autre erreur => on propage
+      }
     }
-    const createBtn = document.getElementById('createAccountBtn');
-    if (createBtn) createBtn.onclick = createAccountFlow;
-    const delBtn = document.getElementById('deleteAccountBtn');
-    if (delBtn){
-      delBtn.style.display = (role === 'owner') ? 'inline-block' : 'none';
-      delBtn.onclick = ()=> deleteAccountFlow(accountId, role);
-    }
+    return null;
   }
 
-  function lockAllSubCards(msg){
-    document.querySelectorAll('#atexSubCards article.app-card').forEach(node=>{
-      node.classList.add('locked');
-      const chip = node.querySelector('[data-chip="usage"]');
-      if (chip) chip.textContent = msg || 'Acces verrouille';
-      node.onclick = ()=> alert(msg || 'Acces verrouille');
-    });
+  // ---------- (optionnel) petits rendus de secours ----------
+  function renderEmptyState() {
+    hide($('#apps'));
+    show($('#emptyState')); // Assure-toi d’avoir un conteneur #emptyState dans le HTML
   }
-  function applyLicensingGating(lic){
-    if (!lic || lic.forbidden){ lockAllSubCards('Acces refuse a cet espace'); return; }
-    const userTier0 = fromServerTier(typeof lic.tier==='number' ? lic.tier : 0);
-    document.querySelectorAll('#atexSubCards article.app-card').forEach(node=>{
-      const key = node.getAttribute('data-app');
-      const need = minTierFor(key);
-      const ok = userTier0 >= need;
-      const chip = node.querySelector('[data-chip="usage"]');
-      if (chip) chip.textContent = ok ? 'Disponible' : `Niveau requis: ${tierName0(need)}`;
-      node.onclick = ok ? (()=> location.href = node.getAttribute('data-href')) : (()=>{
-        const url = new URL(window.location.origin + '/subscription_atex.html');
-        const acc = selectedAccountId();
-        if (acc) url.searchParams.set('account_id', acc);
-        location.href = url.toString();
-      });
-      node.classList.toggle('locked', !ok);
-    });
+  function renderGlobalError(msg) {
+    const el = $('#globalError');
+    if (el) { el.textContent = msg || 'Erreur au chargement du tableau de bord.'; el.classList.remove('d-none'); }
   }
 
-  async function createAccountFlow(){
-    const name = prompt('Nom du nouvel espace de travail ?');
-    if (!name || !name.trim()) return;
-    const r = await fetch(API + '/accounts', {
-      method:'POST', headers:{ 'Content-Type':'application/json', ...authHeaders() },
-      body: JSON.stringify({ name: name.trim() })
-    });
-    if (!r.ok){ const e = await r.json().catch(()=>({})); alert('Erreur creation: ' + (e && e.error ? e.error : r.status)); return; }
-    const acc = await r.json();
-    const newId = acc.account_id ?? acc.id;
-    setSelectedAccountId(newId);
-    // Rediriger directement vers la page Abonnement pour choisir un plan et éviter les 403
-    const url = new URL(window.location.origin + '/subscription_atex.html');
-    url.searchParams.set('account_id', newId);
-    location.href = url.toString();
-  }
-  async function deleteAccountFlow(accountId, role){
-    if (role !== 'owner'){ alert("Seul l'owner peut supprimer l'espace."); return; }
-    if (!confirm("Supprimer cet espace ?")) return;
-    const r = await fetch(API + '/accounts/' + accountId, { method:'DELETE', headers: authHeaders() });
-    if (!r.ok){ const e = await r.json().catch(()=>({})); alert('Erreur suppression: ' + (e && e.error ? e.error : r.status)); return; }
-    location.href = 'dashboard.html';
-  }
+  // ---------- boot ----------
+  async function boot() {
+    try {
+      const list = await myAccounts();   // ← ne nécessite pas de membership grâce au middleware requireAuthBasic
 
-  document.addEventListener('DOMContentLoaded', async ()=>{
-    const me = await guard(); if (!me) return;
-    try{
-      const mine = await myAccounts();
-      const list = mine.accounts || mine;
-      const fromURL = Number((new URLSearchParams(location.search)).get('account_id')) || null;
-      const fallback = (list[0] ? (list[0].id || list[0].account_id) : null);
-      const preferred = fromURL || selectedAccountId() || fallback;
-      if (preferred) setSelectedAccountId(preferred);
-      renderAccountSwitcher(mine, preferred);
-
-      // Build cards first to avoid empty UI
-      renderAtexSubCards(preferred); wireMainAtexCard();
-
-      // Fetch license
-      
-      const lic = await fetchLicense('ATEX', preferred);
-      // Determine role early
-      const role = (list.find(x => String(x.id||x.account_id)===String(preferred))?.role) || 'member';
-      // If this is a brand-new space (no license yet) and I'm owner, jump straight to subscription page
-      if (lic && lic.forbidden && role === 'owner'){
-        const url = new URL(window.location.origin + '/subscription_atex.html');
-        url.searchParams.set('account_id', preferred);
-        setTimeout(()=>{ location.href = url.toString(); }, 150);
+      if (!list.length) {
+        renderEmptyState();
         return;
       }
 
-      const chipLic = document.getElementById('chipAtexLicense');
-      if (lic && lic.forbidden){
-        if (chipLic) chipLic.textContent = 'Acces refuse a cet espace';
-      } else if (lic && typeof lic.tier === 'number'){
-        if (chipLic) chipLic.textContent = 'Licence: ' + serverLabel( (lic.tier>=1 && lic.tier<=3) ? lic.tier : (lic.tier+1) );
-      } else {
-        if (chipLic) chipLic.textContent = 'Licence: Free';
+      const listIds = list.map(a => String(a.id || a.account_id));
+      let preferred = getPreferredAccountIdFromURL() || localStorage.getItem('selected_account_id') || listIds[0];
+
+      // 1) Si l'id mémorisé n'est pas dans mes espaces → corrige avant tout appel /licenses
+      if (!listIds.includes(String(preferred))) {
+        preferred = listIds[0];
+        setPreferredAccountId(preferred);
       }
 
-      // Hide cards that exceed allowed tier
-      const userTier0 = fromServerTier(lic && typeof lic.tier==='number' ? lic.tier : 0);
-      document.querySelectorAll('#atexSubCards article.app-card').forEach(node=>{
-        const need = minTierFor(node.getAttribute('data-app'));
-        if (userTier0 < need) node.remove();
-      });
-      // Re-apply gating / click handlers
-      applyLicensingGating(lic);
+      // 2) Test de licence sur l'espace choisi
+      try {
+        await fetchLicense('ATEX', preferred);
+      } catch (e) {
+        if (e.code === 403) {
+          // 3) Auto-récupération : on choisit le premier espace accessible
+          const fallback = await chooseFirstAccessibleAccount(list);
+          if (fallback) {
+            setPreferredAccountId(fallback);
+            const u = new URL(window.location.href);
+            u.searchParams.set('account_id', fallback);
+            window.location.replace(u.toString());
+            return;
+          }
+          // aucun accessible → état vide
+          renderEmptyState();
+          return;
+        }
+        throw e; // autre erreur
+      }
 
-      // Role-specific actions
-      wireActions(preferred, role);
-    }catch(e){
-      console.error(e); alert('Impossible de charger vos espaces de travail.');
+      // 4) Ici l'espace est valide et accessible
+      setPreferredAccountId(preferred); // on persiste proprement
+
+      // —— Intégration douce avec ton code existant ——
+      // Si tu as déjà une fonction globale d'init, on l'appelle :
+      if (typeof window.initDashboard === 'function') {
+        window.initDashboard(preferred, list);
+        return;
+      }
+
+      // Sinon, on fournit un rendu fallback minimal (tu peux le remplacer par ton rendu)
+      hide($('#emptyState'));
+      show($('#apps'));
+      // … si tu as des fonctions de rendu spécifiques, appelle-les ici.
+      // ex: renderApps(list, preferred); wireActions(preferred);
+
+      // On émet un événement pour que d'autres scripts puissent réagir
+      window.dispatchEvent(new CustomEvent('autonomix:account-ready', {
+        detail: { account_id: preferred, accounts: list }
+      }));
+    } catch (e) {
+      console.error(e);
+      renderGlobalError('Erreur au chargement du tableau de bord.');
     }
-  });
+  }
+
+  window.addEventListener('DOMContentLoaded', boot);
 })();
