@@ -1,4 +1,4 @@
-// /public/js/atex-control.core.js
+// /public/js/atex-control.core.js — v8 (fix Edit -> form rempli, viewer pièces jointes + clearForm)
 (function(){
 
   if (window.lucide){ window.lucide.createIcons(); }
@@ -47,7 +47,6 @@
     const dd=String(date.getDate()).padStart(2,'0'), mm=String(date.getMonth()+1).padStart(2,'0'), yyyy=date.getFullYear();
     return `${dd}-${mm}-${yyyy}`;
   }
-  // fallback en **mois** (aligné sur la logique base/trigger)
   function addMonthsISO(dateISO, nbMonths){
     const d = new Date(dateISO);
     if (isNaN(d)) return null;
@@ -56,7 +55,7 @@
   }
   function stripCodeFences(s){
     if(typeof s!=='string') return '';
-    return s.replace(/(?:html)?\s*[\r\n]?/gi,'').replace(/$/,'').trim();
+    return s.replace(/(?:^```(?:html)?|```$)/g,'').trim();
   }
   function renderIAContent(el, raw){
     let s = stripCodeFences(raw || '').trim();
@@ -105,7 +104,6 @@
     try{
       const r = await fetch(API.equipments);
       equipments = await r.json();
-      // Fallback next_inspection_date si null (cohérent DB : frequence en MOIS)
       equipments = (equipments||[]).map(eq=>{
         if (!eq.next_inspection_date && eq.last_inspection_date){
           const months = Number(eq.frequence);
@@ -147,7 +145,7 @@
         const icon = isPdfLink(url) ? '📄' : '📎';
         return `<a class="att-file" href="${url}" title="${label}" target="_blank" rel="noopener">${icon}</a>`;
       }).join('');
-      const more = atts.length>3 ? `<span class="att-more">+${atts.length-3}</span>` : '';
+      const more = atts.length>3 ? `<a href="#" class="att-more" data-action="open-attachments" data-id="${eq.id}">+${atts.length-3}</a>` : '';
       bits.push(`<div class="att-wrap">${thumbs}${more}</div>`);
     }
     return bits.join(' ');
@@ -174,7 +172,7 @@
         <td>${eq.risque ?? ''}</td>
         <td>${fmtDate(eq.last_inspection_date)}</td>
         <td>${fmtDate(eq.next_inspection_date)}</td>
-        <td>${renderAttachmentsCell(eq)}</td>
+        <td>${renderAttachmentsCell(eq)} ${Array.isArray(eq.attachments)&&eq.attachments.length?`<div><a href="#" data-action="open-attachments" data-id="${eq.id}">Voir tout</a></div>`:''}</td>
         <td class="actions">
           <button class="btn btn-sm btn-outline-primary" data-action="edit-equipment" data-id="${eq.id}" title="Éditer"><i data-lucide="edit-3"></i></button>
           <button class="btn btn-sm btn-outline-danger" data-action="delete-equipment" data-id="${eq.id}" data-label="${(eq.composant||'').replace(/\"/g,'&quot;')}" title="Supprimer"><i data-lucide="trash-2"></i></button>
@@ -560,7 +558,6 @@
       marquage_atex: $('#marquage_atex-input').value, comments: $('#comments-input').value,
       zone_gaz: zone_g || null, zone_poussieres: zone_d || null, zone_poussiere: zone_d || null,
       photo: photoBase64
-      // NB: on ne force pas ici "risque" & "conformite" : le serveur les déduit si besoin
     };
 
     const method = id ? 'PUT' : 'POST';
@@ -586,12 +583,19 @@
       showToast('Équipement sauvegardé.','success');
       await loadEquipments();
       document.getElementById('list-tab').click();
-      clearForm(); // assure qu’un nouveau passage en création part de champs vides
+      clearForm();
     }catch(e){ showToast('Erreur: '+(e.message||e),'danger'); }
   }
 
   async function editEquipment(id){
     try{
+      // 1) Ouvre l’onglet "Ajouter" (le clearForm sera fait là)
+      const addTab = document.getElementById('add-tab');
+      if (addTab) addTab.click();
+      // 2) Attends un tour d’event loop pour laisser l’UI se poser
+      await new Promise(r => setTimeout(r, 0));
+
+      // 3) Charge et remplit
       const r = await fetch(API.equipment(id)); if(!r.ok) throw new Error('Erreur chargement équipement');
       const eq = await r.json();
       $('#equipId').value = eq.id;
@@ -607,7 +611,6 @@
       $('#marquage_atex-input').value = eq.marquage_atex || '';
       $('#comments-input').value  = eq.comments || '';
       $('#last-inspection-input').value = eq.last_inspection_date ? new Date(eq.last_inspection_date).toISOString().slice(0,10) : '';
-      $('#add-tab').click();
     }catch(e){ showToast('Erreur édition: '+(e.message||e),'danger'); }
   }
 
@@ -645,6 +648,45 @@
     }catch(e){ showToast('Erreur import: '+(e.message||e),'danger'); }
   }
 
+  // ---- Attachments viewer (modal injecté)
+  function openAttachmentsModal(eq){
+    let atts = eq.attachments;
+    if (typeof atts === 'string'){
+      try{ atts = JSON.parse(atts); }catch{ atts = null; }
+    }
+    atts = Array.isArray(atts) ? atts : [];
+    const id = 'attsModal_'+eq.id;
+    const modalHTML = `
+    <div class="modal fade" id="${id}" tabindex="-1">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Pièces jointes — Équipement #${eq.id}</h5>
+            <button class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            ${atts.length ? atts.map((a,i)=>{
+              const url = a && (a.url||a.href||a.path||a) || '';
+              const name = a && (a.name||a.label) || ('Fichier '+(i+1));
+              if (!url) return '';
+              if (isImageLink(url)){
+                return `<div class="mb-3"><div class="small fw-semibold mb-1">${name}</div><img src="${url}" class="img-fluid rounded border"></div>`;
+              }
+              return `<div class="mb-2"><a href="${url}" target="_blank" rel="noopener">📎 ${name}</a></div>`;
+            }).join('') : '<div class="text-muted">Aucune pièce jointe.</div>'}
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    const modal = new bootstrap.Modal(document.getElementById(id));
+    modal.show();
+    document.getElementById(id).addEventListener('hidden.bs.modal', e => e.currentTarget.remove(), { once:true });
+  }
+
   // ---- Wiring global
   document.addEventListener('DOMContentLoaded', () => {
     $('#btnApplyFilters')?.addEventListener('click', applyFilters);
@@ -663,7 +705,7 @@
     $('#btnCopier')?.addEventListener('click', copyChat);
     $('#btnSend')?.addEventListener('click', sendChatFromTab);
 
-    // onglet "Ajouter" => formulaire vierge
+    // “Ajouter” cliqué directement par l’utilisateur = vraie création => on nettoie
     document.getElementById('add-tab')?.addEventListener('click', clearForm);
 
     $('#btnOpenInChat')?.addEventListener('click', () => {
@@ -687,6 +729,12 @@
       if (act === 'delete-equipment'){ openDeleteModal(Number(btn.dataset.id), btn.dataset.label||''); }
       if (act === 'open-ia'){ openIA(Number(btn.dataset.id)); }
       if (act === 'open-photo'){ const src = btn.dataset.src || btn.getAttribute('data-src'); openPhoto(src); }
+      if (act === 'open-attachments'){
+        const id = Number(btn.dataset.id);
+        const eq = equipments.find(e => e.id === id);
+        if (eq) openAttachmentsModal(eq);
+        e.preventDefault();
+      }
     });
 
     loadEquipments(); loadSecteurs();
