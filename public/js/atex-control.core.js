@@ -589,13 +589,12 @@
 
   async function editEquipment(id){
     try{
-      // 1) Ouvre l’onglet "Ajouter" (le clearForm sera fait là)
+      // 1) Ouvre l’onglet "Ajouter" puis laisse l’UI s’afficher
       const addTab = document.getElementById('add-tab');
       if (addTab) addTab.click();
-      // 2) Attends un tour d’event loop pour laisser l’UI se poser
       await new Promise(r => setTimeout(r, 0));
 
-      // 3) Charge et remplit
+      // 2) Charge et remplit
       const r = await fetch(API.equipment(id)); if(!r.ok) throw new Error('Erreur chargement équipement');
       const eq = await r.json();
       $('#equipId').value = eq.id;
