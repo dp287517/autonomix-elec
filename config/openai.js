@@ -4,10 +4,9 @@
  * - oneShot(equipment): renvoie un HTML d’analyse
  * - chat({question, equipment, history}): renvoie un HTML de réponse
  *
- * Si OPENAI_API_KEY absent => fallback local (même style que la route).
+ * Si OPENAI_API_KEY absent => fallback local (panneau lisible).
  */
 const { deriveLocal } = (() => {
-  // mini moteur local (mêmes règles que côté route)
   function requiredCategoryForZone(zg, zd){
     const zgNum = String(zg||'').replace(/[^0-9]/g,'') || '';
     const zdNum = String(zd||'').replace(/[^0-9]/g,'') || '';
