@@ -16,7 +16,7 @@
   ];
   const tierName = (t) => (t === 3 ? 'Pro' : t === 2 ? 'Personal' : 'Free');
 
-  // Styles pour le verrouillage visuel des cards
+  // Styles pour verrouillage des cards
   function ensureLockStyles() {
     if (document.getElementById('cards-lock-css')) return;
     const css = `
@@ -42,11 +42,7 @@
   // ---------- API ----------
   async function myAccounts() {
     const r = await fetch(`${API}/accounts/mine`, { headers: authHeaders(), cache: 'no-store' });
-    if (r.status === 401) {
-      localStorage.removeItem('autonomix_token');
-      location.href = 'login.html';
-      return [];
-    }
+    if (r.status === 401) { localStorage.removeItem('autonomix_token'); location.href = 'login.html'; return []; }
     if (!r.ok) throw new Error(`accounts/mine ${r.status}`);
     const data = await r.json().catch(() => ({}));
     return Array.isArray(data.accounts) ? data.accounts : [];
@@ -67,7 +63,7 @@
     });
     if (r.status === 403) { const e = new Error('forbidden'); e.code = 403; throw e; }
     if (!r.ok) throw new Error('licenses ' + r.status);
-    return r.json();
+    return r.json(); // { tier, source, role }
   }
 
   async function createAccount(name) {
@@ -141,16 +137,14 @@
     };
   }
 
-  // (corrigée) — cards visibles, mais verrouillées si non incluses dans le plan
   function renderAtexSubCards(accountId, tier) {
     ensureLockStyles();
     const sub = $('#atexSubCards');
     if (!sub) return;
     sub.innerHTML = '';
 
-    // force tier: si l’API renvoie 0/null → Free (1)
     let t = Number(tier);
-    if (!Number.isFinite(t) || t < 1) t = 1;
+    if (!Number.isFinite(t) || t < 1) t = 1; // fallback Free
 
     APPS.filter(a => a.group === 'ATEX').forEach(app => {
       const allowed = t >= app.minTier;
@@ -169,14 +163,12 @@
       card.appendChild(desc);
 
       if (allowed) {
-        // clic = ouvre l’app
         card.addEventListener('click', () => {
           const url = new URL(window.location.origin + '/' + app.href);
           url.searchParams.set('account_id', accountId);
           location.href = url.toString();
         });
       } else {
-        // bandeau de verrouillage
         const need = (app.minTier === 3 ? 'Pro' : app.minTier === 2 ? 'Personal' : 'Free');
         const lock = document.createElement('div');
         lock.className = 'lock';
@@ -184,22 +176,29 @@
         card.appendChild(lock);
         card.title = `Nécessite le plan ${need}`;
       }
-
       sub.appendChild(card);
     });
   }
 
-  function wireMainAtexCard() {
+  function wireMainAtexCard(role) {
     const main = $('#cardATEX');
     const sub  = $('#atexSubCards');
     if (!main || !sub) return;
-    main.addEventListener('click', (e) => {
+
+    // Si member → on n'ouvre pas les sous-cards
+    main.onclick = (e) => {
       const isManage = e.target && e.target.closest && e.target.closest('#manageAtexLink');
       if (isManage) return;
+      if (role === 'member') return; // demandé : pas d’ouverture pour member
+
       const hidden = getComputedStyle(sub).display === 'none' || sub.classList.contains('d-none') || sub.classList.contains('hidden');
       if (hidden) { sub.style.display = 'grid'; sub.classList.remove('d-none'); sub.classList.remove('hidden'); }
       else { sub.style.display = 'none'; sub.classList.add('hidden'); }
-    });
+    };
+
+    // Par défaut, gardons les sous-cards cachées
+    sub.style.display = 'none';
+    sub.classList.add('hidden');
   }
 
   function wireActions(accountId, role) {
@@ -256,38 +255,40 @@
 
   async function renderForAccount(accountId, accounts) {
     // Profil/rôle
+    let role = 'member';
     try {
       const me = await getMe(accountId);
-      const r = (me && me.role) ? me.role : (accounts.find(a => String(a.id || a.account_id) === String(accountId))?.role || '');
+      role = (me && me.role) ? me.role : (accounts.find(a => String(a.id || a.account_id) === String(accountId))?.role || 'member');
       const emailEl = $('#userEmail');
-      if (emailEl) emailEl.textContent = `${me.email || ''} • compte #${accountId} • ${r || ''}`;
-      wireActions(accountId, r || 'member');
+      if (emailEl) emailEl.textContent = `${me.email || ''} • compte #${accountId} • ${role}`;
+      wireActions(accountId, role);
     } catch (_) { /* noop */ }
 
-    // Licence
+    // Licence globale utilisateur (mais membership requise)
     let lic = null;
     try {
-      lic = await fetchLicense('ATEX', accountId); // { tier, source }
+      lic = await fetchLicense('ATEX', accountId); // { tier, source, role }
     } catch (e) {
       if (e.code === 403) {
         const chip = $('#chipAtexLicense');
         if (chip) chip.textContent = 'Acces refuse a cet espace';
-        renderAtexSubCards(accountId, 1); // fallback visuel Free
+        renderAtexSubCards(accountId, 1);
+        wireMainAtexCard(role);
         return;
       }
       console.error(e); alert('Erreur chargement licence.');
       return;
     }
 
-    // tier sécurisé (force >=1)
     let t = Number(lic && lic.tier);
     if (!Number.isFinite(t) || t < 1) t = 1;
 
     const chip = $('#chipAtexLicense');
-    if (chip) chip.textContent = `Licence: ${tierName(t)}`;
+    if (chip) chip.textContent = `Licence: ${tierName(t)} (globale)`;
     renderAtexSubCards(accountId, t);
 
-    wireMainAtexCard();
+    // toggle principal (respecte role=member)
+    wireMainAtexCard(role);
   }
 
   async function resolveAccessibleAccountId(accounts, preferredId) {
@@ -311,7 +312,6 @@
   async function boot() {
     if (!token()) { location.href = 'login.html'; return; }
 
-    // logout
     const logout = $('#logoutBtn');
     if (logout) {
       logout.onclick = () => {
@@ -324,11 +324,10 @@
 
     try {
       const accounts = await myAccounts();
-      // sélecteur dès maintenant (même vide) pour feedback UI
       renderAccountSwitcher(accounts, null);
 
       if (!accounts.length) {
-        wireActions(null, 'member');
+        // pas d’espace → UI minimale, laisser le bouton créer
         return;
       }
 
