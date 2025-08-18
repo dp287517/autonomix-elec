@@ -137,14 +137,16 @@
     };
   }
 
+  // Cards visibles, mais verrouillées si non incluses dans le plan
   function renderAtexSubCards(accountId, tier) {
     ensureLockStyles();
     const sub = $('#atexSubCards');
     if (!sub) return;
     sub.innerHTML = '';
 
+    // force tier: si l’API renvoie 0/null → Free (1)
     let t = Number(tier);
-    if (!Number.isFinite(t) || t < 1) t = 1; // fallback Free
+    if (!Number.isFinite(t) || t < 1) t = 1;
 
     APPS.filter(a => a.group === 'ATEX').forEach(app => {
       const allowed = t >= app.minTier;
@@ -163,12 +165,14 @@
       card.appendChild(desc);
 
       if (allowed) {
+        // clic = ouvre l’app
         card.addEventListener('click', () => {
           const url = new URL(window.location.origin + '/' + app.href);
           url.searchParams.set('account_id', accountId);
           location.href = url.toString();
         });
       } else {
+        // bandeau de verrouillage
         const need = (app.minTier === 3 ? 'Pro' : app.minTier === 2 ? 'Personal' : 'Free');
         const lock = document.createElement('div');
         lock.className = 'lock';
@@ -176,29 +180,45 @@
         card.appendChild(lock);
         card.title = `Nécessite le plan ${need}`;
       }
+
       sub.appendChild(card);
     });
   }
 
+  // >>> Correctif : members voient les sous-cards immédiatement (pas de toggle) <<<
   function wireMainAtexCard(role) {
     const main = $('#cardATEX');
     const sub  = $('#atexSubCards');
     if (!main || !sub) return;
 
-    // Si member → on n'ouvre pas les sous-cards
+    // MEMBERS : sous-cards visibles d’emblée, pas de toggle
+    if (role === 'member') {
+      sub.style.display = 'grid';
+      sub.classList.remove('d-none', 'hidden');
+      main.onclick = (e) => {
+        const isManage = e.target && e.target.closest && e.target.closest('#manageAtexLink');
+        if (isManage) return; // de toute façon géré/désactivé ailleurs
+        // pas de toggle pour member
+      };
+      return;
+    }
+
+    // OWNERS/ADMINS : caché par défaut + toggle sur la card (hors bouton "gérer")
+    sub.style.display = 'none';
+    sub.classList.add('hidden');
+
     main.onclick = (e) => {
       const isManage = e.target && e.target.closest && e.target.closest('#manageAtexLink');
       if (isManage) return;
-      if (role === 'member') return; // demandé : pas d’ouverture pour member
-
       const hidden = getComputedStyle(sub).display === 'none' || sub.classList.contains('d-none') || sub.classList.contains('hidden');
-      if (hidden) { sub.style.display = 'grid'; sub.classList.remove('d-none'); sub.classList.remove('hidden'); }
-      else { sub.style.display = 'none'; sub.classList.add('hidden'); }
+      if (hidden) {
+        sub.style.display = 'grid';
+        sub.classList.remove('d-none', 'hidden');
+      } else {
+        sub.style.display = 'none';
+        sub.classList.add('hidden');
+      }
     };
-
-    // Par défaut, gardons les sous-cards cachées
-    sub.style.display = 'none';
-    sub.classList.add('hidden');
   }
 
   function wireActions(accountId, role) {
@@ -264,7 +284,7 @@
       wireActions(accountId, role);
     } catch (_) { /* noop */ }
 
-    // Licence globale utilisateur (mais membership requise)
+    // Licence globale utilisateur (membership requise)
     let lic = null;
     try {
       lic = await fetchLicense('ATEX', accountId); // { tier, source, role }
@@ -287,7 +307,7 @@
     if (chip) chip.textContent = `Licence: ${tierName(t)} (globale)`;
     renderAtexSubCards(accountId, t);
 
-    // toggle principal (respecte role=member)
+    // toggle principal (respecte role=member → visible d’emblée)
     wireMainAtexCard(role);
   }
 
