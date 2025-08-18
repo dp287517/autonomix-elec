@@ -47,7 +47,7 @@
     const dd=String(date.getDate()).padStart(2,'0'), mm=String(date.getMonth()+1).padStart(2,'0'), yyyy=date.getFullYear();
     return `${dd}-${mm}-${yyyy}`;
   }
-  // IMPORTANT : fallback en **mois** pour être cohérent avec le trigger DB (frequence en mois) :contentReference[oaicite:4]{index=4}
+  // fallback en **mois** (aligné sur le trigger DB)
   function addMonthsISO(dateISO, nbMonths){
     const d = new Date(dateISO);
     if (isNaN(d)) return null;
@@ -105,7 +105,7 @@
     try{
       const r = await fetch(API.equipments);
       equipments = await r.json();
-      // Fallback next_inspection_date si null (cohérent DB : frequence en MOIS) :contentReference[oaicite:5]{index=5}
+      // Fallback next_inspection_date si null (cohérent DB : frequence en MOIS)
       equipments = (equipments||[]).map(eq=>{
         if (!eq.next_inspection_date && eq.last_inspection_date){
           const months = Number(eq.frequence);
@@ -121,7 +121,8 @@
   }
 
   function renderTable(list){
-    const tbody = $('#equipTableBody');
+    // ⬅️ correction : cibler le bon <tbody id="equipmentsTable">
+    const tbody = $('#equipmentsTable');
     if (!tbody) return;
     tbody.innerHTML = '';
     (list||[]).forEach(eq=>{
@@ -130,15 +131,17 @@
       tr.innerHTML = `
         <td><input type="checkbox" class="rowchk" data-id="${eq.id||''}"></td>
         <td>${eq.id||''}</td>
+        <td>${eq.composant||''}</td>
         <td>${eq.secteur||''}</td>
         <td>${eq.batiment||''}</td>
         <td>${eq.local||''}</td>
-        <td>${eq.composant||''}</td>
-        <td>${eq.type||''}</td>
-        <td>${eq.identifiant||''}</td>
-        <td>${eq.marquage_atex||''}</td>
+        <td>${eq.zone_gaz||''}</td>
+        <td>${eq.zone_poussieres||eq.zone_poussiere||''}</td>
+        <td class="col-conf">${String(eq.conformite||'').toLowerCase().includes('non') ? '<span class="badge-conf ko">Non Conforme</span>' : '<span class="badge-conf ok">Conforme</span>'}</td>
+        <td>${statusBadge(st)}</td>
+        <td>${eq.risque ?? ''}</td>
         <td>${fmtDate(eq.last_inspection_date)}</td>
-        <td>${fmtDate(eq.next_inspection_date)} ${statusBadge(st)}</td>
+        <td>${fmtDate(eq.next_inspection_date)}</td>
         <td>${(eq.photo && /^data:image\//.test(eq.photo)) ? `<img class="last-photo" src="${eq.photo}" alt="Photo" data-action="open-photo" data-src="${encodeURIComponent(eq.photo)}">` : '<span class="text-muted">—</span>'}</td>
         <td class="actions">
           <button class="btn btn-sm btn-outline-primary" data-action="edit-equipment" data-id="${eq.id}" title="Éditer"><i data-lucide="edit-3"></i></button>
@@ -312,8 +315,7 @@
     el.scrollTop = el.scrollHeight;
   }
 
-  function buildLocalEnrichmentChat(eq){
-    // Hook local : tu peux enrichir avec des cartes / liens si besoin
+  function buildLocalEnrichmentChat(_eq){
     return { reasons:[], palliatives:[], preventives:[], refs:[], costs:[] };
   }
 
@@ -538,7 +540,7 @@
 
       const last = $('#last-inspection-input').value;
       if(last){
-        // NB: côté serveur, on ne met plus à jour next_inspection_date -> trigger DB le calcule :contentReference[oaicite:6]{index=6}
+        // côté serveur, le trigger DB calcule next_inspection_date
         await fetch(API.inspect,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({equipment_id:saved.id,status:'done',inspection_date:last})});
       }
       showToast('Équipement sauvegardé.','success');
