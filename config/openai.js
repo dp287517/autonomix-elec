@@ -1,56 +1,99 @@
-// config/openai.js — HTML sémantique + fallback propre
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
-const OPENAI_MODEL   = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-
-function semanticWrap(text){
-  // basic guard to ensure HTML structure if provider returns plain text
-  if (!/[<][a-z]/i.test(text||'')) {
-    const esc = String(text||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;/');
-    return '<h3>Analyse ATEX</h3><p>'+esc.replace(/\r?\n/g,'<br>')+'</p>';
+// config/openai.js
+/**
+ * ATEX IA – OpenAI wiring
+ * - oneShot(equipment): renvoie un HTML d’analyse
+ * - chat({question, equipment, history}): renvoie un HTML de réponse
+ *
+ * Si OPENAI_API_KEY absent => fallback local (même style que la route).
+ */
+const { deriveLocal } = (() => {
+  // mini moteur local (mêmes règles que côté route)
+  function requiredCategoryForZone(zg, zd){
+    const zgNum = String(zg||'').replace(/[^0-9]/g,'') || '';
+    const zdNum = String(zd||'').replace(/[^0-9]/g,'') || '';
+    if(zgNum === '0' || zdNum === '20') return 'II 1GD';
+    if(zgNum === '1' || zdNum === '21') return 'II 2GD';
+    return 'II 3GD';
   }
-  return text;
-}
-
-async function callOpenAI(prompt){
-  if (!OPENAI_API_KEY) {
-    // Fallback discret et propre (pas de mention "non configuré")
-    return semanticWrap('<h3>Analyse ATEX</h3><p>Analyse indisponible pour le moment.</p>');
+  function localPanel(eq){
+    const zg = eq.zone_gaz || '—', zd = eq.zone_poussieres || eq.zone_poussiere || '—';
+    const reqCat = requiredCategoryForZone(zg, zd);
+    return `
+      <h3>Analyse ATEX (fallback)</h3>
+      <ul>
+        <li><strong>Équipement</strong> : ${eq.composant || '—'}</li>
+        <li><strong>Marquage</strong> : ${eq.marquage_atex || '—'}</li>
+        <li><strong>Zones</strong> : Gaz ${zg} / Poussières ${zd}</li>
+        <li><strong>Catégorie requise estimée</strong> : ${reqCat}</li>
+      </ul>
+      <p class="text-muted">Configurez OPENAI_API_KEY pour activer l’analyse IA détaillée.</p>
+    `;
   }
-  // NOTE: implementation depends on your HTTP client; placeholder here
-  // You can integrate official OpenAI SDK. Below is a pseudo-implementation.
-  return semanticWrap('<h3>Analyse ATEX</h3><p>Réponse IA (exemple). Intégrez le SDK pour une vraie réponse.</p>');
+  return { deriveLocal: localPanel };
+})();
+
+let OpenAI = null;
+try { OpenAI = require('openai'); } catch {}
+
+const hasKey = !!process.env.OPENAI_API_KEY && !!OpenAI;
+const client = hasKey ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+function equipToFacts(e){
+  const fields = [
+    ['Composant','composant'], ['Fournisseur','fournisseur'], ['Type','type'],
+    ['Identifiant','identifiant'], ['Secteur','secteur'], ['Bâtiment','batiment'], ['Local','local'],
+    ['Zone Gaz','zone_gaz'], ['Zone Poussières','zone_poussieres'], ['Marquage ATEX','marquage_atex'],
+    ['Conformité','conformite'], ['Risque','risque'], ['Dernière inspection','last_inspection_date'], ['Prochaine inspection','next_inspection_date']
+  ];
+  const lines = fields.map(([k,p])=> `${k}: ${e?.[p] ?? '—'}`);
+  return lines.join('\n');
 }
 
-async function oneShot(eq){
-  const context = [
-    `Composant: ${eq.composant || '-'}`,
-    `Fournisseur: ${eq.fournisseur || '-'}`,
-    `Type: ${eq.type || '-'}`,
-    `Identifiant: ${eq.identifiant || '-'}`,
-    `Marquage ATEX: ${eq.marquage_atex || '-'}`,
-    `Zone Gaz: ${eq.zone_gaz || '-'}, Zone Poussières: ${eq.zone_poussieres || eq.zone_poussiere || '-'}`,
-    `Conformité: ${eq.conformite || '-'}, Risque: ${eq.risque ?? '-'}`,
-    `Dernière inspection: ${eq.last_inspection_date || '-'}, Prochaine: ${eq.next_inspection_date || '-'}`
-  ].join('\n');
+async function oneShot(equipment){
+  if (!hasKey) return deriveLocal(equipment);
 
-  const prompt = [
-    'Tu es un assistant ATEX. Rends une réponse en HTML sémantique (h3, p, ul/li, strong), pas de Markdown.',
-    'Structure: (1) Informations générales (2) Marquage ATEX (3) Conformité/Risques (4) Actions / Références.',
-    'Sois concis et clair en français.',
-    '',
-    'Contexte:\n' + context
-  ].join('\n');
+  const system = `Tu es un expert ATEX (Directive 2014/34/UE) francophone.
+- Analyse un équipement à partir de ses caractéristiques.
+- Vérifie la cohérence marquage/zone (G: gaz / D: poussières) et la catégorie requise (zone 0/20⇒1, 1/21⇒2, 2/22⇒3).
+- Donne un verdict clair (Conforme / Non conforme + raison), risques, et 3 à 5 recommandations actionnables.
+- Réponds en HTML simple (listes <ul>, titres <h3>/<h4>). Pas de code block.`;
 
-  return await callOpenAI(prompt);
+  const user = `Faits:\n${equipToFacts(equipment)}\n\nRends un panneau HTML concis (verdict, risques, recommandations).`;
+
+  const resp = await client.chat.completions.create({
+    model: MODEL,
+    temperature: 0.2,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user',   content: user   }
+    ]
+  });
+
+  const html = resp?.choices?.[0]?.message?.content?.trim() || '<p>(IA : pas de contenu)</p>';
+  return html;
 }
 
-async function chat({ question, equipment, history }){
-  const prompt = [
-    'Tu es un assistant ATEX. HTML sémantique uniquement.',
-    'Historique:' + (Array.isArray(history) ? history.map(x => `\n- ${x.role}: ${x.content}`).join('') : ''),
-    'Question: ' + (question || '')
-  ].join('\n');
-  return await callOpenAI(prompt);
+async function chat({ question, equipment = null, history = [] }){
+  if (!hasKey){
+    return `<div><h4>IA désactivée</h4><p>${question || '—'}</p><p class="text-muted">Ajoutez OPENAI_API_KEY pour activer le chat.</p></div>`;
+  }
+  const sys = `Assistant ATEX francophone. Donne des réponses factuelles, structurées, en HTML simple.`;
+  const msgs = [{ role:'system', content: sys }];
+  if (equipment){
+    msgs.push({ role:'user', content: `Contexte équipement:\n${equipToFacts(equipment)}` });
+    msgs.push({ role:'assistant', content: 'Contexte reçu.' });
+  }
+  for (const m of history || []){
+    const role = (m.role === 'assistant') ? 'assistant' : 'user';
+    msgs.push({ role, content: m.content });
+  }
+  msgs.push({ role:'user', content: question || 'Analyse ATEX' });
+
+  const resp = await client.chat.completions.create({
+    model: MODEL, temperature: 0.2, messages: msgs
+  });
+  return resp?.choices?.[0]?.message?.content?.trim() || '<p>(IA : pas de contenu)</p>';
 }
 
 module.exports = { oneShot, chat };
