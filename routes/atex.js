@@ -1,7 +1,7 @@
-// routes/atex.js — v8 (fallback IA enrichi + secteurs POST + risk/conf auto)
+// routes/atex.js — v9 (fallback IA enrichi + secteurs POST + risk/conf auto avec validation G/D stricte)
 const express = require('express');
 const router = express.Router();
-console.log('[ATEX ROUTES] v8 loaded');
+console.log('[ATEX ROUTES] v9 loaded');
 
 const { pool } = require('../config/db');
 let { requireAuth } = (() => { try { return require('../middleware/authz'); } catch { return {}; } })();
@@ -16,31 +16,74 @@ async function roleOnAccount(userId, accountId){
   return r.rowCount ? r.rows[0].role : null;
 }
 
-/** règles déterministes : conformité & risque */
-function deriveConfAndRisk(payload={}) {
+/** règles déterministes : conformité & risque (validation G/D + catégorie) */
+function deriveConfAndRisk(payload = {}) {
   const norm = (s)=> String(s||'').trim().toLowerCase();
   const gz = norm(payload.zone_gaz);
   const dz = norm(payload.zone_poussieres || payload.zone_poussiere);
+  const markRaw = String(payload.marquage_atex || '');
+  const mark = norm(markRaw);
 
-  // base risk from zones
+  // 1) Risque de base selon zones
   let risk = 1;
   if (['0','20'].includes(gz) || ['0','20'].includes(dz)) risk = 5;
   else if (['1','21'].includes(gz) || ['1','21'].includes(dz)) risk = 4;
   else if (['2','22'].includes(gz) || ['2','22'].includes(dz)) risk = 3;
 
-  // conformité basique
-  let conf = payload.conformite;
-  const mark = norm(payload.marquage_atex);
-  if (!conf || !norm(conf)) {
-    if (mark.includes('pas de marquage') || mark === '' ) {
-      conf = 'Non conforme – marquage manquant';
-    } else {
-      conf = 'Conforme';
+  // 2) Catégories requises (Zone 0/20⇒1, 1/21⇒2, 2/22⇒3)
+  const reqCatG = gz === '0' ? 1 : gz === '1' ? 2 : gz === '2' ? 3 : null;
+  const reqCatD = dz === '20' ? 1 : dz === '21' ? 2 : dz === '22' ? 3 : null;
+
+  // Helpers: extrait nG / nD du marquage (Ex II 2G, II 1D, etc.)
+  const matchNG = markRaw.match(/(?:\b|[^A-Za-z0-9])(1|2|3)\s*[Gg](?:\b|[^A-Za-z])/);
+  const matchND = markRaw.match(/(?:\b|[^A-Za-z0-9])(1|2|3)\s*[Dd](?:\b|[^A-Za-z])/);
+  const hasGasLetter = /(^|[^a-z])g([^a-z]|$)/i.test(markRaw) || /ex[^a-z0-9]*[ig]/i.test(markRaw);
+  const hasDustLetter = /(^|[^a-z])d([^a-z]|$)/i.test(markRaw) || /\bex\s*t[bdc]/i.test(markRaw) || /\biiic\b/i.test(markRaw);
+
+  let confReason = null;
+
+  // 3) Règle “pas de marquage”
+  if (!mark || mark.includes('pas de marquage')) {
+    confReason = 'Non conforme – marquage manquant';
+  } else {
+    // 4) Vérif couverture Gaz
+    if (reqCatG) {
+      if (!hasGasLetter) confReason = 'Non conforme – marquage gaz (G) absent';
+      const catG = matchNG ? Number(matchNG[1]) : null;
+      if (!confReason && catG && catG <= 3) {
+        // OK si catG >= reqCatG (1G couvre 0/1/2 ; 2G couvre 1/2 ; 3G couvre 2)
+        if (catG > reqCatG) {
+          // 1G (>2) couvre tout => ok
+        } else if (catG < reqCatG) {
+          confReason = `Non conforme – catégorie G insuffisante (requis ≥ ${reqCatG}G)`;
+        }
+      } else if (!confReason && catG == null) {
+        confReason = `Non conforme – catégorie G absente (requis ≥ ${reqCatG}G)`;
+      }
+    }
+    // 5) Vérif couverture Poussières
+    if (!confReason && reqCatD) {
+      if (!hasDustLetter) confReason = 'Non conforme – marquage poussières (D) absent';
+      const catD = matchND ? Number(matchND[1]) : null;
+      if (!confReason && catD && catD <= 3) {
+        if (catD > reqCatD) {
+          // 1D (>2) couvre 20/21/22 => ok
+        } else if (catD < reqCatD) {
+          confReason = `Non conforme – catégorie D insuffisante (requis ≥ ${reqCatD}D)`;
+        }
+      } else if (!confReason && catD == null) {
+        confReason = `Non conforme – catégorie D absente (requis ≥ ${reqCatD}D)`;
+      }
     }
   }
-  if (norm(conf).includes('non')) risk = Math.min(5, risk + 1);
 
-  return { risque: risk, conformite: conf };
+  let conformite = payload.conformite;
+  if (!conformite || !norm(conformite)) {
+    conformite = confReason ? confReason : 'Conforme';
+  }
+  if (norm(conformite).includes('non')) risk = Math.min(5, risk + 1);
+
+  return { risque: risk, conformite };
 }
 function requiredCategoryForZone(zg, zd){
   const zgNum = String(zg||'').replace(/[^0-9]/g,'') || '';
@@ -48,6 +91,12 @@ function requiredCategoryForZone(zg, zd){
   if(zgNum === '0' || zdNum === '20') return 'II 1GD';
   if(zgNum === '1' || zdNum === '21') return 'II 2GD';
   return 'II 3GD';
+}
+function fmtDate(d){
+  if(!d) return 'N/A';
+  const date = new Date(d); if(isNaN(date)) return d;
+  const dd=String(date.getDate()).padStart(2,'0'), mm=String(date.getMonth()+1).padStart(2,'0'), yyyy=date.getFullYear();
+  return `${dd}-${mm}-${yyyy}`;
 }
 
 /* ======================= SECTEURS ======================= */
@@ -328,9 +377,9 @@ router.get('/atex-help/:id', requireAuth, async (req, res) => {
     const tips = [];
     if (String(conformite).toLowerCase().includes('non')){
       if ((eq.marquage_atex||'').toLowerCase().includes('pas de marquage') || !eq.marquage_atex){
-        tips.push('Installer un équipement **certifié ATEX** avec marquage conforme.');
+        tips.push('Installer un équipement <strong>certifié ATEX</strong> avec marquage conforme.');
       }
-      tips.push(`Sélectionner du matériel **catégorie ${reqCat}** (zones GAZ/DUST indiquées).`);
+      tips.push(`Sélectionner du matériel <strong>catégorie ${reqCat}</strong> (zones GAZ/DUST indiquées).`);
       tips.push('Vérifier le raccordement, les presse-étoupes et la continuité équipotentielle.');
     } else {
       tips.push('Maintenir la conformité : inspections périodiques, vérification des joints et presse-étoupes.');
