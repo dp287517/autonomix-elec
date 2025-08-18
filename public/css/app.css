@@ -39,7 +39,9 @@ body{
   box-shadow: 0 2px 12px rgba(15,23,42,.04);
 }
 .header-inner{
-  max-width: 1100px; margin: 0 auto; padding: 14px 16px; display: flex; align-items: center; gap: 14px;
+  max-width: 1100px; margin: 0 auto; padding: 14px 16px;
+  display: flex; align-items: center; gap: 14px;
+  flex-wrap: wrap;
 }
 .brand{
   display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.2px; font-size:16px;
@@ -55,11 +57,13 @@ body{
   border:1px solid var(--border);
   background: #fff url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 8l4 4 4-4' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center/16px;
   border-radius: 10px; padding:8px 36px 8px 12px; font: inherit; color: var(--text);
+  min-width: 240px;
 }
 .badge{
   display:inline-flex; align-items:center; gap:6px;
   font-size:12px; font-weight:700; padding:6px 10px; border-radius:999px;
   border:1px solid var(--border); background:#f8fafc; color:#0f172a;
+  max-width: 100%; overflow:hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 /* Buttons */
@@ -94,12 +98,22 @@ body{
 /* Grid */
 .grid{ display:grid; gap:16px; }
 .grid.cols-3{ grid-template-columns: repeat(3, minmax(0,1fr)); }
-@media (max-width: 960px){ .grid.cols-3{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
+@media (max-width: 1024px){ .grid.cols-3{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
 @media (max-width: 640px){ .grid.cols-3{ grid-template-columns: 1fr; } }
 
 /* App cards */
 .app-main{ cursor:pointer; }
-.app-subgrid{ padding: 12px; }
+.app-subgrid{
+  display:grid; gap:12px; padding: 12px;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+}
+@media (max-width: 1024px){
+  .app-subgrid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (max-width: 640px){
+  .app-subgrid{ grid-template-columns: 1fr; }
+}
+
 .app-card{
   position:relative; border-radius:12px; padding:12px; background:#fff;
   border:1px solid var(--border); box-shadow: var(--shadow);
@@ -131,7 +145,7 @@ body{
 /* Modals */
 .modal-backdrop{
   position: fixed; inset:0; background: rgba(15,23,42,.45);
-  display:none; align-items:center; justify-content:center;
+  display:none; align-items:center; justify-content:center; padding: 10px;
 }
 .modal{
   width: min(540px, 92vw);
@@ -157,3 +171,56 @@ body{
   transform: translateY(12px); opacity:0; transition: .2s ease;
 }
 .toast.show{ transform: translateY(0); opacity:1; }
+
+/* -------------------------- */
+/* RESPONSIVE ENHANCEMENTS    */
+/* -------------------------- */
+
+/* Tablette */
+@media (max-width: 900px){
+  .container{ margin: 16px auto 64px; }
+  .price{ font-size: 24px; }
+}
+
+/* Mobile */
+@media (max-width: 640px){
+  /* header : passe en grille 1 colonne → tout empilé proprement */
+  .header-inner{ display:grid; grid-template-columns: 1fr; row-gap: 10px; }
+  .brand{ justify-content: center; }
+  .select{ width:100%; min-width: 0; }
+  .badge{ width:100%; justify-content: center; }
+  #logoutBtn{ width:100%; }
+
+  /* ligne actions dashboard (créer / supprimer) : full-width */
+  .container > div > .btn{ width:100%; height:44px; }
+
+  /* card ATEX : corps empilable + bouton gérer full-width */
+  #cardATEX .card-body{ display:block !important; } /* override inline flex s'il existe */
+  #manageAtexLink{ margin-left:0 !important; width:100%; margin-top:8px; }
+
+  /* sous-cards : 1 colonne déjà géré plus haut */
+
+  /* plans: déjà 1 colonne via .grid.cols-3; renforce les cibles tactiles */
+  .plan .btn{ height:44px; }
+
+  /* modale quasi plein écran */
+  .modal{ width: 96vw; }
+
+  /* toast centré pour visibilité */
+  .toast{ left: 50%; right:auto; transform: translate(-50%, 12px); }
+  .toast.show{ transform: translate(-50%, 0); }
+
+  /* bloc membres: lignes empilées */
+  #membersList > div{
+    display:block !important; /* override si inline flex */
+    padding:12px !important;
+  }
+  #membersList .member-row{ display:block; }
+  #membersList .member-left{ margin-bottom:6px; }
+}
+
+/* Petits mobiles */
+@media (max-width: 400px){
+  .price{ font-size: 22px; }
+  .btn{ height: 42px; }
+}
