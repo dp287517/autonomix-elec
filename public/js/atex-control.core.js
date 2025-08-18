@@ -803,10 +803,10 @@ document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
   const action = btn.getAttribute('data-action');
-  if (action === 'edit-equipment') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if(!isNaN(id)) window.editEquipment && window.editEquipment(id); return; }
-  if (action === 'delete-equipment') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); const label = btn.getAttribute('data-label')||''; if(!isNaN(id)) window.openDeleteModal && window.openDeleteModal(id,label); return; }
-  if (action === 'open-ia') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if(!isNaN(id)) window.openIA && window.openIA(id); return; }
-  if (action === 'open-photo') { e.preventDefault(); const src = btn.getAttribute('data-src')||''; if (src) window.openPhoto && window.openPhoto(src); return; }
+  if (action === 'edit-equipment') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if(!isNaN(id)) editEquipment(id); return; }
+  if (action === 'delete-equipment') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); const label = btn.getAttribute('data-label')||''; if(!isNaN(id)) openDeleteModal(id,label); return; }
+  if (action === 'open-ia') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if(!isNaN(id)) openIA(id); return; }
+  if (action === 'open-photo') { e.preventDefault(); const src = btn.getAttribute('data-src')||''; if (src) openPhoto(src); return; }
 });
 
 
@@ -817,3 +817,36 @@ try {
   if (typeof openIA === 'function') window.openIA = openIA;
   if (typeof openPhoto === 'function') window.openPhoto = openPhoto;
 } catch(_) {}
+
+
+// Robust delegated handler (CSP-safe) — uses window.* fallbacks
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const action = btn.getAttribute('data-action');
+
+  const call = (name, ...args) => {
+    if (typeof window[name] === 'function') return window[name](...args);
+    if (typeof globalThis[name] === 'function') return globalThis[name](...args);
+    try { const fn = eval(name); if (typeof fn === 'function') return fn(...args); } catch {}
+    console.warn(`[actions] ${name} indisponible`);
+  };
+
+  if (action === 'edit-equipment')  { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if (!isNaN(id)) call('editEquipment', id); return; }
+  if (action === 'delete-equipment') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); const label = btn.getAttribute('data-label')||''; if (!isNaN(id)) call('openDeleteModal', id, label); return; }
+  if (action === 'open-ia')         { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if (!isNaN(id)) call('openIA', id); return; }
+  if (action === 'open-photo')      { e.preventDefault(); const src = btn.getAttribute('data-src')||''; if (src) call('openPhoto', src); return; }
+});
+
+// Lightweight a11y fix for labels/ids without touching design
+function fixA11yLabels(scope=document){
+  const inputs = scope.querySelectorAll('input, select, textarea');
+  inputs.forEach((inp, idx) => {
+    if (!inp.id)   inp.id   = `fld-${Date.now()}-${idx}`;
+    if (!inp.name) inp.name = inp.id;
+    const wrap = inp.closest('.mb-3, .form-group, .form-floating, .col, .row') || inp.parentElement;
+    const lab = wrap ? wrap.querySelector('label.form-label, label') : null;
+    if (lab && !lab.getAttribute('for')) lab.setAttribute('for', inp.id);
+  });
+}
+document.addEventListener('DOMContentLoaded', () => { try { fixA11yLabels(document); } catch(e) { console.debug('a11y', e); } });
