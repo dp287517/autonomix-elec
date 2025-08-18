@@ -3,43 +3,21 @@
   const API = (window.API_BASE_URL || '') + '/api';
   const STORAGE_SEL = 'selected_account_id';
 
-  // ---------- helpers ----------
   const token = () => localStorage.getItem('autonomix_token') || '';
   const authHeaders = () => ({ Authorization: 'Bearer ' + token() });
   const $ = (sel) => document.querySelector(sel);
 
-  // tiers backend: 1=Free, 2=Personal, 3=Pro
+  // tiers: 1=Free, 2=Personal, 3=Pro
   const APPS = [
-    { key: 'ATEX Control', title: 'ATEX Control', group: 'ATEX', sub: 'Gestion des equipements, inspections, conformite', href: 'atex-control.html', minTier: 1 },
-    { key: 'EPD',          title: 'EPD',          group: 'ATEX', sub: 'Dossier / etude explosion',                         href: 'epd.html',           minTier: 2 },
-    { key: 'IS Loop',      title: 'IS Loop',      group: 'ATEX', sub: 'Calculs boucles Exi',                                href: 'is-loop.html',       minTier: 3 }
+    { title: 'ATEX Control', group: 'ATEX', sub: 'Gestion des equipements, inspections, conformite', href: 'atex-control.html', minTier: 1 },
+    { title: 'EPD',          group: 'ATEX', sub: 'Dossier / etude explosion',                         href: 'epd.html',           minTier: 2 },
+    { title: 'IS Loop',      group: 'ATEX', sub: 'Calculs boucles Exi',                                href: 'is-loop.html',       minTier: 3 }
   ];
   const tierName = (t) => (t === 3 ? 'Pro' : t === 2 ? 'Personal' : 'Free');
 
-  // Styles pour verrouillage des cards
-  function ensureLockStyles() {
-    if (document.getElementById('cards-lock-css')) return;
-    const css = `
-      .app-card{ position:relative; border-radius:14px; padding:12px; background:#fff; box-shadow:0 2px 10px rgba(0,0,0,.06); transition:transform .05s ease; }
-      .app-card:not(.disabled):hover{ transform:translateY(-1px); }
-      .app-card.disabled{ opacity:.55; filter:grayscale(0.15); cursor:not-allowed; }
-      .app-card .app-title{ font-weight:700; margin-bottom:4px; }
-      .app-card .app-sub{ font-size:.9rem; opacity:.8; }
-      .app-card.disabled .lock{
-        position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-        text-align:center; padding:10px; font-weight:700; color:#111; background:linear-gradient(transparent 35%, rgba(255,255,255,.92) 60%);
-        pointer-events:none;
-      }
-      .app-card.disabled .lock small{ display:block; font-weight:500; opacity:.8; margin-top:4px; }
-      #atexSubCards.hidden{ display:none !important; }
-    `;
-    const tag = document.createElement('style');
-    tag.id = 'cards-lock-css';
-    tag.textContent = css;
-    document.head.appendChild(tag);
-  }
+  function ensureLockStyles() { /* déjà géré côté CSS global */ }
 
-  // ---------- API ----------
+  // --- API ---
   async function myAccounts() {
     const r = await fetch(`${API}/accounts/mine`, { headers: authHeaders(), cache: 'no-store' });
     if (r.status === 401) { localStorage.removeItem('autonomix_token'); location.href = 'login.html'; return []; }
@@ -47,7 +25,6 @@
     const data = await r.json().catch(() => ({}));
     return Array.isArray(data.accounts) ? data.accounts : [];
   }
-
   async function getMe(accountId) {
     const url = new URL(API + '/me', window.location.origin);
     if (accountId != null) url.searchParams.set('account_id', accountId);
@@ -55,169 +32,100 @@
     if (!r.ok) throw new Error('me ' + r.status);
     return r.json();
   }
-
   async function fetchLicense(appCode, accountId) {
     const r = await fetch(`${API}/licenses/${encodeURIComponent(appCode)}?account_id=${accountId}`, {
-      headers: authHeaders(),
-      cache: 'no-store'
+      headers: authHeaders(), cache: 'no-store'
     });
     if (r.status === 403) { const e = new Error('forbidden'); e.code = 403; throw e; }
     if (!r.ok) throw new Error('licenses ' + r.status);
-    return r.json(); // { tier, source, role }
+    return r.json();
   }
-
   async function createAccount(name) {
     const r = await fetch(API + '/accounts', {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ name })
     });
-    if (!r.ok) {
-      const e = await r.json().catch(() => ({}));
-      throw new Error(e && e.error ? e.error : ('HTTP ' + r.status));
-    }
-    return r.json(); // {account_id, name}
+    if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e?.error || ('HTTP ' + r.status)); }
+    return r.json();
   }
-
   async function deleteAccount(accountId) {
     const r = await fetch(API + '/accounts/' + accountId, { method: 'DELETE', headers: authHeaders() });
-    if (!r.ok) {
-      const e = await r.json().catch(() => ({}));
-      throw new Error(e && e.error ? e.error : ('HTTP ' + r.status));
-    }
+    if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e?.error || ('HTTP ' + r.status)); }
     return r.json();
   }
 
-  // ---------- préférences ----------
+  // --- prefs ---
   function getPreferredAccountIdFromURL() {
-    const u = new URL(window.location.href);
-    return u.searchParams.get('account_id');
+    const u = new URL(window.location.href); return u.searchParams.get('account_id');
   }
-  function getStoredAccountId() {
-    return localStorage.getItem(STORAGE_SEL);
-  }
+  function getStoredAccountId() { return localStorage.getItem(STORAGE_SEL); }
   function storeAccountId(id, updateURL = true) {
     localStorage.setItem(STORAGE_SEL, String(id));
     if (updateURL) {
-      const u = new URL(window.location.href);
-      u.searchParams.set('account_id', String(id));
+      const u = new URL(window.location.href); u.searchParams.set('account_id', String(id));
       window.history.replaceState({}, '', u.toString());
     }
   }
 
-  // ---------- UI ----------
+  // --- UI ---
   function renderAccountSwitcher(accounts, selectedId) {
-    const select = $('#accountSwitcher'); // <select id="accountSwitcher">
-    if (!select) return;
-
+    const select = $('#accountSwitcher'); if (!select) return;
     select.innerHTML = '';
     if (!accounts.length) {
-      const opt = document.createElement('option');
-      opt.value = ''; opt.textContent = 'Aucun espace';
-      select.appendChild(opt);
-      select.disabled = true;
-      return;
+      const opt = document.createElement('option'); opt.value=''; opt.textContent='Aucun espace';
+      select.appendChild(opt); select.disabled = true; return;
     }
-
     select.disabled = false;
     for (const a of accounts) {
       const id = String(a.id || a.account_id);
-      const name = a.name || ('Espace #' + id);
-      const role = a.role || '';
       const opt = document.createElement('option');
-      opt.value = id;
-      opt.textContent = `${name} — ${role}`;
+      opt.value = id; opt.textContent = `${a.name || ('Espace #'+id)} — ${a.role || ''}`;
       if (String(selectedId) === id) opt.selected = true;
       select.appendChild(opt);
     }
-
-    select.onchange = async (e) => {
-      const id = e.target.value;
-      await onAccountChanged(id, accounts);
-    };
+    select.onchange = async (e)=> { await onAccountChanged(e.target.value, accounts); };
   }
 
-  // Cards visibles, mais verrouillées si non incluses dans le plan
   function renderAtexSubCards(accountId, tier) {
-    ensureLockStyles();
-    const sub = $('#atexSubCards');
-    if (!sub) return;
+    const sub = $('#atexSubCards'); if (!sub) return;
     sub.innerHTML = '';
-
-    // force tier: si l’API renvoie 0/null → Free (1)
-    let t = Number(tier);
-    if (!Number.isFinite(t) || t < 1) t = 1;
-
-    APPS.filter(a => a.group === 'ATEX').forEach(app => {
+    let t = Number(tier); if (!Number.isFinite(t) || t < 1) t = 1;
+    APPS.forEach(app => {
       const allowed = t >= app.minTier;
       const card = document.createElement('div');
       card.className = 'app-card' + (allowed ? '' : ' disabled');
-
-      const title = document.createElement('div');
-      title.className = 'app-title';
-      title.textContent = app.title;
-
-      const desc = document.createElement('div');
-      desc.className = 'app-sub';
-      desc.textContent = app.sub;
-
-      card.appendChild(title);
-      card.appendChild(desc);
-
+      const title = document.createElement('div'); title.className='app-title'; title.textContent = app.title;
+      const desc  = document.createElement('div'); desc.className='app-sub';   desc.textContent = app.sub;
+      card.appendChild(title); card.appendChild(desc);
       if (allowed) {
-        // clic = ouvre l’app
-        card.addEventListener('click', () => {
+        card.addEventListener('click', ()=>{
           const url = new URL(window.location.origin + '/' + app.href);
-          url.searchParams.set('account_id', accountId);
-          location.href = url.toString();
+          url.searchParams.set('account_id', accountId); location.href = url.toString();
         });
       } else {
-        // bandeau de verrouillage
-        const need = (app.minTier === 3 ? 'Pro' : app.minTier === 2 ? 'Personal' : 'Free');
-        const lock = document.createElement('div');
-        lock.className = 'lock';
-        lock.innerHTML = `Débloquez avec niveau ${need}<small>(actuellement: ${tierName(t)})</small>`;
-        card.appendChild(lock);
-        card.title = `Nécessite le plan ${need}`;
+        const need = (app.minTier===3?'Pro':app.minTier===2?'Personal':'Free');
+        const lock = document.createElement('div'); lock.className='lock';
+        lock.innerHTML = `Débloquez avec niveau ${need}<small>(actuellement: ${t===3?'Pro':t===2?'Personal':'Free'})</small>`;
+        card.appendChild(lock); card.title = `Nécessite le plan ${need}`;
       }
-
       sub.appendChild(card);
     });
   }
 
-  // >>> Correctif : members voient les sous-cards immédiatement (pas de toggle) <<<
   function wireMainAtexCard(role) {
-    const main = $('#cardATEX');
-    const sub  = $('#atexSubCards');
-    if (!main || !sub) return;
-
-    // MEMBERS : sous-cards visibles d’emblée, pas de toggle
-    if (role === 'member') {
-      sub.style.display = 'grid';
-      sub.classList.remove('d-none', 'hidden');
-      main.onclick = (e) => {
-        const isManage = e.target && e.target.closest && e.target.closest('#manageAtexLink');
-        if (isManage) return; // de toute façon géré/désactivé ailleurs
-        // pas de toggle pour member
-      };
+    const main = $('#cardATEX'); const sub = $('#atexSubCards'); if (!main || !sub) return;
+    if (role === 'member') { // members: toujours visible, pas de toggle
+      sub.style.display = 'grid'; sub.classList.remove('d-none','hidden');
+      main.onclick = (e)=>{ const isManage = e.target?.closest?.('#manageAtexLink'); if (isManage) return; };
       return;
     }
-
-    // OWNERS/ADMINS : caché par défaut + toggle sur la card (hors bouton "gérer")
-    sub.style.display = 'none';
-    sub.classList.add('hidden');
-
-    main.onclick = (e) => {
-      const isManage = e.target && e.target.closest && e.target.closest('#manageAtexLink');
-      if (isManage) return;
-      const hidden = getComputedStyle(sub).display === 'none' || sub.classList.contains('d-none') || sub.classList.contains('hidden');
-      if (hidden) {
-        sub.style.display = 'grid';
-        sub.classList.remove('d-none', 'hidden');
-      } else {
-        sub.style.display = 'none';
-        sub.classList.add('hidden');
-      }
+    sub.style.display = 'none'; sub.classList.add('hidden');
+    main.onclick = (e)=>{
+      const isManage = e.target?.closest?.('#manageAtexLink'); if (isManage) return;
+      const hidden = getComputedStyle(sub).display === 'none' || sub.classList.contains('hidden');
+      if (hidden) { sub.style.display='grid'; sub.classList.remove('hidden'); }
+      else { sub.style.display='none'; sub.classList.add('hidden'); }
     };
   }
 
@@ -230,40 +138,35 @@
       const u = new URL(window.location.origin + '/subscription_atex.html');
       if (accountId != null) u.searchParams.set('account_id', accountId);
       manage.href = u.toString();
-      if (role !== 'owner' && role !== 'admin') manage.classList.add('disabled');
-      else manage.classList.remove('disabled');
+      if (role !== 'owner' && role !== 'admin') manage.classList.add('disabled'); else manage.classList.remove('disabled');
     }
 
     if (createBtn) {
-      createBtn.onclick = async () => {
-        const name = prompt('Nom du nouvel espace de travail ?');
-        if (!name || !name.trim()) return;
-        try {
+      createBtn.onclick = async ()=>{
+        const name = await UI.prompt({ title:'Nouvel espace', label:'Nom de l’espace', placeholder:'Ex. Mon entreprise', okText:'Créer' });
+        if (!name) return;
+        try{
           const acc = await createAccount(name.trim());
-          const newId = String(acc.account_id != null ? acc.account_id : acc.id);
+          const newId = String(acc.account_id ?? acc.id);
           storeAccountId(newId);
-          alert('Espace créé. Choisis maintenant un abonnement.');
+          UI.toast('Espace créé. Choisissez un abonnement.');
           const url = new URL(window.location.origin + '/subscription_atex.html');
-          url.searchParams.set('account_id', newId);
-          location.href = url.toString();
-        } catch (e) {
-          alert('Erreur création espace: ' + e.message);
-        }
+          url.searchParams.set('account_id', newId); location.href = url.toString();
+        }catch(e){ UI.toast('Erreur création espace: '+e.message, 2600); }
       };
     }
 
     if (delBtn) {
-      delBtn.onclick = async () => {
-        if (role !== 'owner') { alert("Seul l'owner peut supprimer l'espace."); return; }
-        if (!confirm('Supprimer cet espace ?')) return;
-        if (!confirm('Action irréversible. Confirmer ?')) return;
-        try {
+      delBtn.onclick = async ()=>{
+        if (role !== 'owner') { UI.toast("Seul l'owner peut supprimer l'espace."); return; }
+        const ok = await UI.confirm({ title:'Supprimer cet espace ?', message:'Action irréversible. Confirmez la suppression.' });
+        if (!ok) return;
+        try{
           await deleteAccount(accountId);
           localStorage.removeItem(STORAGE_SEL);
-          location.href = 'dashboard.html';
-        } catch (e) {
-          alert('Erreur suppression: ' + e.message);
-        }
+          UI.toast('Espace supprimé.');
+          setTimeout(()=> location.href = 'dashboard.html', 300);
+        }catch(e){ UI.toast('Erreur suppression: '+e.message, 2600); }
       };
     }
   }
@@ -274,40 +177,29 @@
   }
 
   async function renderForAccount(accountId, accounts) {
-    // Profil/rôle
     let role = 'member';
-    try {
+    try{
       const me = await getMe(accountId);
-      role = (me && me.role) ? me.role : (accounts.find(a => String(a.id || a.account_id) === String(accountId))?.role || 'member');
+      role = me?.role || (accounts.find(a => String(a.id||a.account_id)===String(accountId))?.role || 'member');
       const emailEl = $('#userEmail');
       if (emailEl) emailEl.textContent = `${me.email || ''} • compte #${accountId} • ${role}`;
       wireActions(accountId, role);
-    } catch (_) { /* noop */ }
+    }catch{}
 
-    // Licence globale utilisateur (membership requise)
     let lic = null;
-    try {
-      lic = await fetchLicense('ATEX', accountId); // { tier, source, role }
-    } catch (e) {
-      if (e.code === 403) {
-        const chip = $('#chipAtexLicense');
-        if (chip) chip.textContent = 'Acces refuse a cet espace';
-        renderAtexSubCards(accountId, 1);
-        wireMainAtexCard(role);
-        return;
+    try{
+      lic = await fetchLicense('ATEX', accountId);
+    }catch(e){
+      if (e.code === 403){
+        const chip = $('#chipAtexLicense'); if (chip) chip.textContent = 'Acces refuse a cet espace';
+        renderAtexSubCards(accountId, 1); wireMainAtexCard(role); return;
       }
-      console.error(e); alert('Erreur chargement licence.');
-      return;
+      UI.toast('Erreur chargement licence.', 2400); return;
     }
 
-    let t = Number(lic && lic.tier);
-    if (!Number.isFinite(t) || t < 1) t = 1;
-
-    const chip = $('#chipAtexLicense');
-    if (chip) chip.textContent = `Licence: ${tierName(t)} (globale)`;
+    let t = Number(lic?.tier); if (!Number.isFinite(t) || t < 1) t = 1;
+    const chip = $('#chipAtexLicense'); if (chip) chip.textContent = `Licence: ${tierName(t)} (globale)`;
     renderAtexSubCards(accountId, t);
-
-    // toggle principal (respecte role=member → visible d’emblée)
     wireMainAtexCard(role);
   }
 
@@ -316,14 +208,12 @@
     let chosen = preferredId && ids.includes(String(preferredId)) ? String(preferredId) : (ids[0] || null);
     if (!chosen) return null;
 
-    try {
-      await fetchLicense('ATEX', chosen);
-      return chosen;
-    } catch (e) {
+    try{ await fetchLicense('ATEX', chosen); return chosen; }
+    catch(e){
       if (e.code !== 403) throw e;
-      for (const a of accounts) {
+      for (const a of accounts){
         const id = String(a.id || a.account_id);
-        try { await fetchLicense('ATEX', id); return id; } catch (err) { if (err.code !== 403) throw err; }
+        try{ await fetchLicense('ATEX', id); return id; }catch(err){ if (err.code !== 403) throw err; }
       }
       return null;
     }
@@ -331,25 +221,13 @@
 
   async function boot() {
     if (!token()) { location.href = 'login.html'; return; }
-
     const logout = $('#logoutBtn');
-    if (logout) {
-      logout.onclick = () => {
-        localStorage.removeItem('autonomix_token');
-        localStorage.removeItem('autonomix_user');
-        localStorage.removeItem(STORAGE_SEL);
-        location.href = 'login.html';
-      };
-    }
+    if (logout) logout.onclick = ()=>{ localStorage.removeItem('autonomix_token'); localStorage.removeItem('autonomix_user'); localStorage.removeItem(STORAGE_SEL); location.href='login.html'; };
 
-    try {
+    try{
       const accounts = await myAccounts();
       renderAccountSwitcher(accounts, null);
-
-      if (!accounts.length) {
-        // pas d’espace → UI minimale, laisser le bouton créer
-        return;
-      }
+      if (!accounts.length) return;
 
       const fallback = String(accounts[0].id || accounts[0].account_id);
       const preferred = getPreferredAccountIdFromURL() || getStoredAccountId() || fallback;
@@ -359,9 +237,8 @@
       storeAccountId(finalId);
       renderAccountSwitcher(accounts, finalId);
       await renderForAccount(finalId, accounts);
-    } catch (e) {
-      console.error(e);
-      alert('Erreur au chargement du tableau de bord.');
+    }catch(e){
+      console.error(e); UI.toast('Erreur au chargement du tableau de bord.', 2400);
     }
   }
 
