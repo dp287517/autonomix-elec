@@ -196,11 +196,11 @@
           <td>${risk}</td>
           <td>${fmtDate(eq.last_inspection_date)}</td>
           <td>${fmtDate(eq.next_inspection_date)}</td>
-          <td>${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" data-action="open-photo" data-src="\1">` : '<span class="text-muted">—</span>'}</td>
+          <td>${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" data-action="open-photo" data-src="${encodeURIComponent(eq.photo)}">` : '<span class="text-muted">—</span>'}</td>
           <td class="actions">
-            <button class="btn btn-sm btn-outline-primary" data-action="edit-equipment" data-id="\1" title="Éditer"><i data-lucide="edit-3"></i></button>
-            <button class="btn btn-sm btn-outline-danger" data-action="delete-equipment" data-id="\1" data-label="\2" title="Supprimer"><i data-lucide="trash-2"></i></button>
-            <button class="btn btn-sm ${eq.has_ia_history ? 'btn-success' : (String(eq.conformite||'').toLowerCase().includes('non') ? 'btn-warning' : 'btn-outline-secondary')}" data-action="open-ia" data-id="\1" title="IA Analysis"><i data-lucide="sparkles"></i> IA</button>
+            <button class="btn btn-sm btn-outline-primary" data-action="edit-equipment" data-id="${eq.id}" title="Éditer"><i data-lucide="edit-3"></i></button>
+            <button class="btn btn-sm btn-outline-danger" data-action="delete-equipment" data-id="${eq.id}" data-label="${(eq.composant||'').replace(/\"/g,'&quot;')}" title="Supprimer"><i data-lucide="trash-2"></i></button>
+            <button class="btn btn-sm ${eq.has_ia_history ? 'btn-success' : (String(eq.conformite||'').toLowerCase().includes('non') ? 'btn-warning' : 'btn-outline-secondary')}" data-action="open-ia" data-id="${eq.id}" title="IA Analysis"><i data-lucide="sparkles"></i> IA</button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -574,7 +574,7 @@
           li.classList.add('active'); currentIA = it.id;
           var __ct=document.getElementById('chat-tab'); if(__ct) __ct.click();
           selectHistoryChat(idx);
-        };
+        });
         list.appendChild(li);
       });
     }
