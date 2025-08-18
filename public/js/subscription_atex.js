@@ -41,7 +41,6 @@
   }
 
   async function getMembers(accountId) {
-    // route existante chez toi : /api/accounts/members/ATEX?account_id=ID
     const r = await fetch(`${API}/accounts/members/ATEX?account_id=${accountId}`, { headers: { Authorization: 'Bearer ' + token() } });
     if (!r.ok) return { members: [], seats_assigned: 0 };
     const d = await r.json().catch(() => ({}));
@@ -95,7 +94,6 @@
       btn.disabled = (tier === currentTier) || (myRole === 'member');
     });
 
-    // Si member : tooltip simple
     if (myRole === 'member') {
       [btnFree, btnPer, btnPro].forEach(b => { if (b) b.title = 'Seul un owner/admin peut modifier l’abonnement.'; });
     }
@@ -119,25 +117,18 @@
     const summary = $('#seatsSummary');
     const list    = $('#membersList');
     if (summary) summary.textContent = `Membres: ${members.length} • Sièges assignés: ${seatsAssigned}`;
-    if (list) {
-      list.innerHTML = '';
-      members.forEach(m => {
-        const row = document.createElement('div');
-        row.style.display = 'flex';
-        row.style.alignItems = 'center';
-        row.style.justifyContent = 'space-between';
-        row.style.border = '1px solid var(--border)';
-        row.style.borderRadius = '10px';
-        row.style.padding = '8px 10px';
-        row.style.marginTop = '8px';
+    if (!list) return;
 
-        const left = document.createElement('div');
-        left.textContent = `${m.email || ''}  (${m.role || 'member'})`;
-
-        row.appendChild(left);
-        list.appendChild(row);
-      });
-    }
+    list.innerHTML = '';
+    members.forEach(m => {
+      const row = document.createElement('div');
+      row.className = 'member-row'; // stylé via CSS responsive
+      const left = document.createElement('div');
+      left.className = 'member-left';
+      left.textContent = `${m.email || ''}  (${m.role || 'member'})`;
+      row.appendChild(left);
+      list.appendChild(row);
+    });
   }
 
   function wireInvite(accountId, myRole, refresh) {
@@ -146,8 +137,6 @@
     const roleSelect = $('#inviteRole');
 
     if (!btn || !emailInput || !roleSelect) return;
-
-    // Si member, pas d’invitation
     if (myRole === 'member') {
       btn.disabled = true; btn.classList.add('disabled');
       emailInput.disabled = true; roleSelect.disabled = true;
@@ -182,7 +171,7 @@
         if (myRole === 'member') return;
         if (tier === currentTier) return;
         try {
-          await choosePlan(accountId, plan); // plan texte accepté côté serveur
+          await choosePlan(accountId, plan);
           window.UI?.toast ? UI.toast(`Plan ${TIER_NAME(tier)} appliqué`) : null;
           await refresh();
         } catch (e) {
@@ -199,21 +188,17 @@
     if (!accountId) { location.href = 'dashboard.html'; return; }
 
     async function loadAll() {
-      // rôle
       let me = null;
       try { me = await getMe(accountId); } catch {}
       const myRole = me?.role || 'member';
 
-      // tier
       const sub = await getCurrentTier(accountId);
       let tier = Number(sub?.tier); if (!Number.isFinite(tier) || tier < 1) tier = 1;
 
-      // owners + members
       const [owners, membersObj] = await Promise.all([ getOwners(accountId), getMembers(accountId) ]);
       const members = membersObj.members || [];
       const seats   = Number(membersObj.seats_assigned || members.length || 0);
 
-      // render
       renderCurrentStatus(tier, owners, members.length);
       renderMembersBlock(members, seats);
       setPlanButtonsState(tier, myRole);
