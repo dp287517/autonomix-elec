@@ -196,11 +196,11 @@
           <td>${risk}</td>
           <td>${fmtDate(eq.last_inspection_date)}</td>
           <td>${fmtDate(eq.next_inspection_date)}</td>
-          <td>${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" data-action="open-photo" data-src="${encodeURIComponent(eq.photo)}">` : '<span class="text-muted">—</span>'}</td>
+          <td>${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" onclick="openPhoto('${encodeURIComponent(eq.photo)}')">` : '<span class="text-muted">—</span>'}</td>
           <td class="actions">
-            <button class="btn btn-sm btn-outline-primary" data-action="edit-equipment" data-id="${eq.id}" title="Éditer"><i data-lucide="edit-3"></i></button>
-            <button class="btn btn-sm btn-outline-danger" data-action="delete-equipment" data-id="${eq.id}" data-label="${(eq.composant||'').replace(/'/g,"\\'")}" title="Supprimer"><i data-lucide="trash-2"></i></button>
-            <button class="btn btn-sm ${eq.has_ia_history ? 'btn-success' : (String(eq.conformite||'').toLowerCase().includes('non') ? 'btn-warning' : 'btn-outline-secondary')}" data-action="open-ia" data-id="${eq.id}" title="IA Analysis"><i data-lucide="sparkles"></i> IA</button>
+            <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(${eq.id})" title="Éditer"><i data-lucide="edit-3"></i></button>
+            <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${eq.id}, '${(eq.composant||'').replace(/'/g,"\\'")}')" title="Supprimer"><i data-lucide="trash-2"></i></button>
+            <button class="btn btn-sm ${eq.has_ia_history ? 'btn-success' : (String(eq.conformite||'').toLowerCase().includes('non') ? 'btn-warning' : 'btn-outline-secondary')}" onclick="openIA(${eq.id})" title="IA Analysis"><i data-lucide="sparkles"></i> IA</button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -795,16 +795,40 @@
       if(e.target && e.target.id === 'attNext'){ e.preventDefault(); openAttachment(_attIndex+1); }
     });
 
-
-// Delegated actions for table buttons and images (CSP-friendly)
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action]');
-  if (!btn) return;
-  const action = btn.getAttribute('data-action');
-  if (action === 'edit-equipment') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if(!isNaN(id)) editEquipment(id); return; }
-  if (action === 'delete-equipment') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); const label = btn.getAttribute('data-label')||''; if(!isNaN(id)) openDeleteModal(id,label); return; }
-  if (action === 'open-ia') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if(!isNaN(id)) openIA(id); return; }
-  if (action === 'open-photo') { e.preventDefault(); const src = btn.getAttribute('data-src')||''; if (src) openPhoto(src); return; }
-});
-
 })();
+
+
+function renderAttachments(eq){
+  const ctn = document.getElementById('autoLinks');
+  if(!ctn) return;
+  const wrapId = 'attWrap';
+  let wrap = document.getElementById(wrapId);
+  if (!wrap){
+    wrap = document.createElement('div');
+    wrap.id = wrapId;
+    ctn.appendChild(wrap);
+  }
+  wrap.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.innerHTML = '<div class="d-flex align-items-center gap-2 mt-3"><strong class="me-auto">Pièces jointes</strong><input id="attInput" type="file" multiple class="form-control form-control-sm" style="max-width:260px"><button class="btn btn-sm btn-primary" data-action="att-upload">Ajouter</button></div>';
+  wrap.appendChild(header);
+
+  const list = document.createElement('div');
+  list.className = 'list-group mt-2';
+  list.id = 'attList';
+  wrap.appendChild(list);
+
+  (async function(){
+    const url = API.base + '/atex-attachments?equipment_id='+encodeURIComponent(eq.id)+'&account_id='+encodeURIComponent(currentAccount);
+    const resp = await fetch(url, { headers: API.headers() });
+    const items = resp.ok ? await resp.json() : [];
+    list.innerHTML = items.map(a => 
+      '<div class="list-group-item d-flex justify-content-between align-items-center">' +
+      '<a '+ (a.data_mode ? ('href="#" data-action="att-open-inline" data-id="'+a.id+'"') : ('href="'+(a.url||'#')+'" target="_blank" rel="noopener"')) +'>' + (a.name||'Pièce') + '</a>' +
+      '<button class="btn btn-sm btn-outline-danger" data-action="att-delete" data-id="'+a.id+'"><i data-lucide="trash-2"></i></button>' +
+      '</div>'
+    ).join('');
+    try{ rehydrateIcons(); }catch(_){}
+  })();
+}
