@@ -196,11 +196,11 @@
           <td>${risk}</td>
           <td>${fmtDate(eq.last_inspection_date)}</td>
           <td>${fmtDate(eq.next_inspection_date)}</td>
-          <td>${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" onclick="openPhoto('${encodeURIComponent(eq.photo)}')">` : '<span class="text-muted">—</span>'}</td>
+          <td>${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" data-action="open-photo" data-src="\1">` : '<span class="text-muted">—</span>'}</td>
           <td class="actions">
-            <button class="btn btn-sm btn-outline-primary" onclick="editEquipment(${eq.id})" title="Éditer"><i data-lucide="edit-3"></i></button>
-            <button class="btn btn-sm btn-outline-danger" onclick="openDeleteModal(${eq.id}, '${(eq.composant||'').replace(/'/g,"\\'")}')" title="Supprimer"><i data-lucide="trash-2"></i></button>
-            <button class="btn btn-sm ${eq.has_ia_history ? 'btn-success' : (String(eq.conformite||'').toLowerCase().includes('non') ? 'btn-warning' : 'btn-outline-secondary')}" onclick="openIA(${eq.id})" title="IA Analysis"><i data-lucide="sparkles"></i> IA</button>
+            <button class="btn btn-sm btn-outline-primary" data-action="edit-equipment" data-id="\1" title="Éditer"><i data-lucide="edit-3"></i></button>
+            <button class="btn btn-sm btn-outline-danger" data-action="delete-equipment" data-id="\1" data-label="\2" title="Supprimer"><i data-lucide="trash-2"></i></button>
+            <button class="btn btn-sm ${eq.has_ia_history ? 'btn-success' : (String(eq.conformite||'').toLowerCase().includes('non') ? 'btn-warning' : 'btn-outline-secondary')}" data-action="open-ia" data-id="\1" title="IA Analysis"><i data-lucide="sparkles"></i> IA</button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -275,7 +275,7 @@
       $('#deleteMsg').textContent = `Supprimer ${sel.length} équipement(s) sélectionné(s) ?`;
       $('#deleteMeta').textContent = 'IDs: ' + sel.join(', ');
       bootstrap.Modal.getOrCreateInstance($('#deleteModal')).show();
-      $('#confirmDeleteBtn').onclick = ()=>confirmBulkDelete(sel);
+      $('#confirmDeleteBtn').addEventListener('click', () => confirmBulkDelete(sel), { once: true });
     }
     async function confirmBulkDelete(ids){
       try{
@@ -456,7 +456,7 @@
       $('#deleteMsg').textContent = 'Voulez-vous vraiment supprimer cet équipement ATEX ?';
       $('#deleteMeta').textContent = label ? `Équipement : ${label} (ID ${id})` : `ID ${id}`;
       bootstrap.Modal.getOrCreateInstance($('#deleteModal')).show();
-      $('#confirmDeleteBtn').onclick = confirmDeleteOne;
+      $('#confirmDeleteBtn').addEventListener('click', confirmDeleteOne, { once: true });
     }
     async function confirmDeleteOne(){
       if(!toDeleteId) return;
@@ -567,7 +567,7 @@
         li.className='list-group-item ia-item'+(it.id===activeId?' active':'');
         li.textContent = `${it.composant || 'Équipement'} • ${new Date(it.date).toLocaleString('fr-FR')}`;
         li.title='Réouvrir cette analyse';
-        li.onclick = ()=> {
+        li.addEventListener('click', () => {
           renderIAContent(document.getElementById('iaDetails'), it.content);
           renderThread(document.getElementById('iaThread'), it.thread||[]);
           $$('#iaHistoryList .ia-item').forEach(x=>x.classList.remove('active'));
@@ -586,7 +586,7 @@
         li.className='list-group-item d-flex flex-column';
         li.style.cursor='pointer';
         li.innerHTML = `<div><strong>${it.composant || 'Équipement'}</strong></div><div class="small-muted">${new Date(it.date).toLocaleString('fr-FR')}</div>`;
-        li.onclick = ()=> selectHistoryChat(idx);
+        li.addEventListener('click', () => selectHistoryChat(idx));
         list.appendChild(li);
       });
     }
@@ -796,3 +796,15 @@
     });
 
 })();
+
+
+// Delegated actions for table buttons and images (CSP-friendly)
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const action = btn.getAttribute('data-action');
+  if (action === 'edit-equipment') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if(!isNaN(id)) editEquipment(id); return; }
+  if (action === 'delete-equipment') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); const label = btn.getAttribute('data-label')||''; if(!isNaN(id)) openDeleteModal(id,label); return; }
+  if (action === 'open-ia') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if(!isNaN(id)) openIA(id); return; }
+  if (action === 'open-photo') { e.preventDefault(); const src = btn.getAttribute('data-src')||''; if (src) openPhoto(src); return; }
+});
