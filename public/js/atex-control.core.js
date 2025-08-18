@@ -808,3 +808,12 @@ document.addEventListener('click', (e) => {
   if (action === 'open-ia') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if(!isNaN(id)) openIA(id); return; }
   if (action === 'open-photo') { e.preventDefault(); const src = btn.getAttribute('data-src')||''; if (src) openPhoto(src); return; }
 });
+
+
+// ---- Expose actions globally for delegated handlers (CSP-safe) ----
+try {
+  if (typeof editEquipment === 'function') window.editEquipment = editEquipment;
+  if (typeof openDeleteModal === 'function') window.openDeleteModal = openDeleteModal;
+  if (typeof openIA === 'function') window.openIA = openIA;
+  if (typeof openPhoto === 'function') window.openPhoto = openPhoto;
+} catch(_) {}
