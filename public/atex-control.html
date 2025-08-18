@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <!-- 🔐 Garde d'accès -->
-  
+  <script src="js/atex-control.guard.js" defer></script>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
@@ -20,7 +20,14 @@
     body{ background:#f8f9fa; font-family:'Poppins',sans-serif; color:#333; }
     .card{ border-radius:14px; box-shadow:0 4px 10px rgba(0,0,0,.06); }
     .table-responsive{ overflow-x:auto; }
-    .last-photo{ max-width:52px; border-radius:6px; cursor:zoom-in; }
+
+    /* Miniatures et pièces jointes */
+    .last-photo{ width:48px; height:48px; object-fit:cover; border-radius:6px; border:1px solid #ddd; cursor:pointer; }
+    .att-thumb{ width:32px; height:32px; object-fit:cover; border-radius:4px; border:1px solid #ddd; margin-left:4px; cursor:pointer; vertical-align:middle; }
+    .att-file{ display:inline-block; margin-left:6px; font-size:18px; text-decoration:none; }
+    .att-more{ margin-left:6px; font-size:12px; }
+    .att-wrap{ display:inline-flex; align-items:center; margin-left:4px; }
+
     .form-text{ color:#6c757d; }
     .small-muted{ font-size:.85rem; color:#6c757d; }
     .link-list a{ text-decoration:none; }
@@ -43,6 +50,7 @@
     }
     @media (max-width: 576px){ td.actions{ grid-template-columns: 1fr; } }
 
+    /* Offcanvas IA */
     .offcanvas-ia{ --bs-offcanvas-width: var(--offcanvas-w); }
     #iaPanel{ border-left:1px solid #e5e7eb; }
     #iaPanel .offcanvas-body{ display:flex; flex-direction:column; gap:1rem; padding-top:.75rem; }
@@ -64,195 +72,179 @@
     .def-list dd{ margin-bottom:.75rem; color:#475569; }
 
     footer{ margin-top:32px; color:#6b7280; }
-  
-/* IA sidebar polish */
-.ia-section-title{font-weight:600;margin:8px 0 2px;}
-.ia-muted{font-size:.9rem;color:#6c757d;}
-.ia-card{border:1px solid #e9ecef;border-radius:.75rem;padding:12px;height:100%;background:#fff;}
-.ia-chip{display:inline-block;border:1px solid #dee2e6;border-radius:999px;padding:2px 8px;margin:2px 6px 2px 0;font-size:.8rem;}
-.ia-chat-msg{border-radius:12px;padding:10px 12px;margin:6px 0;max-width:100%;white-space:pre-wrap;word-break:break-word;}
-.ia-chat-user{background:#e7f1ff;border:1px solid #cfe2ff;}
-.ia-chat-assistant{background:#f8f9fa;border:1px solid #e9ecef;}
-</style>
+  </style>
 </head>
-<body class="container my-5">
+<body>
 
-  <header class="d-flex align-items-center justify-content-between mb-3">
-    <div>
-      <h1 class="mb-1">Contrôle des Équipements ATEX</h1>
-      <p class="lead mb-0">Inspecter, ajouter et suivre les conformités ATEX.</p>
-    </div>
-    <div class="d-flex gap-2 flex-wrap">
-      <a class="btn btn-outline-secondary" href="dashboard.html"><i data-lucide="home"></i> Menu</a>
-      <a class="btn btn-outline-secondary" href="atex-risk.html"><i data-lucide="scan-search"></i> Analyse</a>
-      <a class="btn btn-outline-secondary" href="epd.html"><i data-lucide="file-text"></i> EPD</a>
-      <a class="btn btn-outline-secondary" href="is-loop.html"><i data-lucide="circuit-board"></i> Boucles Exi</a>
-    </div>
-  </header>
+  <div class="container py-3">
+    <header class="d-flex align-items-center justify-content-between mb-3">
+      <h3 class="mb-0">Contrôle ATEX</h3>
+      <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="dashboard.html"><i data-lucide="home"></i> Menu</a>
+        <a class="btn btn-outline-secondary" href="atex-risk.html"><i data-lucide="scan-search"></i> Analyse</a>
+        <a class="btn btn-outline-secondary" href="epd.html"><i data-lucide="file-text"></i> EPD</a>
+        <a class="btn btn-outline-secondary" href="is-loop.html"><i data-lucide="circuit-board"></i> Boucles Exi</a>
+      </div>
+    </header>
 
-  <ul class="nav nav-tabs" id="atexTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-      <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab">
-        <i data-lucide="list"></i> Liste
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="add-tab" data-bs-toggle="tab" data-bs-target="#add" type="button" role="tab">
-        <i data-lucide="plus"></i> Ajouter/Éditer
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="chat-tab" data-bs-toggle="tab" data-bs-target="#chat" type="button" role="tab">
-        <i data-lucide="bot"></i> Chat IA
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="import-tab" data-bs-toggle="tab" data-bs-target="#import" type="button" role="tab">
-        <i data-lucide="upload"></i> Importer
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="help-tab" data-bs-toggle="tab" data-bs-target="#help" type="button" role="tab">
-        <i data-lucide="info"></i> Explications
-      </button>
-    </li>
-  </ul>
+    <ul class="nav nav-tabs" id="atexTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab">
+          <i data-lucide="list"></i> Liste
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="add-tab" data-bs-toggle="tab" data-bs-target="#add" type="button" role="tab">
+          <i data-lucide="plus"></i> Ajouter
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="chat-tab" data-bs-toggle="tab" data-bs-target="#chat" type="button" role="tab">
+          <i data-lucide="bot"></i> Chat IA
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="import-tab" data-bs-toggle="tab" data-bs-target="#import" type="button" role="tab">
+          <i data-lucide="upload"></i> Importer
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="help-tab" data-bs-toggle="tab" data-bs-target="#help" type="button" role="tab">
+          <i data-lucide="info"></i> Aide
+        </button>
+      </li>
+    </ul>
 
-  <div class="tab-content mt-3" id="atexTabContent">
-
-    <!-- LISTE -->
-    <div class="tab-pane fade show active" id="list" role="tabpanel">
-      <div class="card mb-3">
-        <div class="card-header d-flex align-items-center justify-content-between flex-wrap">
-          <h5 class="mb-0">Filtres</h5>
-          <div class="d-flex gap-2">
-            <button id="btnClearFilters" class="btn btn-sm btn-outline-secondary"><i data-lucide="eraser"></i> Effacer</button>
-            <button id="btnApplyFilters" class="btn btn-sm btn-primary"><i data-lucide="filter"></i> Appliquer</button>
+    <div class="tab-content mt-3">
+      <!-- ====== LISTE ====== -->
+      <div class="tab-pane fade show active" id="list" role="tabpanel">
+        <div class="card mb-3">
+          <div class="card-body">
+            <div class="row g-3 align-items-end">
+              <div class="col-auto">
+                <div class="dropdown">
+                  <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    Secteurs
+                  </button>
+                  <div class="dropdown-menu p-3 dropdown-checklist" id="dd-secteurs"></div>
+                </div>
+              </div>
+              <div class="col-auto">
+                <div class="dropdown">
+                  <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    Bâtiments
+                  </button>
+                  <div class="dropdown-menu p-3 dropdown-checklist" id="dd-batiments"></div>
+                </div>
+              </div>
+              <div class="col-auto">
+                <div class="dropdown">
+                  <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    Conformité
+                  </button>
+                  <div class="dropdown-menu p-3 dropdown-checklist" id="dd-conformite">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" value="Conforme" id="c1"><label class="form-check-label" for="c1">Conforme</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" value="Non conforme" id="c2"><label class="form-check-label" for="c2">Non conforme</label></div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-auto">
+                <div class="dropdown">
+                  <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    Statut
+                  </button>
+                  <div class="dropdown-menu p-3 dropdown-checklist" id="dd-statut">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" value="late" id="s1"><label class="form-check-label" for="s1">En retard</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" value="today" id="s2"><label class="form-check-label" for="s2">Aujourd’hui</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" value="soon" id="s3"><label class="form-check-label" for="s3">Bientôt</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" value="ok" id="s4"><label class="form-check-label" for="s4">OK</label></div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <input id="filterText" class="form-control" placeholder="Recherche composant / type / marquage…">
+              </div>
+              <div class="col-md-6 text-end">
+                <div id="activePills" class="filter-pills"></div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="card-body">
-          <div class="row g-3 align-items-end">
-            <div class="col-md-3">
-              <div class="dropdown">
-                <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown">
-                  <i data-lucide="building-2"></i> Secteur
-                </button>
-                <div class="dropdown-menu p-2 dropdown-checklist" id="dd-secteurs"></div>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="dropdown">
-                <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown">
-                  <i data-lucide="map-pin"></i> Bâtiment
-                </button>
-                <div class="dropdown-menu p-2 dropdown-checklist" id="dd-batiments"></div>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="dropdown">
-                <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown">
-                  <i data-lucide="shield-check"></i> Conformité
-                </button>
-                <div class="dropdown-menu p-2 dropdown-checklist" id="dd-conformite">
-                  <div class="form-check"><input class="form-check-input" type="checkbox" value="Conforme" id="ckc1"><label class="form-check-label" for="ckc1">Conforme</label></div>
-                  <div class="form-check"><input class="form-check-input" type="checkbox" value="Non Conforme" id="ckc2"><label class="form-check-label" for="ckc2">Non Conforme</label></div>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="dropdown">
-                <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown">
-                  <i data-lucide="calendar-check-2"></i> Statut
-                </button>
-                <div class="dropdown-menu p-2 dropdown-checklist" id="dd-statut">
-                  <div class="form-check"><input class="form-check-input" type="checkbox" value="late" id="cks1"><label class="form-check-label" for="cks1">En retard</label></div>
-                  <div class="form-check"><input class="form-check-input" type="checkbox" value="today" id="cks2"><label class="form-check-label" for="cks2">Aujourd’hui</label></div>
-                  <div class="form-check"><input class="form-check-input" type="checkbox" value="soon" id="cks3"><label class="form-check-label" for="cks3">Bientôt</label></div>
-                  <div class="form-check"><input class="form-check-input" type="checkbox" value="ok" id="cks4"><label class="form-check-label" for="cks4">OK</label></div>
-                </div>
-              </div>
-            </div>
 
-            <div class="col-md-6">
-              <input id="filterText" class="form-control" placeholder="Recherche composant / type / marquage…">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Liste des Équipements</h5>
+            <div class="d-flex gap-2 flex-wrap">
+              <button id="btnBulkDelete" class="btn btn-outline-danger" disabled><i data-lucide="trash-2"></i> Supprimer sélection</button>
+              <button id="btnSync" class="btn btn-info"><i data-lucide="refresh-cw"></i> Sync</button>
             </div>
-            <div class="col-md-6 text-end">
-              <div id="activePills" class="filter-pills"></div>
-            </div>
+          </div>
+          <div class="card-body table-responsive">
+            <table class="table table-striped align-middle">
+              <thead>
+                <tr>
+                  <th><input type="checkbox" id="chkAll"></th>
+                  <th>ID</th><th>Composant</th><th>Secteur</th><th>Bâtiment</th>
+                  <th>Local</th><th>Zone G</th><th>Zone D</th><th>Conformité</th><th>Statut</th><th>Risque</th>
+                  <th>Dernière</th><th>Prochaine</th><th>Photo</th><th style="min-width:var(--actions-min-width)">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="equipmentsTable"></tbody>
+            </table>
           </div>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">Liste des Équipements</h5>
-          <div class="d-flex gap-2 flex-wrap">
-            <button id="btnBulkDelete" class="btn btn-outline-danger" disabled><i data-lucide="trash-2"></i> Supprimer sélection</button>
-            <button id="btnSync" class="btn btn-info"><i data-lucide="refresh-cw"></i> Sync</button>
+      <!-- ====== AJOUTER ====== -->
+      <div class="tab-pane fade" id="add" role="tabpanel">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Ajouter un équipement</h5>
+            <div class="d-flex gap-2">
+              <button class="btn btn-secondary" id="btnCancel"><i data-lucide="x"></i> Annuler</button>
+              <button class="btn btn-primary" id="btnSave"><i data-lucide="save"></i> Enregistrer</button>
+            </div>
           </div>
-        </div>
-        <div class="card-body table-responsive">
-          <table class="table table-striped align-middle">
-            <thead>
-              <tr>
-                <th><input type="checkbox" id="chkAll"></th>
-                <th>ID</th><th>Composant</th><th>Secteur</th><th>Bâtiment</th>
-                <th>Local</th><th>Zone G</th><th>Zone D</th><th>Conformité</th><th>Statut</th><th>Risque</th>
-                <th>Dernière</th><th>Prochaine</th><th>Photo</th><th style="min-width:var(--actions-min-width)">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="equipmentsTable"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- AJOUT / EDIT -->
-    <div class="tab-pane fade" id="add" role="tabpanel">
-      <div class="card">
-        <div class="card-body">
-          <form id="equipForm" novalidate>
-            <input type="hidden" id="equipId">
-            <div class="row">
-              <div class="col-md-6">
-                <label class="form-label">Secteur</label>
+          <div class="card-body">
+            <input type="hidden" id="equipId" value="">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label">Secteur*</label>
                 <div class="input-group">
-                  <select id="secteur-input" class="form-select" required></select>
-                  <button class="btn btn-outline-secondary" type="button" id="btnAddSecteur" title="Ajouter un secteur">➕</button>
+                  <select id="secteur-input" class="form-select" required>
+                    <option value="" disabled selected>— Sélectionner —</option>
+                  </select>
+                  <button class="btn btn-outline-secondary" id="btnAddSecteur" title="Nouveau secteur"><i data-lucide="plus"></i></button>
                 </div>
-                <div class="form-text">Clique sur ➕ pour créer un nouveau secteur.</div>
+                <div class="form-text">Clique sur + pour créer un nouveau secteur.</div>
               </div>
-              <div class="col-md-6">
-                <label class="form-label">Bâtiment</label>
-                <div class="input-group">
-                  <input id="batiment-input" class="form-control" required placeholder="Ex: B06, B11…">
-                  <button class="btn btn-outline-secondary" type="button" id="btnFillBatLocal" title="Préremplir">↻</button>
-                </div>
-                <div class="form-text">↻ préremplit Bâtiment/Local selon les dernières saisies pour ce secteur.</div>
+              <div class="col-md-4">
+                <label class="form-label">Bâtiment*</label>
+                <input id="batiment-input" class="form-control" required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Local</label>
+                <input id="local-input" class="form-control">
               </div>
             </div>
 
             <div class="row mt-3">
               <div class="col-md-6">
-                <label class="form-label">Local</label>
-                <input id="local-input" class="form-control" required>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label">Zone ATEX (Gaz)</label>
+                <label class="form-label">Zone Gaz</label>
                 <select id="zone-g-input" class="form-select">
-                  <option value="">— aucune —</option>
-                  <option value="0">0 (Gaz)</option>
-                  <option value="1">1 (Gaz)</option>
-                  <option value="2">2 (Gaz)</option>
+                  <option value="">—</option>
+                  <option value="0">0</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
                 </select>
               </div>
-              <div class="col-md-3">
-                <label class="form-label">Zone ATEX (Poussières)</label>
+              <div class="col-md-6">
+                <label class="form-label">Zone Poussières</label>
                 <select id="zone-d-input" class="form-select">
-                  <option value="">— aucune —</option>
-                  <option value="20">20 (Poussières)</option>
-                  <option value="21">21 (Poussières)</option>
-                  <option value="22">22 (Poussières)</option>
+                  <option value="">—</option>
+                  <option value="20">20</option>
+                  <option value="21">21</option>
+                  <option value="22">22</option>
                 </select>
               </div>
             </div>
@@ -260,15 +252,11 @@
             <div class="row mt-3">
               <div class="col-md-6">
                 <label class="form-label">Composant*</label>
-                <div class="input-group">
-                  <input id="composant-input" class="form-control" required>
-                  <button class="btn btn-outline-secondary" type="button" id="btnDupLast" title="Remplir depuis le dernier type">⎘</button>
-                </div>
-                <div class="form-text">⎘ charge le dernier couple Composant/Type/Fabricant utilisé.</div>
+                <input id="composant-input" class="form-control" required>
               </div>
               <div class="col-md-6">
-                <label class="form-label">Fabricant*</label>
-                <input id="fournisseur-input" class="form-control" required>
+                <label class="form-label">Fournisseur</label>
+                <input id="fournisseur-input" class="form-control">
               </div>
             </div>
 
@@ -286,8 +274,8 @@
             <div class="row mt-3">
               <div class="col-md-6">
                 <label class="form-label">Marquage ATEX*</label>
-                <input id="marquage_atex-input" class="form-control" placeholder="Ex: II 2G Ex d IIC T4 Gb / II 2D Ex tb IIIC T135°C Db" required>
-                <div class="form-text">Tu peux saisir **Gaz** et **Poussières** dans la même ligne (séparés par ‘/’) si besoin.</div>
+                <input id="marquage_atex-input" class="form-control" placeholder="Ex: II 2G Ex d IIC T4 Gb / II 1D Ex tb IIIC T135°C Db" required>
+                <div class="form-text">Saisis Gaz (G) et/ou Poussières (D). Les catégories 1/2/3 sont validées automatiquement selon les zones.</div>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Dernière inspection</label>
@@ -308,66 +296,58 @@
               </div>
             </div>
 
-            <div class="mt-4 d-flex gap-2 flex-wrap">
-              <button type="button" id="btnSave" class="btn btn-success"><i data-lucide="save"></i> Enregistrer</button>
-              <button type="button" id="btnCancel" class="btn btn-secondary"><i data-lucide="arrow-left"></i> Annuler</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    <!-- CHAT IA -->
-    <div class="tab-pane fade" id="chat" role="tabpanel">
-      <div class="row g-3">
-        <div class="col-lg-4">
-          <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <strong><i data-lucide="history"></i> Historique</strong>
-              <button class="btn btn-sm btn-outline-secondary" id="btnClearChat"><i data-lucide="eraser"></i> Effacer</button>
-            </div>
-            <div class="card-body p-0">
-              <ul class="list-group list-group-flush" id="iaHistoryListChat" style="max-height:60vh; overflow:auto"></ul>
+            <div class="mt-3 d-flex gap-2">
+              <button class="btn btn-outline-secondary" id="btnFillBatLocal"><i data-lucide="wand-2"></i> Pré-remplir bâtiment/local depuis le secteur</button>
+              <button class="btn btn-outline-secondary" id="btnDupLast"><i data-lucide="copy"></i> Dupliquer le dernier type</button>
             </div>
           </div>
         </div>
-        <div class="col-lg-8">
-          <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <strong><i data-lucide="bot"></i> Aide IA</strong>
-              <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-outline-primary" id="btnReanalyse"><i data-lucide="sparkles"></i> Ré‑analyser</button>
-                <button class="btn btn-sm btn-outline-danger" id="btnDeleteDiscussion"><i data-lucide="trash-2"></i> Effacer discussion</button>
-              <button class="btn btn-sm btn-outline-secondary" id="btnCopier"><i data-lucide="copy"></i> Copier</button>
+      </div>
+
+      <!-- ====== CHAT IA ====== -->
+      <div class="tab-pane fade" id="chat" role="tabpanel">
+        <div class="row g-3">
+          <div class="col-lg-4">
+            <div class="card h-100">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>Historique d’analyses</strong>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-sm btn-outline-secondary" id="btnSyncHistory"><i data-lucide="refresh-cw"></i></button>
+                  <button class="btn btn-sm btn-outline-danger" id="btnClearChat"><i data-lucide="eraser"></i> Effacer</button>
+                </div>
+              </div>
+              <div class="card-body p-0">
+                <ul class="list-group list-group-flush" id="iaHistoryList">
+                  <li class="list-group-item text-muted">Aucun historique.</li>
+                </ul>
               </div>
             </div>
-            <div class="card-body">
-              <div id="chatLoading" class="text-center text-muted" style="display:none">
-                <div class="spinner-border" role="status" aria-hidden="true"></div>
-                <div class="mt-2">Réflexion en cours (le temps pour OpenAI de faire son analyse)</div>
+          </div>
+          <div class="col-lg-8">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <div><strong id="chatHeader"></strong></div>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-sm btn-outline-secondary" id="btnCopier"><i data-lucide="copy"></i> Copier</button>
+                  <button class="btn btn-sm btn-primary" id="btnReanalyse"><i data-lucide="sparkles"></i> Relancer IA</button>
+                </div>
               </div>
+              <div class="card-body">
+                <div id="chatHtml" class="mb-3"></div>
 
-              <div id="chatHeader" class="mb-2 small-muted"></div>
-
-              <div id="chatHtml" class="border rounded p-3" style="min-height:200px"></div>
-              <div id="chatEnriched" class="mt-3" style="display:none">
-                <h6>Synthèse actionnable</h6>
-                <div id="chatWhy" class="mb-2"></div>
                 <div class="row g-3">
                   <div class="col-md-6">
                     <div class="border rounded p-3 h-100">
                       <strong>Mesures palliatives</strong>
-                      <ul id="chatPalliative" class="mb-0"></ul>
+                      <ul id="chatPalliatives" class="mb-0"></ul>
                     </div>
                   </div>
                   <div class="col-md-6">
                     <div class="border rounded p-3 h-100">
                       <strong>Mesures préventives</strong>
-                      <ul id="chatPreventive" class="mb-0"></ul>
+                      <ul id="chatPreventives" class="mb-0"></ul>
                     </div>
                   </div>
-                </div>
-                <div class="row g-3 mt-1">
                   <div class="col-md-6">
                     <div class="border rounded p-3 h-100">
                       <strong>Références & changements</strong>
@@ -385,6 +365,8 @@
                 <div class="mt-3">
                   <h6>Suggestions d’achat (automatiques)</h6>
                   <div id="autoLinks" class="link-list"></div>
+                </div>
+
                 <div class="mt-3">
                   <h6>Pièces & Liens d’achat (manuel)</h6>
                   <div class="row g-2 align-items-end">
@@ -401,101 +383,104 @@
                       <button id="btnPartLinks" class="btn btn-outline-primary w-100"><i data-lucide="link"></i> Proposer des liens</button>
                     </div>
                   </div>
-                  <div class="mt-2 small-muted">Les liens ouvrent les distributeurs/fabricants (IFM, R.STAHL, RS UK) pour comparer et obtenir un prix réel.</div>
-                  <div id="partLinks" class="mt-2 link-list"></div>
+                  <div class="mt-2" id="partLinksArea"></div>
                 </div>
 
+                <hr class="my-3">
+
+                <div class="chat-thread" id="chatThread"></div>
+                <div class="chat-input mt-2">
+                  <textarea id="chatPrompt" class="form-control" placeholder="Pose une question à l’IA…"></textarea>
+                  <button class="btn btn-primary" id="btnSend"><i data-lucide="send"></i></button>
                 </div>
-              </div>
 
-              <hr class="my-3">
-              <h6 class="mb-2">Discussion sur le même sujet</h6>
-              <div id="chatThread" class="chat-thread"></div>
-              <div class="chat-input mt-2">
-                <textarea id="chatPrompt" class="form-control" placeholder="Pose ta question complémentaire…"></textarea>
-                <button class="btn btn-primary" id="btnSend"><i data-lucide="send"></i></button>
               </div>
-
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- IMPORT -->
-    <div class="tab-pane fade" id="import" role="tabpanel">
-      <div class="card">
-        <div class="card-body">
-          <p><strong>Colonnes minimales requises</strong> (ordre attendu) :</p>
-          <div class="mb-2">
-            <span class="badge bg-light text-dark">secteur</span>
-            <span class="badge bg-light text-dark">batiment</span>
-            <span class="badge bg-light text-dark">local</span>
-            <span class="badge bg-light text-dark">composant</span>
-            <span class="badge bg-light text-dark">fabricant</span>
-            <span class="badge bg-light text-dark">type</span>
-            <span class="badge bg-light text-dark">identifiant</span>
-            <span class="badge bg-light text-dark">zone_gaz</span>
-            <span class="badge bg-light text-dark">zone_poussieres</span>
-            <span class="badge bg-light text-dark">marquage_atex</span>
-            <span class="badge bg-light text-dark">last_inspection_date</span>
+      <!-- ====== IMPORT ====== -->
+      <div class="tab-pane fade" id="import" role="tabpanel">
+        <div class="card">
+          <div class="card-header"><h5 class="mb-0">Importer depuis Excel / CSV</h5></div>
+          <div class="card-body">
+            <div class="row g-3 align-items-end">
+              <div class="col-md-6">
+                <input type="file" id="excelFile" class="form-control" accept=".xlsx,.csv">
+              </div>
+              <div class="col-md-6">
+                <button class="btn btn-primary" id="btnImport"><i data-lucide="upload"></i> Importer</button>
+                <a class="btn btn-outline-secondary" href="/api/atex-import-template">Modèle CSV</a>
+                <a class="btn btn-outline-secondary" href="/api/atex-import-template.xlsx">Modèle XLSX</a>
+              </div>
+            </div>
           </div>
-
-          <div class="d-flex gap-2 flex-wrap mb-3">
-            <a class="btn btn-outline-secondary" href="/api/atex-import-columns" target="_blank" rel="noopener">
-              <i data-lucide="list"></i> Voir la définition JSON
-            </a>
-            <a class="btn btn-outline-primary" href="/api/atex-import-template" target="_blank" rel="noopener">
-              <i data-lucide="download"></i> Télécharger modèle CSV
-            </a>
-            <a class="btn btn-outline-primary" href="/api/atex-import-template.xlsx" target="_blank" rel="noopener">
-              <i data-lucide="download"></i> Télécharger modèle XLSX
-            </a>
-          </div>
-
-          <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" class="form-control mb-3">
-          <button id="btnImport" class="btn btn-primary"><i data-lucide="upload"></i> Importer</button>
-          <div class="form-text mt-2">Les routes d’import & modèles sont fournies côté serveur.</div>
         </div>
       </div>
-    </div>
 
-    <!-- EXPLICATIONS -->
-    <div class="tab-pane fade" id="help" role="tabpanel">
-      <div class="card">
-        <div class="card-body">
-          <h5>Explications des paramètres</h5>
-          <dl class="def-list">
-            <dt>Échéance (prochaine inspection)</dt>
-            <dd>Calculée à partir de la dernière inspection + fréquence (par défaut 3 ans). Mise à jour automatiquement à chaque inspection.</dd>
-            <dt>Risque (0–5)</dt>
-            <dd>Basé sur la zone la plus sévère (0/20 → 5, 1/21 → 3, 2/22 → 1) augmenté de +2 si Non Conforme. Limité entre 0 et 5.</dd>
-            <dt>Conformité</dt>
-            <dd>Comparaison du marquage ATEX avec les exigences **gaz** et **poussières**. L’état global est **Non Conforme** si l’une des deux filières (G/D) n’est pas satisfaite.</dd>
-          </dl>
+      <!-- ====== AIDE ====== -->
+      <div class="tab-pane fade" id="help" role="tabpanel">
+        <div class="card">
+          <div class="card-body">
+            <h5>Explications des paramètres</h5>
+            <dl class="def-list">
+              <dt>Échéance (prochaine inspection)</dt>
+              <dd>Calculée à partir de la dernière inspection + fréquence (défaut 3 ans). Mise à jour automatiquement à chaque inspection.</dd>
+              <dt>Risque (0–5)</dt>
+              <dd>Basé sur la zone la plus sévère (0/20 → 5, 1/21 → 4, 2/22 → 3 ; aucune → 1) augmenté de +1 si Non Conforme. Limité entre 1 et 5.</dd>
+              <dt>Conformité</dt>
+              <dd>Comparaison du marquage ATEX avec les exigences Gaz (G) et Poussières (D) + catégories (1/2/3). Le verdict est **Non conforme** si l’une des deux filières (G/D) ou la catégorie minimale n’est pas satisfaite.</dd>
+            </dl>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Modals & Offcanvas (inchangés) -->
+  <!-- Offcanvas IA (ouverture depuis la liste) -->
+  <div class="offcanvas offcanvas-end offcanvas-ia" tabindex="-1" id="iaPanel">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title">Analyse IA</h5>
+      <button class="btn btn-sm btn-outline-danger" id="btnClearChat2"><i data-lucide="eraser"></i> Effacer discussion</button>
+      <button class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body">
+      <div id="iaHeader" class="fw-semibold"></div>
+      <div id="iaLoading" class="text-muted">Chargement…</div>
+      <div id="iaDetails" class="ia-details"></div>
+
+      <div class="chat-thread" id="iaThread"></div>
+      <div class="chat-input mt-2">
+        <textarea id="iaPrompt" class="form-control" placeholder="Question rapide…"></textarea>
+        <button class="btn btn-primary" id="iaSend"><i data-lucide="send"></i></button>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary" id="btnOpenInChat"><i data-lucide="panel-right"></i> Ouvrir dans l’onglet Chat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Photo -->
   <div class="modal fade" id="photoModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content">
         <div class="modal-header"><h5 class="modal-title">Photo</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body text-center"><img id="photoModalImg" src="" class="img-fluid" alt="Photo équipement"></div>
-        <div class="modal-footer"><a id="photoDownload" class="btn btn-outline-secondary" download>Télécharger</a><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
+        <div class="modal-footer"><a id="photoDownload" class="btn btn-primary" download>Télécharger</a><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
       </div>
     </div>
   </div>
 
+  <!-- Modal Suppression -->
   <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
-        <div class="modal-header"><h5 class="modal-title text-danger"><i data-lucide="trash-2"></i> Confirmer la suppression</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-header"><h5 class="modal-title">Supprimer</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
-          <p id="deleteMsg">Voulez-vous vraiment supprimer cet équipement ATEX ?</p>
-          <div id="deleteMeta" class="small-muted"></div>
+          <div id="deleteMsg">Voulez-vous vraiment supprimer ces éléments ?</div>
+          <div id="deleteMeta" class="small text-muted"></div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
@@ -505,80 +490,29 @@
     </div>
   </div>
 
-  <!-- Offcanvas IA (inchangé) -->
-  <div class="offcanvas offcanvas-end offcanvas-ia" tabindex="-1" id="iaPanel" data-bs-scroll="true" data-bs-backdrop="false" aria-labelledby="iaPanelLabel">
-    <div class="offcanvas-header">
-      <h5 class="offcanvas-title" id="iaPanelLabel"><i data-lucide="bot"></i> Aide IA</h5>
-      <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
-    </div>
-    <div class="offcanvas-body">
-      <div class="row g-3">
-        <div class="col-12">
-          <div id="iaHeader" class="small-muted"></div>
-          <div class="ia-badges mb-2"></div>
+  <!-- Modal Pièces jointes (carrousel simple) -->
+  <div class="modal fade" id="attachmentsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Pièces jointes</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div id="attCarousel" class="text-center"></div>
         </div>
-        <div class="col-12">
-          <div class="ia-history">
-            <ul class="list-group list-group-flush" id="iaHistoryList"></ul>
-          </div>
-        </div>
-        <div class="col-12">
-          <div id="iaLoading" class="text-center text-muted" style="display:none">
-            <div class="spinner-border" role="status" aria-hidden="true"></div>
-            <div class="mt-2">Réflexion en cours (le temps pour OpenAI de faire son analyse)</div>
-          </div>
-          <div id="iaDetails" class="ia-details" style="display:none"></div>
-        </div>
-        <div class="col-12">
-          <h6>Discussion</h6>
-          <div id="iaThread" class="chat-thread"></div>
-          <div class="chat-input mt-2">
-            <textarea id="iaPrompt" class="form-control" placeholder="Question complémentaire…"></textarea>
-            <button class="btn btn-outline-primary" id="iaSend"><i data-lucide="send"></i></button>
-          </div>
-        </div>
-        <div class="col-12 d-flex gap-2 flex-wrap">
-          <button class="btn btn-outline-primary" id="btnOpenInChat"><i data-lucide="panel-right-open"></i> Ouvrir dans Chat IA</button>
-          <button class="btn btn-outline-danger" id="btnClearOne"><i data-lucide="trash-2"></i> Effacer discussion</button>
-          
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <footer class="text-center small mt-4">© AutonomiX — Tous droits réservés</footer>
-  <div class="toast-container position-fixed top-0 end-0 p-3" id="toasts" style="z-index: 2000;"></div>
-
-  
-
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-
-  <!-- Attachment Viewer (Lightbox) -->
-  <div class="modal fade" id="attViewerModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-fullscreen">
-      <div class="modal-content bg-dark">
-        <div class="modal-header border-0">
-          <h5 class="modal-title text-white" id="attViewerTitle">Aperçu</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body d-flex align-items-center justify-content-center p-0">
-          <div id="attViewerStage" class="w-100 h-100 d-flex align-items-center justify-content-center"></div>
-        </div>
-        <div class="modal-footer border-0 justify-content-between">
-          <div class="text-white-50 small" id="attViewerMeta"></div>
-          <div class="d-flex gap-2">
+        <div class="modal-footer d-flex justify-content-between">
+          <div>
             <button class="btn btn-outline-light" id="attPrev"><i data-lucide="chevron-left"></i></button>
             <button class="btn btn-outline-light" id="attNext"><i data-lucide="chevron-right"></i></button>
-            <a class="btn btn-primary" id="attOpen" href="#" target="_blank" rel="noopener">Ouvrir dans un onglet</a>
-            <button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
           </div>
+          <a class="btn btn-primary" id="attOpen" href="#" target="_blank" rel="noopener">Ouvrir dans un onglet</a>
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="js/atex-control.guard.js" defer></script>
+  <!-- JS -->
+  <div id="toasts" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="js/atex-control.core.js" defer></script>
   <script src="js/atex-control.ui.js" defer></script>
 </body>
