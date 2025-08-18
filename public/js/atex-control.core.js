@@ -47,7 +47,7 @@
     const dd=String(date.getDate()).padStart(2,'0'), mm=String(date.getMonth()+1).padStart(2,'0'), yyyy=date.getFullYear();
     return `${dd}-${mm}-${yyyy}`;
   }
-  // fallback en **mois** (aligné sur le trigger DB)
+  // fallback en **mois** (aligné sur la logique base/trigger)
   function addMonthsISO(dateISO, nbMonths){
     const d = new Date(dateISO);
     if (isNaN(d)) return null;
@@ -120,8 +120,40 @@
     }catch(e){ showToast('Erreur chargement équipements','danger'); }
   }
 
+  function isImageLink(u){ return /^data:image\//.test(u) || /\.(png|jpe?g|webp|gif)$/i.test(u||''); }
+  function isPdfLink(u){ return /\.(pdf)$/i.test(u||''); }
+
+  function renderAttachmentsCell(eq){
+    const bits = [];
+    // photo principale
+    if (eq.photo && /^data:image\//.test(eq.photo)) {
+      bits.push(`<img class="last-photo" src="${eq.photo}" alt="Photo" data-action="open-photo" data-src="${encodeURIComponent(eq.photo)}">`);
+    } else {
+      bits.push('<span class="text-muted">—</span>');
+    }
+    // attachments (array json ou texte ; on normalise)
+    let atts = eq.attachments;
+    if (typeof atts === 'string'){
+      try{ atts = JSON.parse(atts); }catch{ atts = null; }
+    }
+    if (Array.isArray(atts) && atts.length){
+      const thumbs = atts.slice(0,3).map((a,i)=>{
+        const url = a && (a.url || a.href || a.path || a); // tolérant
+        const label = a && (a.name || a.label) || ('Fichier '+(i+1));
+        if (!url) return '';
+        if (isImageLink(url)) {
+          return `<img class="att-thumb" title="${label}" src="${url}" data-action="open-photo" data-src="${encodeURIComponent(url)}">`;
+        }
+        const icon = isPdfLink(url) ? '📄' : '📎';
+        return `<a class="att-file" href="${url}" title="${label}" target="_blank" rel="noopener">${icon}</a>`;
+      }).join('');
+      const more = atts.length>3 ? `<span class="att-more">+${atts.length-3}</span>` : '';
+      bits.push(`<div class="att-wrap">${thumbs}${more}</div>`);
+    }
+    return bits.join(' ');
+  }
+
   function renderTable(list){
-    // ⬅️ correction : cibler le bon <tbody id="equipmentsTable">
     const tbody = $('#equipmentsTable');
     if (!tbody) return;
     tbody.innerHTML = '';
@@ -142,7 +174,7 @@
         <td>${eq.risque ?? ''}</td>
         <td>${fmtDate(eq.last_inspection_date)}</td>
         <td>${fmtDate(eq.next_inspection_date)}</td>
-        <td>${(eq.photo && /^data:image\//.test(eq.photo)) ? `<img class="last-photo" src="${eq.photo}" alt="Photo" data-action="open-photo" data-src="${encodeURIComponent(eq.photo)}">` : '<span class="text-muted">—</span>'}</td>
+        <td>${renderAttachmentsCell(eq)}</td>
         <td class="actions">
           <button class="btn btn-sm btn-outline-primary" data-action="edit-equipment" data-id="${eq.id}" title="Éditer"><i data-lucide="edit-3"></i></button>
           <button class="btn btn-sm btn-outline-danger" data-action="delete-equipment" data-id="${eq.id}" data-label="${(eq.composant||'').replace(/\"/g,'&quot;')}" title="Supprimer"><i data-lucide="trash-2"></i></button>
@@ -233,14 +265,25 @@
     finally{ bootstrap.Modal.getOrCreateInstance($('#deleteModal')).hide(); }
   }
 
+  // ---- Form helpers
+  function clearForm(){
+    const ids = [
+      'equipId','secteur-input','batiment-input','local-input','zone-g-input','zone-d-input',
+      'composant-input','fournisseur-input','type-input','identifiant-input',
+      'marquage_atex-input','comments-input','last-inspection-input'
+    ];
+    ids.forEach(id => { const el = $('#'+id); if(el) el.value = ''; });
+    const file = $('#photo-input'); if (file) file.value = '';
+  }
+
   // ---- Secteurs / prefills
   async function loadSecteurs(){
     try{
       const r = await fetch(API.secteurs);
-      const secteurs = await r.json();
+      const arr = await r.json();
       const sel = $('#secteur-input');
       sel.innerHTML = '<option value="" disabled selected>— Sélectionner —</option>';
-      secteurs.forEach(s=>{
+      (arr||[]).forEach(s=>{
         const name = (typeof s === 'string') ? s : (s && s.name) ? s.name : '';
         if(!name) return;
         const o=document.createElement('option'); o.value=name; o.text=name; sel.appendChild(o);
@@ -447,12 +490,10 @@
     try{
       const eqR = await fetch(API.equipment(currentIA)); if(!eqR.ok) throw new Error('Équipement introuvable');
       const eq = await eqR.json();
-
       const h = getChatHistory(); const item = h.find(x=>x.id===currentIA);
       const historyForApi = (item?.thread || []).map(m=>({ role: m.role==='assistant'?'assistant':'user', content: m.content }));
       const resp = await fetch(API.chat, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ question: text, equipment: null, history: historyForApi }) });
       const data = await resp.json(); const iaText = data?.response || 'Réponse indisponible.';
-
       const thread = getThread(currentIA); thread.push({role:'user', content:text}); thread.push({role:'assistant', content:iaText}); setThread(currentIA, thread);
       renderThread(origin==='panel' ? document.getElementById('iaThread') : document.getElementById('chatThread'), thread);
     }catch(e){ showToast('Erreur chat: '+(e.message||e),'danger'); }
@@ -490,7 +531,6 @@
 
   // ---- Save / Edit / Delete
   async function saveEquipment(){
-    // Validation minimale
     const required = ['secteur-input','batiment-input','composant-input'];
     const missing = required.filter(id => !($('#'+id)?.value || '').trim());
     if (missing.length){ showToast('Champs manquants : '+missing.join(', '),'warning'); return; }
@@ -520,6 +560,7 @@
       marquage_atex: $('#marquage_atex-input').value, comments: $('#comments-input').value,
       zone_gaz: zone_g || null, zone_poussieres: zone_d || null, zone_poussiere: zone_d || null,
       photo: photoBase64
+      // NB: on ne force pas ici "risque" & "conformite" : le serveur les déduit si besoin
     };
 
     const method = id ? 'PUT' : 'POST';
@@ -540,11 +581,12 @@
 
       const last = $('#last-inspection-input').value;
       if(last){
-        // côté serveur, le trigger DB calcule next_inspection_date
         await fetch(API.inspect,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({equipment_id:saved.id,status:'done',inspection_date:last})});
       }
       showToast('Équipement sauvegardé.','success');
-      await loadEquipments(); document.getElementById('list-tab').click();
+      await loadEquipments();
+      document.getElementById('list-tab').click();
+      clearForm(); // assure qu’un nouveau passage en création part de champs vides
     }catch(e){ showToast('Erreur: '+(e.message||e),'danger'); }
   }
 
@@ -620,6 +662,9 @@
     $('#btnReanalyse')?.addEventListener('click', () => currentIA && openIA(currentIA, {forceReload:true, openChat:true}));
     $('#btnCopier')?.addEventListener('click', copyChat);
     $('#btnSend')?.addEventListener('click', sendChatFromTab);
+
+    // onglet "Ajouter" => formulaire vierge
+    document.getElementById('add-tab')?.addEventListener('click', clearForm);
 
     $('#btnOpenInChat')?.addEventListener('click', () => {
       const off = bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('iaPanel'));
