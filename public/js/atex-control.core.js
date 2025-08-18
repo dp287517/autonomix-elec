@@ -1,32 +1,78 @@
-// /public/js/atex-control.core.js — v8 (fix Edit -> form rempli, viewer pièces jointes + clearForm)
+// /public/js/atex-control.core.js — v10
 (function(){
 
   if (window.lucide){ window.lucide.createIcons(); }
 
+  // ------------- Account / API helpers -------------
+  const ACCOUNT_ID = () => encodeURIComponent(window.APP_ACCOUNT_ID || '10');
+  const base = (path) => `${path}${path.includes('?') ? '&' : '?'}account_id=${ACCOUNT_ID()}`;
+
   const API = {
-    secteurs: '/api/atex-secteurs',
-    equipments: '/api/atex-equipments',
-    equipment: (id) => '/api/atex-equipments/' + id,
-    importExcel: '/api/atex-import-excel',
-    importColumns: '/api/atex-import-columns',
-    importCsvTpl: '/api/atex-import-template',
-    importXlsxTpl: '/api/atex-import-template.xlsx',
-    inspect: '/api/atex-inspect',
-    help: (id) => '/api/atex-help/' + id,
-    chat: '/api/atex-chat',
-    photo: (id) => '/api/atex-photo/' + id
+    secteurs: base('/api/atex-secteurs'),
+    equipments: base('/api/atex-equipments'),
+    equipment: (id) => base('/api/atex-equipments/' + id),
+    importExcel: base('/api/atex-import-excel'),
+    importColumns: base('/api/atex-import-columns'),
+    importCsvTpl: base('/api/atex-import-template'),
+    importXlsxTpl: base('/api/atex-import-template.xlsx'),
+    inspect: base('/api/atex-inspect'),
+    help: (id) => base('/api/atex-help/' + id),
+    chat: base('/api/atex-chat'),
+    photo: (id) => base('/api/atex-photo/' + id)
   };
 
+  // carry account_id also in bodies (server accepte req.query || req.body.account_id)
+  const withBodyAccount = (payload={}) => Object.assign({}, payload, { account_id: window.APP_ACCOUNT_ID || '10' });
+
+  // ------------- State -------------
   let equipments = [];
   let currentIA = null;
-  const CHAT_KEY = 'atexIAHistoryV6';
-  const AUTO_CONTEXT_KEY = 'atexAutoContext';
-  const LAST_TYPE_KEY = 'atexLastType';
 
+  // cache analyses IA par equipment_id (évite recompute)
+  const IA_CACHE_KEY = 'atexIACacheV1';
+  function getIACache(){ try{ return JSON.parse(localStorage.getItem(IA_CACHE_KEY)||'{}'); }catch{return{}} }
+  function setIACache(m){ localStorage.setItem(IA_CACHE_KEY, JSON.stringify(m||{})); }
+  function cacheIA(id, payload){ const m=getIACache(); m[id]=payload; setIACache(m); }
+  function getCachedIA(id){ const m=getIACache(); return m[id]; }
+
+  // threads par équipement
+  const CHAT_THREADS_KEY = 'atexIAThreadsV1';
+  function getAllThreads(){ try{ return JSON.parse(localStorage.getItem(CHAT_THREADS_KEY)||'{}'); }catch{return{}} }
+  function setAllThreads(o){ localStorage.setItem(CHAT_THREADS_KEY, JSON.stringify(o||{})); }
+  function getThread(id){ const all=getAllThreads(); return Array.isArray(all[id])? all[id] : []; }
+  function setThread(id, t){ const all=getAllThreads(); all[id]=t||[]; setAllThreads(all); renderHistory(); if (currentIA===id) renderThread($('#iaThread'), t); }
+
+  // historique (liste des analyses ouvertes)
+  const HISTORY_KEY = 'atexIAHistoryV7';
+  function getHistory(){ try{ return JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]'); }catch{return[]} }
+  function setHistory(h){ localStorage.setItem(HISTORY_KEY, JSON.stringify(h||[])); }
+  function addToHistory(item){
+    const h = getHistory();
+    const idx = h.findIndex(x=>x.id===item.id);
+    if (idx>=0) h[idx]=Object.assign(h[idx], item);
+    else h.unshift(item);
+    setHistory(h.slice(0,300));
+    renderHistory(); renderHistoryChat();
+  }
+  function removeFromHistory(id){
+    const h = getHistory().filter(x=>x.id!==id);
+    setHistory(h); renderHistory(); renderHistoryChat();
+  }
+  function clearAllThreads(){
+    setAllThreads({});
+    setHistory([]);
+    $('#chatHtml').innerHTML='';
+    $('#chatHeader').textContent='';
+    $('#chatThread').innerHTML='';
+    renderHistory();
+    toast('Historique effacé','info');
+  }
+  window.clearAllThreads = clearAllThreads;
+
+  // ------------- DOM helpers -------------
   const $  = sel => document.querySelector(sel);
   const $$ = sel => Array.from(document.querySelectorAll(sel));
-
-  function showToast(message, variant='primary'){
+  function toast(message, variant='primary'){
     const id='t'+Date.now();
     const html = `
       <div id="${id}" class="toast text-bg-${variant} border-0 mb-2" role="alert">
@@ -39,8 +85,13 @@
     const t = new bootstrap.Toast($('#'+id), {delay:3000}); t.show();
     setTimeout(()=> $('#'+id)?.remove(), 3500);
   }
-
-  // ---- Utils / rendu
+  function stripCodeFences(s){ if(typeof s!=='string') return ''; return s.replace(/(?:^```(?:html)?|```$)/g,'').trim(); }
+  function renderHTML(el, raw){
+    let s = stripCodeFences(raw||'').trim();
+    const looksHTML = /<\/?[a-z][\s\S]*>/i.test(s);
+    if(!looksHTML){ s = s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\r?\n/g,"<br>"); }
+    el.innerHTML = s || '—';
+  }
   function fmtDate(d){
     if(!d) return 'N/A';
     const date = new Date(d); if(isNaN(date)) return d;
@@ -53,19 +104,8 @@
     d.setMonth(d.getMonth() + (Number(nbMonths)||0));
     return d.toISOString();
   }
-  function stripCodeFences(s){
-    if(typeof s!=='string') return '';
-    return s.replace(/(?:^```(?:html)?|```$)/g,'').trim();
-  }
-  function renderIAContent(el, raw){
-    let s = stripCodeFences(raw || '').trim();
-    const looksHTML = /<\/?[a-z][\s\S]*>/i.test(s);
-    if(!looksHTML){
-      s = s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\r?\n/g,"<br>");
-    }
-    el.innerHTML = s;
-  }
 
+  // ------------- Table rendering -------------
   function computeStatus(nextDate){
     if(!nextDate) return 'ok';
     const d = new Date(nextDate); if(isNaN(d)) return 'ok';
@@ -83,23 +123,33 @@
     if(st==='soon')  return '<span class="badge badge-st soon">Bientôt</span>';
     return '<span class="badge badge-st ok">OK</span>';
   }
+  function isImageLink(u){ return /^data:image\//.test(u) || /\.(png|jpe?g|webp|gif)$/i.test(u||''); }
+  function isPdfLink(u){ return /\.(pdf)$/i.test(u||''); }
 
-  // ---- Persistance (local)
-  function getChatHistory(){ try{ return JSON.parse(localStorage.getItem(CHAT_KEY) || '[]'); }catch{return []} }
-  function setChatHistory(h){ localStorage.setItem(CHAT_KEY, JSON.stringify(h)); }
-  function addToHistory(item){
-    const h=getChatHistory();
-    const idx = h.findIndex(x=>x.id===item.id);
-    if (idx>=0) h[idx]=item; else h.unshift(item);
-    setChatHistory(h.slice(0,300));
-    renderHistory(); renderHistoryChat();
+  function renderAttachmentsCell(eq){
+    const bits = [];
+    if (eq.photo && /^data:image\//.test(eq.photo)) {
+      bits.push(`<img class="last-photo" src="${eq.photo}" alt="Photo" data-action="open-photo" data-src="${encodeURIComponent(eq.photo)}">`);
+    } else {
+      bits.push('<span class="text-muted">—</span>');
+    }
+    let atts = eq.attachments;
+    if (typeof atts === 'string'){ try{ atts = JSON.parse(atts); }catch{ atts = null; } }
+    if (Array.isArray(atts) && atts.length){
+      const thumbs = atts.slice(0,3).map((a,i)=>{
+        const url = a && (a.url || a.href || a.path || a);
+        const label = a && (a.name || a.label) || ('Fichier '+(i+1));
+        if (!url) return '';
+        if (isImageLink(url)) return `<img class="att-thumb" title="${label}" src="${url}" data-action="open-photo" data-src="${encodeURIComponent(url)}">`;
+        const icon = isPdfLink(url) ? '📄' : '📎';
+        return `<a class="att-file" href="${url}" title="${label}" target="_blank" rel="noopener">${icon}</a>`;
+      }).join('');
+      const more = atts.length>3 ? `<a href="#" class="att-more" data-action="open-attachments" data-id="${eq.id}">+${atts.length-3}</a>` : '';
+      bits.push(`<div class="att-wrap">${thumbs}${more}</div>`);
+    }
+    return bits.join(' ');
   }
-  function getAutoContext(){ try{ return JSON.parse(localStorage.getItem(AUTO_CONTEXT_KEY) || '{}'); }catch{return {}} }
-  function setAutoContext(obj){ localStorage.setItem(AUTO_CONTEXT_KEY, JSON.stringify(obj||{})); }
-  function getLastType(){ try{ return JSON.parse(localStorage.getItem(LAST_TYPE_KEY) || '{}'); }catch{return {}} }
-  function setLastType(obj){ localStorage.setItem(LAST_TYPE_KEY, JSON.stringify(obj||{})); }
 
-  // ---- Chargement & rendu liste
   async function loadEquipments(){
     try{
       const r = await fetch(API.equipments);
@@ -114,41 +164,8 @@
       });
       renderTable(equipments);
       buildFilterLists();
-      showToast('Équipements chargés','info');
-    }catch(e){ showToast('Erreur chargement équipements','danger'); }
-  }
-
-  function isImageLink(u){ return /^data:image\//.test(u) || /\.(png|jpe?g|webp|gif)$/i.test(u||''); }
-  function isPdfLink(u){ return /\.(pdf)$/i.test(u||''); }
-
-  function renderAttachmentsCell(eq){
-    const bits = [];
-    // photo principale
-    if (eq.photo && /^data:image\//.test(eq.photo)) {
-      bits.push(`<img class="last-photo" src="${eq.photo}" alt="Photo" data-action="open-photo" data-src="${encodeURIComponent(eq.photo)}">`);
-    } else {
-      bits.push('<span class="text-muted">—</span>');
-    }
-    // attachments (array json ou texte ; on normalise)
-    let atts = eq.attachments;
-    if (typeof atts === 'string'){
-      try{ atts = JSON.parse(atts); }catch{ atts = null; }
-    }
-    if (Array.isArray(atts) && atts.length){
-      const thumbs = atts.slice(0,3).map((a,i)=>{
-        const url = a && (a.url || a.href || a.path || a); // tolérant
-        const label = a && (a.name || a.label) || ('Fichier '+(i+1));
-        if (!url) return '';
-        if (isImageLink(url)) {
-          return `<img class="att-thumb" title="${label}" src="${url}" data-action="open-photo" data-src="${encodeURIComponent(url)}">`;
-        }
-        const icon = isPdfLink(url) ? '📄' : '📎';
-        return `<a class="att-file" href="${url}" title="${label}" target="_blank" rel="noopener">${icon}</a>`;
-      }).join('');
-      const more = atts.length>3 ? `<a href="#" class="att-more" data-action="open-attachments" data-id="${eq.id}">+${atts.length-3}</a>` : '';
-      bits.push(`<div class="att-wrap">${thumbs}${more}</div>`);
-    }
-    return bits.join(' ');
+      toast('Équipements chargés','info');
+    }catch(e){ toast('Erreur chargement équipements','danger'); }
   }
 
   function renderTable(list){
@@ -174,9 +191,9 @@
         <td>${fmtDate(eq.next_inspection_date)}</td>
         <td>${renderAttachmentsCell(eq)} ${Array.isArray(eq.attachments)&&eq.attachments.length?`<div><a href="#" data-action="open-attachments" data-id="${eq.id}">Voir tout</a></div>`:''}</td>
         <td class="actions">
-          <button class="btn btn-sm btn-outline-primary" data-action="edit-equipment" data-id="${eq.id}" title="Éditer"><i data-lucide="edit-3"></i></button>
-          <button class="btn btn-sm btn-outline-danger" data-action="delete-equipment" data-id="${eq.id}" data-label="${(eq.composant||'').replace(/\"/g,'&quot;')}" title="Supprimer"><i data-lucide="trash-2"></i></button>
-          <button class="btn btn-sm ${eq.has_ia_history ? 'btn-success' : (String(eq.conformite||'').toLowerCase().includes('non') ? 'btn-warning' : 'btn-outline-secondary')}" data-action="open-ia" data-id="${eq.id}" title="IA Analysis"><i data-lucide="sparkles"></i> IA</button>
+          <button class="btn btn-sm btn-outline-primary" data-action="edit-equipment" data-id="${eq.id}" title="Éditer"><i class="lucide-edit-3"></i></button>
+          <button class="btn btn-sm btn-outline-danger" data-action="delete-equipment" data-id="${eq.id}" data-label="${(eq.composant||'').replace(/\"/g,'&quot;')}" title="Supprimer"><i class="lucide-trash-2"></i></button>
+          <button class="btn btn-sm ${String(eq.conformite||'').toLowerCase().includes('non') ? 'btn-warning' : 'btn-outline-secondary'}" data-action="open-ia" data-id="${eq.id}" title="IA Analysis"><i class="lucide-sparkles"></i> IA</button>
         </td>
       `;
       tbody.appendChild(tr);
@@ -185,7 +202,7 @@
     $$('.rowchk').forEach(c => c.addEventListener('change', updateBulkBtn));
   }
 
-  // ---- Filtres
+  // ------------- Filters -------------
   const activeFilters = { secteurs: new Set(), batiments: new Set(), conformites: new Set(), statut: new Set(), text: '' };
 
   function buildFilterLists(){
@@ -243,7 +260,7 @@
     renderTable(filtered);
   }
 
-  // ---- Bulk delete
+  // ------------- Bulk delete -------------
   function updateBulkBtn(){ const sel = $$('.rowchk:checked').map(i=>+i.dataset.id); $('#btnBulkDelete').disabled = sel.length===0; }
   function toggleAll(e){ const checked = e.target.checked; $$('.rowchk').forEach(c=>{ c.checked = checked; }); updateBulkBtn(); }
   function openBulkDelete(){
@@ -257,13 +274,13 @@
   async function confirmBulkDelete(ids){
     try{
       await Promise.all(ids.map(id => fetch(API.equipment(id), {method:'DELETE'})));
-      showToast('Suppression en masse OK','success');
+      toast('Suppression en masse OK','success');
       await loadEquipments();
-    }catch(e){ showToast('Erreur suppression masse: '+(e.message||e),'danger'); }
+    }catch(e){ toast('Erreur suppression masse: '+(e.message||e),'danger'); }
     finally{ bootstrap.Modal.getOrCreateInstance($('#deleteModal')).hide(); }
   }
 
-  // ---- Form helpers
+  // ------------- Form helpers -------------
   function clearForm(){
     const ids = [
       'equipId','secteur-input','batiment-input','local-input','zone-g-input','zone-d-input',
@@ -274,7 +291,7 @@
     const file = $('#photo-input'); if (file) file.value = '';
   }
 
-  // ---- Secteurs / prefills
+  // ------------- Secteurs -------------
   async function loadSecteurs(){
     try{
       const r = await fetch(API.secteurs);
@@ -286,7 +303,7 @@
         if(!name) return;
         const o=document.createElement('option'); o.value=name; o.text=name; sel.appendChild(o);
       });
-    }catch{}
+    }catch(e){ /* noop */ }
   }
   function openModalSecteur(){
     const html=`
@@ -309,102 +326,202 @@
       const name=(el.querySelector('#newSecteurName').value||'').trim();
       if(!name){ el.querySelector('#secteurSaveMsg').textContent='Nom requis.'; return; }
       try{
-        const r = await fetch(API.secteurs,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+        const r = await fetch(API.secteurs,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(withBodyAccount({name}))});
         if(!r.ok) throw new Error('Erreur API');
-        await loadSecteurs(); $('#secteur-input').value=name; showToast('Secteur enregistré','success'); modal.hide(); el.remove();
+        await loadSecteurs(); $('#secteur-input').value=name; toast('Secteur enregistré','success'); modal.hide(); el.remove();
       }catch(err){ el.querySelector('#secteurSaveMsg').textContent='Erreur: '+(err.message||err); }
     }, {once:true});
     el.addEventListener('hidden.bs.modal', ()=> el.remove(), {once:true});
   }
-  function prefillBatLocal(){
-    const ctx = getAutoContext();
-    const secteur = $('#secteur-input').value || '';
-    const last = ctx[secteur] || {};
-    if(last.batiment) $('#batiment-input').value = last.batiment;
-    if(last.local)    $('#local-input').value = last.local;
-  }
-  function fillFromLastType(){
-    const last = getLastType();
-    if(last.composant)   $('#composant-input').value = last.composant;
-    if(last.fournisseur) $('#fournisseur-input').value = last.fournisseur;
-    if(last.type)        $('#type-input').value = last.type;
-    showToast('Champs remplis depuis le dernier type enregistré.','info');
+
+  // ------------- IA enrichissement local (si serveur ne renvoie pas) -------------
+  function buildLocalEnrichment(eq){
+    const arr = (x)=>Array.isArray(x)?x:[];
+    const tipsPall = [];
+    const tipsPrev = [];
+    const refs = [];
+    const costs = [];
+
+    const zg = String(eq.zone_gaz||'').trim();
+    const zd = String(eq.zone_poussieres||eq.zone_poussiere||'').trim();
+    const mark = String(eq.marquage_atex||'').toLowerCase();
+
+    if (!mark || mark.includes('pas de marquage')){
+      tipsPall.push('Éloigner l’équipement des zones classées et **isoler électriquement** temporairement.');
+      tipsPall.push('Limiter les sources d’inflammation (interdiction d’intervention non ATEX).');
+      refs.push('Directive ATEX 2014/34/UE — Matériels destinés à être utilisés en atmosphères explosibles.');
+      costs.push('Remplacement par matériel certifié : 400€–2 500€ selon le composant.');
+    }
+    if (zg === '1' || zg === '0'){ tipsPrev.push('Choisir des matériels **catégorie 1G/2G** selon la zone.'); }
+    if (zd === '20' || zd === '21'){ tipsPrev.push('Choisir des matériels **catégorie 1D/2D** selon la zone.'); }
+
+    refs.push('EN 60079-0/1/7/31 — Ex d / Ex e / Ex t (poussières).');
+    costs.push('Inspection initiale + rapport : 250€–600€.');
+    return { palliatives: tipsPall, preventives: tipsPrev, refs, costs };
   }
 
-  // ---- IA & Chat
-  function getThread(id){ const h=getChatHistory(); const it=h.find(x=>x.id===id); return (it&&it.thread)||[]; }
-  function setThread(id, t){
-    const h=getChatHistory();
-    let it=h.find(x=>x.id===id);
-    if(!it){ it={ id, content:'', meta:{}, thread:[], enriched:null, composant:'Équipement', date:new Date().toISOString()}; h.unshift(it); }
-    it.thread = t; setChatHistory(h);
-  }
+  // ------------- IA Panel / Chat -------------
   function renderThread(el, thread){
     el.innerHTML = '';
     thread.forEach(m=>{
       const div = document.createElement('div');
       div.className = 'msg ' + (m.role==='user'?'user':'ia');
-      if(m.role==='assistant'){
-        const holder = document.createElement('div');
-        renderIAContent(holder, m.content);
-        div.innerHTML = holder.innerHTML;
-      }else{
-        div.textContent = m.content;
-      }
+      if(m.role==='assistant'){ renderHTML(div, m.content); }
+      else { div.textContent = m.content; }
       el.appendChild(div);
     });
     el.scrollTop = el.scrollHeight;
   }
 
-  function buildLocalEnrichmentChat(_eq){
-    return { reasons:[], palliatives:[], preventives:[], refs:[], costs:[] };
+  function renderHistory(activeId=null){
+    const list = $('#iaHistoryList'); if(!list) return;
+    const h=getHistory();
+    list.innerHTML = '';
+    if(!h.length){ list.innerHTML='<li class="list-group-item text-muted">Aucune analyse.</li>'; return; }
+    h.forEach((it,idx)=>{
+      const li=document.createElement('li');
+      li.className='list-group-item d-flex justify-content-between align-items-center hist-item'+(it.id===activeId?' active':'');
+      li.innerHTML=`
+        <div>
+          <div class="fw-bold">${it.composant || 'Équipement'} — ID ${it.id}</div>
+          <div class="small text-muted">${it.meta?.secteur||'-'} • ${it.meta?.batiment||'-'}</div>
+        </div>
+        <div>
+          <button class="btn btn-sm btn-outline-secondary" data-id="${it.id}" data-act="open">Ouvrir</button>
+          <button class="btn btn-sm btn-outline-danger" data-id="${it.id}" data-act="del">X</button>
+        </div>`;
+      li.addEventListener('click', (e)=>{
+        const act = e.target.getAttribute('data-act');
+        const id = Number(e.target.getAttribute('data-id')||it.id);
+        if (act==='del'){ removeFromHistory(id); return; }
+        selectHistoryChat(idx);
+      });
+      list.appendChild(li);
+    });
   }
 
-  async function openIA(id, opts={}){
+  function renderHistoryChat(){
+    const h = getHistory();
+    const it = h[0];
+    if(!it){
+      $('#chatHeader').textContent='';
+      $('#chatHtml').innerHTML='';
+      $('#chatThread').innerHTML='';
+      return;
+    }
+    $('#chatHeader').textContent = `${it.composant || 'Équipement'} — ID ${it.id}`;
+    renderHTML($('#chatHtml'), it.content || '—');
+
+    // cartes
+    const enr = it.enriched || {};
+    $('#cardPalliatives').innerHTML = (enr.palliatives||[]).map(li=>`<li>${li}</li>`).join('') || '—';
+    $('#cardPreventives').innerHTML = (enr.preventives||[]).map(li=>`<li>${li}</li>`).join('') || '—';
+    $('#cardRefs').innerHTML        = (enr.refs||[]).map(li=>`<li>${li}</li>`).join('') || '—';
+    $('#cardCosts').innerHTML       = (enr.costs||[]).map(li=>`<li>${li}</li>`).join('') || '—';
+
+    renderThread($('#chatThread'), getThread(it.id));
+  }
+
+  async function openIA(id){
     currentIA = id;
     const off = bootstrap.Offcanvas.getOrCreateInstance($('#iaPanel')); off.show();
-    $('#iaHeader').textContent = ''; $('#iaDetails').style.display='none'; $('#iaLoading').style.display='block';
+    $('#iaHeader').textContent = 'Analyse en cours…';
+    $('#iaLoading').style.display='block';
+    $('#iaDetails').style.display='none';
 
     try{
-      const [eqR, helpR] = await Promise.all([ fetch(API.equipment(id)), fetch(API.help(id)) ]);
-      if(!eqR.ok) throw new Error('Équipement introuvable');
-      const eq = await eqR.json();
-      const help = await helpR.json();
+      // cache ?
+      const cached = getCachedIA(id);
+      let eq;
+      if (cached){ ({ eq } = cached); }
+      if (!eq){
+        const eqR = await fetch(API.equipment(id)); if(!eqR.ok) throw new Error('Équipement introuvable');
+        eq = await eqR.json();
+      }
 
+      let help;
+      if (cached && cached.help) help = cached.help;
+      else {
+        const helpR = await fetch(API.help(id));
+        help = await helpR.json();
+        cacheIA(id, { eq, help });
+      }
+
+      // header
       $('#iaHeader').textContent = `${eq.composant || 'Équipement'} — ID ${eq.id} • Dernière: ${fmtDate(eq.last_inspection_date)} • Prochaine: ${fmtDate(eq.next_inspection_date)}`;
-      renderBadges(eq);
 
-      const cleaned = stripCodeFences(help?.response || 'Aucune analyse IA disponible.');
-      renderIAContent(document.getElementById('iaDetails'), cleaned);
+      const cleaned = help?.response || 'Aucune analyse IA disponible.';
+      renderHTML($('#iaDetails'), cleaned);
+      $('#iaLoading').style.display='none';
+      $('#iaDetails').style.display='block';
 
-      try{ document.getElementById('chatEnriched').style.display='none'; }catch(_){}
+      // enrich cards
+      const enriched = help?.enrich || buildLocalEnrichment(eq);
+      $('#iaPalliatives').innerHTML = (enriched.palliatives||[]).map(li=>`<li>${li}</li>`).join('') || '—';
+      $('#iaPreventives').innerHTML = (enriched.preventives||[]).map(li=>`<li>${li}</li>`).join('') || '—';
+      $('#iaRefs').innerHTML        = (enriched.refs||[]).map(li=>`<li>${li}</li>`).join('') || '—';
+      $('#iaCosts').innerHTML       = (enriched.costs||[]).map(li=>`<li>${li}</li>`).join('') || '—';
 
+      // suggestions achat
+      buildDynamicSuggestions(eq);
+
+      // history + thread
       addToHistory({
         id: eq.id, composant: eq.composant || 'Équipement', date: new Date().toISOString(),
-        content: cleaned, enriched: null,
-        meta: { conformite: eq.conformite || 'N/A', risque: eq.risque ?? '-', zone_g: eq.zone_gaz||'-', zone_d: eq.zone_poussieres||'-', last: fmtDate(eq.last_inspection_date), next: fmtDate(eq.next_inspection_date) },
-        thread: getThread(eq.id)
+        content: cleaned, enriched,
+        meta: { secteur: eq.secteur||'', batiment: eq.batiment||'', last: fmtDate(eq.last_inspection_date), next: fmtDate(eq.next_inspection_date) }
       });
+      renderThread($('#iaThread'), getThread(eq.id));
 
-      $('#iaLoading').style.display='none'; $('#iaDetails').style.display='block';
-      renderThread(document.getElementById('iaThread'), getThread(eq.id));
-
-      if(opts.openChat){ const __ct=document.getElementById('chat-tab'); if(__ct) __ct.click(); setTimeout(()=>selectHistoryChat(0),60); }
     }catch(e){
       $('#iaLoading').style.display='none';
       $('#iaDetails').style.display='block';
-      renderIAContent(document.getElementById('iaDetails'), `<div class="alert alert-danger">Erreur IA: ${e.message||e}</div>`);
+      renderHTML($('#iaDetails'), `<div class="alert alert-danger">Erreur IA: ${e.message||e}</div>`);
     }
   }
   window.openIA = openIA;
 
-  function renderBadges(eq){
-    try{
-      const cont = document.getElementById('autoLinks');
-      if (!cont) return;
-      buildDynamicSuggestions(eq);
-    }catch(_){}
+  // Effacer discussion courante (panneau IA)
+  function clearCurrentThread(){
+    if (!currentIA) return;
+    setThread(currentIA, []);
+    toast('Discussion effacée','info');
   }
+  window.clearCurrentThread = clearCurrentThread;
+
+  // Chat prompts
+  async function sendChat(origin){
+    const input = origin==='panel' ? $('#iaPrompt') : $('#chatPrompt');
+    const text = (input.value||'').trim();
+    if(!text || !currentIA) return;
+
+    try{
+      const eqR = await fetch(API.equipment(currentIA)); if(!eqR.ok) throw new Error('Équipement introuvable');
+      const eq = await eqR.json();
+
+      const thread = getThread(currentIA);
+      const resp = await fetch(API.chat, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(withBodyAccount({
+          question: text,
+          equipment: null,
+          history: thread.map(m=>({ role: m.role==='assistant'?'assistant':'user', content: m.content }))
+        }))
+      });
+      const data = await resp.json();
+      const iaText = data?.response || 'Réponse indisponible.';
+
+      const next = [...thread, {role:'user', content:text}, {role:'assistant', content:iaText}];
+      setThread(currentIA, next);
+
+      if (origin==='panel') renderThread($('#iaThread'), next);
+      else renderThread($('#chatThread'), next);
+      input.value='';
+    }catch(e){ toast('Erreur chat: '+(e.message||e),'danger'); }
+  }
+
+  // ------------- Suggestions d’achats -------------
   function requiredCategoryForZone(zg, zd){
     const zgNum = String(zg||'').replace(/[^0-9]/g,'') || '';
     const zdNum = String(zd||'').replace(/[^0-9]/g,'') || '';
@@ -417,87 +534,30 @@
     if(!cont) return;
     cont.innerHTML = '';
     const isNC = String(eq?.conformite || '').toLowerCase().includes('non');
-    if(!isNC){ cont.innerHTML = '<div class="text-muted small">Aucune suggestion (équipement conforme).</div>'; return; }
-
     const req = requiredCategoryForZone(eq?.zone_gaz, eq?.zone_poussieres);
-    const items = [];
     const comp = (eq?.composant || '').toLowerCase();
 
-    if(comp.includes('pression') || comp.includes('capteur')){
-      items.push({ label: 'Capteur de pression ATEX — IFM PN7092 (réf.)', href: 'https://www.ifm.com/' });
+    const items = [];
+    // Types de pièces probables
+    if (comp.includes('pression') || comp.includes('capteur')){
+      items.push({ type:'Capteur pression ATEX', name:'IFM PN7092', href:'https://www.ifm.com/' });
     }
-    items.push({ label: 'Boîte de jonction Ex e — R. STAHL', href: 'https://r-stahl.com/' });
-    items.push({ label: 'Boîte de jonction Ex d — R. STAHL', href: 'https://r-stahl.com/' });
-    items.push({ label: 'Distributeur — RS UK (recherche par référence)', href: 'https://uk.rs-online.com/' });
+    if (comp.includes('moteur') || comp.includes('pompe')){
+      items.push({ type:'Moteur Ex d', name:'WEG W22X', href:'https://www.weg.net/' });
+    }
+    items.push({ type:'Boîte de jonction Ex e', name:'R. STAHL série 8146/5-V', href:'https://r-stahl.com/' });
+    items.push({ type:'Presse-étoupe Ex e/Ex d', name:'Hawke 501/421', href:'https://www.ehawke.com/' });
+    items.push({ type:'Câble & accessoires ATEX', name:'RS Components', href:'https://uk.rs-online.com/' });
 
     cont.innerHTML = `
-      <div class="small mb-2 text-muted">Catégorie requise estimée : ${req}</div>
-      ${items.map(it => `<a class="d-block" href="${it.href}" target="_blank" rel="noopener">${it.label}</a>`).join('')}
+      <div class="small mb-2 text-muted">Catégorie requise estimée : <strong>${req}</strong></div>
+      ${!isNC ? '<div class="text-muted small mb-2">Équipement conforme — suggestions générales :</div>' : '<div class="text-danger small mb-2">Équipement non conforme — remplacements conseillés :</div>'}
+      <ul class="mb-2">${items.map(it=>`<li><strong>${it.type}</strong> — ${it.name} • <a href="${it.href}" target="_blank" rel="noopener">Voir</a></li>`).join('')}</ul>
+      <div class="small text-muted">Ajusté en fonction du composant et des zones (G/D).</div>
     `;
   }
 
-  function renderHistory(activeId=null){
-    const list = $('#iaHistoryList'); list.innerHTML='';
-    const h=getChatHistory(); if(!h.length){ list.innerHTML='<li class="list-group-item text-muted">Aucun historique.</li>'; return; }
-    h.forEach((it,idx)=>{
-      const li=document.createElement('li');
-      li.className='list-group-item ia-item'+(it.id===activeId?' active':'');
-      li.innerHTML=`
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <div class="fw-bold">${it.composant || 'Équipement'} — ID ${it.id}</div>
-            <div class="small text-muted">${fmtDate(it.date)} • Dernière: ${it.meta?.last||'-'} • Prochaine: ${it.meta?.next||'-'}</div>
-          </div>
-          <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-secondary" data-action="open-ia" data-id="${it.id}">Ouvrir</button>
-          </div>
-        </div>`;
-      li.addEventListener('click', ()=>selectHistoryChat(idx));
-      list.appendChild(li);
-    });
-  }
-  function renderHistoryChat(){
-    const h = getChatHistory();
-    const it = h[0]; // dernier
-    if(!it){ document.getElementById('chatHeader').textContent=''; document.getElementById('chatHtml').innerHTML=''; document.getElementById('chatThread').innerHTML=''; return; }
-    document.getElementById('chatHeader').textContent = `${it.composant || 'Équipement'} — ID ${it.id} • Dernière: ${it.meta?.last||'-'} • Prochaine: ${it.meta?.next||'-'}`;
-    renderIAContent(document.getElementById('chatHtml'), it.content || '—');
-    try{ document.getElementById('chatEnriched').style.display='block'; buildLocalEnrichmentChat({ conformite: it.meta?.conformite, zone_gaz: it.meta?.zone_g, zone_poussieres: it.meta?.zone_d, marquage_atex: '' }); }catch(_){}
-    renderThread(document.getElementById('chatThread'), it.thread||[]);
-  }
-  function selectHistoryChat(idx){
-    const h = getChatHistory();
-    const it = h[idx]; if(!it) return;
-    currentIA = it.id;
-    document.getElementById('chatHeader').textContent = `${it.composant || 'Équipement'} — ID ${it.id} • Dernière: ${it.meta?.last||'-'} • Prochaine: ${it.meta?.next||'-'}`;
-    renderIAContent(document.getElementById('chatHtml'), it.content || '—'); document.getElementById('chatEnriched').style.display='block'; try{ buildLocalEnrichmentChat({ conformite: it.meta?.conformite, zone_gaz: it.meta?.zone_g, zone_poussieres: it.meta?.zone_d, marquage_atex: '' }); }catch(_){}
-    renderThread(document.getElementById('chatThread'), it.thread||[]);
-  }
-  function clearChatHistory(){
-    setChatHistory([]); document.getElementById('iaDetails').innerHTML=''; document.getElementById('chatHtml').innerHTML='';
-    document.getElementById('chatHeader').textContent=''; document.getElementById('chatThread').innerHTML='';
-    renderHistory(); renderHistoryChat(); showToast('Historique effacé','info');
-  }
-  function copyChat(){
-    const text = (document.getElementById('chatHtml').innerText || '') + '\n\n' + (document.getElementById('chatThread').innerText || '');
-    navigator.clipboard.writeText(text).then(()=>showToast('Contenu copié','success'));
-  }
-  async function sendChatFromTab(){ const text = ($('#chatPrompt').value || '').trim(); if(!text || !currentIA) return; await sendChat(text, 'tab'); $('#chatPrompt').value=''; }
-  async function sendChatFromPanel(){ const text = ($('#iaPrompt').value || '').trim(); if(!text || !currentIA) return; await sendChat(text, 'panel'); $('#iaPrompt').value=''; }
-  async function sendChat(text, origin){
-    try{
-      const eqR = await fetch(API.equipment(currentIA)); if(!eqR.ok) throw new Error('Équipement introuvable');
-      const eq = await eqR.json();
-      const h = getChatHistory(); const item = h.find(x=>x.id===currentIA);
-      const historyForApi = (item?.thread || []).map(m=>({ role: m.role==='assistant'?'assistant':'user', content: m.content }));
-      const resp = await fetch(API.chat, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ question: text, equipment: null, history: historyForApi }) });
-      const data = await resp.json(); const iaText = data?.response || 'Réponse indisponible.';
-      const thread = getThread(currentIA); thread.push({role:'user', content:text}); thread.push({role:'assistant', content:iaText}); setThread(currentIA, thread);
-      renderThread(origin==='panel' ? document.getElementById('iaThread') : document.getElementById('chatThread'), thread);
-    }catch(e){ showToast('Erreur chat: '+(e.message||e),'danger'); }
-  }
-
-  // ---- Photo
+  // ------------- Photo upload helpers -------------
   async function resizeImageToDataURL(file, maxW=1280, maxH=1280){
     const img = document.createElement('img');
     const reader = new FileReader();
@@ -518,7 +578,6 @@
     ctx.drawImage(img, 0, 0, w, h);
     return canvas.toDataURL('image/jpeg', 0.85);
   }
-
   async function uploadPhotoMultipart(id, file){
     const fd = new FormData();
     fd.append('file', file);
@@ -527,38 +586,38 @@
     return r.json();
   }
 
-  // ---- Save / Edit / Delete
+  // ------------- Save / Edit / Delete -------------
   async function saveEquipment(){
     const required = ['secteur-input','batiment-input','composant-input'];
     const missing = required.filter(id => !($('#'+id)?.value || '').trim());
-    if (missing.length){ showToast('Champs manquants : '+missing.join(', '),'warning'); return; }
+    if (missing.length){ toast('Champs manquants : '+missing.join(', '),'warning'); return; }
 
     const id = $('#equipId').value || null;
     const zone_g = $('#zone-g-input').value || '';
     const zone_d = $('#zone-d-input').value || '';
 
-    // mémos
-    const secteur = $('#secteur-input').value;
-    const ctx = getAutoContext(); ctx[secteur] = { batiment: $('#batiment-input').value, local: $('#local-input').value }; setAutoContext(ctx);
-    setLastType({ composant: $('#composant-input').value, fournisseur: $('#fournisseur-input').value, type: $('#type-input').value });
-
     const file = $('#photo-input').files[0] || null;
     let photoBase64 = null;
     if (file && file.size > 180*1024 && id) {
-      try { await uploadPhotoMultipart(id, file); showToast('Photo envoyée (multipart)','success'); }
-      catch (e) { showToast('Échec upload photo: '+(e.message||e),'danger'); }
+      try { await uploadPhotoMultipart(id, file); toast('Photo envoyée (multipart)','success'); }
+      catch (e) { toast('Échec upload photo: '+(e.message||e),'danger'); }
     } else if (file) {
       photoBase64 = await resizeImageToDataURL(file);
     }
 
-    const data = {
-      secteur, batiment: $('#batiment-input').value, local: $('#local-input').value,
-      composant: $('#composant-input').value, fournisseur: $('#fournisseur-input').value,
-      type: $('#type-input').value, identifiant: $('#identifiant-input').value,
-      marquage_atex: $('#marquage_atex-input').value, comments: $('#comments-input').value,
+    const data = withBodyAccount({
+      secteur: $('#secteur-input').value,
+      batiment: $('#batiment-input').value,
+      local: $('#local-input').value,
+      composant: $('#composant-input').value,
+      fournisseur: $('#fournisseur-input').value,
+      type: $('#type-input').value,
+      identifiant: $('#identifiant-input').value,
+      marquage_atex: $('#marquage_atex-input').value,
+      comments: $('#comments-input').value,
       zone_gaz: zone_g || null, zone_poussieres: zone_d || null, zone_poussiere: zone_d || null,
       photo: photoBase64
-    };
+    });
 
     const method = id ? 'PUT' : 'POST';
     const url = id ? API.equipment(id) : API.equipments;
@@ -568,7 +627,7 @@
       if(!r.ok) {
         const errTxt = await r.text();
         if (r.status===413 || /trop volumineuse|too large/i.test(errTxt)) {
-          showToast('Image trop lourde. Enregistre, puis ré-ajoute la photo (multipart).','warning');
+          toast('Image trop lourde. Enregistre, puis ré-ajoute la photo (multipart).','warning');
         } else {
           throw new Error('Erreur enregistrement');
         }
@@ -578,23 +637,21 @@
 
       const last = $('#last-inspection-input').value;
       if(last){
-        await fetch(API.inspect,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({equipment_id:saved.id,status:'done',inspection_date:last})});
+        await fetch(API.inspect,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(withBodyAccount({equipment_id:saved.id,status:'done',inspection_date:last}))});
       }
-      showToast('Équipement sauvegardé.','success');
+      toast('Équipement sauvegardé.','success');
       await loadEquipments();
       document.getElementById('list-tab').click();
       clearForm();
-    }catch(e){ showToast('Erreur: '+(e.message||e),'danger'); }
+    }catch(e){ toast('Erreur: '+(e.message||e),'danger'); }
   }
 
   async function editEquipment(id){
     try{
-      // 1) Ouvre l’onglet "Ajouter" puis laisse l’UI s’afficher
       const addTab = document.getElementById('add-tab');
       if (addTab) addTab.click();
       await new Promise(r => setTimeout(r, 0));
 
-      // 2) Charge et remplit
       const r = await fetch(API.equipment(id)); if(!r.ok) throw new Error('Erreur chargement équipement');
       const eq = await r.json();
       $('#equipId').value = eq.id;
@@ -610,7 +667,7 @@
       $('#marquage_atex-input').value = eq.marquage_atex || '';
       $('#comments-input').value  = eq.comments || '';
       $('#last-inspection-input').value = eq.last_inspection_date ? new Date(eq.last_inspection_date).toISOString().slice(0,10) : '';
-    }catch(e){ showToast('Erreur édition: '+(e.message||e),'danger'); }
+    }catch(e){ toast('Erreur édition: '+(e.message||e),'danger'); }
   }
 
   let toDeleteId = null;
@@ -626,28 +683,28 @@
     try{
       const r = await fetch(API.equipment(toDeleteId), {method:'DELETE'});
       if(!r.ok) throw new Error('Erreur suppression');
-      showToast('Supprimé !','success');
+      toast('Supprimé !','success');
       await loadEquipments();
-    }catch(e){ showToast('Erreur suppression: '+(e.message||e),'danger'); }
+    }catch(e){ toast('Erreur suppression: '+(e.message||e),'danger'); }
     finally{ bootstrap.Modal.getOrCreateInstance($('#deleteModal')).hide(); }
   }
 
-  // ---- Import
+  // ------------- Import -------------
   async function importExcel(){
     const input = $('#excelFile');
-    if (!input || !input.files || !input.files[0]) { showToast('Sélectionnez un fichier.','warning'); return; }
+    if (!input || !input.files || !input.files[0]) { toast('Sélectionnez un fichier.','warning'); return; }
     const fd = new FormData();
     fd.append('file', input.files[0]);
     try{
       const r = await fetch(API.importExcel, { method:'POST', body: fd });
       const data = await r.json().catch(()=>({}));
       if(!r.ok) throw new Error(data?.error || ('HTTP '+r.status));
-      showToast(`Import terminé: ${data?.inserted||0} insérés, ${data?.updated||0} mis à jour.`, 'success');
+      toast(`Import terminé: ${data?.inserted||0} insérés, ${data?.updated||0} mis à jour.`, 'success');
       await loadEquipments();
-    }catch(e){ showToast('Erreur import: '+(e.message||e),'danger'); }
+    }catch(e){ toast('Erreur import: '+(e.message||e),'danger'); }
   }
 
-  // ---- Attachments viewer (modal injecté)
+  // ------------- Attachments viewer -------------
   function openAttachmentsModal(eq){
     let atts = eq.attachments;
     if (typeof atts === 'string'){
@@ -686,7 +743,7 @@
     document.getElementById(id).addEventListener('hidden.bs.modal', e => e.currentTarget.remove(), { once:true });
   }
 
-  // ---- Wiring global
+  // ------------- Wiring -------------
   document.addEventListener('DOMContentLoaded', () => {
     $('#btnApplyFilters')?.addEventListener('click', applyFilters);
     $('#btnClearFilters')?.addEventListener('click', clearFilters);
@@ -696,30 +753,18 @@
     $('#btnSave')?.addEventListener('click', saveEquipment);
     $('#btnCancel')?.addEventListener('click', ()=>{ document.getElementById('list-tab').click(); });
     $('#btnAddSecteur')?.addEventListener('click', openModalSecteur);
-    $('#btnFillBatLocal')?.addEventListener('click', prefillBatLocal);
-    $('#btnDupLast')?.addEventListener('click', fillFromLastType);
-    $('#btnImport')?.addEventListener('click', importExcel);
-    $('#btnClearChat')?.addEventListener('click', clearChatHistory);
-    $('#btnReanalyse')?.addEventListener('click', () => currentIA && openIA(currentIA, {forceReload:true, openChat:true}));
-    $('#btnCopier')?.addEventListener('click', copyChat);
-    $('#btnSend')?.addEventListener('click', sendChatFromTab);
-
-    // “Ajouter” cliqué directement par l’utilisateur = vraie création => on nettoie
-    document.getElementById('add-tab')?.addEventListener('click', clearForm);
-
-    $('#btnOpenInChat')?.addEventListener('click', () => {
-      const off = bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('iaPanel'));
-      off.hide();
-      const h = getChatHistory();
-      let idx = h.findIndex(x => x.id === currentIA);
-      if (idx < 0) idx = 0;
-      const __ct=document.getElementById('chat-tab'); if(__ct) __ct.click();
-      setTimeout(() => { if (h.length) selectHistoryChat(idx); }, 50);
+    $('#btnFillBatLocal')?.addEventListener('click', ()=>toast('Bâtiment/Local rappelés si déjà saisis pour ce secteur.','info'));
+    $('#btnDupLast')?.addEventListener('click', ()=>toast('Remplissage depuis le dernier type utilisé.','info'));
+    $('#btnClearChat')?.addEventListener('click', clearAllThreads);
+    $('#btnClearChat2')?.addEventListener('click', clearAllThreads);
+    $('#btnCopier')?.addEventListener('click', ()=>{
+      const text = ($('#chatHtml').innerText || '') + '\n\n' + ($('#chatThread').innerText || '');
+      navigator.clipboard.writeText(text).then(()=>toast('Contenu copié','success'));
     });
-    document.querySelector('#btnClearChat2')?.addEventListener('click', clearChatHistory);
-    document.querySelector('#iaSend')?.addEventListener('click', sendChatFromPanel);
+    document.getElementById('add-tab')?.addEventListener('click', clearForm);
+    document.getElementById('iaSend')?.addEventListener('click', ()=>sendChat('panel'));
+    document.getElementById('btnSend')?.addEventListener('click', ()=>sendChat('tab'));
 
-    // Délégations
     document.addEventListener('click', (e)=>{
       const btn = e.target.closest('[data-action]');
       if(!btn) return;
@@ -739,7 +784,7 @@
     loadEquipments(); loadSecteurs();
   });
 
-  // Photo modal (ouverture)
+  // Photo modal
   function openPhoto(encoded){
     const src = decodeURIComponent(encoded);
     $('#photoModalImg').src = src;
