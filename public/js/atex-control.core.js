@@ -1,852 +1,657 @@
+// /public/js/atex-control.core.js
 (function(){
 
-    if (window.lucide){ window.lucide.createIcons(); }
-
-    const API = {
-      secteurs: '/api/atex-secteurs',
-      equipments: '/api/atex-equipments',
-      equipment: (id) => '/api/atex-equipments/' + id,
-      importExcel: '/api/atex-import-excel',
-      importColumns: '/api/atex-import-columns',
-      importCsvTpl: '/api/atex-import-template',
-      importXlsxTpl: '/api/atex-import-template.xlsx',
-      inspect: '/api/atex-inspect',
-      help: (id) => '/api/atex-help/' + id,
-      chat: '/api/atex-chat',
-      photo: (id) => '/api/atex-photo/' + id
-    };
-
-    let equipments = [];
-    let currentIA = null;
-    const CHAT_KEY = 'atexIAHistoryV6';
-    const AUTO_CONTEXT_KEY = 'atexAutoContext';
-    const LAST_TYPE_KEY = 'atexLastType';
-
-    const $ = sel => document.querySelector(sel);
-    const $$ = sel => Array.from(document.querySelectorAll(sel));
-
-    function showToast(message, variant='primary'){
-      const id='t'+Date.now();
-      const html = `
-        <div id="${id}" class="toast text-bg-${variant} border-0 mb-2" role="alert">
-          <div class="d-flex">
-            <div class="toast-body">${message}</div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-          </div>
-        </div>`;
-      $('#toasts').insertAdjacentHTML('beforeend', html);
-      const t = new bootstrap.Toast($('#'+id), {delay:3000}); t.show();
-      setTimeout(()=> $('#'+id)?.remove(), 3500);
-    }
-
-    function fmtDate(d){
-      if(!d) return 'N/A';
-      const date = new Date(d); if(isNaN(date)) return d;
-      const dd=String(date.getDate()).padStart(2,'0'), mm=String(date.getMonth()+1).padStart(2,'0'), yyyy=date.getFullYear();
-      return `${dd}-${mm}-${yyyy}`;
-    }
-    function addYearsISO(dateISO, nbYears){
-      const d = new Date(dateISO);
-      if (isNaN(d)) return null;
-      d.setFullYear(d.getFullYear() + (nbYears||0));
-      return d.toISOString();
-    }
-    function stripCodeFences(s){
-      if(typeof s!=='string') return '';
-      return s.replace(/(?:html)?\s*[\r\n]?/gi,'').replace(/$/,'').trim();
-    }
-    function renderIAContent(el, raw){
-      let s = stripCodeFences(raw || '').trim();
-      const looksHTML = /<\/?[a-z][\s\S]*>/i.test(s);
-      if(!looksHTML){
-        s = s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\r?\n/g,"<br>");
-      }
-      el.innerHTML = s;
-    }
-
-    function computeStatus(nextDate){
-      if(!nextDate) return 'ok';
-      const d = new Date(nextDate); if(isNaN(d)) return 'ok';
-      const today = new Date(); today.setHours(0,0,0,0);
-      const dn = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      const diffDays = Math.round((dn - today)/(1000*60*60*24));
-      if (diffDays < 0) return 'late';
-      if (diffDays === 0) return 'today';
-      if (diffDays <= 30) return 'soon';
-      return 'ok';
-    }
-    function statusBadge(st){
-      if(st==='late') return '<span class="badge badge-st late">En retard</span>';
-      if(st==='today') return '<span class="badge badge-st today">Aujourd’hui</span>';
-      if(st==='soon') return '<span class="badge badge-st soon">Bientôt</span>';
-      return '<span class="badge badge-st ok">OK</span>';
-    }
-
-    // ===== PERSISTANCE =====
-    function getChatHistory(){ try{ return JSON.parse(localStorage.getItem(CHAT_KEY) || '[]'); }catch{return []} }
-    function setChatHistory(h){ localStorage.setItem(CHAT_KEY, JSON.stringify(h)); }
-    function addToHistory(item){
-      const h=getChatHistory();
-      const idx = h.findIndex(x=>x.id===item.id);
-      if (idx>=0) h[idx]=item; else h.unshift(item);
-      setChatHistory(h.slice(0,300));
-      renderHistory(); renderHistoryChat();
-    }
-    function getAutoContext(){ try{ return JSON.parse(localStorage.getItem(AUTO_CONTEXT_KEY) || '{}'); }catch{return {}} }
-    function setAutoContext(obj){ localStorage.setItem(AUTO_CONTEXT_KEY, JSON.stringify(obj||{})); }
-    function getLastType(){ try{ return JSON.parse(localStorage.getItem(LAST_TYPE_KEY) || '{}'); }catch{return {}} }
-    function setLastType(obj){ localStorage.setItem(LAST_TYPE_KEY, JSON.stringify(obj||{})); }
-
-    // ===== INIT =====
-    document.addEventListener('DOMContentLoaded', () => {
-      $('#btnApplyFilters').addEventListener('click', applyFilters);
-      $('#btnClearFilters').addEventListener('click', clearFilters);
-      $('#btnSync').addEventListener('click', loadEquipments);
-      $('#chkAll').addEventListener('change', toggleAll);
-      $('#btnBulkDelete').addEventListener('click', openBulkDelete);
-      $('#btnSave').addEventListener('click', saveEquipment);
-      $('#btnCancel').addEventListener('click', ()=>{ document.getElementById('list-tab').click(); });
-      $('#btnAddSecteur').addEventListener('click', openModalSecteur);
-      $('#btnFillBatLocal').addEventListener('click', prefillBatLocal);
-      $('#btnDupLast').addEventListener('click', fillFromLastType);
-      $('#btnImport').addEventListener('click', importExcel);
-      $('#btnClearChat').addEventListener('click', clearChatHistory);
-      $('#btnReanalyse').addEventListener('click', () => currentIA && openIA(currentIA, {forceReload:true, openChat:true}));
-      $('#btnCopier').addEventListener('click', copyChat);
-      $('#btnSend').addEventListener('click', sendChatFromTab);
-
-      $('#btnOpenInChat').addEventListener('click', () => {
-        const off = bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('iaPanel'));
-        off.hide();
-        const h = getChatHistory();
-        let idx = h.findIndex(x => x.id === currentIA);
-        if (idx < 0) idx = 0;
-        var __ct=document.getElementById('chat-tab'); if(__ct) __ct.click();
-        setTimeout(() => { if (h.length) selectHistoryChat(idx); }, 50);
-      });
-      var __c=document.querySelector('#btnClearChat2'); if(__c) __c.addEventListener('click', clearChatHistory);
-      var __s=document.querySelector('#iaSend'); if(__s) __s.addEventListener('click', sendChatFromPanel);
-
-      var __ct2=document.getElementById('chat-tab'); if(__ct2) __ct2.addEventListener('shown.bs.tab', () => {
-        const h = getChatHistory();
-        if (!h.length) return;
-        let idx = h.findIndex(x => x.id === currentIA);
-        if (idx < 0) idx = 0;
-        selectHistoryChat(idx);
-      });
-
-      loadSecteurs();
-      loadEquipments();
-      renderHistory(); renderHistoryChat();
-    });
-
-    // ===== LISTE =====
-    function hasIAHistory(id){
-      const h = getChatHistory();
-      const it = h.find(x=>x.id===id);
-      if (!it) return false;
-      const hasContent = !!(it.content && it.content.trim());
-      const hasThread  = Array.isArray(it.thread) && it.thread.length>0;
-      return hasContent || hasThread;
-    }
-
-    async function loadEquipments(){
-      try{
-        const r = await fetch(API.equipments);
-        if(!r.ok) throw new Error('Erreur chargement');
-        equipments = await r.json();
-
-        // Fallback prochaine date
-        equipments = (equipments||[]).map(eq=>{
-          if (!eq.next_inspection_date && eq.last_inspection_date){
-            const freq = Number(eq.frequence)||3;
-            const iso = addYearsISO(eq.last_inspection_date, freq);
-            if (iso) eq.next_inspection_date = iso;
-          }
-          return eq;
-        });
-
-        buildFilterLists();
-        renderTable();
-      }catch(e){ showToast('Erreur: '+(e.message||e),'danger'); }
-    }
-
-    function renderTable(list=equipments){
-      const tbody = $('#equipmentsTable'); tbody.innerHTML='';
-      list.forEach(eq=>{
-        const zg = eq.zone_gaz || (['0','1','2'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
-        const zd = (eq.zone_poussieres || eq.zone_poussiere) || (['20','21','22'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
-        const risk = eq.risque ?? '—';
-        const isNC = String(eq.conformite||'').toLowerCase().includes('non');
-        const confBadge = isNC ? `<span class="badge-conf ko">Non&nbsp;Conforme</span>` : `<span class="badge-conf ok">Conforme</span>`;
-        const st = computeStatus(eq.next_inspection_date);
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><input type="checkbox" class="rowchk" data-id="${eq.id}"></td>
-          <td>${eq.id ?? ''}</td>
-          <td>${eq.composant || ''}</td>
-          <td>${eq.secteur || ''}</td>
-          <td>${eq.batiment || ''}</td>
-          <td>${eq.local || ''}</td>
-          <td>${zg || '—'}</td>
-          <td>${zd || '—'}</td>
-          <td class="col-conf">${confBadge}</td>
-          <td>${statusBadge(st)}</td>
-          <td>${risk}</td>
-          <td>${fmtDate(eq.last_inspection_date)}</td>
-          <td>${fmtDate(eq.next_inspection_date)}</td>
-          <td>${eq.photo ? `<img class="last-photo" src="${eq.photo}" alt="Photo" data-action="open-photo" data-src="${encodeURIComponent(eq.photo)}">` : '<span class="text-muted">—</span>'}</td>
-          <td class="actions">
-            <button class="btn btn-sm btn-outline-primary" data-action="edit-equipment" data-id="${eq.id}" title="Éditer"><i data-lucide="edit-3"></i></button>
-            <button class="btn btn-sm btn-outline-danger" data-action="delete-equipment" data-id="${eq.id}" data-label="${(eq.composant||'').replace(/\"/g,'&quot;')}" title="Supprimer"><i data-lucide="trash-2"></i></button>
-            <button class="btn btn-sm ${eq.has_ia_history ? 'btn-success' : (String(eq.conformite||'').toLowerCase().includes('non') ? 'btn-warning' : 'btn-outline-secondary')}" data-action="open-ia" data-id="${eq.id}" title="IA Analysis"><i data-lucide="sparkles"></i> IA</button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-      window.lucide?.createIcons();
-      $$('.rowchk').forEach(c => c.addEventListener('change', updateBulkBtn));
-    }
-
-    // ===== FILTRES =====
-    const activeFilters = { secteurs: new Set(), batiments: new Set(), conformites: new Set(), statut: new Set(), text: '' };
-    function buildFilterLists(){
-      const secteurs = [...new Set(equipments.map(e=>e.secteur).filter(Boolean))].sort();
-      const bats = [...new Set(equipments.map(e=>e.batiment).filter(Boolean))].sort();
-
-      const secBox = $('#dd-secteurs'); secBox.innerHTML='';
-      secteurs.forEach((s,i)=>{
-        const id='cks_'+i;
-        secBox.insertAdjacentHTML('beforeend', `<div class="form-check"><input class="form-check-input" type="checkbox" value="${s}" id="${id}"><label class="form-check-label" for="${id}">${s}</label></div>`);
-      });
-      secBox.querySelectorAll('input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.secteurs, inp.value, inp.checked)));
-
-      const batBox = $('#dd-batiments'); batBox.innerHTML='';
-      bats.forEach((s,i)=>{
-        const id='ckb_'+i;
-        batBox.insertAdjacentHTML('beforeend', `<div class="form-check"><input class="form-check-input" type="checkbox" value="${s}" id="${id}"><label class="form-check-label" for="${id}">${s}</label></div>`);
-      });
-      batBox.querySelectorAll('input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.batiments, inp.value, inp.checked)));
-
-      $$('#dd-conformite input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.conformites, inp.value, inp.checked)));
-      $$('#dd-statut input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.statut, inp.value, inp.checked)));
-
-      $('#filterText').addEventListener('input', (e)=>{ activeFilters.text = e.target.value.toLowerCase(); renderPills(); applyFilters(); });
-      renderPills();
-    }
-    function toggleFilterSet(set, value, checked){ if(checked) set.add(value); else set.delete(value); renderPills(); }
-    function clearFilters(){
-      activeFilters.secteurs.clear(); activeFilters.batiments.clear();
-      activeFilters.conformites.clear(); activeFilters.statut.clear(); activeFilters.text='';
-      $$('#dd-secteurs input, #dd-batiments input, #dd-conformite input, #dd-statut input').forEach(i=>i.checked=false);
-      $('#filterText').value=''; renderPills(); applyFilters();
-    }
-    function renderPills(){
-      const box = $('#activePills'); box.innerHTML='';
-      const pill = (l)=>`<span class="badge text-bg-light">${l}</span>`;
-      activeFilters.secteurs.forEach(s=> box.insertAdjacentHTML('beforeend', pill('Secteur: '+s)));
-      activeFilters.batiments.forEach(s=> box.insertAdjacentHTML('beforeend', pill('Bâtiment: '+s)));
-      activeFilters.conformites.forEach(s=> box.insertAdjacentHTML('beforeend', pill('Conf: '+s)));
-      activeFilters.statut.forEach(s=> {
-        const m = {late:'En retard', today:'Aujourd’hui', soon:'Bientôt', ok:'OK'}; box.insertAdjacentHTML('beforeend', pill('Statut: '+(m[s]||s)));
-      });
-      if (activeFilters.text) box.insertAdjacentHTML('beforeend', pill('Texte: '+activeFilters.text));
-    }
-    function applyFilters(){
-      let filtered = equipments.slice();
-      if(activeFilters.secteurs.size) filtered = filtered.filter(e=> activeFilters.secteurs.has(e.secteur));
-      if(activeFilters.batiments.size) filtered = filtered.filter(e=> activeFilters.batiments.has(e.batiment));
-      if(activeFilters.conformites.size) filtered = filtered.filter(e=> activeFilters.conformites.has(e.conformite));
-      if(activeFilters.statut.size) filtered = filtered.filter(e=> activeFilters.statut.has(computeStatus(e.next_inspection_date)));
-      if(activeFilters.text) filtered = filtered.filter(e=>{
-        const blob = [e.composant,e.type,e.marquage_atex,e.identifiant,e.comments].join(' ').toLowerCase();
-        return blob.includes(activeFilters.text);
-      });
-      renderTable(filtered);
-    }
-
-    // ===== BULK DELETE =====
-    function updateBulkBtn(){ const sel = $$('.rowchk:checked').map(i=>+i.dataset.id); $('#btnBulkDelete').disabled = sel.length===0; }
-    function toggleAll(e){ const checked = e.target.checked; $$('.rowchk').forEach(c=>{ c.checked = checked; }); updateBulkBtn(); }
-    function openBulkDelete(){
-      const sel = $$('.rowchk:checked').map(i=>+i.dataset.id);
-      if(!sel.length) return;
-      $('#deleteMsg').textContent = `Supprimer ${sel.length} équipement(s) sélectionné(s) ?`;
-      $('#deleteMeta').textContent = 'IDs: ' + sel.join(', ');
-      bootstrap.Modal.getOrCreateInstance($('#deleteModal')).show();
-      $('#confirmDeleteBtn').addEventListener('click', () => confirmBulkDelete(sel), { once: true });
-    }
-    async function confirmBulkDelete(ids){
-      try{
-        await Promise.all(ids.map(id => fetch(API.equipment(id), {method:'DELETE'})));
-        showToast('Suppression en masse OK','success');
-        await loadEquipments();
-      }catch(e){ showToast('Erreur suppression masse: '+(e.message||e),'danger'); }
-      finally{ bootstrap.Modal.getOrCreateInstance($('#deleteModal')).hide(); }
-    }
-
-    // ===== SECTEURS / PREFILL =====
-    async function loadSecteurs(){
-      try{
-        const r = await fetch(API.secteurs);
-        const secteurs = await r.json();
-        const sel = $('#secteur-input');
-        sel.innerHTML = '<option value="" disabled selected>— Sélectionner —</option>';
-        secteurs.forEach(s=>{
-          const name = (typeof s === 'string') ? s : (s && s.name) ? s.name : '';
-          if(!name) return;
-          const o=document.createElement('option'); o.value=name; o.text=name; sel.appendChild(o);
-        });
-      }catch{}
-    }
-    function openModalSecteur(){
-      const html=`
-      <div class="modal fade" id="modalSecteur" tabindex="-1">
-        <div class="modal-dialog"><div class="modal-content">
-          <div class="modal-header"><h5 class="modal-title">Nouveau secteur</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-          <div class="modal-body">
-            <input id="newSecteurName" class="form-control" placeholder="Nom du secteur">
-            <div id="secteurSaveMsg" class="small-muted mt-2"></div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-            <button class="btn btn-primary" id="saveSecteurBtn">Enregistrer</button>
-          </div>
-        </div></div>
-      </div>`;
-      document.body.insertAdjacentHTML('beforeend', html);
-      const el = $('#modalSecteur'), modal = new bootstrap.Modal(el); modal.show();
-      el.querySelector('#saveSecteurBtn').addEventListener('click', async ()=>{
-        const name=(el.querySelector('#newSecteurName').value||'').trim();
-        if(!name){ el.querySelector('#secteurSaveMsg').textContent='Nom requis.'; return; }
-        try{
-          const r = await fetch(API.secteurs,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
-          if(!r.ok) throw new Error('Erreur API');
-          await loadSecteurs(); $('#secteur-input').value=name; showToast('Secteur enregistré','success'); modal.hide(); el.remove();
-        }catch(err){ el.querySelector('#secteurSaveMsg').textContent='Erreur: '+(err.message||err); }
-      }, {once:true});
-      el.addEventListener('hidden.bs.modal', ()=> el.remove(), {once:true});
-    }
-    function prefillBatLocal(){
-      const ctx = getAutoContext();
-      const secteur = $('#secteur-input').value || '';
-      const last = ctx[secteur] || {};
-      if(last.batiment) $('#batiment-input').value = last.batiment;
-      if(last.local) $('#local-input').value = last.local;
-    }
-    function fillFromLastType(){
-      const last = getLastType();
-      if(last.composant) $('#composant-input').value = last.composant;
-      if(last.fournisseur) $('#fournisseur-input').value = last.fournisseur;
-      if(last.type) $('#type-input').value = last.type;
-      showToast('Champs remplis depuis le dernier type enregistré.','info');
-    }
-
-    // ===== ENREGISTREMENT =====
-    async function resizeImageToDataURL(file, maxW=1600, maxH=1600, quality=0.85){
-      return await new Promise((resolve,reject)=>{
-        if(!file || !file.type.startsWith('image/')) return resolve(null);
-        const img = new Image();
-        const url = URL.createObjectURL(file);
-        img.onload = ()=>{
-          let {width:w, height:h} = img;
-          const ratio = Math.min(maxW/w, maxH/h, 1);
-          const canvas = document.createElement('canvas');
-          canvas.width = Math.round(w*ratio);
-          canvas.height = Math.round(h*ratio);
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img,0,0,canvas.width,canvas.height);
-          const dataUrl = canvas.toDataURL('image/jpeg', quality);
-          URL.revokeObjectURL(url);
-          resolve(dataUrl);
-        };
-        img.onerror = reject;
-        img.src = url;
-      });
-    }
-    async function uploadPhotoMultipart(id, file){
-      const fd = new FormData(); fd.append('photo', file);
-      const r = await fetch(API.photo(id), { method: 'POST', body: fd });
-      if(!r.ok) throw new Error('Upload photo: '+r.status);
-      return await r.json();
-    }
-    async function saveEquipment(){
-      const required=['secteur-input','local-input','composant-input','fournisseur-input','type-input','marquage_atex-input'];
-      const missing=required.filter(id=>!$('#'+id).value);
-      if(missing.length){ showToast('Champs manquants : '+missing.join(', '),'warning'); return; }
-
-      const id = $('#equipId').value || null;
-      const zone_g = $('#zone-g-input').value || '';
-      const zone_d = $('#zone-d-input').value || '';
-
-      // mémos
-      const secteur = $('#secteur-input').value;
-      const ctx = getAutoContext(); ctx[secteur] = { batiment: $('#batiment-input').value, local: $('#local-input').value }; setAutoContext(ctx);
-      setLastType({ composant: $('#composant-input').value, fournisseur: $('#fournisseur-input').value, type: $('#type-input').value });
-
-      const file = $('#photo-input').files[0] || null;
-      let photoBase64 = null;
-      if (file && file.size > 180*1024 && id) {
-        try { await uploadPhotoMultipart(id, file); showToast('Photo envoyée (multipart)','success'); }
-        catch (e) { showToast('Échec upload photo: '+(e.message||e),'danger'); }
-      } else if (file) {
-        photoBase64 = await resizeImageToDataURL(file);
-      }
-
-      const data = {
-        secteur, batiment: $('#batiment-input').value, local: $('#local-input').value,
-        composant: $('#composant-input').value, fournisseur: $('#fournisseur-input').value,
-        type: $('#type-input').value, identifiant: $('#identifiant-input').value,
-        marquage_atex: $('#marquage_atex-input').value, comments: $('#comments-input').value,
-        zone_gaz: zone_g || null, zone_poussieres: zone_d || null, zone_poussiere: zone_d || null,
-        photo: photoBase64
-      };
-
-      const method = id ? 'PUT' : 'POST';
-      const url = id ? API.equipment(id) : API.equipments;
-
-      try{
-        const r = await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-        if(!r.ok) {
-          const errTxt = await r.text();
-          if (r.status===413 || /trop volumineuse|too large/i.test(errTxt)) {
-            showToast('Image trop lourde. Enregistre, puis ré‑ajoute la photo (multipart).','warning');
-          } else {
-            throw new Error('Erreur enregistrement');
-          }
-        }
-        const saved = await r.json();
-        if (!id && file && file.size > 180*1024 && saved?.id) { await uploadPhotoMultipart(saved.id, file); }
-
-        const last = $('#last-inspection-input').value;
-        if(last){
-          await fetch(API.inspect,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({equipment_id:saved.id,status:'done',inspection_date:last})});
-        }
-        showToast('Équipement sauvegardé.','success');
-        await loadEquipments(); document.getElementById('list-tab').click();
-      }catch(e){ showToast('Erreur: '+(e.message||e),'danger'); }
-    }
-
-    async function editEquipment(id){
-      try{
-        const r = await fetch(API.equipment(id)); if(!r.ok) throw new Error('Erreur chargement équipement');
-        const eq = await r.json();
-        $('#equipId').value = eq.id;
-        $('#secteur-input').value = eq.secteur || '';
-        $('#batiment-input').value = eq.batiment || '';
-        $('#local-input').value = eq.local || '';
-        $('#zone-g-input').value = eq.zone_gaz || (['0','1','2'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
-        $('#zone-d-input').value = (eq.zone_poussieres || eq.zone_poussiere) || (['20','21','22'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
-        $('#composant-input').value = eq.composant || '';
-        $('#fournisseur-input').value = eq.fournisseur || '';
-        $('#type-input').value = eq.type || '';
-        $('#identifiant-input').value = eq.identifiant || '';
-        $('#marquage_atex-input').value = eq.marquage_atex || '';
-        $('#comments-input').value = eq.comments || '';
-        $('#last-inspection-input').value = eq.last_inspection_date ? new Date(eq.last_inspection_date).toISOString().slice(0,10) : '';
-        $('#add-tab').click();
-      }catch(e){ showToast('Erreur édition: '+(e.message||e),'danger'); }
-    }
-
-    // SUPPRESSION simple
-    let toDeleteId = null;
-    function openDeleteModal(id, label=''){
-      toDeleteId=id;
-      $('#deleteMsg').textContent = 'Voulez-vous vraiment supprimer cet équipement ATEX ?';
-      $('#deleteMeta').textContent = label ? `Équipement : ${label} (ID ${id})` : `ID ${id}`;
-      bootstrap.Modal.getOrCreateInstance($('#deleteModal')).show();
-      $('#confirmDeleteBtn').addEventListener('click', confirmDeleteOne, { once: true });
-    }
-    async function confirmDeleteOne(){
-      if(!toDeleteId) return;
-      try{
-        const r = await fetch(API.equipment(toDeleteId), {method:'DELETE'});
-        if(!r.ok) throw new Error('Erreur suppression');
-        showToast('Supprimé !','success'); await loadEquipments();
-      }catch(e){ showToast('Erreur: '+(e.message||e),'danger'); }
-      finally{
-        bootstrap.Modal.getOrCreateInstance($('#deleteModal')).hide(); toDeleteId=null;
-      }
-    }
-    window.openDeleteModal = openDeleteModal;
-
-    // IMPORT
-    async function importExcel(){
-      const f = $('#excelFile').files[0];
-      if(!f) return showToast('Sélectionnez un fichier (CSV/Excel)','warning');
-      const fd = new FormData(); fd.append('excel', f);
-      try{
-        const r = await fetch(API.importExcel,{method:'POST',body:fd});
-        if(!r.ok) throw new Error('Erreur import');
-        showToast('Import réussi !','success'); await loadEquipments();
-      }catch(e){ showToast('Erreur import: '+(e.message||e),'danger'); }
-    }
-
-    // IA (inchangé hors contenus)
-    function renderBadges(eq){
-      const box = document.querySelector('#iaPanel .ia-badges'); box.innerHTML='';
-      const wrap = document.createElement('div');
-      wrap.className='ia-badges';
-      wrap.innerHTML = `
-        <span class="badge ${String(eq.conformite||'').toLowerCase().includes('non')?'text-bg-danger':'text-bg-success'}">${eq.conformite||'N/A'}</span>
-        <span class="badge text-bg-secondary">Risque ${eq.risque ?? '-'}</span>
-        <span class="badge text-bg-secondary">G:${eq.zone_gaz||'-'} / D:${eq.zone_poussieres||'-'}</span>
-      `;
-      document.querySelector('#iaPanel .ia-badges').replaceWith(wrap);
-    }
-    function getThread(id){ const h=getChatHistory(); const it=h.find(x=>x.id===id); return (it && it.thread)||[]; }
-    function setThread(id, thread){
-      const h=getChatHistory(); let it=h.find(x=>x.id===id);
-      if(!it){ it={id, content:'', meta:{}, thread:[], enriched:null, composant:'Équipement', date:new Date().toISOString()}; h.unshift(it); }
-      it.thread = thread; setChatHistory(h);
-    }
-    function renderThread(el, thread){
-      el.innerHTML = '';
-      thread.forEach(m=>{
-        const div = document.createElement('div');
-        div.className = 'msg ' + (m.role==='user'?'user':'ia');
-        if(m.role==='assistant'){
-          const holder = document.createElement('div');
-          renderIAContent(holder, m.content);
-          div.innerHTML = holder.innerHTML;
-        }else{
-          div.textContent = m.content;
-        }
-        el.appendChild(div);
-      });
-      el.scrollTop = el.scrollHeight;
-    }
-    function buildLocalEnrichmentChat(eq){
-      // … (identique à ta version précédente, conservé) …
-      return { reasons:[], palliatives:[], preventives:[], refs:[], costs:[] };
-    }
-    async function openIA(id, opts={}){
-      currentIA = id;
-      const off = bootstrap.Offcanvas.getOrCreateInstance($('#iaPanel')); off.show();
-      $('#iaHeader').textContent = ''; $('#iaDetails').style.display='none'; $('#iaLoading').style.display='block';
-
-      try{
-        const [eqR, helpR] = await Promise.all([ fetch(API.equipment(id)), fetch(API.help(id)) ]);
-        if(!eqR.ok) throw new Error('Équipement introuvable');
-        const eq = await eqR.json();
-        const help = await helpR.json();
-
-        $('#iaHeader').textContent = `${eq.composant || 'Équipement'} — ID ${eq.id} • Dernière: ${fmtDate(eq.last_inspection_date)} • Prochaine: ${fmtDate(eq.next_inspection_date)}`;
-        renderBadges(eq);
-
-        const cleaned = stripCodeFences(help?.response || 'Aucune analyse IA disponible.');
-        renderIAContent(document.getElementById('iaDetails'), cleaned);
-
-        try{ document.getElementById('chatEnriched').style.display='none'; }catch(_){}
-
-        addToHistory({
-          id: eq.id, composant: eq.composant || 'Équipement', date: new Date().toISOString(),
-          content: cleaned, enriched: null,
-          meta: { conformite: eq.conformite || 'N/A', risque: eq.risque ?? '-', zone_g: eq.zone_gaz||'-', zone_d: eq.zone_poussieres||'-', last: fmtDate(eq.last_inspection_date), next: fmtDate(eq.next_inspection_date) },
-          thread: getThread(eq.id)
-        });
-
-        $('#iaLoading').style.display='none'; $('#iaDetails').style.display='block';
-        renderThread(document.getElementById('iaThread'), getThread(eq.id));
-
-        if(opts.openChat){ var __ct=document.getElementById('chat-tab'); if(__ct) __ct.click(); setTimeout(()=>selectHistoryChat(0),60); }
-      }catch(e){
-        $('#iaLoading').style.display='none';
-        $('#iaDetails').style.display='block';
-        renderIAContent(document.getElementById('iaDetails'), `<div class="alert alert-danger">Erreur IA: ${e.message||e}</div>`);
-      }
-    }
-    window.openIA = openIA;
-
-    function renderHistory(activeId=null){
-      const list = $('#iaHistoryList'); list.innerHTML='';
-      const h=getChatHistory(); if(!h.length){ list.innerHTML='<li class="list-group-item text-muted">Aucun historique.</li>'; return; }
-      h.forEach((it,idx)=>{
-        const li=document.createElement('li');
-        li.className='list-group-item ia-item'+(it.id===activeId?' active':'');
-        li.textContent = `${it.composant || 'Équipement'} • ${new Date(it.date).toLocaleString('fr-FR')}`;
-        li.title='Réouvrir cette analyse';
-        li.addEventListener('click', () => {
-          renderIAContent(document.getElementById('iaDetails'), it.content);
-          renderThread(document.getElementById('iaThread'), it.thread||[]);
-          $$('#iaHistoryList .ia-item').forEach(x=>x.classList.remove('active'));
-          li.classList.add('active'); currentIA = it.id;
-          var __ct=document.getElementById('chat-tab'); if(__ct) __ct.click();
-          selectHistoryChat(idx);
-        });
-        list.appendChild(li);
-      });
-    }
-    function renderHistoryChat(){
-      const list = $('#iaHistoryListChat'); list.innerHTML='';
-      const h=getChatHistory(); if(!h.length){ list.innerHTML='<li class="list-group-item text-muted">Aucun historique.</li>'; return; }
-      h.forEach((it,idx)=>{
-        const li=document.createElement('li');
-        li.className='list-group-item d-flex flex-column';
-        li.style.cursor='pointer';
-        li.innerHTML = `<div><strong>${it.composant || 'Équipement'}</strong></div><div class="small-muted">${new Date(it.date).toLocaleString('fr-FR')}</div>`;
-        li.addEventListener('click', () => selectHistoryChat(idx));
-        list.appendChild(li);
-      });
-    }
-    function selectHistoryChat(index){
-      const h=getChatHistory(); const it=h[index]; if(!it) return;
-      currentIA = it.id;
-      document.getElementById('chatHeader').textContent = `${it.composant || 'Équipement'} — ID ${it.id} • Dernière: ${it.meta?.last||'-'} • Prochaine: ${it.meta?.next||'-'}`;
-      renderIAContent(document.getElementById('chatHtml'), it.content || '—'); document.getElementById('chatEnriched').style.display='block'; try{ buildLocalEnrichmentChat({ conformite: it.meta?.conformite, zone_gaz: it.meta?.zone_g, zone_poussieres: it.meta?.zone_d, marquage_atex: '' }); }catch(_){}
-      renderThread(document.getElementById('chatThread'), it.thread||[]);
-    }
-    function clearChatHistory(){
-      setChatHistory([]); document.getElementById('iaDetails').innerHTML=''; document.getElementById('chatHtml').innerHTML='';
-      document.getElementById('chatHeader').textContent=''; document.getElementById('chatThread').innerHTML='';
-      renderHistory(); renderHistoryChat(); showToast('Historique effacé','info');
-    }
-    function copyChat(){
-      const text = (document.getElementById('chatHtml').innerText || '') + '\n\n' + (document.getElementById('chatThread').innerText || '');
-      navigator.clipboard.writeText(text).then(()=>showToast('Contenu copié','success'));
-    }
-    async function sendChatFromTab(){ const text = ($('#chatPrompt').value || '').trim(); if(!text || !currentIA) return; await sendChat(text, 'tab'); $('#chatPrompt').value=''; }
-    async function sendChatFromPanel(){ const text = ($('#iaPrompt').value || '').trim(); if(!text || !currentIA) return; await sendChat(text, 'panel'); $('#iaPrompt').value=''; }
-    async function sendChat(text, origin){
-      try{
-        const eqR = await fetch(API.equipment(currentIA)); if(!eqR.ok) throw new Error('Équipement introuvable');
-        const eq = await eqR.json();
-
-        const h = getChatHistory(); const item = h.find(x=>x.id===currentIA);
-        const historyForApi = (item?.thread || []).map(m=>({ role: m.role==='assistant'?'assistant':'user', content: m.content }));
-        const resp = await fetch(API.chat, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ question: text, equipment: null, history: historyForApi }) });
-        const data = await resp.json(); const iaText = data?.response || 'Réponse indisponible.';
-
-        const thread = getThread(currentIA); thread.push({role:'user', content:text}); thread.push({role:'assistant', content:iaText}); setThread(currentIA, thread);
-        renderThread(origin==='panel' ? document.getElementById('iaThread') : document.getElementById('chatThread'), thread);
-      }catch(e){ showToast('Erreur chat: '+(e.message||e),'danger'); }
-    }
-
-    // Photo modal
-    function openPhoto(encoded){ const src = decodeURIComponent(encoded); $('#photoModalImg').src = src; $('#photoDownload').href = src; bootstrap.Modal.getOrCreateInstance($('#photoModal')).show(); }
-    window.openPhoto = openPhoto;
-  
-    // === AutonomiX IA helpers (restored) ===
-    document.addEventListener('click', function(e){
-      if(e.target && e.target.id === 'btnPartLinks'){ e.preventDefault(); buildPartLinks(); }
-    });
-
-    function buildPartLinks(){
-      const type = (document.getElementById('partType')?.value || '').toLowerCase();
-      const holder = document.getElementById('partLinks');
-      if(!holder) return;
-      let links = [];
-      if(type === 'capteur'){
-        links = [
-          { label: 'IFM PN7092 — capteur pression ATEX', href: 'https://www.ifm.com/' },
-          { label: 'RS UK — recherche capteur pression ATEX', href: 'https://uk.rs-online.com/' }
-        ];
-      }else if(type === 'boite_e'){
-        links = [
-          { label: 'R. STAHL — Boîtes de jonction Ex e', href: 'https://r-stahl.com/' },
-          { label: 'RS UK — coffrets Ex e', href: 'https://uk.rs-online.com/' }
-        ];
-      }else if(type === 'boite_d'){
-        links = [
-          { label: 'R. STAHL — Boîtes de jonction Ex d', href: 'https://r-stahl.com/' },
-          { label: 'RS UK — coffrets Ex d', href: 'https://uk.rs-online.com/' }
-        ];
-      }else if(type === 'formation'){
-        links = [
-          { label: 'Formation / Audit ATEX (recherche)', href: 'https://www.google.com/search?q=formation+ATEX+audit' }
-        ];
-      }
-      holder.innerHTML = links.map(l => `<a class="d-block" href="${l.href}" target="_blank" rel="noopener">${l.label}</a>`).join('') || '<div class="text-muted">Aucun lien pour ce type.</div>';
-    }
-
-    function requiredCategoryForZone(zg, zd){
-      const zgNum = String(zg||'').replace(/[^0-9]/g,'') || '';
-      const zdNum = String(zd||'').replace(/[^0-9]/g,'') || '';
-      if(zgNum === '0' || zdNum === '20') return 'II 1GD';
-      if(zgNum === '1' || zdNum === '21') return 'II 2GD';
-      return 'II 3GD';
-    }
-
-    function buildDynamicSuggestions(eq){
-      const cont = document.getElementById('autoLinks');
-      if(!cont) return;
-      cont.innerHTML = '';
-      const isNC = String(eq?.conformite || '').toLowerCase().includes('non');
-      if(!isNC){ cont.innerHTML = '<div class="text-muted small">Aucune suggestion (équipement conforme).</div>'; return; }
-
-      const req = requiredCategoryForZone(eq?.zone_gaz, eq?.zone_poussieres);
-      const items = [];
-      const comp = (eq?.composant || '').toLowerCase();
-
-      if(comp.includes('pression') || comp.includes('capteur')){
-        items.push({ label: 'Capteur de pression ATEX — IFM PN7092 (réf.)', href: 'https://www.ifm.com/' });
-      }
-      items.push({ label: 'Boîte de jonction Ex e — R. STAHL', href: 'https://r-stahl.com/' });
-      items.push({ label: 'Boîte de jonction Ex d — R. STAHL', href: 'https://r-stahl.com/' });
-      items.push({ label: 'Distributeur — RS UK (recherche par référence)', href: 'https://uk.rs-online.com/' });
-
-      cont.innerHTML = `
-        <div class="small mb-2 text-muted">Catégorie requise estimée : ${req}</div>
-        ${items.map(it => `<a class="d-block" href="${it.href}" target="_blank" rel="noopener">${it.label}</a>`).join('')}
-      `;
-    }
-
-    // Override buildLocalEnrichmentChat to actually populate cards and trigger auto-links
-    if (typeof buildLocalEnrichmentChat !== 'function') {
-      // ensure function exists
-      function buildLocalEnrichmentChat(){}
-    }
-    (function(){
-      const original = buildLocalEnrichmentChat;
-      buildLocalEnrichmentChat = function(eq){
-        const reasons = [];
-        const palliatives = [];
-        const preventives = [];
-        const refs = [];
-        const costs = [];
-
-        const isNC = String(eq?.conformite || '').toLowerCase().includes('non');
-        const zg = eq?.zone_gaz || eq?.zone_type || '';
-        const zd = eq?.zone_poussieres || eq?.zone_poussiere || '';
-
-        if(isNC){ reasons.push('Non‑conformité déclarée sur la fiche.'); }
-        else { reasons.push('Aucune non‑conformité déclarée.'); }
-        if(zg) reasons.push('Présence de zone gaz: ' + zg);
-        if(zd) reasons.push('Présence de zone poussières: ' + zd);
-        if(eq?.marquage_atex) reasons.push('Marquage actuel: ' + eq.marquage_atex);
-
-        if(isNC){
-          palliatives.push('Sécuriser la zone et éviter toute source d’inflammation.');
-          palliatives.push('Mettre en place une surveillance accrue jusqu’au remplacement.');
-          preventives.push('Choisir matériel avec marquage compatible (Ex, catégorie, T‑class).');
-          preventives.push('Mettre à jour documentation & marquage local.');
-          refs.push('Directive ATEX 2014/34/UE — catégories 1/2/3 (Ga/Gb/Gc).');
-          costs.push('Capteur ATEX: £150–£350 (indicatif)');
-          costs.push('Boîte Ex e/d: £80–£250 (indicatif)');
-        }else{
-          palliatives.push('Aucune mesure palliative requise.');
-          preventives.push('Maintenir la conformité via inspection périodique.');
-        }
-
-        const mapList = (arr)=> arr.map(x=>`<li>${x}</li>`).join('') || '<li>—</li>';
-        const el = (id)=> document.getElementById(id);
-
-        if(el('chatWhy')) el('chatWhy').innerHTML = '<ul>'+mapList(reasons)+'</ul>';
-        if(el('chatPalliative')) el('chatPalliative').innerHTML = mapList(palliatives);
-        if(el('chatPreventive')) el('chatPreventive').innerHTML = mapList(preventives);
-        if(el('chatRefs')) el('chatRefs').innerHTML = mapList(refs);
-        if(el('chatCosts')) el('chatCosts').innerHTML = mapList(costs);
-
-        try { buildDynamicSuggestions(eq); } catch(e){}
-        return { reasons, palliatives, preventives, refs, costs };
-      };
-    })();
-
-    // === Attachment Viewer (Lightbox) ===
-    let _attList = [], _attIndex = 0, _attViewerModal;
-    function openAttachmentById(attId){
-      const idx = _attList.findIndex(a => a.id === attId);
-      if (idx >= 0){ _attIndex = idx; openAttachment(_attIndex); }
-    }
-    function openAttachment(index){
-      if(!_attList.length) return;
-      _attIndex = (index + _attList.length) % _attList.length;
-      const att = _attList[_attIndex];
-      const stage = document.getElementById('attViewerStage');
-      const title = document.getElementById('attViewerTitle');
-      const meta  = document.getElementById('attViewerMeta');
-      const openA = document.getElementById('attOpen');
-      stage.innerHTML = '';
-      title.textContent = att.name || 'Aperçu';
-      meta.textContent = (att.mime || 'application/octet-stream') + ' — ' + (att.name || '');
-      openA.href = att.url;
-
-      const isImg = /^image\//.test(att.mime || '') || /\.(png|jpe?g|webp|gif)$/i.test(att.name||'');
-      const isPdf = (att.mime === 'application/pdf') || /\.pdf$/i.test(att.name||'');
-
-      if (isImg){
-        const img = document.createElement('img');
-        img.src = att.url;
-        img.alt = att.name || '';
-        img.className = 'img-fluid';
-        stage.appendChild(img);
-      } else if (isPdf){
-        const iframe = document.createElement('iframe');
-        iframe.src = att.url;
-        iframe.title = att.name || 'PDF';
-        iframe.style = 'width:100%; height:100%; border:0; background:#222;';
-        stage.appendChild(iframe);
-      } else {
-        const box = document.createElement('div');
-        box.className = 'text-center text-white-50 p-4';
-        box.innerHTML = '<div class="mb-2"><i data-lucide="file"></i></div><div>Ce format ne peut pas être prévisualisé ici.</div>';
-        stage.appendChild(box);
-      }
-
-      if (window.lucide) lucide.createIcons();
-      const el = document.getElementById('attViewerModal');
-      _attViewerModal = bootstrap.Modal.getOrCreateInstance(el);
-      _attViewerModal.show();
-    }
-
-    document.addEventListener('click', (e)=>{
-      if(e.target && e.target.id === 'attPrev'){ e.preventDefault(); openAttachment(_attIndex-1); }
-      if(e.target && e.target.id === 'attNext'){ e.preventDefault(); openAttachment(_attIndex+1); }
-    });
-
-})();
-
-
-// Delegated actions for table buttons and images (CSP-friendly)
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action]');
-  if (!btn) return;
-  const action = btn.getAttribute('data-action');
-  if (action === 'edit-equipment') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if(!isNaN(id)) editEquipment(id); return; }
-  if (action === 'delete-equipment') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); const label = btn.getAttribute('data-label')||''; if(!isNaN(id)) openDeleteModal(id,label); return; }
-  if (action === 'open-ia') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if(!isNaN(id)) openIA(id); return; }
-  if (action === 'open-photo') { e.preventDefault(); const src = btn.getAttribute('data-src')||''; if (src) openPhoto(src); return; }
-});
-
-
-// ---- Expose actions globally for delegated handlers (CSP-safe) ----
-try {
-  if (typeof editEquipment === 'function') window.editEquipment = editEquipment;
-  if (typeof openDeleteModal === 'function') window.openDeleteModal = openDeleteModal;
-  if (typeof openIA === 'function') window.openIA = openIA;
-  if (typeof openPhoto === 'function') window.openPhoto = openPhoto;
-} catch(_) {}
-
-
-// Robust delegated handler (CSP-safe) — uses window.* fallbacks
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action]');
-  if (!btn) return;
-  const action = btn.getAttribute('data-action');
-
-  const call = (name, ...args) => {
-    if (typeof window[name] === 'function') return window[name](...args);
-    if (typeof globalThis[name] === 'function') return globalThis[name](...args);
-    try { const fn = eval(name); if (typeof fn === 'function') return fn(...args); } catch {}
-    console.warn(`[actions] ${name} indisponible`);
+  if (window.lucide){ window.lucide.createIcons(); }
+
+  const API = {
+    secteurs: '/api/atex-secteurs',
+    equipments: '/api/atex-equipments',
+    equipment: (id) => '/api/atex-equipments/' + id,
+    importExcel: '/api/atex-import-excel',
+    importColumns: '/api/atex-import-columns',
+    importCsvTpl: '/api/atex-import-template',
+    importXlsxTpl: '/api/atex-import-template.xlsx',
+    inspect: '/api/atex-inspect',
+    help: (id) => '/api/atex-help/' + id,
+    chat: '/api/atex-chat',
+    photo: (id) => '/api/atex-photo/' + id
   };
 
-  if (action === 'edit-equipment')  { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if (!isNaN(id)) call('editEquipment', id); return; }
-  if (action === 'delete-equipment') { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); const label = btn.getAttribute('data-label')||''; if (!isNaN(id)) call('openDeleteModal', id, label); return; }
-  if (action === 'open-ia')         { e.preventDefault(); const id = Number(btn.getAttribute('data-id')); if (!isNaN(id)) call('openIA', id); return; }
-  if (action === 'open-photo')      { e.preventDefault(); const src = btn.getAttribute('data-src')||''; if (src) call('openPhoto', src); return; }
-});
+  let equipments = [];
+  let currentIA = null;
+  const CHAT_KEY = 'atexIAHistoryV6';
+  const AUTO_CONTEXT_KEY = 'atexAutoContext';
+  const LAST_TYPE_KEY = 'atexLastType';
 
-// Lightweight a11y fix for labels/ids without touching design
-function fixA11yLabels(scope=document){
-  const inputs = scope.querySelectorAll('input, select, textarea');
-  inputs.forEach((inp, idx) => {
-    if (!inp.id)   inp.id   = `fld-${Date.now()}-${idx}`;
-    if (!inp.name) inp.name = inp.id;
-    const wrap = inp.closest('.mb-3, .form-group, .form-floating, .col, .row') || inp.parentElement;
-    const lab = wrap ? wrap.querySelector('label.form-label, label') : null;
-    if (lab && !lab.getAttribute('for')) lab.setAttribute('for', inp.id);
+  const $  = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+  function showToast(message, variant='primary'){
+    const id='t'+Date.now();
+    const html = `
+      <div id="${id}" class="toast text-bg-${variant} border-0 mb-2" role="alert">
+        <div class="d-flex">
+          <div class="toast-body">${message}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+      </div>`;
+    $('#toasts').insertAdjacentHTML('beforeend', html);
+    const t = new bootstrap.Toast($('#'+id), {delay:3000}); t.show();
+    setTimeout(()=> $('#'+id)?.remove(), 3500);
+  }
+
+  // ---- Utils / rendu
+  function fmtDate(d){
+    if(!d) return 'N/A';
+    const date = new Date(d); if(isNaN(date)) return d;
+    const dd=String(date.getDate()).padStart(2,'0'), mm=String(date.getMonth()+1).padStart(2,'0'), yyyy=date.getFullYear();
+    return `${dd}-${mm}-${yyyy}`;
+  }
+  // IMPORTANT : fallback en **mois** pour être cohérent avec le trigger DB (frequence en mois) :contentReference[oaicite:4]{index=4}
+  function addMonthsISO(dateISO, nbMonths){
+    const d = new Date(dateISO);
+    if (isNaN(d)) return null;
+    d.setMonth(d.getMonth() + (Number(nbMonths)||0));
+    return d.toISOString();
+  }
+  function stripCodeFences(s){
+    if(typeof s!=='string') return '';
+    return s.replace(/(?:html)?\s*[\r\n]?/gi,'').replace(/$/,'').trim();
+  }
+  function renderIAContent(el, raw){
+    let s = stripCodeFences(raw || '').trim();
+    const looksHTML = /<\/?[a-z][\s\S]*>/i.test(s);
+    if(!looksHTML){
+      s = s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\r?\n/g,"<br>");
+    }
+    el.innerHTML = s;
+  }
+
+  function computeStatus(nextDate){
+    if(!nextDate) return 'ok';
+    const d = new Date(nextDate); if(isNaN(d)) return 'ok';
+    const today = new Date(); today.setHours(0,0,0,0);
+    const dn = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diffDays = Math.round((dn - today)/(1000*60*60*24));
+    if (diffDays < 0)  return 'late';
+    if (diffDays === 0) return 'today';
+    if (diffDays <= 30) return 'soon';
+    return 'ok';
+  }
+  function statusBadge(st){
+    if(st==='late')  return '<span class="badge badge-st late">En retard</span>';
+    if(st==='today') return '<span class="badge badge-st today">Aujourd’hui</span>';
+    if(st==='soon')  return '<span class="badge badge-st soon">Bientôt</span>';
+    return '<span class="badge badge-st ok">OK</span>';
+  }
+
+  // ---- Persistance (local)
+  function getChatHistory(){ try{ return JSON.parse(localStorage.getItem(CHAT_KEY) || '[]'); }catch{return []} }
+  function setChatHistory(h){ localStorage.setItem(CHAT_KEY, JSON.stringify(h)); }
+  function addToHistory(item){
+    const h=getChatHistory();
+    const idx = h.findIndex(x=>x.id===item.id);
+    if (idx>=0) h[idx]=item; else h.unshift(item);
+    setChatHistory(h.slice(0,300));
+    renderHistory(); renderHistoryChat();
+  }
+  function getAutoContext(){ try{ return JSON.parse(localStorage.getItem(AUTO_CONTEXT_KEY) || '{}'); }catch{return {}} }
+  function setAutoContext(obj){ localStorage.setItem(AUTO_CONTEXT_KEY, JSON.stringify(obj||{})); }
+  function getLastType(){ try{ return JSON.parse(localStorage.getItem(LAST_TYPE_KEY) || '{}'); }catch{return {}} }
+  function setLastType(obj){ localStorage.setItem(LAST_TYPE_KEY, JSON.stringify(obj||{})); }
+
+  // ---- Chargement & rendu liste
+  async function loadEquipments(){
+    try{
+      const r = await fetch(API.equipments);
+      equipments = await r.json();
+      // Fallback next_inspection_date si null (cohérent DB : frequence en MOIS) :contentReference[oaicite:5]{index=5}
+      equipments = (equipments||[]).map(eq=>{
+        if (!eq.next_inspection_date && eq.last_inspection_date){
+          const months = Number(eq.frequence);
+          const iso = addMonthsISO(eq.last_inspection_date, Number.isFinite(months) ? months : 36);
+          if (iso) eq.next_inspection_date = iso;
+        }
+        return eq;
+      });
+      renderTable(equipments);
+      buildFilterLists();
+      showToast('Équipements chargés','info');
+    }catch(e){ showToast('Erreur chargement équipements','danger'); }
+  }
+
+  function renderTable(list){
+    const tbody = $('#equipTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    (list||[]).forEach(eq=>{
+      const st = computeStatus(eq.next_inspection_date);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="checkbox" class="rowchk" data-id="${eq.id||''}"></td>
+        <td>${eq.id||''}</td>
+        <td>${eq.secteur||''}</td>
+        <td>${eq.batiment||''}</td>
+        <td>${eq.local||''}</td>
+        <td>${eq.composant||''}</td>
+        <td>${eq.type||''}</td>
+        <td>${eq.identifiant||''}</td>
+        <td>${eq.marquage_atex||''}</td>
+        <td>${fmtDate(eq.last_inspection_date)}</td>
+        <td>${fmtDate(eq.next_inspection_date)} ${statusBadge(st)}</td>
+        <td>${(eq.photo && /^data:image\//.test(eq.photo)) ? `<img class="last-photo" src="${eq.photo}" alt="Photo" data-action="open-photo" data-src="${encodeURIComponent(eq.photo)}">` : '<span class="text-muted">—</span>'}</td>
+        <td class="actions">
+          <button class="btn btn-sm btn-outline-primary" data-action="edit-equipment" data-id="${eq.id}" title="Éditer"><i data-lucide="edit-3"></i></button>
+          <button class="btn btn-sm btn-outline-danger" data-action="delete-equipment" data-id="${eq.id}" data-label="${(eq.composant||'').replace(/\"/g,'&quot;')}" title="Supprimer"><i data-lucide="trash-2"></i></button>
+          <button class="btn btn-sm ${eq.has_ia_history ? 'btn-success' : (String(eq.conformite||'').toLowerCase().includes('non') ? 'btn-warning' : 'btn-outline-secondary')}" data-action="open-ia" data-id="${eq.id}" title="IA Analysis"><i data-lucide="sparkles"></i> IA</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+    window.lucide?.createIcons();
+    $$('.rowchk').forEach(c => c.addEventListener('change', updateBulkBtn));
+  }
+
+  // ---- Filtres
+  const activeFilters = { secteurs: new Set(), batiments: new Set(), conformites: new Set(), statut: new Set(), text: '' };
+
+  function buildFilterLists(){
+    const secteurs = [...new Set(equipments.map(e=>e.secteur).filter(Boolean))].sort();
+    const bats     = [...new Set(equipments.map(e=>e.batiment).filter(Boolean))].sort();
+
+    const secBox = $('#dd-secteurs'); secBox.innerHTML='';
+    secteurs.forEach((s,i)=>{
+      const id='cks_'+i;
+      secBox.insertAdjacentHTML('beforeend', `<div class="form-check"><input class="form-check-input" type="checkbox" value="${s}" id="${id}"><label class="form-check-label" for="${id}">${s}</label></div>`);
+    });
+    secBox.querySelectorAll('input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.secteurs, inp.value, inp.checked)));
+
+    const batBox = $('#dd-batiments'); batBox.innerHTML='';
+    bats.forEach((s,i)=>{
+      const id='ckb_'+i;
+      batBox.insertAdjacentHTML('beforeend', `<div class="form-check"><input class="form-check-input" type="checkbox" value="${s}" id="${id}"><label class="form-check-label" for="${id}">${s}</label></div>`);
+    });
+    batBox.querySelectorAll('input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.batiments, inp.value, inp.checked)));
+
+    $$('#dd-conformite input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.conformites, inp.value, inp.checked)));
+    $$('#dd-statut input').forEach(inp => inp.addEventListener('change', ()=>toggleFilterSet(activeFilters.statut, inp.value, inp.checked)));
+
+    $('#filterText').addEventListener('input', (e)=>{ activeFilters.text = e.target.value.toLowerCase(); renderPills(); applyFilters(); });
+    renderPills();
+  }
+  function toggleFilterSet(set, value, checked){ if(checked) set.add(value); else set.delete(value); renderPills(); }
+  function clearFilters(){
+    activeFilters.secteurs.clear(); activeFilters.batiments.clear();
+    activeFilters.conformites.clear(); activeFilters.statut.clear(); activeFilters.text='';
+    $$('#dd-secteurs input, #dd-batiments input, #dd-conformite input, #dd-statut input').forEach(i=>i.checked=false);
+    $('#filterText').value=''; renderPills(); applyFilters();
+  }
+  function renderPills(){
+    const box = $('#activePills'); box.innerHTML='';
+    const pill = (l)=>`<span class="badge text-bg-light">${l}</span>`;
+    activeFilters.secteurs.forEach(s=> box.insertAdjacentHTML('beforeend', pill('Secteur: '+s)));
+    activeFilters.batiments.forEach(s=> box.insertAdjacentHTML('beforeend', pill('Bâtiment: '+s)));
+    activeFilters.conformites.forEach(s=> box.insertAdjacentHTML('beforeend', pill('Conf: '+s)));
+    activeFilters.statut.forEach(s=> {
+      const m = {late:'En retard', today:'Aujourd’hui', soon:'Bientôt', ok:'OK'}; box.insertAdjacentHTML('beforeend', pill('Statut: '+(m[s]||s)));
+    });
+    if (activeFilters.text) box.insertAdjacentHTML('beforeend', pill('Texte: '+activeFilters.text));
+  }
+  function applyFilters(){
+    let filtered = equipments.slice();
+    if(activeFilters.secteurs.size)     filtered = filtered.filter(e=> activeFilters.secteurs.has(e.secteur));
+    if(activeFilters.batiments.size)    filtered = filtered.filter(e=> activeFilters.batiments.has(e.batiment));
+    if(activeFilters.conformites.size)  filtered = filtered.filter(e=> activeFilters.conformites.has(e.conformite));
+    if(activeFilters.statut.size)       filtered = filtered.filter(e=> activeFilters.statut.has(computeStatus(e.next_inspection_date)));
+    if(activeFilters.text)              filtered = filtered.filter(e=>{
+      const blob = [e.composant,e.type,e.marquage_atex,e.identifiant,e.comments].join(' ').toLowerCase();
+      return blob.includes(activeFilters.text);
+    });
+    renderTable(filtered);
+  }
+
+  // ---- Bulk delete
+  function updateBulkBtn(){ const sel = $$('.rowchk:checked').map(i=>+i.dataset.id); $('#btnBulkDelete').disabled = sel.length===0; }
+  function toggleAll(e){ const checked = e.target.checked; $$('.rowchk').forEach(c=>{ c.checked = checked; }); updateBulkBtn(); }
+  function openBulkDelete(){
+    const sel = $$('.rowchk:checked').map(i=>+i.dataset.id);
+    if(!sel.length) return;
+    $('#deleteMsg').textContent = `Supprimer ${sel.length} équipement(s) sélectionné(s) ?`;
+    $('#deleteMeta').textContent = 'IDs: ' + sel.join(', ');
+    bootstrap.Modal.getOrCreateInstance($('#deleteModal')).show();
+    $('#confirmDeleteBtn').addEventListener('click', () => confirmBulkDelete(sel), { once: true });
+  }
+  async function confirmBulkDelete(ids){
+    try{
+      await Promise.all(ids.map(id => fetch(API.equipment(id), {method:'DELETE'})));
+      showToast('Suppression en masse OK','success');
+      await loadEquipments();
+    }catch(e){ showToast('Erreur suppression masse: '+(e.message||e),'danger'); }
+    finally{ bootstrap.Modal.getOrCreateInstance($('#deleteModal')).hide(); }
+  }
+
+  // ---- Secteurs / prefills
+  async function loadSecteurs(){
+    try{
+      const r = await fetch(API.secteurs);
+      const secteurs = await r.json();
+      const sel = $('#secteur-input');
+      sel.innerHTML = '<option value="" disabled selected>— Sélectionner —</option>';
+      secteurs.forEach(s=>{
+        const name = (typeof s === 'string') ? s : (s && s.name) ? s.name : '';
+        if(!name) return;
+        const o=document.createElement('option'); o.value=name; o.text=name; sel.appendChild(o);
+      });
+    }catch{}
+  }
+  function openModalSecteur(){
+    const html=`
+    <div class="modal fade" id="modalSecteur" tabindex="-1">
+      <div class="modal-dialog"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Nouveau secteur</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <input id="newSecteurName" class="form-control" placeholder="Nom du secteur">
+          <div id="secteurSaveMsg" class="small-muted mt-2"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button class="btn btn-primary" id="saveSecteurBtn">Enregistrer</button>
+        </div>
+      </div></div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const el = $('#modalSecteur'), modal = new bootstrap.Modal(el); modal.show();
+    el.querySelector('#saveSecteurBtn').addEventListener('click', async ()=>{
+      const name=(el.querySelector('#newSecteurName').value||'').trim();
+      if(!name){ el.querySelector('#secteurSaveMsg').textContent='Nom requis.'; return; }
+      try{
+        const r = await fetch(API.secteurs,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+        if(!r.ok) throw new Error('Erreur API');
+        await loadSecteurs(); $('#secteur-input').value=name; showToast('Secteur enregistré','success'); modal.hide(); el.remove();
+      }catch(err){ el.querySelector('#secteurSaveMsg').textContent='Erreur: '+(err.message||err); }
+    }, {once:true});
+    el.addEventListener('hidden.bs.modal', ()=> el.remove(), {once:true});
+  }
+  function prefillBatLocal(){
+    const ctx = getAutoContext();
+    const secteur = $('#secteur-input').value || '';
+    const last = ctx[secteur] || {};
+    if(last.batiment) $('#batiment-input').value = last.batiment;
+    if(last.local)    $('#local-input').value = last.local;
+  }
+  function fillFromLastType(){
+    const last = getLastType();
+    if(last.composant)   $('#composant-input').value = last.composant;
+    if(last.fournisseur) $('#fournisseur-input').value = last.fournisseur;
+    if(last.type)        $('#type-input').value = last.type;
+    showToast('Champs remplis depuis le dernier type enregistré.','info');
+  }
+
+  // ---- IA & Chat
+  function getThread(id){ const h=getChatHistory(); const it=h.find(x=>x.id===id); return (it&&it.thread)||[]; }
+  function setThread(id, t){
+    const h=getChatHistory();
+    let it=h.find(x=>x.id===id);
+    if(!it){ it={ id, content:'', meta:{}, thread:[], enriched:null, composant:'Équipement', date:new Date().toISOString()}; h.unshift(it); }
+    it.thread = t; setChatHistory(h);
+  }
+  function renderThread(el, thread){
+    el.innerHTML = '';
+    thread.forEach(m=>{
+      const div = document.createElement('div');
+      div.className = 'msg ' + (m.role==='user'?'user':'ia');
+      if(m.role==='assistant'){
+        const holder = document.createElement('div');
+        renderIAContent(holder, m.content);
+        div.innerHTML = holder.innerHTML;
+      }else{
+        div.textContent = m.content;
+      }
+      el.appendChild(div);
+    });
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function buildLocalEnrichmentChat(eq){
+    // Hook local : tu peux enrichir avec des cartes / liens si besoin
+    return { reasons:[], palliatives:[], preventives:[], refs:[], costs:[] };
+  }
+
+  async function openIA(id, opts={}){
+    currentIA = id;
+    const off = bootstrap.Offcanvas.getOrCreateInstance($('#iaPanel')); off.show();
+    $('#iaHeader').textContent = ''; $('#iaDetails').style.display='none'; $('#iaLoading').style.display='block';
+
+    try{
+      const [eqR, helpR] = await Promise.all([ fetch(API.equipment(id)), fetch(API.help(id)) ]);
+      if(!eqR.ok) throw new Error('Équipement introuvable');
+      const eq = await eqR.json();
+      const help = await helpR.json();
+
+      $('#iaHeader').textContent = `${eq.composant || 'Équipement'} — ID ${eq.id} • Dernière: ${fmtDate(eq.last_inspection_date)} • Prochaine: ${fmtDate(eq.next_inspection_date)}`;
+      renderBadges(eq);
+
+      const cleaned = stripCodeFences(help?.response || 'Aucune analyse IA disponible.');
+      renderIAContent(document.getElementById('iaDetails'), cleaned);
+
+      try{ document.getElementById('chatEnriched').style.display='none'; }catch(_){}
+
+      addToHistory({
+        id: eq.id, composant: eq.composant || 'Équipement', date: new Date().toISOString(),
+        content: cleaned, enriched: null,
+        meta: { conformite: eq.conformite || 'N/A', risque: eq.risque ?? '-', zone_g: eq.zone_gaz||'-', zone_d: eq.zone_poussieres||'-', last: fmtDate(eq.last_inspection_date), next: fmtDate(eq.next_inspection_date) },
+        thread: getThread(eq.id)
+      });
+
+      $('#iaLoading').style.display='none'; $('#iaDetails').style.display='block';
+      renderThread(document.getElementById('iaThread'), getThread(eq.id));
+
+      if(opts.openChat){ const __ct=document.getElementById('chat-tab'); if(__ct) __ct.click(); setTimeout(()=>selectHistoryChat(0),60); }
+    }catch(e){
+      $('#iaLoading').style.display='none';
+      $('#iaDetails').style.display='block';
+      renderIAContent(document.getElementById('iaDetails'), `<div class="alert alert-danger">Erreur IA: ${e.message||e}</div>`);
+    }
+  }
+  window.openIA = openIA;
+
+  function renderBadges(eq){
+    try{
+      const cont = document.getElementById('autoLinks');
+      if (!cont) return;
+      buildDynamicSuggestions(eq);
+    }catch(_){}
+  }
+  function requiredCategoryForZone(zg, zd){
+    const zgNum = String(zg||'').replace(/[^0-9]/g,'') || '';
+    const zdNum = String(zd||'').replace(/[^0-9]/g,'') || '';
+    if(zgNum === '0' || zdNum === '20') return 'II 1GD';
+    if(zgNum === '1' || zdNum === '21') return 'II 2GD';
+    return 'II 3GD';
+  }
+  function buildDynamicSuggestions(eq){
+    const cont = document.getElementById('autoLinks');
+    if(!cont) return;
+    cont.innerHTML = '';
+    const isNC = String(eq?.conformite || '').toLowerCase().includes('non');
+    if(!isNC){ cont.innerHTML = '<div class="text-muted small">Aucune suggestion (équipement conforme).</div>'; return; }
+
+    const req = requiredCategoryForZone(eq?.zone_gaz, eq?.zone_poussieres);
+    const items = [];
+    const comp = (eq?.composant || '').toLowerCase();
+
+    if(comp.includes('pression') || comp.includes('capteur')){
+      items.push({ label: 'Capteur de pression ATEX — IFM PN7092 (réf.)', href: 'https://www.ifm.com/' });
+    }
+    items.push({ label: 'Boîte de jonction Ex e — R. STAHL', href: 'https://r-stahl.com/' });
+    items.push({ label: 'Boîte de jonction Ex d — R. STAHL', href: 'https://r-stahl.com/' });
+    items.push({ label: 'Distributeur — RS UK (recherche par référence)', href: 'https://uk.rs-online.com/' });
+
+    cont.innerHTML = `
+      <div class="small mb-2 text-muted">Catégorie requise estimée : ${req}</div>
+      ${items.map(it => `<a class="d-block" href="${it.href}" target="_blank" rel="noopener">${it.label}</a>`).join('')}
+    `;
+  }
+
+  function renderHistory(activeId=null){
+    const list = $('#iaHistoryList'); list.innerHTML='';
+    const h=getChatHistory(); if(!h.length){ list.innerHTML='<li class="list-group-item text-muted">Aucun historique.</li>'; return; }
+    h.forEach((it,idx)=>{
+      const li=document.createElement('li');
+      li.className='list-group-item ia-item'+(it.id===activeId?' active':'');
+      li.innerHTML=`
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <div class="fw-bold">${it.composant || 'Équipement'} — ID ${it.id}</div>
+            <div class="small text-muted">${fmtDate(it.date)} • Dernière: ${it.meta?.last||'-'} • Prochaine: ${it.meta?.next||'-'}</div>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" data-action="open-ia" data-id="${it.id}">Ouvrir</button>
+          </div>
+        </div>`;
+      li.addEventListener('click', ()=>selectHistoryChat(idx));
+      list.appendChild(li);
+    });
+  }
+  function renderHistoryChat(){
+    const h = getChatHistory();
+    const it = h[0]; // dernier
+    if(!it){ document.getElementById('chatHeader').textContent=''; document.getElementById('chatHtml').innerHTML=''; document.getElementById('chatThread').innerHTML=''; return; }
+    document.getElementById('chatHeader').textContent = `${it.composant || 'Équipement'} — ID ${it.id} • Dernière: ${it.meta?.last||'-'} • Prochaine: ${it.meta?.next||'-'}`;
+    renderIAContent(document.getElementById('chatHtml'), it.content || '—');
+    try{ document.getElementById('chatEnriched').style.display='block'; buildLocalEnrichmentChat({ conformite: it.meta?.conformite, zone_gaz: it.meta?.zone_g, zone_poussieres: it.meta?.zone_d, marquage_atex: '' }); }catch(_){}
+    renderThread(document.getElementById('chatThread'), it.thread||[]);
+  }
+  function selectHistoryChat(idx){
+    const h = getChatHistory();
+    const it = h[idx]; if(!it) return;
+    currentIA = it.id;
+    document.getElementById('chatHeader').textContent = `${it.composant || 'Équipement'} — ID ${it.id} • Dernière: ${it.meta?.last||'-'} • Prochaine: ${it.meta?.next||'-'}`;
+    renderIAContent(document.getElementById('chatHtml'), it.content || '—'); document.getElementById('chatEnriched').style.display='block'; try{ buildLocalEnrichmentChat({ conformite: it.meta?.conformite, zone_gaz: it.meta?.zone_g, zone_poussieres: it.meta?.zone_d, marquage_atex: '' }); }catch(_){}
+    renderThread(document.getElementById('chatThread'), it.thread||[]);
+  }
+  function clearChatHistory(){
+    setChatHistory([]); document.getElementById('iaDetails').innerHTML=''; document.getElementById('chatHtml').innerHTML='';
+    document.getElementById('chatHeader').textContent=''; document.getElementById('chatThread').innerHTML='';
+    renderHistory(); renderHistoryChat(); showToast('Historique effacé','info');
+  }
+  function copyChat(){
+    const text = (document.getElementById('chatHtml').innerText || '') + '\n\n' + (document.getElementById('chatThread').innerText || '');
+    navigator.clipboard.writeText(text).then(()=>showToast('Contenu copié','success'));
+  }
+  async function sendChatFromTab(){ const text = ($('#chatPrompt').value || '').trim(); if(!text || !currentIA) return; await sendChat(text, 'tab'); $('#chatPrompt').value=''; }
+  async function sendChatFromPanel(){ const text = ($('#iaPrompt').value || '').trim(); if(!text || !currentIA) return; await sendChat(text, 'panel'); $('#iaPrompt').value=''; }
+  async function sendChat(text, origin){
+    try{
+      const eqR = await fetch(API.equipment(currentIA)); if(!eqR.ok) throw new Error('Équipement introuvable');
+      const eq = await eqR.json();
+
+      const h = getChatHistory(); const item = h.find(x=>x.id===currentIA);
+      const historyForApi = (item?.thread || []).map(m=>({ role: m.role==='assistant'?'assistant':'user', content: m.content }));
+      const resp = await fetch(API.chat, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ question: text, equipment: null, history: historyForApi }) });
+      const data = await resp.json(); const iaText = data?.response || 'Réponse indisponible.';
+
+      const thread = getThread(currentIA); thread.push({role:'user', content:text}); thread.push({role:'assistant', content:iaText}); setThread(currentIA, thread);
+      renderThread(origin==='panel' ? document.getElementById('iaThread') : document.getElementById('chatThread'), thread);
+    }catch(e){ showToast('Erreur chat: '+(e.message||e),'danger'); }
+  }
+
+  // ---- Photo
+  async function resizeImageToDataURL(file, maxW=1280, maxH=1280){
+    const img = document.createElement('img');
+    const reader = new FileReader();
+    const dataUrl = await new Promise((resolve, reject)=>{
+      reader.onload = ()=> resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    await new Promise((resolve,reject)=>{
+      img.onload = resolve; img.onerror = reject; img.src = dataUrl;
+    });
+    const canvas = document.createElement('canvas');
+    let w = img.width, h = img.height;
+    const ratio = Math.min(maxW/w, maxH/h, 1);
+    w = Math.round(w*ratio); h = Math.round(h*ratio);
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL('image/jpeg', 0.85);
+  }
+
+  async function uploadPhotoMultipart(id, file){
+    const fd = new FormData();
+    fd.append('file', file);
+    const r = await fetch(API.photo(id), { method:'POST', body: fd });
+    if(!r.ok) throw new Error('upload_photo_failed');
+    return r.json();
+  }
+
+  // ---- Save / Edit / Delete
+  async function saveEquipment(){
+    // Validation minimale
+    const required = ['secteur-input','batiment-input','composant-input'];
+    const missing = required.filter(id => !($('#'+id)?.value || '').trim());
+    if (missing.length){ showToast('Champs manquants : '+missing.join(', '),'warning'); return; }
+
+    const id = $('#equipId').value || null;
+    const zone_g = $('#zone-g-input').value || '';
+    const zone_d = $('#zone-d-input').value || '';
+
+    // mémos
+    const secteur = $('#secteur-input').value;
+    const ctx = getAutoContext(); ctx[secteur] = { batiment: $('#batiment-input').value, local: $('#local-input').value }; setAutoContext(ctx);
+    setLastType({ composant: $('#composant-input').value, fournisseur: $('#fournisseur-input').value, type: $('#type-input').value });
+
+    const file = $('#photo-input').files[0] || null;
+    let photoBase64 = null;
+    if (file && file.size > 180*1024 && id) {
+      try { await uploadPhotoMultipart(id, file); showToast('Photo envoyée (multipart)','success'); }
+      catch (e) { showToast('Échec upload photo: '+(e.message||e),'danger'); }
+    } else if (file) {
+      photoBase64 = await resizeImageToDataURL(file);
+    }
+
+    const data = {
+      secteur, batiment: $('#batiment-input').value, local: $('#local-input').value,
+      composant: $('#composant-input').value, fournisseur: $('#fournisseur-input').value,
+      type: $('#type-input').value, identifiant: $('#identifiant-input').value,
+      marquage_atex: $('#marquage_atex-input').value, comments: $('#comments-input').value,
+      zone_gaz: zone_g || null, zone_poussieres: zone_d || null, zone_poussiere: zone_d || null,
+      photo: photoBase64
+    };
+
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? API.equipment(id) : API.equipments;
+
+    try{
+      const r = await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+      if(!r.ok) {
+        const errTxt = await r.text();
+        if (r.status===413 || /trop volumineuse|too large/i.test(errTxt)) {
+          showToast('Image trop lourde. Enregistre, puis ré-ajoute la photo (multipart).','warning');
+        } else {
+          throw new Error('Erreur enregistrement');
+        }
+      }
+      const saved = await r.json();
+      if (!id && file && file.size > 180*1024 && saved?.id) { await uploadPhotoMultipart(saved.id, file); }
+
+      const last = $('#last-inspection-input').value;
+      if(last){
+        // NB: côté serveur, on ne met plus à jour next_inspection_date -> trigger DB le calcule :contentReference[oaicite:6]{index=6}
+        await fetch(API.inspect,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({equipment_id:saved.id,status:'done',inspection_date:last})});
+      }
+      showToast('Équipement sauvegardé.','success');
+      await loadEquipments(); document.getElementById('list-tab').click();
+    }catch(e){ showToast('Erreur: '+(e.message||e),'danger'); }
+  }
+
+  async function editEquipment(id){
+    try{
+      const r = await fetch(API.equipment(id)); if(!r.ok) throw new Error('Erreur chargement équipement');
+      const eq = await r.json();
+      $('#equipId').value = eq.id;
+      $('#secteur-input').value   = eq.secteur || '';
+      $('#batiment-input').value  = eq.batiment || '';
+      $('#local-input').value     = eq.local || '';
+      $('#zone-g-input').value    = eq.zone_gaz || (['0','1','2'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
+      $('#zone-d-input').value    = (eq.zone_poussieres || eq.zone_poussiere) || (['20','21','22'].includes(String(eq.zone_type))? String(eq.zone_type) : '');
+      $('#composant-input').value = eq.composant || '';
+      $('#fournisseur-input').value = eq.fournisseur || '';
+      $('#type-input').value      = eq.type || '';
+      $('#identifiant-input').value = eq.identifiant || '';
+      $('#marquage_atex-input').value = eq.marquage_atex || '';
+      $('#comments-input').value  = eq.comments || '';
+      $('#last-inspection-input').value = eq.last_inspection_date ? new Date(eq.last_inspection_date).toISOString().slice(0,10) : '';
+      $('#add-tab').click();
+    }catch(e){ showToast('Erreur édition: '+(e.message||e),'danger'); }
+  }
+
+  let toDeleteId = null;
+  function openDeleteModal(id, label=''){
+    toDeleteId=id;
+    $('#deleteMsg').textContent = 'Voulez-vous vraiment supprimer cet équipement ATEX ?';
+    $('#deleteMeta').textContent = label ? `Équipement : ${label} (ID ${id})` : `ID ${id}`;
+    bootstrap.Modal.getOrCreateInstance($('#deleteModal')).show();
+    $('#confirmDeleteBtn').addEventListener('click', confirmDeleteOne, { once: true });
+  }
+  async function confirmDeleteOne(){
+    if(!toDeleteId) return;
+    try{
+      const r = await fetch(API.equipment(toDeleteId), {method:'DELETE'});
+      if(!r.ok) throw new Error('Erreur suppression');
+      showToast('Supprimé !','success');
+      await loadEquipments();
+    }catch(e){ showToast('Erreur suppression: '+(e.message||e),'danger'); }
+    finally{ bootstrap.Modal.getOrCreateInstance($('#deleteModal')).hide(); }
+  }
+
+  // ---- Import
+  async function importExcel(){
+    const input = $('#excelFile');
+    if (!input || !input.files || !input.files[0]) { showToast('Sélectionnez un fichier.','warning'); return; }
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    try{
+      const r = await fetch(API.importExcel, { method:'POST', body: fd });
+      const data = await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(data?.error || ('HTTP '+r.status));
+      showToast(`Import terminé: ${data?.inserted||0} insérés, ${data?.updated||0} mis à jour.`, 'success');
+      await loadEquipments();
+    }catch(e){ showToast('Erreur import: '+(e.message||e),'danger'); }
+  }
+
+  // ---- Wiring global
+  document.addEventListener('DOMContentLoaded', () => {
+    $('#btnApplyFilters')?.addEventListener('click', applyFilters);
+    $('#btnClearFilters')?.addEventListener('click', clearFilters);
+    $('#btnSync')?.addEventListener('click', loadEquipments);
+    $('#chkAll')?.addEventListener('change', toggleAll);
+    $('#btnBulkDelete')?.addEventListener('click', openBulkDelete);
+    $('#btnSave')?.addEventListener('click', saveEquipment);
+    $('#btnCancel')?.addEventListener('click', ()=>{ document.getElementById('list-tab').click(); });
+    $('#btnAddSecteur')?.addEventListener('click', openModalSecteur);
+    $('#btnFillBatLocal')?.addEventListener('click', prefillBatLocal);
+    $('#btnDupLast')?.addEventListener('click', fillFromLastType);
+    $('#btnImport')?.addEventListener('click', importExcel);
+    $('#btnClearChat')?.addEventListener('click', clearChatHistory);
+    $('#btnReanalyse')?.addEventListener('click', () => currentIA && openIA(currentIA, {forceReload:true, openChat:true}));
+    $('#btnCopier')?.addEventListener('click', copyChat);
+    $('#btnSend')?.addEventListener('click', sendChatFromTab);
+
+    $('#btnOpenInChat')?.addEventListener('click', () => {
+      const off = bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('iaPanel'));
+      off.hide();
+      const h = getChatHistory();
+      let idx = h.findIndex(x => x.id === currentIA);
+      if (idx < 0) idx = 0;
+      const __ct=document.getElementById('chat-tab'); if(__ct) __ct.click();
+      setTimeout(() => { if (h.length) selectHistoryChat(idx); }, 50);
+    });
+    document.querySelector('#btnClearChat2')?.addEventListener('click', clearChatHistory);
+    document.querySelector('#iaSend')?.addEventListener('click', sendChatFromPanel);
+
+    // Délégations
+    document.addEventListener('click', (e)=>{
+      const btn = e.target.closest('[data-action]');
+      if(!btn) return;
+      const act = btn.dataset.action;
+      if (act === 'edit-equipment'){ editEquipment(Number(btn.dataset.id)); }
+      if (act === 'delete-equipment'){ openDeleteModal(Number(btn.dataset.id), btn.dataset.label||''); }
+      if (act === 'open-ia'){ openIA(Number(btn.dataset.id)); }
+      if (act === 'open-photo'){ const src = btn.dataset.src || btn.getAttribute('data-src'); openPhoto(src); }
+    });
+
+    loadEquipments(); loadSecteurs();
   });
-}
-document.addEventListener('DOMContentLoaded', () => { try { fixA11yLabels(document); } catch(e) { console.debug('a11y', e); } });
+
+  // Photo modal (ouverture)
+  function openPhoto(encoded){
+    const src = decodeURIComponent(encoded);
+    $('#photoModalImg').src = src;
+    $('#photoDownload').href = src;
+    bootstrap.Modal.getOrCreateInstance($('#photoModal')).show();
+  }
+  window.openPhoto = openPhoto;
+
+})();
