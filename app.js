@@ -18,7 +18,7 @@ app.set('trust proxy', 1);
 // Logs HTTP
 app.use(morgan('dev'));
 
-// CSP
+// CSP (patch: autoriser PDF en iframe via data:/blob:/https:)
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -55,7 +55,7 @@ app.use(
         "font-src": ["'self'", "https://fonts.gstatic.com", "data:"],
         "img-src": ["'self'", "data:", "blob:"],
         "connect-src": ["'self'"],
-        // ✅ PATCH ICI : on autorise l’aperçu PDF en <iframe>
+        // ✅ PATCH IFRAME PDF
         "frame-src": ["'self'", "data:", "blob:", "https:"],
         "child-src": ["'self'", "data:", "blob:", "https:"],
         "frame-ancestors": ["'self'"]
@@ -67,46 +67,116 @@ app.use(
 
 // Perf & parsing
 app.use(compression());
+app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(cors({ origin: true, credentials: true }));
 
-// Static
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
+// ====== API ======
 
-// Health
-app.get('/healthz', (_req, res) => res.status(200).json({ ok: true }));
-
-// /api/me minimal (si token + account_id)
-app.get('/api/me', async (req, res) => {
-  try {
-    const account_id = Number(req.query.account_id || 0) || null;
-    const email = process.env.DEMO_EMAIL || 'palhadaniel.elec@gmail.com';
-    // Renvoie un objet minimal pour le front
-    return res.json({ email, account_id, role: 'owner' });
-  } catch (e) {
-    return res.status(500).json({ error: 'server_error' });
-  }
+// (optionnel) /api/me minimal pour le front ATEX si ton auth ne le fournit pas
+app.get('/api/me', (req, res) => {
+  const account_id = Number(req.query.account_id || 0) || null;
+  const email = process.env.DEMO_EMAIL || 'palhadaniel.elec@gmail.com';
+  return res.json({ email, account_id, role: 'owner' });
 });
 
-// Routes API
+// Auth (login/register/me/debug)
 try {
-  const atexRoutes = require('./routes/atex');
-  app.use('/api', atexRoutes);
-  console.log('✅ Mounted /api (ATEX routes)');
+  const authRoutes = require('./auth');
+  app.use('/api', authRoutes);
+  console.log('✅ Mounted /api (auth)');
 } catch (e) {
-  console.error('❌ Impossible de monter ./routes/atex:', e);
+  console.error('❌ Failed to mount ./auth routes:', e);
 }
 
-// Fallback HTML (SPA)
-app.get('/', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'atex-control.html'));
+// Compteurs usage
+try {
+  const usageRoutes = require('./usage');
+  app.use('/api/usage', usageRoutes);
+  console.log('✅ Mounted /api/usage');
+} catch (e) {
+  console.warn('⚠️ usage.js not mounted:', e?.message);
+}
+
+// Accounts
+(() => {
+  try {
+    const accountsRoutes = require('./routes/accounts');
+    app.use('/api', accountsRoutes);
+    console.log('✅ Mounted /api (accounts via routes/...)');
+  } catch (e1) {
+    try {
+      const accountsRoutesAlt = require('./accounts');
+      app.use('/api', accountsRoutesAlt);
+      console.log('✅ Mounted /api (accounts via ./accounts)');
+    } catch (e2) {
+      console.warn('⚠️ accounts route not mounted:', e2?.message);
+    }
+  }
+})();
+
+// Licenses
+(() => {
+  try {
+    const licensesRoutes = require('./routes/licenses');
+    app.use('/api', licensesRoutes);
+    console.log('✅ Mounted /api (licenses)');
+  } catch (e) {
+    console.warn('⚠️ licenses route not mounted:', e?.message);
+  }
+})();
+
+// Subscriptions
+(() => {
+  try {
+    const subsRoutes = require('./routes/subscriptions');
+    app.use('/api', subsRoutes);
+    console.log('✅ Mounted /api (subscriptions)');
+  } catch (e) {
+    console.warn('⚠️ subscriptions route not mounted:', e?.message);
+  }
+})();
+
+// Invitations (members & seats)
+(() => {
+  try {
+    const inviteRoutes = require('./routes/accounts_invite');
+    app.use('/api', inviteRoutes);
+    console.log('✅ Mounted /api (accounts_invite)');
+  } catch (e) {
+    console.warn('⚠️ accounts_invite route not mounted:', e?.message);
+  }
+})();
+
+// ATEX — en dernier
+(() => {
+  try {
+    const atexRoutes = require('./routes/atex');
+    app.use('/api', atexRoutes);
+    console.log('✅ Mounted /api (atex via routes/...)');
+  } catch (e1) {
+    try {
+      const atexRoutesAlt = require('./atex');
+      app.use('/api', atexRoutesAlt);
+      console.log('✅ Mounted /api (atex via ./atex)');
+    } catch (e2) {
+      console.warn('⚠️ atex route not mounted:', e2?.message);
+    }
+  }
+})();
+
+// Healthcheck
+app.get('/ping', (_req, res) => res.send('pong'));
+
+// Static
+app.use(express.static(path.join(__dirname, 'public')));
+
+// 404 JSON pour /api/*
+app.use('/api', (_req, res) => {
+  res.status(404).json({ error: 'not_found' });
 });
 
-// 404 API
-app.use('/api', (_req, res) => res.status(404).json({ error: 'not_found' }));
-
-// 500 handler
+// Handler d’erreurs JSON
 app.use((err, req, res, next) => {
   console.error('💥 API error:', err);
   if (req.path.startsWith('/api')) {
