@@ -34,8 +34,8 @@ app.use(
           "'sha256-fzrEw4S1b1r+XcBoUL+/L7ZjCdR96GNidBRivIM+PFY='",
           "'sha256-VBsLKmk1R7Ia418rRwDElBT39eCZENxnujzihkgLpHQ='",
           "'sha256-dmtOGFVV8ciM0XL1bXpiarcZDOCMOUdk6XJB4yFFUsg'",
-          // ✅ hash ajouté pour le script inline d’EPD (corrige l’erreur CSP)
-          "'sha256-5CEzTibXtN/srthZhIaRd1Npf98LpyzZl7NhdqhAgTM='"
+          // ✅ hash du NOUVEAU script inline (guard EPD multi-clés)
+          'sha256-dgFlJLGuSetG4Ib7uL23SCpXN69n6VqYAJ42Nlgggag='
         ],
         "script-src-elem": [
           "'self'",
@@ -47,8 +47,8 @@ app.use(
           "'sha256-fzrEw4S1b1r+XcBoUL+/L7ZjCdR96GNidBRivIM+PFY='",
           "'sha256-VBsLKmk1R7Ia418rRwDElBT39eCZENxnujzihkgLpHQ='",
           "'sha256-dmtOGFVV8ciM0XL1bXpiarcZDOCMOUdk6XJB4yFFUsg'",
-          // ✅ même hash pour les <script> dans le DOM
-          "'sha256-5CEzTibXtN/srthZhIaRd1Npf98LpyzZl7NhdqhAgTM='"
+          // ✅ idem pour <script> du DOM
+          'sha256-dgFlJLGuSetG4Ib7uL23SCpXN69n6VqYAJ42Nlgggag='
         ],
         "style-src": [
           "'self'",
