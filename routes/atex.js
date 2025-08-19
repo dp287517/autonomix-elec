@@ -1,13 +1,12 @@
-// routes/atex.js — v9 (fallback IA enrichi + secteurs POST + risk/conf auto avec validation G/D stricte)
+// routes/atex.js — v10 (enrich + G/D stricte + secteurs POST + photo upload + import)
 const express = require('express');
 const router = express.Router();
-console.log('[ATEX ROUTES] v9 loaded');
+console.log('[ATEX ROUTES] v10 loaded');
 
 const { pool } = require('../config/db');
 let { requireAuth } = (() => { try { return require('../middleware/authz'); } catch { return {}; } })();
 requireAuth = requireAuth || ((_req,_res,next)=>next());
 
-/** membership sur l’espace */
 async function roleOnAccount(userId, accountId){
   const r = await pool.query(
     `SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2`,
@@ -16,7 +15,6 @@ async function roleOnAccount(userId, accountId){
   return r.rowCount ? r.rows[0].role : null;
 }
 
-/** règles déterministes : conformité & risque (validation G/D + catégorie) */
 function deriveConfAndRisk(payload = {}) {
   const norm = (s)=> String(s||'').trim().toLowerCase();
   const gz = norm(payload.zone_gaz);
@@ -24,53 +22,38 @@ function deriveConfAndRisk(payload = {}) {
   const markRaw = String(payload.marquage_atex || '');
   const mark = norm(markRaw);
 
-  // 1) Risque de base selon zones
   let risk = 1;
   if (['0','20'].includes(gz) || ['0','20'].includes(dz)) risk = 5;
   else if (['1','21'].includes(gz) || ['1','21'].includes(dz)) risk = 4;
   else if (['2','22'].includes(gz) || ['2','22'].includes(dz)) risk = 3;
 
-  // 2) Catégories requises (Zone 0/20⇒1, 1/21⇒2, 2/22⇒3)
   const reqCatG = gz === '0' ? 1 : gz === '1' ? 2 : gz === '2' ? 3 : null;
   const reqCatD = dz === '20' ? 1 : dz === '21' ? 2 : dz === '22' ? 3 : null;
 
-  // Helpers: extrait nG / nD du marquage (Ex II 2G, II 1D, etc.)
-  const matchNG = markRaw.match(/(?:\b|[^A-Za-z0-9])(1|2|3)\s*[Gg](?:\b|[^A-Za-z])/);
-  const matchND = markRaw.match(/(?:\b|[^A-Za-z0-9])(1|2|3)\s*[Dd](?:\b|[^A-Za-z])/);
+  const matchNG = markRaw.match(/(?:\\b|[^A-Za-z0-9])(1|2|3)\\s*[Gg](?:\\b|[^A-Za-z])/);
+  const matchND = markRaw.match(/(?:\\b|[^A-Za-z0-9])(1|2|3)\\s*[Dd](?:\\b|[^A-Za-z])/);
   const hasGasLetter = /(^|[^a-z])g([^a-z]|$)/i.test(markRaw) || /ex[^a-z0-9]*[ig]/i.test(markRaw);
-  const hasDustLetter = /(^|[^a-z])d([^a-z]|$)/i.test(markRaw) || /\bex\s*t[bdc]/i.test(markRaw) || /\biiic\b/i.test(markRaw);
+  const hasDustLetter = /(^|[^a-z])d([^a-z]|$)/i.test(markRaw) || /\\bex\\s*t[bdc]/i.test(markRaw) || /\\biiic\\b/i.test(markRaw);
 
   let confReason = null;
 
-  // 3) Règle “pas de marquage”
   if (!mark || mark.includes('pas de marquage')) {
     confReason = 'Non conforme – marquage manquant';
   } else {
-    // 4) Vérif couverture Gaz
     if (reqCatG) {
       if (!hasGasLetter) confReason = 'Non conforme – marquage gaz (G) absent';
       const catG = matchNG ? Number(matchNG[1]) : null;
       if (!confReason && catG && catG <= 3) {
-        // OK si catG >= reqCatG (1G couvre 0/1/2 ; 2G couvre 1/2 ; 3G couvre 2)
-        if (catG > reqCatG) {
-          // 1G (>2) couvre tout => ok
-        } else if (catG < reqCatG) {
-          confReason = `Non conforme – catégorie G insuffisante (requis ≥ ${reqCatG}G)`;
-        }
+        if (catG < reqCatG) confReason = `Non conforme – catégorie G insuffisante (requis ≥ ${reqCatG}G)`;
       } else if (!confReason && catG == null) {
         confReason = `Non conforme – catégorie G absente (requis ≥ ${reqCatG}G)`;
       }
     }
-    // 5) Vérif couverture Poussières
     if (!confReason && reqCatD) {
       if (!hasDustLetter) confReason = 'Non conforme – marquage poussières (D) absent';
       const catD = matchND ? Number(matchND[1]) : null;
       if (!confReason && catD && catD <= 3) {
-        if (catD > reqCatD) {
-          // 1D (>2) couvre 20/21/22 => ok
-        } else if (catD < reqCatD) {
-          confReason = `Non conforme – catégorie D insuffisante (requis ≥ ${reqCatD}D)`;
-        }
+        if (catD < reqCatD) confReason = `Non conforme – catégorie D insuffisante (requis ≥ ${reqCatD}D)`;
       } else if (!confReason && catD == null) {
         confReason = `Non conforme – catégorie D absente (requis ≥ ${reqCatD}D)`;
       }
@@ -98,9 +81,34 @@ function fmtDate(d){
   const dd=String(date.getDate()).padStart(2,'0'), mm=String(date.getMonth()+1).padStart(2,'0'), yyyy=date.getFullYear();
   return `${dd}-${mm}-${yyyy}`;
 }
+function buildEnrich(eq, conf){
+  const arr = (x)=>Array.isArray(x)?x:[];
+  const enriched = { palliatives:[], preventives:[], refs:[], costs:[], why:'' };
+  const zg = String(eq.zone_gaz||'').trim();
+  const zd = String(eq.zone_poussieres||eq.zone_poussiere||'').trim();
+  const req = requiredCategoryForZone(zg, zd);
+  const mark = String(eq.marquage_atex||'').toLowerCase();
+
+  if (String(conf.conformite).toLowerCase().includes('non')){
+    enriched.why = conf.conformite;
+    if (!mark || mark.includes('pas de marquage')){
+      enriched.palliatives.push('Mettre hors tension et éloigner de la zone classée si possible.');
+      enriched.preventives.push('Remplacer par un matériel **certifié ATEX** correspondant aux zones.');
+      enriched.refs.push('Directive 2014/34/UE – Matériels ATEX.');
+      enriched.costs.push('Remplacement matériel certifié : 400€–2 500€ selon le composant.');
+    }
+  } else {
+    enriched.why = 'Conforme aux exigences déclarées.';
+  }
+  if (zg === '0' || zd === '20') enriched.refs.push('Exigence de catégorie 1G/1D pour zone 0/20.');
+  if (zg === '1' || zd === '21') enriched.refs.push('Exigence de catégorie 2G/2D pour zone 1/21.');
+  if (zg === '2' || zd === '22') enriched.refs.push('Exigence de catégorie 3G/3D pour zone 2/22.');
+  enriched.refs.push('EN 60079 (série) — Ex d / Ex e / Ex t.');
+  enriched.costs.push('Inspection initiale + rapport : 250€–600€.');
+  return enriched;
+}
 
 /* ======================= SECTEURS ======================= */
-
 router.get('/atex-secteurs', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -130,7 +138,6 @@ router.get('/atex-secteurs', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'server_error' });
   }
 });
-
 router.post('/atex-secteurs', requireAuth, async (req, res) => {
   try{
     const uid = req.user && req.user.uid;
@@ -156,7 +163,6 @@ router.post('/atex-secteurs', requireAuth, async (req, res) => {
 });
 
 /* ======================= LISTE ======================= */
-
 router.get('/atex-equipments', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -185,8 +191,7 @@ router.get('/atex-equipments', requireAuth, async (req, res) => {
   }
 });
 
-/* ======================= CRUD ÉQUIPEMENT ======================= */
-
+/* ======================= CRUD ======================= */
 router.post('/atex-equipments', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -226,7 +231,6 @@ router.post('/atex-equipments', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'server_error' });
   }
 });
-
 router.get('/atex-equipments/:id', requireAuth, async (req, res) => {
   try{
     const uid = req.user && req.user.uid;
@@ -249,7 +253,6 @@ router.get('/atex-equipments/:id', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'server_error' });
   }
 });
-
 router.put('/atex-equipments/:id', requireAuth, async (req, res) => {
   try{
     const uid = req.user && req.user.uid;
@@ -290,7 +293,6 @@ router.put('/atex-equipments/:id', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'server_error' });
   }
 });
-
 router.delete('/atex-equipments/:id', requireAuth, async (req, res) => {
   try{
     const uid = req.user && req.user.uid;
@@ -314,7 +316,6 @@ router.delete('/atex-equipments/:id', requireAuth, async (req, res) => {
 });
 
 /* ======================= INSPECTION ======================= */
-
 router.post('/atex-inspect', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -325,12 +326,6 @@ router.post('/atex-inspect', requireAuth, async (req, res) => {
 
     const role = await roleOnAccount(uid, accountId);
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
-
-    const cur = await pool.query(
-      `SELECT frequence FROM public.atex_equipments WHERE id=$1 AND account_id=$2`,
-      [equipment_id, accountId]
-    );
-    if (!cur.rowCount) return res.status(404).json({ error: 'not_found' });
 
     const nowISO = inspection_date || new Date().toISOString();
     await pool.query(
@@ -346,8 +341,7 @@ router.post('/atex-inspect', requireAuth, async (req, res) => {
   }
 });
 
-/* ======================= IA (help + chat) ======================= */
-
+/* ======================= IA ======================= */
 router.get('/atex-help/:id', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -362,20 +356,10 @@ router.get('/atex-help/:id', requireAuth, async (req, res) => {
     if (!q.rowCount) return res.status(404).json({ error: 'not_found' });
     const eq = q.rows[0];
 
-    // Si un module OpenAI est dispo, on s'en sert
-    try {
-      const { oneShot } = require('../config/openai');
-      if (typeof oneShot === 'function') {
-        const html = await oneShot(eq);
-        return res.json({ response: html });
-      }
-    } catch {}
-
-    // Fallback local (lisible)
-    const { risque, conformite } = deriveConfAndRisk(eq);
+    const derived = deriveConfAndRisk(eq);
     const reqCat = requiredCategoryForZone(eq.zone_gaz, eq.zone_poussieres);
     const tips = [];
-    if (String(conformite).toLowerCase().includes('non')){
+    if (String(derived.conformite).toLowerCase().includes('non')){
       if ((eq.marquage_atex||'').toLowerCase().includes('pas de marquage') || !eq.marquage_atex){
         tips.push('Installer un équipement <strong>certifié ATEX</strong> avec marquage conforme.');
       }
@@ -387,19 +371,21 @@ router.get('/atex-help/:id', requireAuth, async (req, res) => {
     const next = eq.next_inspection_date ? fmtDate(eq.next_inspection_date) : 'à planifier';
 
     const html = `
-      <h3>Analyse ATEX (locale)</h3>
+      <h5>Analyse ATEX</h5>
       <ul>
-        <li><strong>Conformité</strong> : ${conformite}</li>
-        <li><strong>Risque</strong> : ${risque}/5</li>
+        <li><strong>Conformité</strong> : ${derived.conformite}</li>
+        <li><strong>Risque</strong> : ${derived.risque}/5</li>
         <li><strong>Zones</strong> : Gaz ${eq.zone_gaz || '—'} / Poussières ${eq.zone_poussieres || eq.zone_poussiere || '—'}</li>
         <li><strong>Marquage indiqué</strong> : ${eq.marquage_atex || '—'}</li>
         <li><strong>Catégorie requise estimée</strong> : ${reqCat}</li>
         <li><strong>Prochaine inspection</strong> : ${next}</li>
       </ul>
-      <h5>Recommandations</h5>
+      <h6>Recommandations</h6>
       <ul>${tips.map(t=>`<li>${t}</li>`).join('')}</ul>
     `;
-    res.json({ response: html });
+
+    const enrich = buildEnrich(eq, derived);
+    return res.json({ response: html, enrich });
   } catch (e) { console.error('[GET /atex-help/:id] error', e); res.status(500).json({ error: 'server_error' }); }
 });
 
@@ -420,9 +406,8 @@ router.post('/atex-chat', requireAuth, async (req, res) => {
 });
 
 /* ======================= PHOTO (multipart) ======================= */
-
 let multer;
-try { multer = require('multer'); } catch { /* optional */ }
+try { multer = require('multer'); } catch {}
 const upload = multer ? multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } }) : null;
 
 router.post('/atex-photo/:id', requireAuth, upload ? upload.single('file') : (_req,_res,next)=>next(), async (req, res) => {
@@ -459,10 +444,9 @@ router.post('/atex-photo/:id', requireAuth, upload ? upload.single('file') : (_r
   }
 });
 
-/* ======================= IMPORT (Excel/CSV) ======================= */
-
+/* ======================= IMPORT ======================= */
 let xlsx;
-try { xlsx = require('xlsx'); } catch { /* optional */ }
+try { xlsx = require('xlsx'); } catch { }
 
 router.post('/atex-import-excel', requireAuth, upload ? upload.single('file') : (_req,_res,next)=>next(), async (req, res) => {
   try{
@@ -481,15 +465,15 @@ router.post('/atex-import-excel', requireAuth, upload ? upload.single('file') : 
 
     let rows = [];
     const mime = (file.mimetype || '').toLowerCase();
-    const isCSV  = /csv|text\/plain/.test(mime) || /\.csv$/i.test(file.originalname||'');
-    const isXLSX = /excel|spreadsheetml/.test(mime) || /\.xlsx$/i.test(file.originalname||'');
+    const isCSV  = /csv|text\\/plain/.test(mime) || /\\.csv$/i.test(file.originalname||'');
+    const isXLSX = /excel|spreadsheetml/.test(mime) || /\\.xlsx$/i.test(file.originalname||'');
     if (isXLSX && xlsx){
       const wb = xlsx.read(file.buffer, { type:'buffer' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       rows = xlsx.utils.sheet_to_json(ws, { defval: null });
     } else {
       const raw = file.buffer.toString('utf8');
-      const lines = raw.split(/\r?\n/).filter(l=>l.trim().length);
+      const lines = raw.split(/\\r?\\n/).filter(l=>l.trim().length);
       if (!lines.length) return res.json({ inserted:0, updated:0 });
       const sep = (raw.indexOf(';')>-1 && raw.indexOf(',')===-1) ? ';' : ',';
       const head = lines[0].split(sep).map(s=>s.trim());
@@ -569,7 +553,6 @@ router.post('/atex-import-excel', requireAuth, upload ? upload.single('file') : 
   }
 });
 
-// colonnes import
 router.get('/atex-import-columns', requireAuth, async (_req, res) => {
   return res.json({
     columns: [
@@ -579,7 +562,6 @@ router.get('/atex-import-columns', requireAuth, async (_req, res) => {
   });
 });
 
-// templates import (csv/xlsx)
 router.get('/atex-import-template', requireAuth, async (_req, res) => {
   const headers = [
     'secteur','batiment','local','composant','fournisseur','type','identifiant',
@@ -587,7 +569,7 @@ router.get('/atex-import-template', requireAuth, async (_req, res) => {
   ];
   res.setHeader('Content-Type','text/csv; charset=utf-8');
   res.setHeader('Content-Disposition','attachment; filename="atex_import_template.csv"');
-  res.send(headers.join(',') + '\n');
+  res.send(headers.join(',') + '\\n');
 });
 router.get('/atex-import-template.xlsx', requireAuth, async (_req, res) => {
   try{
@@ -603,7 +585,7 @@ router.get('/atex-import-template.xlsx', requireAuth, async (_req, res) => {
     res.setHeader('Content-Disposition','attachment; filename="atex_import_template.xlsx"');
     res.send(buf);
   }catch{
-    const csv = 'secteur,batiment,local,composant,fournisseur,type,identifiant,marquage_atex,conformite,comments,zone_gaz,zone_poussieres,frequence,last_inspection_date\n';
+    const csv = 'secteur,batiment,local,composant,fournisseur,type,identifiant,marquage_atex,conformite,comments,zone_gaz,zone_poussieres,frequence,last_inspection_date\\n';
     res.setHeader('Content-Type','text/csv; charset=utf-8');
     res.setHeader('Content-Disposition','attachment; filename="atex_import_template.csv"');
     res.send(csv);
