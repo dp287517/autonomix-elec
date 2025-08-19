@@ -1,11 +1,17 @@
 // routes/atex.js — v10 (enrich + G/D stricte + secteurs POST + photo upload + import)
 const express = require('express');
+const path = require('path');
 const router = express.Router();
 console.log('[ATEX ROUTES] v10 loaded');
 
-const { pool } = require('../config/db');
-let { requireAuth } = (() => { try { return require('../middleware/authz'); } catch { return {}; } })();
+// ===== require() robustes basés sur __dirname =====
+const { pool } = require(path.join(__dirname, '..', 'config', 'db'));
+let { requireAuth } = (() => {
+  try { return require(path.join(__dirname, '..', 'middleware', 'authz')); }
+  catch { return {}; }
+})();
 requireAuth = requireAuth || ((_req,_res,next)=>next());
+// ================================================
 
 async function roleOnAccount(userId, accountId){
   const r = await pool.query(
@@ -30,10 +36,10 @@ function deriveConfAndRisk(payload = {}) {
   const reqCatG = gz === '0' ? 1 : gz === '1' ? 2 : gz === '2' ? 3 : null;
   const reqCatD = dz === '20' ? 1 : dz === '21' ? 2 : dz === '22' ? 3 : null;
 
-  const matchNG = markRaw.match(/(?:\\b|[^A-Za-z0-9])(1|2|3)\\s*[Gg](?:\\b|[^A-Za-z])/);
-  const matchND = markRaw.match(/(?:\\b|[^A-Za-z0-9])(1|2|3)\\s*[Dd](?:\\b|[^A-Za-z])/);
-  const hasGasLetter = /(^|[^a-z])g([^a-z]|$)/i.test(markRaw) || /ex[^a-z0-9]*[ig]/i.test(markRaw);
-  const hasDustLetter = /(^|[^a-z])d([^a-z]|$)/i.test(markRaw) || /\\bex\\s*t[bdc]/i.test(markRaw) || /\\biiic\\b/i.test(markRaw);
+  const matchNG = markRaw.match(/(?:\b|[^A-Za-z0-9])(1|2|3)\s*[Gg](?:\b|[^A-Za-z])/);
+  const matchND = markRaw.match(/(?:\b|[^A-Za-z0-9])(1|2|3)\s*[Dd](?:\b|[^A-Za-z])/);
+  const hasGasLetter  = /(^|[^a-z])g([^a-z]|$)/i.test(markRaw) || /ex[^a-z0-9]*[ig]/i.test(markRaw);
+  const hasDustLetter = /(^|[^a-z])d([^a-z]|$)/i.test(markRaw) || /\bex\s*t[bdc]/i.test(markRaw) || /\biiic\b/i.test(markRaw);
 
   let confReason = null;
 
@@ -82,7 +88,6 @@ function fmtDate(d){
   return `${dd}-${mm}-${yyyy}`;
 }
 function buildEnrich(eq, conf){
-  const arr = (x)=>Array.isArray(x)?x:[];
   const enriched = { palliatives:[], preventives:[], refs:[], costs:[], why:'' };
   const zg = String(eq.zone_gaz||'').trim();
   const zd = String(eq.zone_poussieres||eq.zone_poussiere||'').trim();
@@ -398,7 +403,8 @@ router.post('/atex-chat', requireAuth, async (req, res) => {
     const { question = '', equipment = null, history = [] } = req.body || {};
     let html = '<p>Service IA non configuré.</p>';
     try {
-      const { chat } = require('../config/openai');
+      // ===== require() robuste vers ../config/openai =====
+      const { chat } = require(path.join(__dirname, '..', 'config', 'openai'));
       if (typeof chat === 'function') html = await chat({ question, equipment, history });
     } catch {}
     res.json({ response: html });
@@ -465,15 +471,15 @@ router.post('/atex-import-excel', requireAuth, upload ? upload.single('file') : 
 
     let rows = [];
     const mime = (file.mimetype || '').toLowerCase();
-    const isCSV  = /csv|text\\/plain/.test(mime) || /\\.csv$/i.test(file.originalname||'');
-    const isXLSX = /excel|spreadsheetml/.test(mime) || /\\.xlsx$/i.test(file.originalname||'');
+    const isCSV  = /csv|text\/plain/.test(mime) || /\.csv$/i.test(file.originalname||'');
+    const isXLSX = /excel|spreadsheetml/.test(mime) || /\.xlsx$/i.test(file.originalname||'');
     if (isXLSX && xlsx){
       const wb = xlsx.read(file.buffer, { type:'buffer' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       rows = xlsx.utils.sheet_to_json(ws, { defval: null });
     } else {
       const raw = file.buffer.toString('utf8');
-      const lines = raw.split(/\\r?\\n/).filter(l=>l.trim().length);
+      const lines = raw.split(/\r?\n/).filter(l=>l.trim().length);
       if (!lines.length) return res.json({ inserted:0, updated:0 });
       const sep = (raw.indexOf(';')>-1 && raw.indexOf(',')===-1) ? ';' : ',';
       const head = lines[0].split(sep).map(s=>s.trim());
@@ -569,7 +575,7 @@ router.get('/atex-import-template', requireAuth, async (_req, res) => {
   ];
   res.setHeader('Content-Type','text/csv; charset=utf-8');
   res.setHeader('Content-Disposition','attachment; filename="atex_import_template.csv"');
-  res.send(headers.join(',') + '\\n');
+  res.send(headers.join(',') + '\n');
 });
 router.get('/atex-import-template.xlsx', requireAuth, async (_req, res) => {
   try{
@@ -585,7 +591,7 @@ router.get('/atex-import-template.xlsx', requireAuth, async (_req, res) => {
     res.setHeader('Content-Disposition','attachment; filename="atex_import_template.xlsx"');
     res.send(buf);
   }catch{
-    const csv = 'secteur,batiment,local,composant,fournisseur,type,identifiant,marquage_atex,conformite,comments,zone_gaz,zone_poussieres,frequence,last_inspection_date\\n';
+    const csv = 'secteur,batiment,local,composant,fournisseur,type,identifiant,marquage_atex,conformite,comments,zone_gaz,zone_poussieres,frequence,last_inspection_date\n';
     res.setHeader('Content-Type','text/csv; charset=utf-8');
     res.setHeader('Content-Disposition','attachment; filename="atex_import_template.csv"');
     res.send(csv);
