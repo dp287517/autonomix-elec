@@ -1,15 +1,23 @@
-// routes/atex.js — v12 (robust attachments + IA enrichie + secteurs + import + viewer endpoint)
+// routes/atex.js — v12 (full)
+// - Secteurs GET/POST (sans created_by)
+// - Équipements CRUD (normalisation date/json, gestion conflits identifiant)
+// - Photo upload (dataURL)
+// - Import CSV/XLSX
+// - IA: aide + chat avec persistance ia_history
+// - Viewer: /equip/:id (photo + attachments normalisés)
+// - Logs explicites pour debug
+
 const express = require('express');
 const router = express.Router();
 console.log('[ATEX ROUTES] v12 loaded');
 
 const { pool } = require('../config/db');
 
-// ---- auth (tolérant si middleware absent) ----
+// Auth middleware (fallback no-op si absent)
 let { requireAuth } = (() => { try { return require('../middleware/authz'); } catch { return {}; } })();
 requireAuth = requireAuth || ((_req,_res,next)=>next());
 
-// ---- helpers DB / roles ----
+// ---------- Helpers DB & Normalisation ----------
 async function roleOnAccount(userId, accountId){
   const r = await pool.query(
     `SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2`,
@@ -18,61 +26,69 @@ async function roleOnAccount(userId, accountId){
   return r.rowCount ? r.rows[0].role : null;
 }
 
-// ---- normalisation inputs ----
-function normStr(v){ return v == null ? null : String(v).trim(); }
-function normDate(v){
-  if (!v) return null;
-  const d = new Date(v);
-  return isNaN(d) ? null : d.toISOString().slice(0,10); // yyyy-mm-dd
+function normStr(v){ return (v==null || v===undefined) ? null : String(v); }
+
+function parseMaybeJSON(value){
+  if (value == null) return null;
+  if (Array.isArray(value) || typeof value === 'object') return value;
+  if (typeof value === 'string' && !value.trim()) return null;
+  if (typeof value === 'string'){
+    try { return JSON.parse(value); } catch { return value; }
+  }
+  return value;
 }
-function normZoneGaz(v){
-  const s = String(v ?? '').trim();
-  return ['0','1','2'].includes(s) ? s : null;
+function ensureArray(x){
+  if (x == null) return [];
+  if (Array.isArray(x)) return x;
+  const parsed = parseMaybeJSON(x);
+  return Array.isArray(parsed) ? parsed : [];
 }
-function normZoneDust(v){
-  if (v === null || v === undefined || v === '') return null;
-  const n = Number(String(v).replace(/[^0-9]/g,'')) || null;
-  return [20,21,22].includes(n) ? n : null; // smallint
+function sanitizeAttachmentItem(item){
+  // Accepte soit string (url/data), soit objet {url|data, name?, mime?}
+  if (!item) return null;
+  if (typeof item === 'string'){
+    const src = item.trim();
+    if (!src) return null;
+    return { url: src, name: 'Pièce', mime: guessMime(src) };
+  }
+  if (typeof item === 'object'){
+    const src = item.url || item.href || item.path || item.data || '';
+    const name = item.name || item.label || 'Pièce';
+    const mime = item.mime || guessMime(src) || '';
+    if (!src) return null;
+    // data:... => on force 'data' pour éviter CSP des iframes externes
+    if (String(src).startsWith('data:')){
+      return { data: src, name, mime };
+    }
+    return { url: src, name, mime };
+  }
+  return null;
+}
+function guessMime(u){
+  const s = String(u||'').toLowerCase();
+  if (s.startsWith('data:')){
+    const m = s.slice(5).split(';')[0];
+    return m || '';
+  }
+  if (s.endsWith('.pdf')) return 'application/pdf';
+  if (s.match(/\.(png|jpg|jpeg|gif|webp)$/)) return 'image/*';
+  return '';
+}
+function normDateISOtoSQL(d){
+  // Accepte 'YYYY-MM-DD' ou ISO => retourne 'YYYY-MM-DD' ou null
+  if (!d) return null;
+  const s = String(d).trim();
+  if (!s) return null;
+  const iso = new Date(s);
+  if (isNaN(iso)) {
+    // si déjà au bon format date SQL on laisse passer
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    return null;
+  }
+  const y = iso.getFullYear(), m = String(iso.getMonth()+1).padStart(2,'0'), dd = String(iso.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
 }
 
-// ---- attachments: rendre sûr pour jsonb ----
-function sanitizeAttachments(input){
-  if (input === undefined) return undefined; // important: distingue "absent" de "null"
-  if (input === null) return null;
-  let arr = input;
-  if (typeof arr === 'string') {
-    try { arr = JSON.parse(arr); }
-    catch { 
-      // accepte dataURL simple ou URL simple
-      if (/^(data:|https?:|blob:)/i.test(arr)) return [{ url: arr }];
-      return null;
-    }
-  }
-  if (!Array.isArray(arr)) arr = [arr];
-  const out = [];
-  for (const it of arr){
-    let obj = it;
-    if (typeof obj === 'string'){
-      if (/^(data:|https?:|blob:)/i.test(obj)) obj = { url: obj };
-      else { try { obj = JSON.parse(obj); } catch { continue; } }
-    }
-    if (!obj || typeof obj !== 'object') continue;
-    const name = obj.name != null ? String(obj.name).slice(0,200) : (obj.label ? String(obj.label).slice(0,200) : null);
-    const mime = obj.mime != null ? String(obj.mime).slice(0,120) : null;
-    const url  = obj.url || obj.href || obj.path || null;
-    const data = obj.data || null;
-    if (!url && !data) continue;
-    out.push({
-      ...(name ? { name } : {}),
-      ...(mime ? { mime } : {}),
-      ...(url  ? { url: String(url) } : {}),
-      ...(data ? { data: String(data) } : {}),
-    });
-  }
-  return out.length ? out : null;
-}
-
-// ---- analyse conformité / risque ----
 function deriveConfAndRisk(payload = {}) {
   const norm = (s)=> String(s||'').trim().toLowerCase();
   const gz = norm(payload.zone_gaz);
@@ -90,7 +106,7 @@ function deriveConfAndRisk(payload = {}) {
 
   const matchNG = markRaw.match(/(?:\b|[^A-Za-z0-9])(1|2|3)\s*[Gg](?:\b|[^A-Za-z])/);
   const matchND = markRaw.match(/(?:\b|[^A-Za-z0-9])(1|2|3)\s*[Dd](?:\b|[^A-Za-z])/);
-  const hasGasLetter  = /(^|[^a-z])g([^a-z]|$)/i.test(markRaw) || /ex[^a-z0-9]*[ig]/i.test(markRaw);
+  const hasGasLetter = /(^|[^a-z])g([^a-z]|$)/i.test(markRaw) || /ex[^a-z0-9]*[ig]/i.test(markRaw);
   const hasDustLetter = /(^|[^a-z])d([^a-z]|$)/i.test(markRaw) || /\bex\s*t[bdc]/i.test(markRaw) || /\biiic\b/i.test(markRaw);
 
   let confReason = null;
@@ -140,56 +156,32 @@ function fmtDate(d){
   return `${dd}-${mm}-${yyyy}`;
 }
 function buildEnrich(eq, conf){
+  const enriched = { palliatives:[], preventives:[], refs:[], costs:[], why:'' };
   const zg = String(eq.zone_gaz||'').trim();
   const zd = String(eq.zone_poussieres||eq.zone_poussiere||'').trim();
   const req = requiredCategoryForZone(zg, zd);
   const mark = String(eq.marquage_atex||'').toLowerCase();
 
-  const palliatives = [];
-  const preventives = [];
-  const refs = [];
-  const costs = [];
-
-  const nonConf = String(conf.conformite).toLowerCase().includes('non');
-
-  if (nonConf){
-    // Palliatives (immédiat)
-    palliatives.push('Mettre hors tension et sécuriser la zone si possible (consignation).');
-    palliatives.push('Éloigner le matériel non conforme des zones classées (0/1/2/20/21/22).');
+  if (String(conf.conformite).toLowerCase().includes('non')){
+    enriched.why = conf.conformite;
     if (!mark || mark.includes('pas de marquage')){
-      palliatives.push('Apposer une signalisation temporaire et interdire l’usage jusqu’au remplacement.');
+      enriched.palliatives.push('Mettre hors tension et éloigner de la zone classée si possible.');
+      enriched.preventives.push('Remplacer par un matériel **certifié ATEX** correspondant aux zones.');
+      enriched.refs.push('Directive 2014/34/UE – Matériels ATEX.');
+      enriched.costs.push('Remplacement matériel certifié : 400€–2 500€ selon le composant.');
     }
-
-    // Préventives (durable)
-    preventives.push(`Remplacer par un équipement **certifié ATEX ${req}** (lettres G/D appropriées).`);
-    preventives.push('Vérifier le câblage, presse-étoupes, continuité équipotentielle, indices IP.');
-    preventives.push('Tenir à jour le registre d’inspection initiale et périodique (EN 60079-17).');
-
-    // Références
-    refs.push('Directive 2014/34/UE (matériels ATEX).');
-    refs.push('Directive 1999/92/CE (zones ATEX utilisateurs).');
-    refs.push('EN 60079-0/1/7/31 (Ex d / Ex e / Ex t) et EN 60079-14/17 (installation / inspection).');
-
-    // Coûts (ordres de grandeur)
-    costs.push('Remplacement capteur/actionneur certifié : 300€ – 2 500€.');
-    costs.push('Boîte de jonction Ex e / Ex d : 80€ – 600€.');
-    costs.push('Inspection + rapport : 250€ – 600€.');
   } else {
-    preventives.push('Maintenir les inspections périodiques (EN 60079-17).');
-    preventives.push('Contrôler joints, presse-étoupes, mise à la terre.');
-    refs.push('Conforme aux exigences déclarées, zones et marquage cohérents.');
-    costs.push('Surveillance/maintenance courante : 0€ – 150€ selon site.');
+    enriched.why = 'Conforme aux exigences déclarées.';
   }
-
-  // Ajustements selon zones
-  if (zg === '0' || zd === '20') refs.push('Zone 0/20 → catégorie 1G/1D requise.');
-  if (zg === '1' || zd === '21') refs.push('Zone 1/21 → catégorie 2G/2D requise.');
-  if (zg === '2' || zd === '22') refs.push('Zone 2/22 → catégorie 3G/3D requise.');
-
-  return { palliatives, preventives, refs, costs, why: conf.conformite };
+  if (zg === '0' || zd === '20') enriched.refs.push('Exigence de catégorie 1G/1D pour zone 0/20.');
+  if (zg === '1' || zd === '21') enriched.refs.push('Exigence de catégorie 2G/2D pour zone 1/21.');
+  if (zg === '2' || zd === '22') enriched.refs.push('Exigence de catégorie 3G/3D pour zone 2/22.');
+  enriched.refs.push('EN 60079 (série) — Ex d / Ex e / Ex t.');
+  enriched.costs.push('Inspection initiale + rapport : 250€–600€.');
+  return enriched;
 }
 
-// =============== SECTEURS ===============
+// ---------- SECTEURS ----------
 router.get('/atex-secteurs', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -223,19 +215,21 @@ router.post('/atex-secteurs', requireAuth, async (req, res) => {
   try{
     const uid = req.user && req.user.uid;
     const accountId = Number(req.query.account_id || req.body?.account_id);
-    const name = normStr(req.body && req.body.name);
+    const name = (req.body && req.body.name || '').trim();
     if (!uid) return res.status(401).json({ error: 'unauthenticated' });
     if (!accountId || !name) return res.status(400).json({ error: 'bad_request' });
 
     const role = await roleOnAccount(uid, accountId);
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
+    // IMPORTANT: pas de created_by (la colonne n'existe pas sur certains schémas)
     await pool.query(
       `INSERT INTO public.atex_secteurs (account_id, name)
        VALUES ($1,$2)
        ON CONFLICT (account_id, name) DO NOTHING`,
       [accountId, name]
     );
+    console.log('[POST /atex-secteurs] ok', { accountId, name });
     return res.status(201).json({ ok:true, name });
   }catch(e){
     console.error('[POST /atex-secteurs] error', e);
@@ -243,7 +237,7 @@ router.post('/atex-secteurs', requireAuth, async (req, res) => {
   }
 });
 
-// =============== LISTE ===============
+// ---------- LISTE ----------
 router.get('/atex-equipments', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -272,37 +266,7 @@ router.get('/atex-equipments', requireAuth, async (req, res) => {
   }
 });
 
-// =============== VIEWER (attachments friendly) ===============
-router.get('/equip/:id', requireAuth, async (req, res) => {
-  try{
-    const accountId = Number(req.query.account_id);
-    const id = Number(req.params.id);
-    console.log('[GET /equip/:id] ok', { id, accountId });
-    if (!accountId || !id) return res.status(400).json({ error: 'bad_request' });
-
-    const q = await pool.query(
-      `SELECT id, composant, secteur, batiment, local, marquage_atex, photo, attachments
-         FROM public.atex_equipments
-        WHERE id=$1 AND account_id=$2`,
-      [id, accountId]
-    );
-    if (!q.rowCount) return res.status(404).json({ error: 'not_found' });
-    const row = q.rows[0];
-
-    // normalise attachments (si vide mais photo dispo: l’ajouter)
-    let attachments = sanitizeAttachments(row.attachments);
-    if ((!attachments || !attachments.length) && row.photo){
-      const mimeGuess = /^data:([^;]+);/.exec(row.photo)?.[1] || '';
-      attachments = [{ name: 'Photo', mime: mimeGuess, data: row.photo }];
-    }
-    return res.json({ ...row, attachments: attachments || [] });
-  }catch(e){
-    console.error('[GET /equip/:id] error', e);
-    res.status(500).json({ error: 'server_error' });
-  }
-});
-
-// =============== CRUD ===============
+// ---------- CRUD ----------
 router.post('/atex-equipments', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -314,49 +278,54 @@ router.post('/atex-equipments', requireAuth, async (req, res) => {
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
     const b = req.body || {};
-    // normalisation
-    b.secteur = normStr(b.secteur);
-    b.batiment = normStr(b.batiment);
-    b.local = normStr(b.local);
-    b.composant = normStr(b.composant);
-    b.fournisseur = normStr(b.fournisseur);
-    b.type = normStr(b.type);
-    b.identifiant = normStr(b.identifiant);
-    b.marquage_atex = normStr(b.marquage_atex);
-    b.comments = normStr(b.comments);
-    b.last_inspection_date = normDate(b.last_inspection_date);
-    b.zone_gaz = normZoneGaz(b.zone_gaz);
-    b.zone_poussieres = normZoneDust(b.zone_poussieres ?? b.zone_poussiere);
-    b.zone_poussiere = b.zone_poussieres; // miroir texte
-    const att = sanitizeAttachments(b.attachments);
-    if (att !== undefined) b.attachments = att;
+    // Normalisations
+    b.last_inspection_date = normDateISOtoSQL(b.last_inspection_date);
+    b.next_inspection_date = normDateISOtoSQL(b.next_inspection_date);
+    b.zone_gaz = (b.zone_gaz===''?null:b.zone_gaz);
+    b.zone_poussiere = (b.zone_poussiere===''?null:b.zone_poussiere);
+    b.zone_poussieres = (b.zone_poussieres===''?null:b.zone_poussieres);
 
     const derived = deriveConfAndRisk(b);
     if (b.risque == null) b.risque = derived.risque;
     if (!b.conformite) b.conformite = derived.conformite;
 
-    // construction insert dynamique
-    const allCols = [
+    // attachments (jsonb)
+    let attachments = ensureArray(b.attachments).map(sanitizeAttachmentItem).filter(Boolean);
+    // ia_history (jsonb)
+    let ia_history = ensureArray(b.ia_history).map(m => ({ role: (m.role==='assistant'?'assistant':'user'), content: String(m.content||'') }));
+
+    const fields = [
       'risque','secteur','batiment','local','composant','fournisseur','type',
       'identifiant','interieur','exterieur','categorie_minimum','marquage_atex',
-      'photo','conformite','comments','last_inspection_date','next_inspection_date',
+      'photo','conformite','comments','last_inspection_date', 'next_inspection_date',
       'risk_assessment','grade','frequence','zone_type','zone_gaz','zone_poussiere',
       'zone_poussieres','ia_history','attachments'
     ];
-    const keys = allCols.filter(k => b[k] !== undefined);
-    const vals = keys.map(k => b[k] ?? null);
+    const values = fields.map(k => {
+      if (k==='attachments') return (attachments.length ? JSON.stringify(attachments) : null);
+      if (k==='ia_history')  return (ia_history.length ? JSON.stringify(ia_history) : null);
+      return b[k] ?? null;
+    });
 
-    const q = await pool.query(
-      `INSERT INTO public.atex_equipments (${keys.join(', ')}, account_id, created_by)
-       VALUES (${keys.map((_,i)=>'$'+(i+1)).join(', ')}, $${keys.length+1}, $${keys.length+2})
-       RETURNING id`,
-      [...vals, accountId, uid]
-    );
-    return res.status(201).json({ id: q.rows[0].id });
-  } catch (e) {
-    if (String(e.code) === '23505') {
-      return res.status(409).json({ error: 'duplicate', message: 'Identifiant déjà utilisé.' });
+    try{
+      const q = await pool.query(
+        `INSERT INTO public.atex_equipments (
+           ${fields.join(', ')}, account_id, created_by
+         ) VALUES (
+           ${fields.map((_,i)=>'$'+(i+1)).join(', ')}, $${fields.length+1}, $${fields.length+2}
+         )
+         RETURNING id`,
+        [...values, accountId, uid]
+      );
+      return res.status(201).json({ id: q.rows[0].id });
+    }catch (err){
+      // gestion conflit identifiant unique (y compris index normalisé)
+      if (String(err.code)==='23505'){
+        return res.status(409).json({ error: 'conflict', message: 'Identifiant déjà utilisé' });
+      }
+      throw err;
     }
+  } catch (e) {
     console.error('[POST /atex-equipments] error', e);
     res.status(500).json({ error: 'server_error' });
   }
@@ -378,10 +347,7 @@ router.get('/atex-equipments/:id', requireAuth, async (req, res) => {
       [id, accountId]
     );
     if (!q.rowCount) return res.status(404).json({ error: 'not_found' });
-    const row = q.rows[0];
-    // normaliser attachments sortants (toujours un array côté client)
-    row.attachments = sanitizeAttachments(row.attachments) || [];
-    return res.json(row);
+    return res.json(q.rows[0]);
   }catch(e){
     console.error('[GET /atex-equipments/:id] error', e);
     res.status(500).json({ error: 'server_error' });
@@ -400,63 +366,55 @@ router.put('/atex-equipments/:id', requireAuth, async (req, res) => {
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
     const b = req.body || {};
+    // Normalisations
+    b.last_inspection_date = normDateISOtoSQL(b.last_inspection_date);
+    b.next_inspection_date = normDateISOtoSQL(b.next_inspection_date);
+    b.zone_gaz = (b.zone_gaz===''?null:b.zone_gaz);
+    b.zone_poussiere = (b.zone_poussiere===''?null:b.zone_poussiere);
+    b.zone_poussieres = (b.zone_poussieres===''?null:b.zone_poussieres);
 
-    // normalisation
-    if ('secteur' in b) b.secteur = normStr(b.secteur);
-    if ('batiment' in b) b.batiment = normStr(b.batiment);
-    if ('local' in b) b.local = normStr(b.local);
-    if ('composant' in b) b.composant = normStr(b.composant);
-    if ('fournisseur' in b) b.fournisseur = normStr(b.fournisseur);
-    if ('type' in b) b.type = normStr(b.type);
-    if ('identifiant' in b) b.identifiant = normStr(b.identifiant);
-    if ('marquage_atex' in b) b.marquage_atex = normStr(b.marquage_atex);
-    if ('comments' in b) b.comments = normStr(b.comments);
-    if ('last_inspection_date' in b) b.last_inspection_date = normDate(b.last_inspection_date);
-    if ('zone_gaz' in b) b.zone_gaz = normZoneGaz(b.zone_gaz);
-    if ('zone_poussieres' in b || 'zone_poussiere' in b) {
-      const z = normZoneDust(b.zone_poussieres ?? b.zone_poussiere);
-      b.zone_poussieres = z; b.zone_poussiere = z;
-    }
-    if ('attachments' in b) {
-      const att = sanitizeAttachments(b.attachments);
-      b.attachments = att; // peut être null (efface) ou array (ok)
-    }
+    const derived = deriveConfAndRisk(b);
+    if (b.risque == null) b.risque = derived.risque;
+    if (!b.conformite) b.conformite = derived.conformite;
 
-    // re-calcul conf/risque si champs liés changent
-    if ('zone_gaz' in b || 'zone_poussieres' in b || 'marquage_atex' in b || !b.conformite || b.risque==null){
-      const derived = deriveConfAndRisk({ ...b });
-      if (b.risque == null) b.risque = derived.risque;
-      if (!b.conformite) b.conformite = derived.conformite;
-    }
+    // attachments
+    let attachments = ensureArray(b.attachments).map(sanitizeAttachmentItem).filter(Boolean);
+    // ia_history
+    let ia_history = ensureArray(b.ia_history).map(m => ({ role: (m.role==='assistant'?'assistant':'user'), content: String(m.content||'') }));
 
-    // build UPDATE dynamique (ne met à jour que les clés présentes)
-    const updatable = [
+    const fields = [
       'risque','secteur','batiment','local','composant','fournisseur','type',
       'identifiant','interieur','exterieur','categorie_minimum','marquage_atex',
-      'photo','conformite','comments','last_inspection_date','next_inspection_date',
+      'photo','conformite','comments','last_inspection_date', 'next_inspection_date',
       'risk_assessment','grade','frequence','zone_type','zone_gaz','zone_poussiere',
       'zone_poussieres','ia_history','attachments'
     ];
-    const keys = updatable.filter(k => k in b);
-    if (!keys.length) return res.json({ id, ok:true });
+    const sets = fields.map((k,i)=> `${k}=$${i+1}`);
+    const vals = fields.map(k => {
+      if (k==='attachments') return (attachments.length ? JSON.stringify(attachments) : null);
+      if (k==='ia_history')  return (ia_history.length ? JSON.stringify(ia_history) : null);
+      return b[k] ?? null;
+    });
 
-    const sets = keys.map((k,i)=> `${k}=$${i+1}`);
-    const vals = keys.map(k => b[k] ?? null);
-    console.log('[PUT /atex-equipments/:id] updating', { id, accountId, has_att: Number(Array.isArray(b.attachments) && b.attachments.length>0) });
-
-    const q = await pool.query(
-      `UPDATE public.atex_equipments
-          SET ${sets.join(', ')}
-        WHERE id=$${keys.length+1} AND account_id=$${keys.length+2}
-        RETURNING id`,
-      [...vals, id, accountId]
-    );
-    if (!q.rowCount) return res.status(404).json({ error: 'not_found' });
-    return res.json(q.rows[0].id);
-  }catch(e){
-    if (String(e.code) === '23505') {
-      return res.status(409).json({ error: 'duplicate', message: 'Identifiant déjà utilisé.' });
+    try{
+      const q = await pool.query(
+        `UPDATE public.atex_equipments
+            SET ${sets.join(', ')}
+          WHERE id=$${fields.length+1} AND account_id=$${fields.length+2}
+          RETURNING id`,
+        [...vals, id, accountId]
+      );
+      if (!q.rowCount) return res.status(404).json({ error: 'not_found' });
+      console.log('[PUT /atex-equipments/:id] updating', { id, accountId, has_att: attachments.length });
+      return res.json({ id: q.rows[0].id, ok: true });
+    }catch (err){
+      if (String(err.code)==='23505'){
+        return res.status(409).json({ error: 'conflict', message: 'Identifiant déjà utilisé' });
+      }
+      console.error('[PUT /atex-equipments/:id] error', err);
+      throw err;
     }
+  }catch(e){
     console.error('[PUT /atex-equipments/:id] error', e);
     res.status(500).json({ error: 'server_error' });
   }
@@ -484,7 +442,7 @@ router.delete('/atex-equipments/:id', requireAuth, async (req, res) => {
   }
 });
 
-// =============== INSPECTION ===============
+// ---------- INSPECTION ----------
 router.post('/atex-inspect', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -496,21 +454,21 @@ router.post('/atex-inspect', requireAuth, async (req, res) => {
     const role = await roleOnAccount(uid, accountId);
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
-    const dateISO = normDate(inspection_date) || new Date().toISOString().slice(0,10);
+    const nowSQL = normDateISOtoSQL(inspection_date || new Date().toISOString());
     await pool.query(
       `UPDATE public.atex_equipments
           SET last_inspection_date=$1
         WHERE id=$2 AND account_id=$3`,
-      [dateISO, equipment_id, accountId]
+      [nowSQL, equipment_id, accountId]
     );
-    res.json({ ok: true, last_inspection_date: dateISO });
+    res.json({ ok: true, last_inspection_date: nowSQL });
   } catch (e) {
     console.error('[POST /atex-inspect] error', e);
     res.status(500).json({ error: 'server_error' });
   }
 });
 
-// =============== IA ===============
+// ---------- IA (HELP) ----------
 router.get('/atex-help/:id', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -558,6 +516,7 @@ router.get('/atex-help/:id', requireAuth, async (req, res) => {
   } catch (e) { console.error('[GET /atex-help/:id] error', e); res.status(500).json({ error: 'server_error' }); }
 });
 
+// ---------- IA CHAT (PERSISTANT) ----------
 router.post('/atex-chat', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -565,31 +524,73 @@ router.post('/atex-chat', requireAuth, async (req, res) => {
     if (!uid) return res.status(401).json({ error: 'unauthenticated' });
     if (!accountId) return res.status(400).json({ error: 'bad_request' });
 
-    const { question = '', equipment = null, equipment_id = null, history = [] } = req.body || {};
+    const {
+      question = '',
+      equipment_id = null,
+      history = []
+    } = req.body || {};
+
+    let eq = null;
+    if (equipment_id) {
+      const role = await roleOnAccount(uid, accountId);
+      if (!role) return res.status(403).json({ error: 'forbidden_account' });
+
+      const q = await pool.query(
+        `SELECT id, ia_history
+           FROM public.atex_equipments
+          WHERE id=$1 AND account_id=$2`,
+        [Number(equipment_id), accountId]
+      );
+      if (!q.rowCount) return res.status(404).json({ error: 'not_found' });
+      eq = q.rows[0];
+    }
+
+    // Appel IA si configuré
     let html = '<p>Service IA non configuré.</p>';
     try {
       const { chat } = require('../config/openai');
-      if (typeof chat === 'function') html = await chat({ question, equipment, history });
-    } catch { /* pas d’OpenAI => placeholder */ }
+      if (typeof chat === 'function') {
+        html = await chat({
+          question,
+          equipment: eq,              // peut être null
+          history: Array.isArray(history) ? history : []
+        });
+      }
+    } catch {}
 
-    // tentative de persistance si l’id équipement est fourni
-    const eqId = Number(equipment_id || (equipment && equipment.id) || 0);
-    if (eqId && accountId){
-      try{
-        await pool.query(
-          `UPDATE public.atex_equipments
-              SET ia_history = COALESCE(ia_history, '[]'::jsonb) || $1::jsonb
-            WHERE id=$2 AND account_id=$3`,
-          [ JSON.stringify([{ role:'user', content:question }, { role:'assistant', content:String(html) }]), eqId, accountId ]
-        );
-      }catch(e){ console.warn('[POST /atex-chat] persist ia_history fail', e.message); }
+    if (eq) {
+      let existing = [];
+      if (Array.isArray(eq.ia_history)) existing = eq.ia_history;
+      else if (typeof eq.ia_history === 'string') { try { existing = JSON.parse(eq.ia_history) || []; } catch { existing = []; } }
+
+      const safeHist = Array.isArray(history)
+        ? history.map(m => ({ role: (m.role === 'assistant' ? 'assistant' : 'user'), content: String(m.content || '') }))
+        : [];
+      const newThread = [
+        ...existing,
+        ...safeHist,
+        { role: 'user', content: String(question || '') },
+        { role: 'assistant', content: String(html || '') }
+      ];
+
+      await pool.query(
+        `UPDATE public.atex_equipments
+            SET ia_history = $1
+          WHERE id = $2 AND account_id = $3`,
+        [JSON.stringify(newThread), Number(equipment_id), accountId]
+      );
+
+      return res.json({ response: html, persisted: true, equipment_id, length: newThread.length });
     }
 
-    res.json({ response: html });
-  } catch (e) { console.error('[POST /atex-chat] error', e); res.status(500).json({ error: 'server_error' }); }
+    return res.json({ response: html, persisted: false });
+  } catch (e) {
+    console.error('[POST /atex-chat] error', e);
+    res.status(500).json({ error: 'server_error' });
+  }
 });
 
-// =============== PHOTO (multipart) ===============
+// ---------- PHOTO (multipart) ----------
 let multer;
 try { multer = require('multer'); } catch {}
 const upload = multer ? multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } }) : null;
@@ -628,7 +629,7 @@ router.post('/atex-photo/:id', requireAuth, upload ? upload.single('file') : (_r
   }
 });
 
-// =============== IMPORT (CSV/XLSX) ===============
+// ---------- IMPORT ----------
 let xlsx;
 try { xlsx = require('xlsx'); } catch { }
 
@@ -676,26 +677,27 @@ router.post('/atex-import-excel', requireAuth, upload ? upload.single('file') : 
         batiment: r.batiment ?? r.Bâtiment ?? r.bat ?? null,
         local: r.local ?? null,
         composant: r.composant ?? r.Composant ?? null,
-        fournisseur: r.fournisseur ?? null,
+        fournisseur: r.fournisseur ?? r.fabricant ?? null,
         type: r.type ?? null,
         identifiant: r.identifiant ?? r.ID ?? null,
         marquage_atex: r.marquage_atex ?? r.Marquage ?? null,
         conformite: r.conformite ?? r.Conformite ?? r.Conformité ?? null,
         comments: r.comments ?? r.Commentaires ?? null,
-        zone_gaz: normZoneGaz(r.zone_gaz),
-        zone_poussieres: normZoneDust(r.zone_poussieres ?? r.zone_poussiere),
+        zone_gaz: r.zone_gaz ?? null,
+        zone_poussieres: r.zone_poussieres ?? r.zone_poussiere ?? null,
         frequence: r.frequence ? Number(r.frequence) : null,
-        last_inspection_date: normDate(r.last_inspection_date || null),
+        last_inspection_date: normDateISOtoSQL(r.last_inspection_date || null)
       };
 
       const derived = deriveConfAndRisk(payload);
       if (payload.risque == null) payload.risque = derived.risque;
       if (!payload.conformite) payload.conformite = derived.conformite;
 
+      // Existe déjà ?
       let existing = null;
       if (payload.identifiant){
         const ex = await pool.query(
-          `SELECT id FROM public.atex_equipments WHERE account_id=$1 AND lower(TRIM(identifiant))=lower(TRIM($2)) LIMIT 1`,
+          `SELECT id FROM public.atex_equipments WHERE account_id=$1 AND lower(TRIM(BOTH FROM identifiant))=lower(TRIM(BOTH FROM $2)) LIMIT 1`,
           [accountId, String(payload.identifiant)]
         );
         existing = ex.rowCount ? ex.rows[0].id : null;
@@ -705,7 +707,7 @@ router.post('/atex-import-excel', requireAuth, upload ? upload.single('file') : 
         const keys = Object.keys(payload).filter(k => payload[k] !== undefined);
         if (keys.length){
           const sets = keys.map((k,i)=> `${k}=$${i+1}`);
-          const vals = keys.map(k => payload[k] ?? null);
+          const vals = keys.map(k => payload[k]);
           await pool.query(
             `UPDATE public.atex_equipments SET ${sets.join(', ')}
              WHERE id=$${keys.length+1} AND account_id=$${keys.length+2}`,
@@ -768,6 +770,42 @@ router.get('/atex-import-template.xlsx', requireAuth, async (_req, res) => {
     res.setHeader('Content-Type','text/csv; charset=utf-8');
     res.setHeader('Content-Disposition','attachment; filename="atex_import_template.csv"');
     res.send(csv);
+  }
+});
+
+// ---------- VIEWER (photo + attachments normalisés) ----------
+router.get('/equip/:id', requireAuth, async (req,res)=>{
+  try{
+    const uid = req.user && req.user.uid;
+    const accountId = Number(req.query.account_id);
+    const id = Number(req.params.id);
+    if (!uid) return res.status(401).json({ error: 'unauthenticated' });
+    if (!accountId || !id) return res.status(400).json({ error: 'bad_request' });
+
+    const role = await roleOnAccount(uid, accountId);
+    if (!role) return res.status(403).json({ error: 'forbidden_account' });
+
+    const q = await pool.query(
+      `SELECT id, photo, attachments FROM public.atex_equipments WHERE id=$1 AND account_id=$2`,
+      [id, accountId]
+    );
+    if (!q.rowCount) return res.status(404).json({ error: 'not_found' });
+
+    const row = q.rows[0];
+    console.log('[GET /equip/:id] ok', { id, accountId });
+
+    let atts = ensureArray(row.attachments).map(sanitizeAttachmentItem).filter(Boolean);
+    // Remonte la photo (si présente) comme première pièce image
+    const items = [];
+    if (row.photo && String(row.photo).startsWith('data:')){
+      items.push({ data: row.photo, name: 'Photo', mime: guessMime(row.photo) || 'image/*' });
+    }
+    items.push(...atts);
+
+    return res.json({ id: row.id, attachments: items });
+  }catch(e){
+    console.error('[GET /equip/:id] error', e);
+    res.status(500).json({ error: 'server_error' });
   }
 });
 
