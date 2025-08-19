@@ -1,23 +1,15 @@
-// routes/atex.js — v10 (enrich + G/D stricte + secteurs POST + photo upload + import)
+// routes/atex.js — v10b (fix POST secteurs: sans created_by)
 const express = require('express');
 const path = require('path');
 const router = express.Router();
-console.log('[ATEX ROUTES] v10 loaded');
+console.log('[ATEX ROUTES] v10b loaded');
 
-// ===== require() robustes basés sur __dirname =====
 const { pool } = require(path.join(__dirname, '..', 'config', 'db'));
-let { requireAuth } = (() => {
-  try { return require(path.join(__dirname, '..', 'middleware', 'authz')); }
-  catch { return {}; }
-})();
+let { requireAuth } = (() => { try { return require(path.join(__dirname, '..', 'middleware', 'authz')); } catch { return {}; } })();
 requireAuth = requireAuth || ((_req,_res,next)=>next());
-// ================================================
 
 async function roleOnAccount(userId, accountId){
-  const r = await pool.query(
-    `SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2`,
-    [userId, accountId]
-  );
+  const r = await pool.query(`SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2`, [userId, accountId]);
   return r.rowCount ? r.rows[0].role : null;
 }
 
@@ -27,51 +19,35 @@ function deriveConfAndRisk(payload = {}) {
   const dz = norm(payload.zone_poussieres || payload.zone_poussiere);
   const markRaw = String(payload.marquage_atex || '');
   const mark = norm(markRaw);
-
   let risk = 1;
   if (['0','20'].includes(gz) || ['0','20'].includes(dz)) risk = 5;
   else if (['1','21'].includes(gz) || ['1','21'].includes(dz)) risk = 4;
   else if (['2','22'].includes(gz) || ['2','22'].includes(dz)) risk = 3;
-
   const reqCatG = gz === '0' ? 1 : gz === '1' ? 2 : gz === '2' ? 3 : null;
   const reqCatD = dz === '20' ? 1 : dz === '21' ? 2 : dz === '22' ? 3 : null;
-
   const matchNG = markRaw.match(/(?:\b|[^A-Za-z0-9])(1|2|3)\s*[Gg](?:\b|[^A-Za-z])/);
   const matchND = markRaw.match(/(?:\b|[^A-Za-z0-9])(1|2|3)\s*[Dd](?:\b|[^A-Za-z])/);
   const hasGasLetter  = /(^|[^a-z])g([^a-z]|$)/i.test(markRaw) || /ex[^a-z0-9]*[ig]/i.test(markRaw);
   const hasDustLetter = /(^|[^a-z])d([^a-z]|$)/i.test(markRaw) || /\bex\s*t[bdc]/i.test(markRaw) || /\biiic\b/i.test(markRaw);
-
   let confReason = null;
-
-  if (!mark || mark.includes('pas de marquage')) {
-    confReason = 'Non conforme – marquage manquant';
-  } else {
+  if (!mark || mark.includes('pas de marquage')) confReason = 'Non conforme – marquage manquant';
+  else {
     if (reqCatG) {
       if (!hasGasLetter) confReason = 'Non conforme – marquage gaz (G) absent';
       const catG = matchNG ? Number(matchNG[1]) : null;
-      if (!confReason && catG && catG <= 3) {
-        if (catG < reqCatG) confReason = `Non conforme – catégorie G insuffisante (requis ≥ ${reqCatG}G)`;
-      } else if (!confReason && catG == null) {
-        confReason = `Non conforme – catégorie G absente (requis ≥ ${reqCatG}G)`;
-      }
+      if (!confReason && catG && catG <= 3) { if (catG < reqCatG) confReason = `Non conforme – catégorie G insuffisante (requis ≥ ${reqCatG}G)`; }
+      else if (!confReason && catG == null) { confReason = `Non conforme – catégorie G absente (requis ≥ ${reqCatG}G)`; }
     }
     if (!confReason && reqCatD) {
       if (!hasDustLetter) confReason = 'Non conforme – marquage poussières (D) absent';
       const catD = matchND ? Number(matchND[1]) : null;
-      if (!confReason && catD && catD <= 3) {
-        if (catD < reqCatD) confReason = `Non conforme – catégorie D insuffisante (requis ≥ ${reqCatD}D)`;
-      } else if (!confReason && catD == null) {
-        confReason = `Non conforme – catégorie D absente (requis ≥ ${reqCatD}D)`;
-      }
+      if (!confReason && catD && catD <= 3) { if (catD < reqCatD) confReason = `Non conforme – catégorie D insuffisante (requis ≥ ${reqCatD}D)`; }
+      else if (!confReason && catD == null) { confReason = `Non conforme – catégorie D absente (requis ≥ ${reqCatD}D)`; }
     }
   }
-
   let conformite = payload.conformite;
-  if (!conformite || !norm(conformite)) {
-    conformite = confReason ? confReason : 'Conforme';
-  }
+  if (!conformite || !norm(conformite)) conformite = confReason ? confReason : 'Conforme';
   if (norm(conformite).includes('non')) risk = Math.min(5, risk + 1);
-
   return { risque: risk, conformite };
 }
 function requiredCategoryForZone(zg, zd){
@@ -81,19 +57,12 @@ function requiredCategoryForZone(zg, zd){
   if(zgNum === '1' || zdNum === '21') return 'II 2GD';
   return 'II 3GD';
 }
-function fmtDate(d){
-  if(!d) return 'N/A';
-  const date = new Date(d); if(isNaN(date)) return d;
-  const dd=String(date.getDate()).padStart(2,'0'), mm=String(date.getMonth()+1).padStart(2,'0'), yyyy=date.getFullYear();
-  return `${dd}-${mm}-${yyyy}`;
-}
+function fmtDate(d){ if(!d) return 'N/A'; const date = new Date(d); if(isNaN(date)) return d; const dd=String(date.getDate()).padStart(2,'0'), mm=String(date.getMonth()+1).padStart(2,'0'), yyyy=date.getFullYear(); return `${dd}-${mm}-${yyyy}`; }
 function buildEnrich(eq, conf){
   const enriched = { palliatives:[], preventives:[], refs:[], costs:[], why:'' };
   const zg = String(eq.zone_gaz||'').trim();
   const zd = String(eq.zone_poussieres||eq.zone_poussiere||'').trim();
-  requiredCategoryForZone(zg, zd); // req non utilisé dans cette version
   const mark = String(eq.marquage_atex||'').toLowerCase();
-
   if (String(conf.conformite).toLowerCase().includes('non')){
     enriched.why = conf.conformite;
     if (!mark || mark.includes('pas de marquage')){
@@ -113,9 +82,6 @@ function buildEnrich(eq, conf){
   return enriched;
 }
 
-/* =============================================================================
-   Helpers de schéma (pour POST robuste)
-============================================================================= */
 let _equipColsCache = null;
 async function getEquipmentColumns(pool) {
   if (_equipColsCache) return _equipColsCache;
@@ -170,10 +136,10 @@ router.post('/atex-secteurs', requireAuth, async (req, res) => {
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
     await pool.query(
-      `INSERT INTO public.atex_secteurs (account_id, name, created_by)
-       VALUES ($1,$2,$3)
+      `INSERT INTO public.atex_secteurs (account_id, name)
+       VALUES ($1,$2)
        ON CONFLICT (account_id, name) DO NOTHING`,
-      [accountId, name, uid]
+      [accountId, name]
     );
     return res.status(201).json({ ok:true, name });
   }catch(e){
@@ -211,7 +177,7 @@ router.get('/atex-equipments', requireAuth, async (req, res) => {
   }
 });
 
-/* ======================= CRÉATION (robuste au schéma) ======================= */
+/* ======================= CRÉATION ======================= */
 router.post('/atex-equipments', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -229,10 +195,7 @@ router.post('/atex-equipments', requireAuth, async (req, res) => {
     if (b.risque == null) b.risque = derived.risque;
     if (!b.conformite)     b.conformite = derived.conformite;
 
-    // Colonnes réellement présentes dans la table
     const cols = await getEquipmentColumns(pool);
-
-    // Champs "métier" qu'on tolère depuis le front (ajoute ici si tu en as d'autres)
     const allowed = [
       'risque','secteur','batiment','local','composant','fournisseur','type',
       'identifiant','interieur','exterieur','categorie_minimum','marquage_atex',
@@ -241,29 +204,18 @@ router.post('/atex-equipments', requireAuth, async (req, res) => {
       'zone_poussieres','ia_history','attachments','localisation','secteur_code',
       'fabricant','modele','serie','date_installation','photo_url'
     ];
-
-    // Intersection {payload} ∩ {colonnes réelles}
     const keys = allowed.filter(k => b[k] !== undefined && cols.has(k));
     const vals = keys.map(k => b[k] ?? null);
 
-    // Ajout account_id / created_by si dispo dans la table
-    const extraKeys = [];
-    const extraVals = [];
+    const extraKeys = [], extraVals = [];
     if (cols.has('account_id')) { extraKeys.push('account_id'); extraVals.push(accountId); }
     if (cols.has('created_by')) { extraKeys.push('created_by'); extraVals.push(uid); }
 
     const allKeys = [...keys, ...extraKeys];
-    if (!allKeys.length) {
-      return res.status(400).json({ error: 'no_insertable_fields' });
-    }
+    if (!allKeys.length) return res.status(400).json({ error: 'no_insertable_fields' });
 
     const placeHolders = allKeys.map((_, i) => `$${i + 1}`);
-    const sql = `
-      INSERT INTO public.atex_equipments (${allKeys.join(', ')})
-      VALUES (${placeHolders.join(', ')})
-      RETURNING id
-    `;
-
+    const sql = `INSERT INTO public.atex_equipments (${allKeys.join(', ')}) VALUES (${placeHolders.join(', ')}) RETURNING id`;
     const ins = await pool.query(sql, [...vals, ...extraVals]);
     return res.status(201).json({ id: ins.rows[0].id });
 
@@ -286,10 +238,7 @@ router.get('/atex-equipments/:id', requireAuth, async (req, res) => {
     const role = await roleOnAccount(uid, accountId);
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
-    const q = await pool.query(
-      `SELECT * FROM public.atex_equipments WHERE id=$1 AND account_id=$2`,
-      [id, accountId]
-    );
+    const q = await pool.query(`SELECT * FROM public.atex_equipments WHERE id=$1 AND account_id=$2`, [id, accountId]);
     if (!q.rowCount) return res.status(404).json({ error: 'not_found' });
     return res.json(q.rows[0]);
   }catch(e){
@@ -348,10 +297,7 @@ router.delete('/atex-equipments/:id', requireAuth, async (req, res) => {
     const role = await roleOnAccount(uid, accountId);
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
-    const q = await pool.query(
-      `DELETE FROM public.atex_equipments WHERE id=$1 AND account_id=$2`,
-      [id, accountId]
-    );
+    const q = await pool.query(`DELETE FROM public.atex_equipments WHERE id=$1 AND account_id=$2`, [id, accountId]);
     return res.json({ ok: true, deleted: q.rowCount });
   }catch(e){
     console.error('[DELETE /atex-equipments/:id] error', e);
@@ -427,7 +373,6 @@ router.get('/atex-help/:id', requireAuth, async (req, res) => {
       <h6>Recommandations</h6>
       <ul>${tips.map(t=>`<li>${t}</li>`).join('')}</ul>
     `;
-
     const enrich = buildEnrich(eq, derived);
     return res.json({ response: html, enrich });
   } catch (e) { console.error('[GET /atex-help/:id] error', e); res.status(500).json({ error: 'server_error' }); }
@@ -605,7 +550,6 @@ router.get('/atex-import-columns', requireAuth, async (_req, res) => {
     ]
   });
 });
-
 router.get('/atex-import-template', requireAuth, async (_req, res) => {
   const headers = [
     'secteur','batiment','local','composant','fournisseur','type','identifiant',
