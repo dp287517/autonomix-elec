@@ -1,190 +1,96 @@
-// public/js/atex-control.ui.js — v4 (cache-bust + 304 fallback)
-(() => {
-  function toast(msg, type = 'info') {
-    if (typeof window.toast === 'function') return window.toast(msg, type);
-    console[type === 'danger' ? 'error' : 'log']('[toast]', msg);
-  }
-  function getAccountId() {
-    if (window.state && window.state.accountId) return window.state.accountId;
-    try { return localStorage.getItem('app_account_id') || '10'; } catch { return '10'; }
-  }
-  function isPDF(mime, src) {
-    if (mime && mime.toLowerCase().includes('pdf')) return true;
-    if (typeof src === 'string' && src.startsWith('data:application/pdf')) return true;
-    if (typeof src === 'string' && src.toLowerCase().endsWith('.pdf')) return true;
-    return false;
-  }
-  function dedupeBySrc(items) {
-    const seen = new Set(), out = [];
-    for (const it of items) {
-      const key = (it.src || '') + '|' + (it.name || '');
-      if (seen.has(key)) continue; seen.add(key); out.push(it);
+// public/js/atex-control.ui.js — v6 (Attachment Viewer branché sur #attViewerModal)
+(function(){
+  const $  = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+  function isImage(u){ return /^data:image\//i.test(u) || /\.(png|jpe?g|webp|gif)$/i.test(u||''); }
+  function isPdf(u){ return /^data:application\/pdf/i.test(u) || /\.pdf(\?|#|$)/i.test(u||''); }
+
+  const state = { slides: [], idx: 0, eqId: null };
+
+  function render(){
+    const stage = $('#attViewerStage'); if(!stage) return;
+    if(!state.slides.length){
+      stage.innerHTML = '<div class="text-white-50 p-4">Aucune pièce jointe.</div>';
+      const openBtn = $('#attOpen'); if (openBtn) openBtn.setAttribute('href','#');
+      const meta = $('#attViewerMeta'); if (meta) meta.textContent = '';
+      const title = $('#attViewerTitle'); if (title) title.textContent = 'Aperçu';
+      return;
     }
-    return out;
-  }
-  function buildAttachmentList(eq) {
-    const list = [];
-    if (eq.photo && typeof eq.photo === 'string' && /^data:image\//i.test(eq.photo)) {
-      list.push({
-        name: eq.identifiant ? `photo_${eq.identifiant}.jpg` : 'photo.jpg',
-        mime: (eq.photo.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg',
-        src: eq.photo
-      });
-    }
-    let arr = eq.attachments;
-    if (typeof arr === 'string') { try{ arr = JSON.parse(arr); }catch{ arr = []; } }
-    arr = Array.isArray(arr) ? arr : [];
-    for (const it of arr) {
-      if (!it) continue;
-      const name = it.name || 'pièce';
-      const mime = it.mime || '';
-      const src  = it.url || it.data || '';
-      if (!src) continue;
-      list.push({ name, mime, src });
-    }
-    return dedupeBySrc(list);
-  }
-  function renderAttachmentIntoStage(item) {
-    const stage = document.getElementById('attViewerStage');
-    if (!stage) return;
-    stage.innerHTML = '';
-    if (isPDF(item.mime, item.src)) {
-      const iframe = document.createElement('iframe');
-      iframe.className = 'w-100 h-100';
-      iframe.src = item.src;
-      iframe.setAttribute('loading', 'lazy');
-      stage.appendChild(iframe);
+    if(state.idx < 0) state.idx = state.slides.length-1;
+    if(state.idx >= state.slides.length) state.idx = 0;
+
+    const slide = state.slides[state.idx];
+    const src   = slide.src;
+    const name  = slide.name || `Pièce ${state.idx+1}`;
+
+    const title = $('#attViewerTitle'); if (title) title.textContent = name;
+    const meta  = $('#attViewerMeta');
+    if (meta) meta.textContent = `Équipement #${state.eqId} • ${state.idx+1}/${state.slides.length}${slide.mime? ' • '+slide.mime : ''}`;
+
+    const openBtn = $('#attOpen'); if (openBtn) openBtn.setAttribute('href', src);
+
+    if (isImage(src)){
+      stage.innerHTML = `<img src="${src}" class="img-fluid">`;
+    } else if (isPdf(src)){
+      stage.innerHTML = `<iframe src="${src}" class="w-100" style="height: calc(100vh - 180px);" frameborder="0"></iframe>`;
     } else {
-      const img = document.createElement('img');
-      img.className = 'img-fluid'; img.style.maxHeight = '90vh';
-      img.alt = item.name || 'Aperçu'; img.src = item.src;
-      stage.appendChild(img);
+      stage.innerHTML = `<div class="text-center p-4">
+        <div class="text-white-50 mb-2">Type non prévisualisable.</div>
+        <a class="btn btn-primary" href="${src}" target="_blank" rel="noopener">Ouvrir</a>
+      </div>`;
     }
   }
-  function updateMetaBar(eq, items, index) {
-    const metaEl = document.getElementById('attViewerMeta');
-    const openBtn = document.getElementById('attOpen');
-    if (!metaEl || !items.length) return;
-    metaEl.innerHTML = '';
-    const info = document.createElement('span');
-    info.className = 'me-2';
-    info.textContent = `${index + 1} / ${items.length}`;
-    metaEl.appendChild(info);
-    const sel = document.createElement('select');
-    sel.className = 'form-select form-select-sm d-inline-block';
-    sel.style.width = 'auto'; sel.style.maxWidth = '60vw';
-    items.forEach((it, i) => {
-      const o = document.createElement('option');
-      o.value = String(i);
-      o.text = it.name || (isPDF(it.mime, it.src) ? 'document.pdf' : 'image');
-      if (i === index) o.selected = true;
-      sel.appendChild(o);
-    });
-    sel.onchange = () => {
-      const i = Number(sel.value);
-      window.__attIndex = i;
-      const it = items[i];
-      renderAttachmentIntoStage(it);
-      if (openBtn) openBtn.href = it.src;
-      info.textContent = `${i + 1} / ${items.length}`;
-    };
-    metaEl.appendChild(sel);
-  }
-  function bindArrows(items) {
-    const prevBtn = document.getElementById('attPrev');
-    const nextBtn = document.getElementById('attNext');
-    const openBtn = document.getElementById('attOpen');
-    const metaEl  = document.getElementById('attViewerMeta');
-    const goto = (i) => {
-      if (!items || !items.length) return;
-      window.__attIndex = (i + items.length) % items.length;
-      const it = items[window.__attIndex];
-      renderAttachmentIntoStage(it);
-      if (openBtn) openBtn.href = it.src;
-      if (metaEl) {
-        const sel = metaEl.querySelector('select');
-        const info = metaEl.querySelector('span');
-        if (sel) sel.value = String(window.__attIndex);
-        if (info) info.textContent = `${window.__attIndex + 1} / ${items.length}`;
-      }
-    };
-    if (prevBtn) prevBtn.onclick = () => goto(window.__attIndex - 1);
-    if (nextBtn) nextBtn.onclick = () => goto(window.__attIndex + 1);
-  }
-  function buildEquipGetUrl(equipId) {
-    try {
-      if (window.API && typeof window.API.equipment === 'function') {
-        return window.API.equipment(equipId);
-      }
-    } catch {}
-    const acc = encodeURIComponent(getAccountId());
-    return `/api/atex-equipments/${encodeURIComponent(equipId)}?account_id=${acc}`;
-  }
 
-  let __opening = false;
-  async function openAttachmentViewer(equipId) {
-    if (__opening) return;
-    __opening = true;
-    try {
-      // premier essai sans cache
-      let url = buildEquipGetUrl(equipId);
-      let r = await fetch(url, { cache: 'no-store' });
-      if (r.status === 304) {
-        // fallback 304 → cache-bust
-        const sep = url.includes('?') ? '&' : '?';
-        url = `${url}${sep}t=${Date.now()}`;
-        r = await fetch(url, { cache: 'reload' });
-      }
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const eq = await r.json();
+  function next(){ state.idx++; render(); }
+  function prev(){ state.idx--; render(); }
 
-      const items = buildAttachmentList(eq);
-      if (!items.length) {
-        toast('Aucune pièce jointe pour cet équipement', 'secondary');
+  // Exposé global — on attend l'objet équipement complet (pour éviter un fetch)
+  window.openAttachmentViewer = function(eq){
+    try{
+      const slides = [];
+
+      // 1) Photo principale (si image ou pdf en data/url)
+      if (eq && eq.photo && (isImage(eq.photo) || isPdf(eq.photo))){
+        slides.push({ name: 'Photo', mime: '', src: eq.photo });
+      }
+
+      // 2) Attachments (array de {name,mime,url|data|href|path} ou string JSON)
+      let atts = eq && eq.attachments;
+      if (typeof atts === 'string'){
+        try{ atts = JSON.parse(atts); }catch{ atts = null; }
+      }
+      if (Array.isArray(atts)){
+        atts.forEach((a)=>{
+          const name = (a && (a.name||a.label)) || `Pièce ${slides.length+1}`;
+          const mime = a && a.mime || '';
+          const src  = a && (a.url || a.href || a.data || a.path) || '';
+          if (!src) return;
+          slides.push({ name, mime, src });
+        });
+      }
+
+      state.slides = slides;
+      state.idx = 0;
+      state.eqId = eq?.id || null;
+
+      const el = $('#attViewerModal');
+      if (!el) {
+        console.warn('[openAttachmentViewer] #attViewerModal introuvable dans le DOM');
+        if (window.toast) window.toast('Viewer introuvable dans la page','warning');
         return;
       }
 
-      const titleEl = document.getElementById('attViewerTitle');
-      const openBtn = document.getElementById('attOpen');
-      if (titleEl) titleEl.textContent = `Pièces — ${eq.identifiant || eq.composant || ('#' + eq.id)}`;
-
-      window.__attItems = items;
-      window.__attIndex = 0;
-
-      renderAttachmentIntoStage(items[0]);
-      if (openBtn) openBtn.href = items[0].src;
-
-      updateMetaBar(eq, items, 0);
-      bindArrows(items);
-
-      const modalEl = document.getElementById('attViewerModal');
-      if (!modalEl) throw new Error('#attViewerModal introuvable');
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-      modal.show();
-
-      if (window.lucide && lucide.createIcons) lucide.createIcons();
-
-    } catch (err) {
+      render();
+      bootstrap.Modal.getOrCreateInstance(el).show();
+    }catch(err){
       console.error('[openAttachmentViewer] fail', err);
-      toast('Erreur en ouvrant les pièces', 'danger');
-    } finally {
-      __opening = false;
+      if (window.toast) window.toast('Erreur en ouvrant les pièces','danger');
     }
-  }
+  };
 
-  window.openAttachmentViewer = openAttachmentViewer;
-
-  // Délégué optionnel (si un jour on met data-open-attachments)
-  document.addEventListener('click', (ev) => {
-    const btn = ev.target.closest('[data-open-attachments]');
-    if (!btn) return;
-    const id = btn.getAttribute('data-id');
-    if (!id) return;
-    ev.preventDefault();
-    openAttachmentViewer(id);
-  });
-
-  document.addEventListener('DOMContentLoaded', () => {
-    if (window.lucide && lucide.createIcons) lucide.createIcons();
+  document.addEventListener('DOMContentLoaded', ()=>{
+    $('#attPrev')?.addEventListener('click', prev);
+    $('#attNext')?.addEventListener('click', next);
   });
 })();
