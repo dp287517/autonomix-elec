@@ -1,4 +1,4 @@
-// public/js/atex-control.core.js — v15 (restore Chat IA on reload)
+// public/js/atex-control.core.js — v14
 (function(){
   if (window.lucide){ try{ window.lucide.createIcons(); }catch{} }
 
@@ -32,11 +32,9 @@
     chat: withAccount('/api/atex-chat'),
     photo: (id) => withAccount('/api/atex-photo/' + id)
   };
-  const bodyWithAccount = (o={}) => Object.assign({}, o, { account_id: ACCOUNT_ID });
+  window.API = API; // exposé pour le viewer plein écran
 
-  // Expose pour d'autres scripts (ex: atex-control.ui.js)
-  window.API = API;
-  window.state = Object.assign(window.state || {}, { accountId: ACCOUNT_ID });
+  const bodyWithAccount = (o={}) => Object.assign({}, o, { account_id: ACCOUNT_ID });
 
   // ---------- State / Storage ----------
   let equipments = [];
@@ -52,7 +50,10 @@
   function getThreads(){ try{ return JSON.parse(localStorage.getItem(THREADS_KEY)||'{}'); }catch{return {}} }
   function setThreads(o){ localStorage.setItem(THREADS_KEY, JSON.stringify(o||{})); }
   function getThread(id){ const all=getThreads(); return Array.isArray(all[id]) ? all[id] : []; }
-  function setThread(id, arr){ const all=getThreads(); all[id]=arr||[]; setThreads(all); if (currentIA===id){ renderThread($('#iaThread'), arr); renderThread($('#chatThread'), arr); } }
+  function setThread(id, arr){
+    const all=getThreads(); all[id]=arr||[]; setThreads(all);
+    if (currentIA===id){ renderThread($('#iaThread'), arr); renderThread($('#chatThread'), arr); }
+  }
   function deleteThread(id){ const all=getThreads(); delete all[id]; setThreads(all); }
 
   function getHistory(){ try{ return JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]'); }catch{return []} }
@@ -83,6 +84,7 @@
   function deleteHelpCache(id){ const m=getHelpCache(); delete m[id]; setHelpCache(m); }
 
   function toast(msg,variant='primary'){
+    console.log('[toast]', msg);
     const id='t'+Date.now();
     const html=`<div id="${id}" class="toast text-bg-${variant} border-0 mb-2" role="alert"><div class="d-flex"><div class="toast-body">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`;
     const cont = document.getElementById('toasts') || (function(){ const d=document.createElement('div'); d.id='toasts'; d.className='toast-container position-fixed top-0 end-0 p-3'; document.body.appendChild(d); return d; })();
@@ -110,46 +112,32 @@
   function isImageLink(u){ return /^data:image\//.test(u) || /\.(png|jpe?g|webp|gif)$/i.test(u||''); }
   function isPdfLink(u){ return /\.(pdf)$/i.test(u||''); }
 
-  // ---------- Attachments MODAL (fallback simple) ----------
+  // ---------- Attachments MODAL (fallback) ----------
   function openAttachmentsModal(eq){
     let atts = eq.attachments;
     if (typeof atts === 'string'){ try{ atts = JSON.parse(atts); }catch{ atts = null; } }
     atts = Array.isArray(atts) ? atts : [];
-
     const id = 'attsModal_'+eq.id;
-    const blocks = [];
-
-    if (eq.photo && typeof eq.photo === 'string' && eq.photo.startsWith('data:')){
-      blocks.push(`
-        <div class="mb-3">
-          <div class="small fw-semibold mb-1">Photo</div>
-          <img src="${eq.photo}" class="img-fluid rounded border">
-        </div>
-      `);
-    }
-
-    if (atts.length){
-      blocks.push(atts.map((a,i)=>{
-        const url = a && (a.url||a.data||a.href||a.path||a) || '';
-        const name = a && (a.name||a.label) || ('Fichier '+(i+1));
-        if (!url) return '';
-        if (isImageLink(url)){
-          return `<div class="mb-3"><div class="small fw-semibold mb-1">${name}</div><img src="${url}" class="img-fluid rounded border"></div>`;
-        }
-        const ico = isPdfLink(url) ? '📄' : '📎';
-        return `<div class="mb-2"><a href="${url}" target="_blank" rel="noopener">${ico} ${name}</a></div>`;
-      }).join(''));
-    }
-    if (!blocks.length){
-      blocks.push('<div class="text-muted">Aucune pièce jointe.</div>');
-    }
-
     const modalHTML = `
     <div class="modal fade" id="${id}" tabindex="-1">
       <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
         <div class="modal-header"><h5 class="modal-title">Pièces jointes — Équipement #${eq.id}</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
-          ${blocks.join('')}
+          ${atts.length || eq.photo ? (()=>{
+            const items = [];
+            if (eq.photo && typeof eq.photo === 'string') items.push({name:'Photo', src:eq.photo});
+            for (let i=0;i<atts.length;i++){
+              const a = atts[i]; const src = a?.url || a?.data || ''; const name = a?.name || ('Fichier '+(i+1));
+              if (!src) continue;
+              if (isImageLink(src)){
+                items.push(`<div class="mb-3"><div class="small fw-semibold mb-1">${name}</div><img src="${src}" class="img-fluid rounded border"></div>`);
+              } else {
+                const ico = isPdfLink(src) ? '📄' : '📎';
+                items.push(`<div class="mb-2"><a href="${src}" target="_blank" rel="noopener">${ico} ${name}</a></div>`);
+              }
+            }
+            return items.map(x => typeof x==='string'?x:`<div class="mb-3"><img src="${x.src}" class="img-fluid rounded border"></div>`).join('');
+          })() : '<div class="text-muted">Aucune pièce jointe.</div>'}
         </div>
         <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
       </div></div>
@@ -163,7 +151,7 @@
   // ---------- Table ----------
   async function loadEquipments(){
     try{
-      const r = await fetch(API.equipments);
+      const r = await fetch(API.equipments, { cache:'no-store' });
       equipments = await r.json();
       equipments = (equipments||[]).map(eq=>{
         if (!eq.next_inspection_date && eq.last_inspection_date){
@@ -201,7 +189,7 @@
         <td>${fmtDate(eq.next_inspection_date)}</td>
         <td class="actions">
           <button class="btn btn-sm btn-outline-primary" data-action="edit-equipment" data-id="${eq.id}" title="Éditer"><i data-lucide="edit-3"></i></button>
-          <button class="btn btn-sm btn-outline-secondary" data-action="open-attachments" data-id="${eq.id}" title="Pièces jointes"><i data-lucide="paperclip"></i> Pièces</button>
+          <button class="btn btn-sm btn-outline-secondary" data-action="open-attachments" data-id="${eq.id}" title="Pièces jointes" data-open-attachments data-id="${eq.id}"><i data-lucide="paperclip"></i> Pièces</button>
           <button class="btn btn-sm ${String(eq.conformite||'').toLowerCase().includes('non') ? 'btn-warning' : 'btn-outline-secondary'}" data-action="open-ia" data-id="${eq.id}" title="IA"><i data-lucide="sparkles"></i> IA</button>
           <button class="btn btn-sm btn-outline-danger" data-action="delete-equipment" data-id="${eq.id}" data-label="${(eq.composant||'').replace(/\"/g,'&quot;')}" title="Supprimer"><i data-lucide="trash-2"></i></button>
         </td>`;
@@ -272,28 +260,18 @@
 
   // --------- Secteurs ---------
   async function loadSecteurs(){
-    const sel = document.getElementById('secteur-input');
-    if (!sel) return;
     try{
-      const r = await fetch(API.secteurs);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const r = await fetch(API.secteurs, { cache:'no-store' });
       const arr = await r.json();
+      const sel = document.getElementById('secteur-input');
+      if (!sel) return;
       sel.innerHTML = '<option value="" disabled selected>— Sélectionner —</option>';
-      const items = Array.isArray(arr) ? arr : [];
-      if (!items.length){
-        sel.insertAdjacentHTML('beforeend', '<option value="" disabled>— Aucun secteur —</option>');
-      } else {
-        items.forEach(s=>{
-          const name = (typeof s === 'string') ? s : (s && s.name) ? s.name : '';
-          if(!name) return;
-          const o=document.createElement('option'); o.value=name; o.text=name; sel.appendChild(o);
-        });
-      }
-    }catch(e){
-      console.error('[loadSecteurs] fail:', e);
-      toast('Erreur chargement secteurs','danger');
-      sel.innerHTML = '<option value="" disabled selected>— Erreur —</option>';
-    }
+      (arr||[]).forEach(s=>{
+        const name = (typeof s === 'string') ? s : (s && s.name) ? s.name : '';
+        if(!name) return;
+        const o=document.createElement('option'); o.value=name; o.text=name; sel.appendChild(o);
+      });
+    }catch{}
   }
   function openModalSecteur(){
     const html=`
@@ -312,49 +290,16 @@
     </div>`;
     document.body.insertAdjacentHTML('beforeend', html);
     const el = document.getElementById('modalSecteur'), modal = new bootstrap.Modal(el); modal.show();
-
-    const doSave = async ()=>{
-      const btn = el.querySelector('#saveSecteurBtn');
-      const msg = el.querySelector('#secteurSaveMsg');
+    el.querySelector('#saveSecteurBtn').addEventListener('click', async ()=>{
       const name=(el.querySelector('#newSecteurName').value||'').trim();
-      if(!name){ msg.textContent='Nom requis.'; return; }
-      btn.disabled = true; msg.textContent='Enregistrement...';
+      if(!name){ el.querySelector('#secteurSaveMsg').textContent='Nom requis.'; return; }
       try{
         const r = await fetch(API.secteurs,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(bodyWithAccount({name}))});
-        if(!r.ok){
-          const err = await r.json().catch(()=>({}));
-          throw new Error(err?.message || `HTTP ${r.status}`);
-        }
+        if(!r.ok) throw new Error('Erreur API');
         await loadSecteurs(); document.getElementById('secteur-input').value=name; toast('Secteur enregistré','success'); modal.hide(); el.remove();
-      }catch(err){ msg.textContent='Erreur: '+(err.message||err); btn.disabled=false; }
-    };
-
-    el.querySelector('#saveSecteurBtn').addEventListener('click', doSave);
-    el.querySelector('#newSecteurName').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); doSave(); } });
+      }catch(err){ el.querySelector('#secteurSaveMsg').textContent='Erreur: '+(err.message||err); }
+    }, {once:true});
     el.addEventListener('hidden.bs.modal', ()=> el.remove(), {once:true});
-  }
-
-  // --------- Attachments (upload) ---------
-  async function fileToDataUrl(file) {
-    const MAX = 8 * 1024 * 1024;
-    if (file.size > MAX) throw new Error(`Fichier trop volumineux (>8 Mo): ${file.name}`);
-    return new Promise((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(r.result);
-      r.onerror = () => reject(r.error || new Error('read_failed'));
-      r.readAsDataURL(file);
-    });
-  }
-  async function gatherFormAttachments() {
-    const input = document.getElementById('photo-input');
-    if (!input || !input.files || !input.files.length) return [];
-    const files = Array.from(input.files);
-    const out = [];
-    for (const f of files) {
-      const dataUrl = await fileToDataUrl(f);
-      out.push({ name: f.name, mime: f.type || '', data: dataUrl });
-    }
-    return out;
   }
 
   // --------- Save / Edit ---------
@@ -368,7 +313,7 @@
     if (missing.length){ toast('Champs manquants : '+missing.join(', '),'warning'); return; }
 
     const id = (document.getElementById('equipId')||{}).value || null;
-    const base = {
+    const data = bodyWithAccount({
       secteur: (document.getElementById('secteur-input')||{}).value,
       batiment: (document.getElementById('batiment-input')||{}).value,
       local: (document.getElementById('local-input')||{}).value,
@@ -383,30 +328,8 @@
       zone_poussieres: (document.getElementById('zone-d-input')||{}).value || null,
       zone_poussiere: (document.getElementById('zone-d-input')||{}).value || null,
       photo: null
-    };
-    const data = bodyWithAccount(base);
-
-    try{
-      const newAtts = await gatherFormAttachments();
-      if (newAtts.length){
-        if (id){
-          const cur = equipments.find(e => String(e.id) === String(id)) || null;
-          const existing = Array.isArray(cur?.attachments) ? cur.attachments : [];
-          data.attachments = existing.concat(newAtts);
-          if (!cur?.photo){
-            const firstImg = newAtts.find(a => (a.mime||'').startsWith('image/'));
-            if (firstImg) data.photo = firstImg.data;
-          }
-        } else {
-          data.attachments = newAtts;
-          const firstImg = newAtts.find(a => (a.mime||'').startsWith('image/'));
-          if (firstImg) data.photo = firstImg.data;
-        }
-      }
-    }catch(e){
-      console.error('[attachments] skip:', e);
-      toast('Pièce ignorée: ' + (e.message || e), 'warning');
-    }
+      // NOTE: pas d'attachments ici → le serveur ignore si non fourni
+    });
 
     try{
       const r = await fetch(id ? API.equipment(id) : API.equipments, {
@@ -419,10 +342,8 @@
         const err = await r.json().catch(()=>({}));
         throw new Error(err?.message || 'Erreur enregistrement');
       }
-      await r.json();
+      const saved = await r.json();
       toast('Équipement sauvegardé.','success');
-
-      const file = document.getElementById('photo-input'); if(file) file.value='';
       await loadEquipments();
       document.getElementById('list-tab')?.click();
       clearForm();
@@ -431,7 +352,7 @@
   async function editEquipment(id){
     try{
       document.getElementById('add-tab')?.click(); await new Promise(r=>setTimeout(r,0));
-      const r = await fetch(API.equipment(id)); if(!r.ok) throw new Error('Erreur chargement équipement');
+      const r = await fetch(API.equipment(id), { cache:'no-store' }); if(!r.ok) throw new Error('Erreur chargement équipement');
       const eq = await r.json();
       (document.getElementById('equipId')||{}).value = eq.id;
       (document.getElementById('secteur-input')||{}).value   = eq.secteur || '';
@@ -446,7 +367,6 @@
       (document.getElementById('marquage_atex-input')||{}).value = eq.marquage_atex || '';
       (document.getElementById('comments-input')||{}).value  = eq.comments || '';
       (document.getElementById('last-inspection-input')||{}).value = eq.last_inspection_date ? new Date(eq.last_inspection_date).toISOString().slice(0,10) : '';
-      const file = document.getElementById('photo-input'); if(file) file.value='';
     }catch(e){ toast('Erreur édition: '+(e.message||e),'danger'); }
   }
 
@@ -539,12 +459,8 @@
     const comp = (eq?.composant || '').toLowerCase();
 
     const items = [];
-    if (comp.includes('pression') || comp.includes('capteur')){
-      items.push({ type:'Capteur pression ATEX', name:'IFM PN7092', href:'https://www.ifm.com/' });
-    }
-    if (comp.includes('moteur') || comp.includes('pompe')){
-      items.push({ type:'Moteur Ex d', name:'WEG W22X', href:'https://www.weg.net/' });
-    }
+    if (comp.includes('pression') || comp.includes('capteur')) items.push({ type:'Capteur pression ATEX', name:'IFM PN7092', href:'https://www.ifm.com/' });
+    if (comp.includes('moteur') || comp.includes('pompe'))    items.push({ type:'Moteur Ex d', name:'WEG W22X', href:'https://www.weg.net/' });
     items.push({ type:'Boîte de jonction Ex e', name:'R. STAHL série 8146/5-V', href:'https://r-stahl.com/' });
     items.push({ type:'Presse-étoupe Ex e/Ex d', name:'Hawke 501/421', href:'https://www.ehawke.com/' });
     items.push({ type:'Câble & accessoires ATEX', name:'RS Components', href:'https://uk.rs-online.com/' });
@@ -563,11 +479,11 @@
     try{
       let eq; const cached = getCachedHelp(id);
       if (cached && cached.eq) eq = cached.eq;
-      else { const r = await fetch(API.equipment(id)); if(!r.ok) throw new Error('Équipement introuvable'); eq = await r.json(); }
+      else { const r = await fetch(API.equipment(id), { cache:'no-store' }); if(!r.ok) throw new Error('Équipement introuvable'); eq = await r.json(); }
 
       let help = cached && cached.help;
       if (!help){
-        const hr = await fetch(API.help(id));
+        const hr = await fetch(API.help(id), { cache:'no-store' });
         help = await hr.json();
         cacheHelp(id, { eq, help });
       }
@@ -601,8 +517,8 @@
           question: text,
           equipment: null,
           history: thread.map(m=>({ role: m.role==='assistant'?'assistant':'user', content: m.content }))
-        }))}
-      );
+        }))
+      });
       const data = await resp.json();
       const iaText = data?.response || 'Réponse indisponible.';
       const next = [...thread, {role:'user', content:text}, {role:'assistant', content:iaText}];
@@ -680,23 +596,18 @@
       if (act === 'open-ia'){ openIA(Number(btn.dataset.id)); }
       if (act === 'open-attachments'){
         const id = Number(btn.dataset.id);
-        if (typeof window.openAttachmentViewer === 'function'){
-          e.preventDefault();
+        // Priorité au viewer plein écran si présent
+        if (typeof window.openAttachmentViewer === 'function') {
           window.openAttachmentViewer(id);
-          return;
+        } else {
+          const eq = equipments.find(e => e.id === id);
+          if (eq) openAttachmentsModal(eq);
         }
-        const eq = equipments.find(e => e.id === id);
-        if (eq) openAttachmentsModal(eq);
         e.preventDefault();
       }
     });
 
-    // >>> FIX: restaurer Chat IA depuis localStorage au rechargement
-    renderHistory();
-    renderHistoryChat();
-
-    loadEquipments();
-    loadSecteurs();
+    loadEquipments(); loadSecteurs();
   });
 
   // Photo modal (si jamais utilisé ailleurs)
