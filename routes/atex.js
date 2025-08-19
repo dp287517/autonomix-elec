@@ -1,15 +1,15 @@
-// routes/atex.js — v12 (attachments/ia_history normalize + logs + robust secteurs)
+// routes/atex.js — v13 (attachments harden + logs + secteurs scoping)
 const express = require('express');
 const router = express.Router();
-console.log('[ATEX ROUTES] v12 loaded');
+console.log('[ATEX ROUTES] v13 loaded');
 
 const { pool } = require('../config/db');
 
-// Auth (graceful if absent)
+// Auth soft (si middleware absent)
 let { requireAuth } = (() => { try { return require('../middleware/authz'); } catch { return {}; } })();
 requireAuth = requireAuth || ((_req,_res,next)=>next());
 
-// ---- helpers DB / logic ----
+// -------------------- Helpers --------------------
 async function roleOnAccount(userId, accountId){
   const r = await pool.query(
     `SELECT role FROM public.user_accounts WHERE user_id=$1 AND account_id=$2`,
@@ -18,7 +18,6 @@ async function roleOnAccount(userId, accountId){
   return r.rowCount ? r.rows[0].role : null;
 }
 
-// Normalize possibly-string JSON fields (attachments, ia_history)
 function safeParseJSON(v, fallback=null){
   if (v == null) return fallback;
   if (typeof v === 'object') return v;
@@ -28,24 +27,80 @@ function safeParseJSON(v, fallback=null){
   return fallback;
 }
 
+function sanitizeScalarString(s){
+  // force string propre, enlève guillemets parasites et retours ligne
+  if (s == null) return null;
+  s = String(s);
+  s = s.replace(/\r?\n/g, '').trim();
+  // enlève guillemets englobants éventuels
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+    s = s.slice(1, -1);
+  }
+  // certains clients collent des caractères en fin (guillemets/accolades)
+  // on ne touche que si ça ressemble à une URL data: ou http(s)
+  if (/^(data:|https?:)/i.test(s)) {
+    s = s.replace(/["}]+$/g, '');
+  }
+  return s;
+}
+
 function normalizeAttachments(v){
-  const arr = safeParseJSON(v, v);
+  // On accepte : null | string(JSON) | array(mixed)
+  let arr = v;
+
+  // 1) si string → tente JSON
+  if (typeof arr === 'string') {
+    const maybe = safeParseJSON(arr, undefined);
+    if (maybe !== undefined) arr = maybe;
+  }
+
+  // 2) si c'est une seule string data: ou http → on wrappe en array
+  if (typeof arr === 'string' && /^(data:|https?:)/i.test(arr)) {
+    arr = [ { name: 'piece_1', mime: '', data: arr } ];
+  }
+
   if (!Array.isArray(arr)) return null;
+
   const out = [];
   for (let i=0;i<arr.length;i++){
     let it = arr[i];
-    if (typeof it === 'string'){
-      // élément stringifié ?
-      try { it = JSON.parse(it); } catch { /* garde en string ? non */ it = null; }
+
+    // élément string ?
+    if (typeof it === 'string') {
+      const trimmed = it.trim();
+      if (/^\{/.test(trimmed)) {
+        // string JSON d'objet
+        try { it = JSON.parse(trimmed); }
+        catch { it = null; }
+      } else if (/^(data:|https?:)/i.test(trimmed)) {
+        // string "data:" ou URL directe
+        it = { name: `piece_${i+1}`, mime: '', data: trimmed };
+      } else {
+        it = null;
+      }
     }
+
     if (!it || typeof it !== 'object') continue;
+
+    // on ne garde QUE ces clés
     const name = typeof it.name === 'string' ? it.name : `piece_${i+1}`;
     const mime = typeof it.mime === 'string' ? it.mime : '';
-    const url  = typeof it.url  === 'string' ? it.url  : null;
-    const data = typeof it.data === 'string' ? it.data : null;
-    if (!url && !data) continue; // on veut au moins une source
+    let url  = typeof it.url  === 'string' ? it.url  : null;
+    let data = typeof it.data === 'string' ? it.data : null;
+
+    // nettoyage des scalaires (guillemets/accolades parasites)
+    url  = sanitizeScalarString(url);
+    data = sanitizeScalarString(data);
+
+    if (!url && !data) continue;
+    // force data/url plausibles
+    if (url && !/^https?:\/\//i.test(url) && !/^data:/i.test(url)) url = null;
+    if (data && !/^data:/i.test(data)) data = null;
+    if (!url && !data) continue;
+
     out.push({ name, mime, ...(url?{url}:{}) , ...(data?{data}:{}) });
   }
+
   return out.length ? out : null;
 }
 
@@ -115,8 +170,13 @@ function fmtDate(d){
   const dd=String(date.getDate()).padStart(2,'0'), mm=String(date.getMonth()+1).padStart(2,'0'), yyyy=date.getFullYear();
   return `${dd}-${mm}-${yyyy}`;
 }
+function coerceSmallintOrNull(v){
+  if (v === '' || v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
 
-// ======================= SECTEURS =======================
+// -------------------- SECTEURS --------------------
 router.get('/atex-secteurs', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -157,7 +217,6 @@ router.post('/atex-secteurs', requireAuth, async (req, res) => {
     const role = await roleOnAccount(uid, accountId);
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
-    // On insère en scoping par compte — l'unicité globale "name" peut exister mais on s'en fiche, on garde (account_id, name)
     await pool.query(
       `INSERT INTO public.atex_secteurs (account_id, name)
        VALUES ($1,$2)
@@ -172,7 +231,7 @@ router.post('/atex-secteurs', requireAuth, async (req, res) => {
   }
 });
 
-// ======================= LISTE =======================
+// -------------------- LISTE --------------------
 router.get('/atex-equipments', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -201,13 +260,7 @@ router.get('/atex-equipments', requireAuth, async (req, res) => {
   }
 });
 
-// ======================= CRUD =======================
-function coerceSmallintOrNull(v){
-  if (v === '' || v == null) return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
+// -------------------- CRUD --------------------
 router.post('/atex-equipments', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -220,7 +273,6 @@ router.post('/atex-equipments', requireAuth, async (req, res) => {
 
     const b = req.body || {};
 
-    // normalisations
     b.zone_poussieres = coerceSmallintOrNull(b.zone_poussieres);
     b.ia_history = safeParseJSON(b.ia_history, null);
     b.attachments = normalizeAttachments(b.attachments);
@@ -239,8 +291,7 @@ router.post('/atex-equipments', requireAuth, async (req, res) => {
     const values = fields.map(k => b[k] ?? null);
 
     console.log('[POST /atex-equipments] inserting', {
-      accountId, by: uid,
-      has_att: Array.isArray(b.attachments) ? b.attachments.length : 0
+      accountId, by: uid, has_att: Array.isArray(b.attachments) ? b.attachments.length : 0
     });
 
     const q = await pool.query(
@@ -295,7 +346,7 @@ router.put('/atex-equipments/:id', requireAuth, async (req, res) => {
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
     const b = req.body || {};
-    // normalisations
+
     b.zone_poussieres = coerceSmallintOrNull(b.zone_poussieres);
     b.ia_history = safeParseJSON(b.ia_history, null);
     b.attachments = normalizeAttachments(b.attachments);
@@ -315,8 +366,7 @@ router.put('/atex-equipments/:id', requireAuth, async (req, res) => {
     const vals = fields.map(k => b[k] ?? null);
 
     console.log('[PUT /atex-equipments/:id] updating', {
-      id, accountId,
-      has_att: Array.isArray(b.attachments) ? b.attachments.length : 0
+      id, accountId, has_att: Array.isArray(b.attachments) ? b.attachments.length : 0
     });
 
     const q = await pool.query(
@@ -356,7 +406,7 @@ router.delete('/atex-equipments/:id', requireAuth, async (req, res) => {
   }
 });
 
-// ======================= INSPECTION =======================
+// -------------------- INSPECTION --------------------
 router.post('/atex-inspect', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -382,7 +432,7 @@ router.post('/atex-inspect', requireAuth, async (req, res) => {
   }
 });
 
-// ======================= IA =======================
+// -------------------- IA --------------------
 router.get('/atex-help/:id', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -445,7 +495,7 @@ router.post('/atex-chat', requireAuth, async (req, res) => {
   } catch (e) { console.error('[POST /atex-chat] error', e); res.status(500).json({ error: 'server_error' }); }
 });
 
-// ======================= PHOTO (multipart) =======================
+// -------------------- PHOTO multipart --------------------
 let multer;
 try { multer = require('multer'); } catch {}
 const upload = multer ? multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } }) : null;
