@@ -1,15 +1,15 @@
-// routes/atex.js — v12 (full)
-// - Secteurs GET/POST (sans created_by)
-// - Équipements CRUD (normalisation date/json, gestion conflits identifiant)
+// routes/atex.js — v13 (full)
+// - Secteurs GET/POST
+// - Équipements CRUD (normalisation date/json, conflits identifiant)
 // - Photo upload (dataURL)
 // - Import CSV/XLSX
-// - IA: aide + chat avec persistance ia_history
+// - IA: aide + chat
 // - Viewer: /equip/:id (photo + attachments normalisés)
-// - Logs explicites pour debug
+// - Chat IA PERSISTANT **par utilisateur** (nouvelles routes)
 
 const express = require('express');
 const router = express.Router();
-console.log('[ATEX ROUTES] v12 loaded');
+console.log('[ATEX ROUTES] v13 loaded');
 
 const { pool } = require('../config/db');
 
@@ -44,7 +44,6 @@ function ensureArray(x){
   return Array.isArray(parsed) ? parsed : [];
 }
 function sanitizeAttachmentItem(item){
-  // Accepte soit string (url/data), soit objet {url|data, name?, mime?}
   if (!item) return null;
   if (typeof item === 'string'){
     const src = item.trim();
@@ -56,7 +55,6 @@ function sanitizeAttachmentItem(item){
     const name = item.name || item.label || 'Pièce';
     const mime = item.mime || guessMime(src) || '';
     if (!src) return null;
-    // data:... => on force 'data' pour éviter CSP des iframes externes
     if (String(src).startsWith('data:')){
       return { data: src, name, mime };
     }
@@ -75,13 +73,11 @@ function guessMime(u){
   return '';
 }
 function normDateISOtoSQL(d){
-  // Accepte 'YYYY-MM-DD' ou ISO => retourne 'YYYY-MM-DD' ou null
   if (!d) return null;
   const s = String(d).trim();
   if (!s) return null;
   const iso = new Date(s);
   if (isNaN(iso)) {
-    // si déjà au bon format date SQL on laisse passer
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
     return null;
   }
@@ -188,6 +184,7 @@ router.get('/atex-secteurs', requireAuth, async (req, res) => {
     const accountId = Number(req.query.account_id);
     if (!uid) return res.status(401).json({ error: 'unauthenticated' });
     if (!accountId) return res.status(400).json({ error: 'bad_request' });
+
     const role = await roleOnAccount(uid, accountId);
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
@@ -222,7 +219,6 @@ router.post('/atex-secteurs', requireAuth, async (req, res) => {
     const role = await roleOnAccount(uid, accountId);
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
-    // IMPORTANT: pas de created_by (la colonne n'existe pas sur certains schémas)
     await pool.query(
       `INSERT INTO public.atex_secteurs (account_id, name)
        VALUES ($1,$2)
@@ -278,7 +274,6 @@ router.post('/atex-equipments', requireAuth, async (req, res) => {
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
     const b = req.body || {};
-    // Normalisations
     b.last_inspection_date = normDateISOtoSQL(b.last_inspection_date);
     b.next_inspection_date = normDateISOtoSQL(b.next_inspection_date);
     b.zone_gaz = (b.zone_gaz===''?null:b.zone_gaz);
@@ -289,9 +284,7 @@ router.post('/atex-equipments', requireAuth, async (req, res) => {
     if (b.risque == null) b.risque = derived.risque;
     if (!b.conformite) b.conformite = derived.conformite;
 
-    // attachments (jsonb)
     let attachments = ensureArray(b.attachments).map(sanitizeAttachmentItem).filter(Boolean);
-    // ia_history (jsonb)
     let ia_history = ensureArray(b.ia_history).map(m => ({ role: (m.role==='assistant'?'assistant':'user'), content: String(m.content||'') }));
 
     const fields = [
@@ -319,7 +312,6 @@ router.post('/atex-equipments', requireAuth, async (req, res) => {
       );
       return res.status(201).json({ id: q.rows[0].id });
     }catch (err){
-      // gestion conflit identifiant unique (y compris index normalisé)
       if (String(err.code)==='23505'){
         return res.status(409).json({ error: 'conflict', message: 'Identifiant déjà utilisé' });
       }
@@ -330,7 +322,6 @@ router.post('/atex-equipments', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'server_error' });
   }
 });
-
 router.get('/atex-equipments/:id', requireAuth, async (req, res) => {
   try{
     const uid = req.user && req.user.uid;
@@ -353,7 +344,6 @@ router.get('/atex-equipments/:id', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'server_error' });
   }
 });
-
 router.put('/atex-equipments/:id', requireAuth, async (req, res) => {
   try{
     const uid = req.user && req.user.uid;
@@ -366,7 +356,6 @@ router.put('/atex-equipments/:id', requireAuth, async (req, res) => {
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
     const b = req.body || {};
-    // Normalisations
     b.last_inspection_date = normDateISOtoSQL(b.last_inspection_date);
     b.next_inspection_date = normDateISOtoSQL(b.next_inspection_date);
     b.zone_gaz = (b.zone_gaz===''?null:b.zone_gaz);
@@ -377,9 +366,7 @@ router.put('/atex-equipments/:id', requireAuth, async (req, res) => {
     if (b.risque == null) b.risque = derived.risque;
     if (!b.conformite) b.conformite = derived.conformite;
 
-    // attachments
     let attachments = ensureArray(b.attachments).map(sanitizeAttachmentItem).filter(Boolean);
-    // ia_history
     let ia_history = ensureArray(b.ia_history).map(m => ({ role: (m.role==='assistant'?'assistant':'user'), content: String(m.content||'') }));
 
     const fields = [
@@ -419,7 +406,6 @@ router.put('/atex-equipments/:id', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'server_error' });
   }
 });
-
 router.delete('/atex-equipments/:id', requireAuth, async (req, res) => {
   try{
     const uid = req.user && req.user.uid;
@@ -516,77 +502,146 @@ router.get('/atex-help/:id', requireAuth, async (req, res) => {
   } catch (e) { console.error('[GET /atex-help/:id] error', e); res.status(500).json({ error: 'server_error' }); }
 });
 
-// ---------- IA CHAT (PERSISTANT) ----------
+// ---------- IA CHAT (PERSISTANT **par utilisateur**) ----------
+// GET bulk: tous les fils de l'utilisateur (pour restauration auto)
+router.get('/atex-chat-threads', requireAuth, async (req, res) => {
+  try {
+    const uid = req.user?.uid;
+    const accountId = Number(req.query.account_id);
+    if (!uid) return res.status(401).json({ error:'unauthenticated' });
+    if (!accountId) return res.status(400).json({ error:'bad_request' });
+
+    const role = await roleOnAccount(uid, accountId);
+    if (!role) return res.status(403).json({ error:'forbidden_account' });
+
+    const q = await pool.query(
+      `SELECT equipment_id, history, updated_at
+         FROM public.atex_chat_threads
+        WHERE account_id=$1 AND user_id=$2
+        ORDER BY updated_at DESC`,
+      [accountId, uid]
+    );
+    res.json(q.rows || []);
+  } catch(e) {
+    console.error('[GET /atex-chat-threads] error', e);
+    res.status(500).json({ error:'server_error' });
+  }
+});
+
+// GET one: fil de l'utilisateur pour un équipement
+router.get('/atex-chat/:equipment_id', requireAuth, async (req, res) => {
+  try {
+    const uid = req.user?.uid;
+    const accountId = Number(req.query.account_id);
+    const equipmentId = Number(req.params.equipment_id);
+    if (!uid) return res.status(401).json({ error:'unauthenticated' });
+    if (!accountId || !equipmentId) return res.status(400).json({ error:'bad_request' });
+
+    const role = await roleOnAccount(uid, accountId);
+    if (!role) return res.status(403).json({ error:'forbidden_account' });
+
+    const q = await pool.query(
+      `SELECT history FROM public.atex_chat_threads
+       WHERE account_id=$1 AND equipment_id=$2 AND user_id=$3`,
+      [accountId, equipmentId, uid]
+    );
+    return res.json({ history: q.rowCount ? q.rows[0].history || [] : [] });
+  } catch(e) {
+    console.error('[GET /atex-chat/:equipment_id] error', e);
+    res.status(500).json({ error:'server_error' });
+  }
+});
+
+// POST: envoyer un message & persister pour l'utilisateur
 router.post('/atex-chat', requireAuth, async (req, res) => {
   try {
-    const uid = req.user && req.user.uid;
+    const uid = req.user?.uid;
     const accountId = Number(req.query.account_id || req.body?.account_id);
-    if (!uid) return res.status(401).json({ error: 'unauthenticated' });
-    if (!accountId) return res.status(400).json({ error: 'bad_request' });
+    const { question = '', equipment_id = null, history = [] } = req.body || {};
+    if (!uid) return res.status(401).json({ error:'unauthenticated' });
+    if (!accountId || !equipment_id) return res.status(400).json({ error:'bad_request' });
 
-    const {
-      question = '',
-      equipment_id = null,
-      history = []
-    } = req.body || {};
+    const role = await roleOnAccount(uid, accountId);
+    if (!role) return res.status(403).json({ error:'forbidden_account' });
 
-    let eq = null;
-    if (equipment_id) {
-      const role = await roleOnAccount(uid, accountId);
-      if (!role) return res.status(403).json({ error: 'forbidden_account' });
+    // Charger eq minimalement (option : enrichir le prompt)
+    const qeq = await pool.query(
+      `SELECT id, secteur, batiment, local, composant, type, identifiant, marquage_atex, zone_gaz, zone_poussiere, zone_poussieres
+         FROM public.atex_equipments
+        WHERE id=$1 AND account_id=$2`,
+      [Number(equipment_id), accountId]
+    );
+    if (!qeq.rowCount) return res.status(404).json({ error:'not_found' });
+    const eq = qeq.rows[0];
 
-      const q = await pool.query(
-        `SELECT id, ia_history
-           FROM public.atex_equipments
-          WHERE id=$1 AND account_id=$2`,
-        [Number(equipment_id), accountId]
-      );
-      if (!q.rowCount) return res.status(404).json({ error: 'not_found' });
-      eq = q.rows[0];
-    }
-
-    // Appel IA si configuré
+    // Appel IA (identique à avant)
     let html = '<p>Service IA non configuré.</p>';
     try {
       const { chat } = require('../config/openai');
       if (typeof chat === 'function') {
         html = await chat({
           question,
-          equipment: eq,              // peut être null
+          equipment: eq,
           history: Array.isArray(history) ? history : []
         });
       }
     } catch {}
 
-    if (eq) {
-      let existing = [];
-      if (Array.isArray(eq.ia_history)) existing = eq.ia_history;
-      else if (typeof eq.ia_history === 'string') { try { existing = JSON.parse(eq.ia_history) || []; } catch { existing = []; } }
+    // Récupérer l'historique existant pour CET utilisateur
+    const existing = await pool.query(
+      `SELECT history FROM public.atex_chat_threads
+        WHERE account_id=$1 AND equipment_id=$2 AND user_id=$3`,
+      [accountId, Number(equipment_id), uid]
+    );
+    const previous = existing.rowCount ? (existing.rows[0].history || []) : [];
 
-      const safeHist = Array.isArray(history)
-        ? history.map(m => ({ role: (m.role === 'assistant' ? 'assistant' : 'user'), content: String(m.content || '') }))
-        : [];
-      const newThread = [
-        ...existing,
-        ...safeHist,
-        { role: 'user', content: String(question || '') },
-        { role: 'assistant', content: String(html || '') }
-      ];
+    const safeHist = Array.isArray(history)
+      ? history.map(m => ({ role: (m.role==='assistant'?'assistant':'user'), content: String(m.content||'') }))
+      : [];
 
-      await pool.query(
-        `UPDATE public.atex_equipments
-            SET ia_history = $1
-          WHERE id = $2 AND account_id = $3`,
-        [JSON.stringify(newThread), Number(equipment_id), accountId]
-      );
+    const newThread = [
+      ...previous,
+      ...safeHist,
+      { role:'user', content: String(question||'') },
+      { role:'assistant', content: String(html||'') }
+    ];
 
-      return res.json({ response: html, persisted: true, equipment_id, length: newThread.length });
-    }
+    // UPSERT
+    await pool.query(`
+      INSERT INTO public.atex_chat_threads (account_id, equipment_id, user_id, history, updated_at)
+      VALUES ($1,$2,$3,$4,now())
+      ON CONFLICT (account_id, equipment_id, user_id)
+      DO UPDATE SET history=$4, updated_at=now()
+    `, [accountId, Number(equipment_id), uid, JSON.stringify(newThread)]);
 
-    return res.json({ response: html, persisted: false });
+    return res.json({ response: html, persisted: true, equipment_id, length: newThread.length });
   } catch (e) {
     console.error('[POST /atex-chat] error', e);
     res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// DELETE: effacer le fil de l'utilisateur pour un équipement
+router.delete('/atex-chat/:equipment_id', requireAuth, async (req, res) => {
+  try {
+    const uid = req.user?.uid;
+    const accountId = Number(req.query.account_id);
+    const equipmentId = Number(req.params.equipment_id);
+    if (!uid) return res.status(401).json({ error:'unauthenticated' });
+    if (!accountId || !equipmentId) return res.status(400).json({ error:'bad_request' });
+
+    const role = await roleOnAccount(uid, accountId);
+    if (!role) return res.status(403).json({ error:'forbidden_account' });
+
+    const q = await pool.query(
+      `DELETE FROM public.atex_chat_threads
+        WHERE account_id=$1 AND equipment_id=$2 AND user_id=$3`,
+      [accountId, equipmentId, uid]
+    );
+    res.json({ ok:true, deleted:q.rowCount });
+  } catch(e){
+    console.error('[DELETE /atex-chat/:equipment_id] error', e);
+    res.status(500).json({ error:'server_error' });
   }
 });
 
@@ -713,8 +768,8 @@ router.post('/atex-import-excel', requireAuth, upload ? upload.single('file') : 
              WHERE id=$${keys.length+1} AND account_id=$${keys.length+2}`,
             [...vals, existing, accountId]
           );
-          updated++;
         }
+        updated++;
       } else {
         const keys = Object.keys(payload).filter(k => payload[k] !== undefined);
         const vals = keys.map(k => payload[k] ?? null);
@@ -791,21 +846,17 @@ router.get('/equip/:id', requireAuth, async (req,res)=>{
     );
     if (!q.rowCount) return res.status(404).json({ error: 'not_found' });
 
-    const row = q.rows[0];
-    console.log('[GET /equip/:id] ok', { id, accountId });
-
-    let atts = ensureArray(row.attachments).map(sanitizeAttachmentItem).filter(Boolean);
-    // Remonte la photo (si présente) comme première pièce image
-    const items = [];
-    if (row.photo && String(row.photo).startsWith('data:')){
-      items.push({ data: row.photo, name: 'Photo', mime: guessMime(row.photo) || 'image/*' });
-    }
-    items.push(...atts);
-
-    return res.json({ id: row.id, attachments: items });
+    const row = q.rows[0] || {};
+    const raw = ensureArray(row.attachments).map(sanitizeAttachmentItem).filter(Boolean);
+    const items = raw.map(it => {
+      const base = { name: it.name || 'Pièce', mime: it.mime || guessMime(it.url || it.data || '') };
+      if (it.data) return { ...base, data: it.data };
+      return { ...base, url: it.url };
+    });
+    return res.json({ id: row.id, photo: row.photo || null, attachments: items });
   }catch(e){
     console.error('[GET /equip/:id] error', e);
-    res.status(500).json({ error: 'server_error' });
+    res.status(500).json({ error:'server_error' });
   }
 });
 
