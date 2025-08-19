@@ -1,43 +1,29 @@
-// public/js/atex-control.ui.js — viewer pièces (photo + fichiers) corrigé (API.equipment)
+// public/js/atex-control.ui.js — v4 (cache-bust + 304 fallback)
 (() => {
-  // ------- Helpers -------
   function toast(msg, type = 'info') {
     if (typeof window.toast === 'function') return window.toast(msg, type);
     console[type === 'danger' ? 'error' : 'log']('[toast]', msg);
   }
-
-  // Récupère l'account_id depuis core.js ou localStorage (fallback)
   function getAccountId() {
     if (window.state && window.state.accountId) return window.state.accountId;
-    try {
-      return localStorage.getItem('app_account_id') || '10';
-    } catch {
-      return '10';
-    }
+    try { return localStorage.getItem('app_account_id') || '10'; } catch { return '10'; }
   }
-
   function isPDF(mime, src) {
     if (mime && mime.toLowerCase().includes('pdf')) return true;
     if (typeof src === 'string' && src.startsWith('data:application/pdf')) return true;
     if (typeof src === 'string' && src.toLowerCase().endsWith('.pdf')) return true;
     return false;
   }
-
   function dedupeBySrc(items) {
-    const seen = new Set();
-    const out = [];
+    const seen = new Set(), out = [];
     for (const it of items) {
       const key = (it.src || '') + '|' + (it.name || '');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(it);
+      if (seen.has(key)) continue; seen.add(key); out.push(it);
     }
     return out;
   }
-
   function buildAttachmentList(eq) {
     const list = [];
-    // 1) Photo "legacy" (en tête)
     if (eq.photo && typeof eq.photo === 'string' && /^data:image\//i.test(eq.photo)) {
       list.push({
         name: eq.identifiant ? `photo_${eq.identifiant}.jpg` : 'photo.jpg',
@@ -45,8 +31,9 @@
         src: eq.photo
       });
     }
-    // 2) Attachments JSONB
-    const arr = Array.isArray(eq.attachments) ? eq.attachments : [];
+    let arr = eq.attachments;
+    if (typeof arr === 'string') { try{ arr = JSON.parse(arr); }catch{ arr = []; } }
+    arr = Array.isArray(arr) ? arr : [];
     for (const it of arr) {
       if (!it) continue;
       const name = it.name || 'pièce';
@@ -57,7 +44,6 @@
     }
     return dedupeBySrc(list);
   }
-
   function renderAttachmentIntoStage(item) {
     const stage = document.getElementById('attViewerStage');
     if (!stage) return;
@@ -70,33 +56,23 @@
       stage.appendChild(iframe);
     } else {
       const img = document.createElement('img');
-      img.className = 'img-fluid';
-      img.style.maxHeight = '90vh';
-      img.alt = item.name || 'Aperçu';
-      img.src = item.src;
+      img.className = 'img-fluid'; img.style.maxHeight = '90vh';
+      img.alt = item.name || 'Aperçu'; img.src = item.src;
       stage.appendChild(img);
     }
   }
-
   function updateMetaBar(eq, items, index) {
     const metaEl = document.getElementById('attViewerMeta');
     const openBtn = document.getElementById('attOpen');
     if (!metaEl || !items.length) return;
-
-    // Nettoyage
     metaEl.innerHTML = '';
-
-    // Info "x / N"
     const info = document.createElement('span');
     info.className = 'me-2';
     info.textContent = `${index + 1} / ${items.length}`;
     metaEl.appendChild(info);
-
-    // Sélecteur des pièces (discret)
     const sel = document.createElement('select');
     sel.className = 'form-select form-select-sm d-inline-block';
-    sel.style.width = 'auto';
-    sel.style.maxWidth = '60vw';
+    sel.style.width = 'auto'; sel.style.maxWidth = '60vw';
     items.forEach((it, i) => {
       const o = document.createElement('option');
       o.value = String(i);
@@ -114,13 +90,11 @@
     };
     metaEl.appendChild(sel);
   }
-
   function bindArrows(items) {
     const prevBtn = document.getElementById('attPrev');
     const nextBtn = document.getElementById('attNext');
     const openBtn = document.getElementById('attOpen');
     const metaEl  = document.getElementById('attViewerMeta');
-
     const goto = (i) => {
       if (!items || !items.length) return;
       window.__attIndex = (i + items.length) % items.length;
@@ -134,31 +108,33 @@
         if (info) info.textContent = `${window.__attIndex + 1} / ${items.length}`;
       }
     };
-
     if (prevBtn) prevBtn.onclick = () => goto(window.__attIndex - 1);
     if (nextBtn) nextBtn.onclick = () => goto(window.__attIndex + 1);
   }
-
-  // URL correcte pour GET équipement par id
   function buildEquipGetUrl(equipId) {
     try {
       if (window.API && typeof window.API.equipment === 'function') {
-        // API.equipment(id) inclut déjà account_id
         return window.API.equipment(equipId);
       }
     } catch {}
-    // Fallback si window.API absent/ancien
     const acc = encodeURIComponent(getAccountId());
     return `/api/atex-equipments/${encodeURIComponent(equipId)}?account_id=${acc}`;
   }
 
   let __opening = false;
   async function openAttachmentViewer(equipId) {
-    if (__opening) return; // évite double-clic
+    if (__opening) return;
     __opening = true;
     try {
-      const url = buildEquipGetUrl(equipId);
-      const r = await fetch(url);
+      // premier essai sans cache
+      let url = buildEquipGetUrl(equipId);
+      let r = await fetch(url, { cache: 'no-store' });
+      if (r.status === 304) {
+        // fallback 304 → cache-bust
+        const sep = url.includes('?') ? '&' : '?';
+        url = `${url}${sep}t=${Date.now()}`;
+        r = await fetch(url, { cache: 'reload' });
+      }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const eq = await r.json();
 
@@ -172,21 +148,15 @@
       const openBtn = document.getElementById('attOpen');
       if (titleEl) titleEl.textContent = `Pièces — ${eq.identifiant || eq.composant || ('#' + eq.id)}`;
 
-      // Stockage global
       window.__attItems = items;
       window.__attIndex = 0;
 
-      // Rendu initial
       renderAttachmentIntoStage(items[0]);
       if (openBtn) openBtn.href = items[0].src;
 
-      // Meta bar (compteur + sélecteur)
       updateMetaBar(eq, items, 0);
-
-      // Flèches
       bindArrows(items);
 
-      // Modal
       const modalEl = document.getElementById('attViewerModal');
       if (!modalEl) throw new Error('#attViewerModal introuvable');
       const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -202,23 +172,19 @@
     }
   }
 
-  // Expose
   window.openAttachmentViewer = openAttachmentViewer;
 
-  // Délégué: tout élément avec data-open-attachments et data-id
-  function bindDelegatedButtons() {
-    document.addEventListener('click', (ev) => {
-      const btn = ev.target.closest('[data-open-attachments]');
-      if (!btn) return;
-      const id = btn.getAttribute('data-id');
-      if (!id) return;
-      ev.preventDefault();
-      openAttachmentViewer(id);
-    });
-  }
+  // Délégué optionnel (si un jour on met data-open-attachments)
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-open-attachments]');
+    if (!btn) return;
+    const id = btn.getAttribute('data-id');
+    if (!id) return;
+    ev.preventDefault();
+    openAttachmentViewer(id);
+  });
 
   document.addEventListener('DOMContentLoaded', () => {
-    bindDelegatedButtons();
     if (window.lucide && lucide.createIcons) lucide.createIcons();
   });
 })();
