@@ -1,7 +1,4 @@
-// public/js/atex-control.core.js — v12
-// Aligne les IDs/sections de ton atex-control.html d'origine, sans changer le design.
-// Correctifs : account_id sur toutes les routes, création secteur OK, édition préremplie,
-// threads IA par équipement + cache, 4 cards + suggestions, boutons Effacer, Copier, Ré-analyser, Liens pièces.
+// public/js/atex-control.core.js — v13
 (function(){
   if (window.lucide){ try{ window.lucide.createIcons(); }catch{} }
 
@@ -52,6 +49,7 @@
   function setThreads(o){ localStorage.setItem(THREADS_KEY, JSON.stringify(o||{})); }
   function getThread(id){ const all=getThreads(); return Array.isArray(all[id]) ? all[id] : []; }
   function setThread(id, arr){ const all=getThreads(); all[id]=arr||[]; setThreads(all); if (currentIA===id){ renderThread($('#iaThread'), arr); renderThread($('#chatThread'), arr); } }
+  function deleteThread(id){ const all=getThreads(); delete all[id]; setThreads(all); }
 
   function getHistory(){ try{ return JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]'); }catch{return []} }
   function setHistory(h){ localStorage.setItem(HISTORY_KEY, JSON.stringify(h||[])); renderHistory(); renderHistoryChat(); }
@@ -60,12 +58,25 @@
     if (ix>=0) h[ix]=Object.assign(h[ix], item); else h.unshift(item);
     setHistory(h.slice(0,200));
   }
-  function clearAllHistory(){ setHistory([]); setThreads({}); $('#iaHistoryListChat').innerHTML=''; $('#chatHtml').innerHTML=''; $('#chatThread').innerHTML=''; $('#chatHeader').textContent=''; }
+  function removeFromHistory(id){
+    const h=getHistory().filter(x=>x.id!==id);
+    setHistory(h);
+  }
+  function clearAllHistory(){
+    setHistory([]); setThreads({});
+    $('#iaHistoryListChat').innerHTML='';
+    $('#chatHtml').innerHTML='';
+    $('#chatThread').innerHTML='';
+    $('#chatHeader').textContent='';
+    $('#chatEnriched').style.display='none';
+    currentIA = null;
+  }
 
   function getHelpCache(){ try{ return JSON.parse(localStorage.getItem(HELP_CACHE_KEY)||'{}'); }catch{return {}} }
   function setHelpCache(o){ localStorage.setItem(HELP_CACHE_KEY, JSON.stringify(o||{})); }
   function cacheHelp(id, payload){ const m=getHelpCache(); m[id]=payload; setHelpCache(m); }
   function getCachedHelp(id){ const m=getHelpCache(); return m[id]; }
+  function deleteHelpCache(id){ const m=getHelpCache(); delete m[id]; setHelpCache(m); }
 
   function toast(msg,variant='primary'){
     const id='t'+Date.now();
@@ -95,26 +106,38 @@
   function isImageLink(u){ return /^data:image\//.test(u) || /\.(png|jpe?g|webp|gif)$/i.test(u||''); }
   function isPdfLink(u){ return /\.(pdf)$/i.test(u||''); }
 
-  function renderAttachmentsCell(eq){
-    const bits = [];
-    if (eq.photo && /^data:image\//.test(eq.photo)) bits.push(`<img class="last-photo" src="${eq.photo}" alt="Photo" data-action="open-photo" data-src="${encodeURIComponent(eq.photo)}">`);
-    else bits.push('<span class="text-muted">—</span>');
-    let atts = eq.attachments; if (typeof atts === 'string'){ try{ atts = JSON.parse(atts);}catch{ atts = null; } }
-    if (Array.isArray(atts) && atts.length){
-      const thumbs = atts.slice(0,3).map((a,i)=>{
-        const url = a && (a.url||a.href||a.path||a);
-        const label = a && (a.name||a.label) || ('Fichier '+(i+1));
-        if (!url) return '';
-        if (isImageLink(url)) return `<img class="att-thumb" title="${label}" src="${url}" data-action="open-photo" data-src="${encodeURIComponent(url)}">`;
-        const icon = isPdfLink(url) ? '📄' : '📎';
-        return `<a class="att-file" href="${url}" title="${label}" target="_blank" rel="noopener">${icon}</a>`;
-      }).join('');
-      const more = atts.length>3 ? `<a href="#" class="att-more" data-action="open-attachments" data-id="${eq.id}">+${atts.length-3}</a>` : '';
-      bits.push(`<div class="att-wrap">${thumbs}${more}</div>`);
-    }
-    return bits.join(' ');
+  // ---------- Attachments MODAL ----------
+  function openAttachmentsModal(eq){
+    let atts = eq.attachments;
+    if (typeof atts === 'string'){ try{ atts = JSON.parse(atts); }catch{ atts = null; } }
+    atts = Array.isArray(atts) ? atts : [];
+    const id = 'attsModal_'+eq.id;
+    const modalHTML = `
+    <div class="modal fade" id="${id}" tabindex="-1">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Pièces jointes — Équipement #${eq.id}</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          ${atts.length ? atts.map((a,i)=>{
+            const url = a && (a.url||a.href||a.path||a) || '';
+            const name = a && (a.name||a.label) || ('Fichier '+(i+1));
+            if (!url) return '';
+            if (isImageLink(url)){
+              return `<div class="mb-3"><div class="small fw-semibold mb-1">${name}</div><img src="${url}" class="img-fluid rounded border"></div>`;
+            }
+            const ico = isPdfLink(url) ? '📄' : '📎';
+            return `<div class="mb-2"><a href="${url}" target="_blank" rel="noopener">${ico} ${name}</a></div>`;
+          }).join('') : '<div class="text-muted">Aucune pièce jointe.</div>'}
+        </div>
+        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
+      </div></div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    const modal = new bootstrap.Modal(document.getElementById(id));
+    modal.show();
+    document.getElementById(id).addEventListener('hidden.bs.modal', e => e.currentTarget.remove(), { once:true });
   }
 
+  // ---------- Table ----------
   async function loadEquipments(){
     try{
       const r = await fetch(API.equipments);
@@ -153,11 +176,11 @@
         <td>${eq.risque ?? ''}</td>
         <td>${fmtDate(eq.last_inspection_date)}</td>
         <td>${fmtDate(eq.next_inspection_date)}</td>
-        <td>${renderAttachmentsCell(eq)} ${Array.isArray(eq.attachments)&&eq.attachments.length?`<div><a href="#" data-action="open-attachments" data-id="${eq.id}">Voir tout</a></div>`:''}</td>
         <td class="actions">
           <button class="btn btn-sm btn-outline-primary" data-action="edit-equipment" data-id="${eq.id}" title="Éditer"><i data-lucide="edit-3"></i></button>
-          <button class="btn btn-sm btn-outline-danger" data-action="delete-equipment" data-id="${eq.id}" data-label="${(eq.composant||'').replace(/\"/g,'&quot;')}" title="Supprimer"><i data-lucide="trash-2"></i></button>
+          <button class="btn btn-sm btn-outline-secondary" data-action="open-attachments" data-id="${eq.id}" title="Pièces jointes"><i data-lucide="paperclip"></i> Pièces</button>
           <button class="btn btn-sm ${String(eq.conformite||'').toLowerCase().includes('non') ? 'btn-warning' : 'btn-outline-secondary'}" data-action="open-ia" data-id="${eq.id}" title="IA"><i data-lucide="sparkles"></i> IA</button>
+          <button class="btn btn-sm btn-outline-danger" data-action="delete-equipment" data-id="${eq.id}" data-label="${(eq.composant||'').replace(/\"/g,'&quot;')}" title="Supprimer"><i data-lucide="trash-2"></i></button>
         </td>`;
       tbody.appendChild(tr);
     });
@@ -165,7 +188,7 @@
     $$('.rowchk').forEach(c => c.addEventListener('change', updateBulkBtn));
   }
 
-  // --------- Filters (IDs alignés à atex-control.html) ---------
+  // --------- Filters ---------
   const activeFilters = { secteurs: new Set(), batiments: new Set(), conformites: new Set(), statut: new Set(), text: '' };
   function buildFilterLists(){
     const secteurs = [...new Set(equipments.map(e=>e.secteur).filter(Boolean))].sort();
@@ -289,6 +312,7 @@
       identifiant: (document.getElementById('identifiant-input')||{}).value,
       marquage_atex: (document.getElementById('marquage_atex-input')||{}).value,
       comments: (document.getElementById('comments-input')||{}).value,
+      last_inspection_date: (document.getElementById('last-inspection-input')||{}).value || null, // <<< FIX N/A
       zone_gaz: (document.getElementById('zone-g-input')||{}).value || null,
       zone_poussieres: (document.getElementById('zone-d-input')||{}).value || null,
       zone_poussiere: (document.getElementById('zone-d-input')||{}).value || null,
@@ -297,7 +321,11 @@
 
     try{
       const r = await fetch(id ? API.equipment(id) : API.equipments, { method: id?'PUT':'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
-      if(!r.ok) throw new Error('Erreur enregistrement');
+      if(!r.ok){
+        if (r.status===409) throw new Error('Identifiant déjà utilisé.');
+        const err = await r.json().catch(()=>({}));
+        throw new Error(err?.message || 'Erreur enregistrement');
+      }
       const saved = await r.json();
       toast('Équipement sauvegardé.','success');
       await loadEquipments();
@@ -347,7 +375,7 @@
     el.scrollTop = el.scrollHeight;
   }
 
-  function renderHistory(activeId=null){
+  function renderHistory(){
     const ul = document.getElementById('iaHistoryListChat'); if(!ul) return;
     const h = getHistory();
     ul.innerHTML='';
@@ -356,10 +384,7 @@
       const li = document.createElement('li');
       li.className = 'list-group-item d-flex justify-content-between align-items-center';
       li.innerHTML = `<div><strong>${it.composant||'Équipement'}</strong> — ID ${it.id}<div class="small-muted">${it.meta?.secteur||'-'} • ${it.meta?.batiment||'-'}</div></div><button class="btn btn-sm btn-outline-secondary" data-idx="${idx}" data-act="open">Ouvrir</button>`;
-      li.addEventListener('click', (e)=>{
-        const idx = Number(e.target.getAttribute('data-idx')||0);
-        selectHistoryChat(idx);
-      });
+      li.addEventListener('click', (e)=>{ const i = Number(e.target.getAttribute('data-idx')||0); selectHistoryChat(i); });
       ul.appendChild(li);
     });
   }
@@ -491,36 +516,10 @@
     }catch(e){ toast('Erreur chat: '+(e.message||e),'danger'); }
   }
 
-  // --------- Attachments modal ---------
-  function openAttachmentsModal(eq){
-    let atts = eq.attachments; if (typeof atts === 'string'){ try{ atts = JSON.parse(atts); }catch{ atts = null; } }
-    atts = Array.isArray(atts) ? atts : [];
-    const id = 'attsModal_'+eq.id;
-    const modalHTML = `
-    <div class="modal fade" id="${id}" tabindex="-1">
-      <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
-        <div class="modal-header"><h5 class="modal-title">Pièces jointes — Équipement #${eq.id}</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body">
-          ${atts.length ? atts.map((a,i)=>{
-            const url = a && (a.url||a.href||a.path||a) || '';
-            const name = a && (a.name||a.label) || ('Fichier '+(i+1));
-            if (!url) return '';
-            if (isImageLink(url)){
-              return `<div class="mb-3"><div class="small fw-semibold mb-1">${name}</div><img src="${url}" class="img-fluid rounded border"></div>`;
-            }
-            return `<div class="mb-2"><a href="${url}" target="_blank" rel="noopener">📎 ${name}</a></div>`;
-          }).join('') : '<div class="text-muted">Aucune pièce jointe.</div>'}
-        </div>
-        <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
-      </div></div>
-    </div>`;
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-    const modal = new bootstrap.Modal(document.getElementById(id));
-    modal.show();
-    document.getElementById(id).addEventListener('hidden.bs.modal', e => e.currentTarget.remove(), { once:true });
-  }
+  // ---------- Wiring ----------
+  function updateBulkBtn(){ const sel = $$('.rowchk:checked').map(i=>+i.dataset.id); const b=document.getElementById('btnBulkDelete'); if(b) b.disabled = sel.length===0; }
+  function toggleAll(e){ const checked = e.target.checked; $$('.rowchk').forEach(c=>{ c.checked = checked; }); updateBulkBtn(); }
 
-  // --------- Wiring ----------
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnApplyFilters')?.addEventListener('click', applyFilters);
     document.getElementById('btnClearFilters')?.addEventListener('click', clearFilters);
@@ -534,43 +533,35 @@
       bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteModal')).show();
       document.getElementById('confirmDeleteBtn').addEventListener('click', ()=>confirmBulkDelete(sel), { once:true });
     });
+
     document.getElementById('btnSave')?.addEventListener('click', saveEquipment);
     document.getElementById('btnCancel')?.addEventListener('click', ()=>{ document.getElementById('list-tab').click(); });
     document.getElementById('btnAddSecteur')?.addEventListener('click', openModalSecteur);
 
-    // Chat actions (onglet)
+    // Chat onglet
     document.getElementById('btnSend')?.addEventListener('click', ()=>sendChat('tab'));
     document.getElementById('btnClearChat')?.addEventListener('click', clearAllHistory);
-    document.getElementById('btnDeleteDiscussion')?.addEventListener('click', ()=>{ if(!currentIA) return; setThread(currentIA, []); toast('Discussion effacée','info'); });
+    document.getElementById('btnDeleteDiscussion')?.addEventListener('click', ()=>{
+      if(!currentIA) return; deleteThread(currentIA); removeFromHistory(currentIA); deleteHelpCache(currentIA);
+      (document.getElementById('chatThread')||{}).innerHTML='';
+      (document.getElementById('chatHtml')||{}).innerHTML='';
+      currentIA=null;
+      renderHistoryChat(); renderHistory();
+      toast('Discussion supprimée','info');
+    });
     document.getElementById('btnReanalyse')?.addEventListener('click', ()=>{ if(currentIA) openIA(currentIA); });
     document.getElementById('btnCopier')?.addEventListener('click', ()=>{
       const text = ($('#chatHtml')?.innerText || '') + '\n\n' + ($('#chatThread')?.innerText || '');
       navigator.clipboard.writeText(text).then(()=>toast('Contenu copié','success'));
     });
-    document.getElementById('btnPartLinks')?.addEventListener('click', (e)=>{
-      e.preventDefault();
-      const sel = document.getElementById('partType'); const val = sel?.value || 'capteur';
-      const cont = document.getElementById('partLinks'); if(!cont) return;
-      const links = {
-        capteur: [
-          {name:'IFM PN7092', href:'https://www.ifm.com/'}, {name:'RS Components', href:'https://uk.rs-online.com/'}
-        ],
-        boite_e: [
-          {name:'R.STAHL 8146/5-V', href:'https://r-stahl.com/'}
-        ],
-        boite_d: [
-          {name:'R.STAHL Ex d', href:'https://r-stahl.com/'}
-        ],
-        formation: [
-          {name:'Formation ATEX (INERIS)', href:'https://www.ineris.fr/'}
-        ]
-      }[val] || [];
-      cont.innerHTML = links.map(l=>`<div><a href="${l.href}" target="_blank" rel="noopener">${l.name}</a></div>`).join('') || '<div class="text-muted">Aucun lien.</div>';
-    });
 
-    // Offcanvas IA (panel)
+    // Chat panel (offcanvas)
     document.getElementById('iaSend')?.addEventListener('click', ()=>sendChat('panel'));
-    document.getElementById('btnClearOne')?.addEventListener('click', ()=>{ if(!currentIA) return; setThread(currentIA, []); toast('Discussion effacée','info'); });
+    document.getElementById('btnClearOne')?.addEventListener('click', ()=>{
+      if(!currentIA) return; deleteThread(currentIA); removeFromHistory(currentIA); deleteHelpCache(currentIA);
+      renderHistory(); renderHistoryChat();
+      toast('Discussion supprimée','info');
+    });
     document.getElementById('btnOpenInChat')?.addEventListener('click', ()=>{
       const tabBtn = document.getElementById('chat-tab'); tabBtn && tabBtn.click();
       renderHistoryChat();
@@ -594,7 +585,6 @@
         }, { once:true });
       }
       if (act === 'open-ia'){ openIA(Number(btn.dataset.id)); }
-      if (act === 'open-photo'){ const src = btn.dataset.src || btn.getAttribute('data-src'); openPhoto(src); }
       if (act === 'open-attachments'){
         const id = Number(btn.dataset.id);
         const eq = equipments.find(e => e.id === id);
@@ -606,7 +596,7 @@
     loadEquipments(); loadSecteurs();
   });
 
-  // Photo modal opener expected by your HTML
+  // Photo modal (si jamais utilisé ailleurs)
   function openPhoto(encoded){
     const src = decodeURIComponent(encoded);
     const img = document.getElementById('photoModalImg'), a=document.getElementById('photoDownload');
