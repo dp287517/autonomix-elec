@@ -1,4 +1,4 @@
-// public/js/atex-control.core.js — v14 (attachments upload + photo + robust secteurs)
+// public/js/atex-control.core.js — v15 (restore Chat IA on reload)
 (function(){
   if (window.lucide){ try{ window.lucide.createIcons(); }catch{} }
 
@@ -110,7 +110,7 @@
   function isImageLink(u){ return /^data:image\//.test(u) || /\.(png|jpe?g|webp|gif)$/i.test(u||''); }
   function isPdfLink(u){ return /\.(pdf)$/i.test(u||''); }
 
-  // ---------- Attachments MODAL (fallback simple si viewer avancé absent) ----------
+  // ---------- Attachments MODAL (fallback simple) ----------
   function openAttachmentsModal(eq){
     let atts = eq.attachments;
     if (typeof atts === 'string'){ try{ atts = JSON.parse(atts); }catch{ atts = null; } }
@@ -119,7 +119,6 @@
     const id = 'attsModal_'+eq.id;
     const blocks = [];
 
-    // Affiche la photo "legacy" si présente
     if (eq.photo && typeof eq.photo === 'string' && eq.photo.startsWith('data:')){
       blocks.push(`
         <div class="mb-3">
@@ -129,7 +128,6 @@
       `);
     }
 
-    // Affiche les attachments (url ou data)
     if (atts.length){
       blocks.push(atts.map((a,i)=>{
         const url = a && (a.url||a.data||a.href||a.path||a) || '';
@@ -336,9 +334,9 @@
     el.addEventListener('hidden.bs.modal', ()=> el.remove(), {once:true});
   }
 
-  // --------- Attachments: helpers pour lire l'<input type="file"> en dataURL ---------
+  // --------- Attachments (upload) ---------
   async function fileToDataUrl(file) {
-    const MAX = 8 * 1024 * 1024; // 8 Mo
+    const MAX = 8 * 1024 * 1024;
     if (file.size > MAX) throw new Error(`Fichier trop volumineux (>8 Mo): ${file.name}`);
     return new Promise((resolve, reject) => {
       const r = new FileReader();
@@ -380,7 +378,7 @@
       identifiant: (document.getElementById('identifiant-input')||{}).value,
       marquage_atex: (document.getElementById('marquage_atex-input')||{}).value,
       comments: (document.getElementById('comments-input')||{}).value,
-      last_inspection_date: (document.getElementById('last-inspection-input')||{}).value || null, // "YYYY-MM-DD" ou null
+      last_inspection_date: (document.getElementById('last-inspection-input')||{}).value || null,
       zone_gaz: (document.getElementById('zone-g-input')||{}).value || null,
       zone_poussieres: (document.getElementById('zone-d-input')||{}).value || null,
       zone_poussiere: (document.getElementById('zone-d-input')||{}).value || null,
@@ -388,11 +386,10 @@
     };
     const data = bodyWithAccount(base);
 
-    // ---> Intégration des pièces jointes du formulaire
     try{
       const newAtts = await gatherFormAttachments();
       if (newAtts.length){
-        if (id){ // édition
+        if (id){
           const cur = equipments.find(e => String(e.id) === String(id)) || null;
           const existing = Array.isArray(cur?.attachments) ? cur.attachments : [];
           data.attachments = existing.concat(newAtts);
@@ -400,7 +397,7 @@
             const firstImg = newAtts.find(a => (a.mime||'').startsWith('image/'));
             if (firstImg) data.photo = firstImg.data;
           }
-        } else { // création
+        } else {
           data.attachments = newAtts;
           const firstImg = newAtts.find(a => (a.mime||'').startsWith('image/'));
           if (firstImg) data.photo = firstImg.data;
@@ -422,12 +419,10 @@
         const err = await r.json().catch(()=>({}));
         throw new Error(err?.message || 'Erreur enregistrement');
       }
-      await r.json(); // {id:...} ou {ok:true}
+      await r.json();
       toast('Équipement sauvegardé.','success');
 
-      // Nettoyage champ fichier pour éviter ré-envoi involontaire
       const file = document.getElementById('photo-input'); if(file) file.value='';
-
       await loadEquipments();
       document.getElementById('list-tab')?.click();
       clearForm();
@@ -685,7 +680,6 @@
       if (act === 'open-ia'){ openIA(Number(btn.dataset.id)); }
       if (act === 'open-attachments'){
         const id = Number(btn.dataset.id);
-        // Si le viewer avancé est chargé (atex-control.ui.js), on l'utilise, sinon fallback local.
         if (typeof window.openAttachmentViewer === 'function'){
           e.preventDefault();
           window.openAttachmentViewer(id);
@@ -697,7 +691,12 @@
       }
     });
 
-    loadEquipments(); loadSecteurs();
+    // >>> FIX: restaurer Chat IA depuis localStorage au rechargement
+    renderHistory();
+    renderHistoryChat();
+
+    loadEquipments();
+    loadSecteurs();
   });
 
   // Photo modal (si jamais utilisé ailleurs)
