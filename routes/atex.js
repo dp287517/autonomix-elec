@@ -91,7 +91,7 @@ function buildEnrich(eq, conf){
   const enriched = { palliatives:[], preventives:[], refs:[], costs:[], why:'' };
   const zg = String(eq.zone_gaz||'').trim();
   const zd = String(eq.zone_poussieres||eq.zone_poussiere||'').trim();
-  const req = requiredCategoryForZone(zg, zd);
+  requiredCategoryForZone(zg, zd); // req non utilisé dans cette version
   const mark = String(eq.marquage_atex||'').toLowerCase();
 
   if (String(conf.conformite).toLowerCase().includes('non')){
@@ -111,6 +111,21 @@ function buildEnrich(eq, conf){
   enriched.refs.push('EN 60079 (série) — Ex d / Ex e / Ex t.');
   enriched.costs.push('Inspection initiale + rapport : 250€–600€.');
   return enriched;
+}
+
+/* =============================================================================
+   Helpers de schéma (pour POST robuste)
+============================================================================= */
+let _equipColsCache = null;
+async function getEquipmentColumns(pool) {
+  if (_equipColsCache) return _equipColsCache;
+  const q = await pool.query(`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='atex_equipments'
+  `);
+  _equipColsCache = new Set(q.rows.map(r => r.column_name));
+  return _equipColsCache;
 }
 
 /* ======================= SECTEURS ======================= */
@@ -196,7 +211,7 @@ router.get('/atex-equipments', requireAuth, async (req, res) => {
   }
 });
 
-/* ======================= CRUD ======================= */
+/* ======================= CRÉATION (robuste au schéma) ======================= */
 router.post('/atex-equipments', requireAuth, async (req, res) => {
   try {
     const uid = req.user && req.user.uid;
@@ -207,35 +222,59 @@ router.post('/atex-equipments', requireAuth, async (req, res) => {
     const role = await roleOnAccount(uid, accountId);
     if (!role) return res.status(403).json({ error: 'forbidden_account' });
 
-    const b = req.body || {};
+    let b = req.body || {};
+    if (typeof b === 'string') { try { b = JSON.parse(b); } catch {} }
+
     const derived = deriveConfAndRisk(b);
     if (b.risque == null) b.risque = derived.risque;
-    if (!b.conformite) b.conformite = derived.conformite;
+    if (!b.conformite)     b.conformite = derived.conformite;
 
-    const fields = [
+    // Colonnes réellement présentes dans la table
+    const cols = await getEquipmentColumns(pool);
+
+    // Champs "métier" qu'on tolère depuis le front (ajoute ici si tu en as d'autres)
+    const allowed = [
       'risque','secteur','batiment','local','composant','fournisseur','type',
       'identifiant','interieur','exterieur','categorie_minimum','marquage_atex',
-      'photo','conformite','comments','last_inspection_date',
+      'photo','conformite','comments','last_inspection_date','next_inspection_date',
       'risk_assessment','grade','frequence','zone_type','zone_gaz','zone_poussiere',
-      'zone_poussieres','ia_history','attachments'
+      'zone_poussieres','ia_history','attachments','localisation','secteur_code',
+      'fabricant','modele','serie','date_installation','photo_url'
     ];
-    const values = fields.map(k => b[k] ?? null);
 
-    const q = await pool.query(
-      `INSERT INTO public.atex_equipments (
-         ${fields.join(', ')}, account_id, created_by
-       ) VALUES (
-         ${fields.map((_,i)=>'$'+(i+1)).join(', ')}, $${fields.length+1}, $${fields.length+2}
-       )
-       RETURNING id`,
-      [...values, accountId, uid]
-    );
-    return res.status(201).json({ id: q.rows[0].id });
+    // Intersection {payload} ∩ {colonnes réelles}
+    const keys = allowed.filter(k => b[k] !== undefined && cols.has(k));
+    const vals = keys.map(k => b[k] ?? null);
+
+    // Ajout account_id / created_by si dispo dans la table
+    const extraKeys = [];
+    const extraVals = [];
+    if (cols.has('account_id')) { extraKeys.push('account_id'); extraVals.push(accountId); }
+    if (cols.has('created_by')) { extraKeys.push('created_by'); extraVals.push(uid); }
+
+    const allKeys = [...keys, ...extraKeys];
+    if (!allKeys.length) {
+      return res.status(400).json({ error: 'no_insertable_fields' });
+    }
+
+    const placeHolders = allKeys.map((_, i) => `$${i + 1}`);
+    const sql = `
+      INSERT INTO public.atex_equipments (${allKeys.join(', ')})
+      VALUES (${placeHolders.join(', ')})
+      RETURNING id
+    `;
+
+    const ins = await pool.query(sql, [...vals, ...extraVals]);
+    return res.status(201).json({ id: ins.rows[0].id });
+
   } catch (e) {
-    console.error('[POST /atex-equipments] error', e);
-    res.status(500).json({ error: 'server_error' });
+    console.error('[POST /atex-equipments] error', e?.message || e);
+    if (e?.detail) console.error('   detail:', e.detail);
+    return res.status(500).json({ error: 'server_error', message: e?.message || 'insert_failed' });
   }
 });
+
+/* ======================= DÉTAIL / MÀJ / SUPPR ======================= */
 router.get('/atex-equipments/:id', requireAuth, async (req, res) => {
   try{
     const uid = req.user && req.user.uid;
@@ -403,7 +442,6 @@ router.post('/atex-chat', requireAuth, async (req, res) => {
     const { question = '', equipment = null, history = [] } = req.body || {};
     let html = '<p>Service IA non configuré.</p>';
     try {
-      // ===== require() robuste vers ../config/openai =====
       const { chat } = require(path.join(__dirname, '..', 'config', 'openai'));
       if (typeof chat === 'function') html = await chat({ question, equipment, history });
     } catch {}
