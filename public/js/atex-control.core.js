@@ -1,4 +1,4 @@
-// public/js/atex-control.core.js — v14 (IA chat persisted in DB + restored on reload)
+// public/js/atex-control.core.js — v14 
 (function () {
   if (window.lucide) {
     try { window.lucide.createIcons(); } catch {}
@@ -27,7 +27,9 @@
     equipment: (id) => withAccount('/api/atex-equipments/' + id),
     inspect: withAccount('/api/atex-inspect'),
     help: (id) => withAccount('/api/atex-help/' + id),
-    chat: withAccount('/api/atex-chat'),
+    chat: withAccount('/api/atex-chat'),                 // POST: envoi message + persistance par utilisateur
+    chatFor: (id) => withAccount('/api/atex-chat/' + id),// GET: thread d'un équipement (user courant) | DELETE: effacer
+    chatThreads: withAccount('/api/atex-chat-threads'),  // GET: tous les threads (user courant)
     photo: (id) => withAccount('/api/atex-photo/' + id),
     // viewer-friendly endpoint (attachments/photo normalisés)
     equipViewer: (id) => withAccount('/api/equip/' + id),
@@ -178,7 +180,6 @@
 
   // ---------- IA threads <-> server ----------
   function normalizeServerIaHistory(raw) {
-    // PG jsonb gives array of {role,content}. Be defensive:
     if (!raw) return [];
     const arr = Array.isArray(raw) ? raw : (typeof raw === 'string' ? (() => { try { return JSON.parse(raw); } catch { return []; } })() : []);
     return arr
@@ -189,13 +190,13 @@
       .filter(Boolean);
   }
   function restoreThreadsFromEquipments(list) {
-    // only set if nothing local yet (don’t overwrite active local edits)
+    // Fallback legacy (si certains équipements ont encore ia_history côté équipement)
     const all = getThreads();
     let restored = 0;
     (list || []).forEach(eq => {
       if (!eq || !eq.id) return;
       const local = all[eq.id];
-      if (Array.isArray(local) && local.length) return;
+      if (Array.isArray(local) && local.length) return; // déjà présent
       const fromDb = normalizeServerIaHistory(eq.ia_history);
       if (fromDb.length) {
         all[eq.id] = fromDb;
@@ -204,11 +205,45 @@
     });
     if (restored) {
       setThreads(all);
-      // if a currentIA exists, re-render it
       if (currentIA) {
         renderThread($('#iaThread'), getThread(currentIA));
         renderThread($('#chatThread'), getThread(currentIA));
       }
+    }
+  }
+
+  async function restoreUserThreads() {
+    // Nouvelle restauration PAR UTILISATEUR (table atex_chat_threads)
+    try {
+      const r = await fetch(API.chatThreads);
+      if (!r.ok) throw new Error('Erreur chargement threads');
+      const arr = await r.json(); // [{equipment_id, history, updated_at}, ...]
+      const all = getThreads();
+      let restored = 0;
+      (arr || []).forEach(row => {
+        const id = row.equipment_id;
+        const thread = Array.isArray(row.history) ? row.history : [];
+        if (thread.length) {
+          all[id] = thread;
+          restored++;
+          // Alimente l'historique de droite si vide
+          const firstAssistant = thread.find(m => m.role === 'assistant');
+          addToHistory({
+            id,
+            composant: `Équipement ${id}`,
+            content: firstAssistant ? firstAssistant.content : '—',
+            enriched: {},
+            meta: {}
+          });
+        }
+      });
+      if (restored) {
+        setThreads(all);
+        renderHistory();
+        renderHistoryChat();
+      }
+    } catch (e) {
+      console.warn('[restoreUserThreads] fail', e);
     }
   }
 
@@ -226,7 +261,7 @@
         return eq;
       });
 
-      // NEW: restore chat threads from DB (ia_history) on page load
+      // Legacy fallback: restaurer depuis ia_history (niveau équipement)
       restoreThreadsFromEquipments(equipments);
 
       renderTable(equipments);
@@ -445,7 +480,7 @@
       (document.getElementById('comments-input') || {}).value = eq.comments || '';
       (document.getElementById('last-inspection-input') || {}).value = eq.last_inspection_date ? new Date(eq.last_inspection_date).toISOString().slice(0, 10) : '';
 
-      // also restore the thread for this equipment from server if present
+      // legacy fallback: restaurer thread depuis équipement si présent
       const fromDb = normalizeServerIaHistory(eq.ia_history);
       if (fromDb.length) setThread(eq.id, fromDb);
     } catch (e) { toast('Erreur édition: ' + (e.message || e), 'danger'); }
@@ -569,9 +604,9 @@
         eq = await r.json();
       }
 
-      // restore thread for this equipment from DB if present
+      // Legacy fallback: si pas encore de thread local, tenter depuis eq.ia_history
       const fromDb = normalizeServerIaHistory(eq.ia_history);
-      if (fromDb.length) setThread(eq.id, fromDb);
+      if (fromDb.length && getThread(eq.id).length === 0) setThread(eq.id, fromDb);
 
       let help = cached && cached.help;
       if (!help) {
@@ -603,13 +638,13 @@
     try {
       const thread = getThread(currentIA);
 
-      // Persist to server: include equipment_id so /atex-chat appende dans ia_history
+      // Persist PAR UTILISATEUR: POST /api/atex-chat
       const resp = await fetch(API.chat, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bodyWithAccount({
           question: text,
-          equipment_id: currentIA,           // <<< PERSIST SERVER
+          equipment_id: currentIA,
           equipment: null,
           history: thread.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }))
         }))
@@ -649,12 +684,8 @@
     document.getElementById('btnDeleteDiscussion')?.addEventListener('click', async () => {
       if (!currentIA) return;
       try {
-        // wipe server-side ia_history for this equipment
-        await fetch(API.equipment(currentIA), {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(bodyWithAccount({ ia_history: [] }))
-        });
+        // Efface le thread PAR UTILISATEUR (table atex_chat_threads)
+        await fetch(API.chatFor(currentIA), { method: 'DELETE' });
       } catch {}
       deleteThread(currentIA); removeFromHistory(currentIA); deleteHelpCache(currentIA);
       (document.getElementById('chatThread') || {}).innerHTML = '';
@@ -674,11 +705,7 @@
     document.getElementById('btnClearOne')?.addEventListener('click', async () => {
       if (!currentIA) return;
       try {
-        await fetch(API.equipment(currentIA), {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(bodyWithAccount({ ia_history: [] }))
-        });
+        await fetch(API.chatFor(currentIA), { method: 'DELETE' });
       } catch {}
       deleteThread(currentIA); removeFromHistory(currentIA); deleteHelpCache(currentIA);
       renderHistory(); renderHistoryChat();
@@ -706,25 +733,19 @@
           finally { bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteModal')).hide(); }
         }, { once: true });
       }
-      if (act === 'open-ia') { openIA(Number(btn.dataset.id)); }
       if (act === 'open-attachments') {
-        // Use the new viewer in atex-control.ui.js
         const id = Number(btn.dataset.id);
-        if (typeof window.openAttachmentViewer === 'function') {
-          window.openAttachmentViewer(id);
-        } else {
-          // fallback: old simple modal on eq object if available
-          const eq = equipments.find(e => e.id === id);
-          if (eq && typeof window.openAttachmentsModal === 'function') window.openAttachmentsModal(eq);
-        }
-        e.preventDefault();
+        // Utilise l'endpoint viewer pour normaliser photo + pièces
+        fetch(API.equipViewer(id)).then(r => r.json()).then(payload => {
+          window.openAttachmentViewer && window.openAttachmentViewer(payload);
+        }).catch(err => toast('Erreur pièce jointe: ' + (err.message || err), 'danger'));
       }
+      if (act === 'open-ia') { openIA(Number(btn.dataset.id)); }
     });
 
-    loadEquipments(); loadSecteurs();
+    // Chargement initial : équipements puis restauration de TOUS mes threads
+    loadEquipments().then(() => restoreUserThreads());
+    loadSecteurs();
   });
-
-  // expose (optional) for other scripts
-  window.__atexCore = { getThreads, setThread, getHistory, addToHistory };
-
 })();
+
