@@ -1,11 +1,20 @@
-// js/atex-control.ui.js — viewer pièces (photo + fichiers) avec sélecteur
+// public/js/atex-control.ui.js — viewer pièces (photo + fichiers) corrigé (API.equipment)
 (() => {
   // ------- Helpers -------
   function toast(msg, type = 'info') {
     if (typeof window.toast === 'function') return window.toast(msg, type);
     console[type === 'danger' ? 'error' : 'log']('[toast]', msg);
   }
-  const getAccountId = () => (window.state && state.accountId) || '';
+
+  // Récupère l'account_id depuis core.js ou localStorage (fallback)
+  function getAccountId() {
+    if (window.state && window.state.accountId) return window.state.accountId;
+    try {
+      return localStorage.getItem('app_account_id') || '10';
+    } catch {
+      return '10';
+    }
+  }
 
   function isPDF(mime, src) {
     if (mime && mime.toLowerCase().includes('pdf')) return true;
@@ -28,15 +37,15 @@
 
   function buildAttachmentList(eq) {
     const list = [];
-    // 1) Photo "legacy" (on la met en tête pour être visible de suite)
-    if (eq.photo && typeof eq.photo === 'string' && eq.photo.startsWith('data:')) {
+    // 1) Photo "legacy" (en tête)
+    if (eq.photo && typeof eq.photo === 'string' && /^data:image\//i.test(eq.photo)) {
       list.push({
         name: eq.identifiant ? `photo_${eq.identifiant}.jpg` : 'photo.jpg',
         mime: (eq.photo.match(/^data:([^;]+);/) || [])[1] || 'image/jpeg',
         src: eq.photo
       });
     }
-    // 2) Attachments JSONB: [{name, mime, url|data}, ...]
+    // 2) Attachments JSONB
     const arr = Array.isArray(eq.attachments) ? eq.attachments : [];
     for (const it of arr) {
       if (!it) continue;
@@ -83,7 +92,7 @@
     info.textContent = `${index + 1} / ${items.length}`;
     metaEl.appendChild(info);
 
-    // Sélecteur des pièces (petit, discret)
+    // Sélecteur des pièces (discret)
     const sel = document.createElement('select');
     sel.className = 'form-select form-select-sm d-inline-block';
     sel.style.width = 'auto';
@@ -101,7 +110,6 @@
       const it = items[i];
       renderAttachmentIntoStage(it);
       if (openBtn) openBtn.href = it.src;
-      // maj texte "x / N"
       info.textContent = `${i + 1} / ${items.length}`;
     };
     metaEl.appendChild(sel);
@@ -119,7 +127,6 @@
       const it = items[window.__attIndex];
       renderAttachmentIntoStage(it);
       if (openBtn) openBtn.href = it.src;
-      // maj select + compteur
       if (metaEl) {
         const sel = metaEl.querySelector('select');
         const info = metaEl.querySelector('span');
@@ -132,10 +139,25 @@
     if (nextBtn) nextBtn.onclick = () => goto(window.__attIndex + 1);
   }
 
-  async function openAttachmentViewer(equipId) {
+  // URL correcte pour GET équipement par id
+  function buildEquipGetUrl(equipId) {
     try {
-      if (!window.API) throw new Error('API config manquante');
-      const url = `${API.equip}/${equipId}?account_id=${getAccountId()}`;
+      if (window.API && typeof window.API.equipment === 'function') {
+        // API.equipment(id) inclut déjà account_id
+        return window.API.equipment(equipId);
+      }
+    } catch {}
+    // Fallback si window.API absent/ancien
+    const acc = encodeURIComponent(getAccountId());
+    return `/api/atex-equipments/${encodeURIComponent(equipId)}?account_id=${acc}`;
+  }
+
+  let __opening = false;
+  async function openAttachmentViewer(equipId) {
+    if (__opening) return; // évite double-clic
+    __opening = true;
+    try {
+      const url = buildEquipGetUrl(equipId);
       const r = await fetch(url);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const eq = await r.json();
@@ -161,25 +183,26 @@
       // Meta bar (compteur + sélecteur)
       updateMetaBar(eq, items, 0);
 
-      // Liaison des flèches
+      // Flèches
       bindArrows(items);
 
-      // Affichage modal
+      // Modal
       const modalEl = document.getElementById('attViewerModal');
       if (!modalEl) throw new Error('#attViewerModal introuvable');
       const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
       modal.show();
 
-      // astuce: icons lucide
       if (window.lucide && lucide.createIcons) lucide.createIcons();
 
     } catch (err) {
       console.error('[openAttachmentViewer] fail', err);
       toast('Erreur en ouvrant les pièces', 'danger');
+    } finally {
+      __opening = false;
     }
   }
 
-  // Expose pour usage depuis le tableau (bouton "Pièces")
+  // Expose
   window.openAttachmentViewer = openAttachmentViewer;
 
   // Délégué: tout élément avec data-open-attachments et data-id
