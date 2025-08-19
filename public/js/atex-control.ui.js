@@ -1,96 +1,127 @@
-// public/js/atex-control.ui.js — v6 (Attachment Viewer branché sur #attViewerModal)
+// public/js/atex-control.ui.js — v6 (viewer flèches + PDF/data:)
 (function(){
-  const $  = sel => document.querySelector(sel);
-  const $$ = sel => Array.from(document.querySelectorAll(sel));
+  const $ = (s)=>document.querySelector(s);
 
-  function isImage(u){ return /^data:image\//i.test(u) || /\.(png|jpe?g|webp|gif)$/i.test(u||''); }
-  function isPdf(u){ return /^data:application\/pdf/i.test(u) || /\.pdf(\?|#|$)/i.test(u||''); }
+  function guessMimeFromSrc(src){
+    if(/^data:([^;]+)/i.test(src)) return RegExp.$1;
+    if(/\.pdf(\?|$)/i.test(src)) return 'application/pdf';
+    if(/\.(png|jpg|jpeg|webp|gif)(\?|$)/i.test(src)) return 'image/*';
+    return '';
+  }
 
-  const state = { slides: [], idx: 0, eqId: null };
+  function normalizeAttachments(eq){
+    let atts = eq && eq.attachments;
+    if (typeof atts === 'string'){ try{ atts = JSON.parse(atts); }catch{ atts = null; } }
+    if (!Array.isArray(atts)) atts = [];
+    const items = [];
 
-  function render(){
-    const stage = $('#attViewerStage'); if(!stage) return;
-    if(!state.slides.length){
-      stage.innerHTML = '<div class="text-white-50 p-4">Aucune pièce jointe.</div>';
-      const openBtn = $('#attOpen'); if (openBtn) openBtn.setAttribute('href','#');
-      const meta = $('#attViewerMeta'); if (meta) meta.textContent = '';
-      const title = $('#attViewerTitle'); if (title) title.textContent = 'Aperçu';
-      return;
+    // from attachments
+    atts.forEach((a, i)=>{
+      const src = a?.url || a?.href || a?.path || a?.data || '';
+      if(!src) return;
+      items.push({
+        name: a?.name || a?.label || `Pièce ${i+1}`,
+        src,
+        mime: a?.mime || guessMimeFromSrc(src)
+      });
+    });
+
+    // fallback from photo
+    if ((!items.length) && eq?.photo){
+      items.push({ name:'Photo', src:String(eq.photo), mime: guessMimeFromSrc(String(eq.photo)) || 'image/*' });
     }
-    if(state.idx < 0) state.idx = state.slides.length-1;
-    if(state.idx >= state.slides.length) state.idx = 0;
+    return items;
+  }
 
-    const slide = state.slides[state.idx];
-    const src   = slide.src;
-    const name  = slide.name || `Pièce ${state.idx+1}`;
-
-    const title = $('#attViewerTitle'); if (title) title.textContent = name;
+  function renderStage(item, idx, total){
+    const stage = $('#attViewerStage');
+    const title = $('#attViewerTitle');
     const meta  = $('#attViewerMeta');
-    if (meta) meta.textContent = `Équipement #${state.eqId} • ${state.idx+1}/${state.slides.length}${slide.mime? ' • '+slide.mime : ''}`;
+    const openA = $('#attOpen');
 
-    const openBtn = $('#attOpen'); if (openBtn) openBtn.setAttribute('href', src);
+    if(!stage) return;
+    stage.innerHTML = '';
 
-    if (isImage(src)){
-      stage.innerHTML = `<img src="${src}" class="img-fluid">`;
-    } else if (isPdf(src)){
-      stage.innerHTML = `<iframe src="${src}" class="w-100" style="height: calc(100vh - 180px);" frameborder="0"></iframe>`;
+    const mime = (item.mime||'').toLowerCase();
+    const src  = item.src;
+
+    if (mime.includes('pdf')){
+      const iframe = document.createElement('iframe');
+      iframe.setAttribute('title', item.name || 'document');
+      iframe.className = 'w-100 h-100';
+      iframe.src = src;
+      stage.appendChild(iframe);
     } else {
-      stage.innerHTML = `<div class="text-center p-4">
-        <div class="text-white-50 mb-2">Type non prévisualisable.</div>
-        <a class="btn btn-primary" href="${src}" target="_blank" rel="noopener">Ouvrir</a>
-      </div>`;
+      const img = document.createElement('img');
+      img.alt = item.name || 'image';
+      img.src = src;
+      img.className = 'img-fluid';
+      stage.appendChild(img);
+    }
+
+    if (title) title.textContent = item.name || `Pièce ${idx+1}/${total}`;
+    if (meta)  meta.textContent  = `Élément ${idx+1} / ${total} — ${mime || 'fichier'}`;
+    if (openA){ openA.href = src; openA.download = ''; }
+  }
+
+  function updateNavButtons(state){
+    const prev = $('#attPrev');
+    const next = $('#attNext');
+    if (!prev || !next) return;
+    prev.disabled = state.idx <= 0;
+    next.disabled = state.idx >= state.items.length - 1;
+  }
+
+  async function openAttachmentViewer(eq){
+    try{
+      const modal = new bootstrap.Modal($('#attViewerModal'));
+      const items = normalizeAttachments(eq);
+      if (!items.length){
+        (window.toast || console.log)('Aucune pièce jointe','warning');
+        return;
+      }
+      const state = { items, idx: 0 };
+      window.__att_state = state;
+
+      renderStage(state.items[state.idx], state.idx, state.items.length);
+      updateNavButtons(state);
+      modal.show();
+
+      // Bind once per open, then clean on close
+      const prev = $('#attPrev');
+      const next = $('#attNext');
+      const modalEl = $('#attViewerModal');
+
+      function onPrev(){
+        if (state.idx > 0){
+          state.idx -= 1;
+          renderStage(state.items[state.idx], state.idx, state.items.length);
+          updateNavButtons(state);
+        }
+      }
+      function onNext(){
+        if (state.idx < state.items.length-1){
+          state.idx += 1;
+          renderStage(state.items[state.idx], state.idx, state.items.length);
+          updateNavButtons(state);
+        }
+      }
+      prev?.addEventListener('click', onPrev);
+      next?.addEventListener('click', onNext);
+
+      modalEl?.addEventListener('hidden.bs.modal', ()=>{
+        prev?.removeEventListener('click', onPrev);
+        next?.removeEventListener('click', onNext);
+        delete window.__att_state;
+        $('#attViewerStage').innerHTML='';
+        $('#attViewerMeta').textContent='';
+      }, { once:true });
+
+    }catch(err){
+      console.error('[openAttachmentViewer] fail', err);
+      (window.toast || console.log)('Erreur en ouvrant les pièces','danger');
     }
   }
 
-  function next(){ state.idx++; render(); }
-  function prev(){ state.idx--; render(); }
-
-  // Exposé global — on attend l'objet équipement complet (pour éviter un fetch)
-  window.openAttachmentViewer = function(eq){
-    try{
-      const slides = [];
-
-      // 1) Photo principale (si image ou pdf en data/url)
-      if (eq && eq.photo && (isImage(eq.photo) || isPdf(eq.photo))){
-        slides.push({ name: 'Photo', mime: '', src: eq.photo });
-      }
-
-      // 2) Attachments (array de {name,mime,url|data|href|path} ou string JSON)
-      let atts = eq && eq.attachments;
-      if (typeof atts === 'string'){
-        try{ atts = JSON.parse(atts); }catch{ atts = null; }
-      }
-      if (Array.isArray(atts)){
-        atts.forEach((a)=>{
-          const name = (a && (a.name||a.label)) || `Pièce ${slides.length+1}`;
-          const mime = a && a.mime || '';
-          const src  = a && (a.url || a.href || a.data || a.path) || '';
-          if (!src) return;
-          slides.push({ name, mime, src });
-        });
-      }
-
-      state.slides = slides;
-      state.idx = 0;
-      state.eqId = eq?.id || null;
-
-      const el = $('#attViewerModal');
-      if (!el) {
-        console.warn('[openAttachmentViewer] #attViewerModal introuvable dans le DOM');
-        if (window.toast) window.toast('Viewer introuvable dans la page','warning');
-        return;
-      }
-
-      render();
-      bootstrap.Modal.getOrCreateInstance(el).show();
-    }catch(err){
-      console.error('[openAttachmentViewer] fail', err);
-      if (window.toast) window.toast('Erreur en ouvrant les pièces','danger');
-    }
-  };
-
-  document.addEventListener('DOMContentLoaded', ()=>{
-    $('#attPrev')?.addEventListener('click', prev);
-    $('#attNext')?.addEventListener('click', next);
-  });
+  window.openAttachmentViewer = openAttachmentViewer;
 })();
