@@ -1,4 +1,4 @@
-// public/js/atex-control.core.js — v16 (attachments on save + viewer arrows + import fixes intact)
+// public/js/atex-control.core.js — v17 (persist IA on refresh + safer attachments merge + import fixes)
 (function(){
   if (window.lucide){ try{ window.lucide.createIcons(); }catch{} }
 
@@ -38,9 +38,10 @@
   let equipments = [];
   let currentIA = null;
 
-  const THREADS_KEY = 'atexThreadsByEquip_v2';
-  const HISTORY_KEY = 'atexHistory_v2';
-  const HELP_CACHE_KEY = 'atexHelpCache_v2';
+  const THREADS_KEY   = 'atexThreadsByEquip_v2';
+  const HISTORY_KEY   = 'atexHistory_v2';
+  const HELP_CACHE_KEY= 'atexHelpCache_v2';
+  const LAST_IA_KEY   = 'atex_last_ia_id_v1';
 
   const $  = sel => document.querySelector(sel);
   const $$ = sel => Array.from(document.querySelectorAll(sel));
@@ -73,6 +74,7 @@
     $('#chatHeader').textContent='';
     $('#chatEnriched').style.display='none';
     currentIA = null;
+    localStorage.removeItem(LAST_IA_KEY);
   }
 
   function getHelpCache(){ try{ return JSON.parse(localStorage.getItem(HELP_CACHE_KEY)||'{}'); }catch{return {}} }
@@ -82,7 +84,6 @@
   function deleteHelpCache(id){ const m=getHelpCache(); delete m[id]; setHelpCache(m); }
 
   function toast(msg,variant='primary'){
-    console.log('[toast]', msg);
     const id='t'+Date.now();
     const html=`<div id="${id}" class="toast text-bg-${variant} border-0 mb-2" role="alert"><div class="d-flex"><div class="toast-body">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`;
     const cont = document.getElementById('toasts') || (function(){ const d=document.createElement('div'); d.id='toasts'; d.className='toast-container position-fixed top-0 end-0 p-3'; document.body.appendChild(d); return d; })();
@@ -113,9 +114,9 @@
   function statusBadge(st){ if(st==='late') return '<span class="badge badge-st late">En retard</span>'; if(st==='today') return '<span class="badge badge-st today">Aujourd’hui</span>'; if(st==='soon') return '<span class="badge badge-st soon">Bientôt</span>'; return '<span class="badge badge-st ok">OK</span>'; }
 
   function isImageLink(u){ return /^data:image\//.test(u) || /\.(png|jpe?g|webp|gif)$/i.test(u||''); }
-  function isPdfLink(u){ return /\.(pdf)$/i.test(u||''); }
+  function isPdfLink(u){ return /^data:application\/pdf/i.test(u||'') || /\.(pdf)$/i.test(u||''); }
 
-  // ---------- Simple attachments modal (fallback si viewer avancé absent) ----------
+  // ---------- Simple attachments modal (fallback) ----------
   function openAttachmentsModal(eq){
     let atts = eq.attachments;
     if (typeof atts === 'string'){ try{ atts = JSON.parse(atts); }catch{ atts = null; } }
@@ -134,8 +135,7 @@
               return `<div class="mb-3"><div class="small fw-semibold mb-1">${name}</div><img src="${url}" class="img-fluid rounded border"></div>`;
             }
             const ico = isPdfLink(url) ? '📄' : '📎';
-            const href = url.startsWith('data:') ? url : url;
-            return `<div class="mb-2"><a href="${href}" target="_blank" rel="noopener">${ico} ${name}</a></div>`;
+            return `<div class="mb-2"><a href="${url}" target="_blank" rel="noopener">${ico} ${name}</a></div>`;
           }).join('') : '<div class="text-muted">Aucune pièce jointe.</div>'}
         </div>
         <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
@@ -162,7 +162,6 @@
       });
       renderTable(equipments);
       buildFilterLists();
-      toast('Équipements chargés','info');
     }catch(e){ toast('Erreur chargement équipements','danger'); }
   }
 
@@ -350,13 +349,23 @@
       photo: null
     });
 
-    // ====== NEW: collect attachments (keep existing + add selected file) ======
+    // ====== collect attachments (keep existing + add selected file) ======
     try{
-      // Existing attachments if editing
+      // Existing attachments if editing (prefer fresh fetch if empty)
       let existingAtt = [];
       if (id){
-        const eq = equipments.find(e => String(e.id) === String(id));
-        if (eq && (eq.attachments || eq.Attachments)) existingAtt = normalizeAtt(eq.attachments || eq.Attachments);
+        let eq = equipments.find(e => String(e.id) === String(id));
+        if (!eq || !eq.attachments){
+          try{
+            const r = await fetch(API.equipment(id), { cache:'no-store' });
+            if (r.ok) eq = await r.json();
+          }catch{}
+        }
+        if (eq && eq.attachments) existingAtt = normalizeAtt(eq.attachments);
+        // If we had a standalone photo but no attachments, consider adding it as an image doc so viewer sees 2/2 with a later pdf
+        if ((!existingAtt || !existingAtt.length) && eq && eq.photo && isImageLink(eq.photo)){
+          existingAtt = [{ name:'Photo', mime:'image/*', data: String(eq.photo) }];
+        }
       }
 
       // New file from input
@@ -366,14 +375,12 @@
       if (f){
         const dataUrl = await readFileAsDataURL(f);
         newAtt = { name: f.name, mime: f.type || '', data: String(dataUrl) };
-        // If it's an image, also update "photo" column
         if ((f.type||'').startsWith('image/')) data.photo = String(dataUrl);
       }
 
       const finalAtt = [...existingAtt];
       if (newAtt) finalAtt.push(newAtt);
 
-      // Always send attachments to avoid perte côté serveur
       data.attachments = finalAtt;
     }catch(e){
       console.warn('[saveEquipment] attachment encode failed', e);
@@ -394,7 +401,6 @@
       await r.json();
       toast('Équipement sauvegardé.','success');
 
-      // reset file field
       const file = document.getElementById('photo-input'); if(file) file.value='';
 
       await loadEquipments();
@@ -456,86 +462,47 @@
       ul.appendChild(li);
     });
   }
+  function showHistoryItem(it){
+    if(!it) return;
+    currentIA = it.id;
+    localStorage.setItem(LAST_IA_KEY, String(it.id));
+    (document.getElementById('chatHeader')||{}).textContent = `${it.composant || 'Équipement'} — ID ${it.id}`;
+    renderHTML(document.getElementById('chatHtml'), it.content || '—');
+    const enr = it.enriched || {};
+    const toLis = (arr)=> (arr||[]).map(li=>`<li>${li}</li>`).join('') || '<li class="text-muted">—</li>';
+    (document.getElementById('chatWhy')||{}).innerHTML      = enr.why || '';
+    (document.getElementById('chatPalliative')||{}).innerHTML = toLis(enr.palliatives);
+    (document.getElementById('chatPreventive')||{}).innerHTML = toLis(enr.preventives);
+    (document.getElementById('chatRefs')||{}).innerHTML       = toLis(enr.refs);
+    (document.getElementById('chatCosts')||{}).innerHTML      = toLis(enr.costs);
+    (document.getElementById('chatEnriched')||{}).style.display='block';
+    renderThread(document.getElementById('chatThread'), getThread(it.id));
+  }
   function renderHistoryChat(){
     const h = getHistory();
-    const it = h[0];
-    if(!it){
+    if(!h.length){
       (document.getElementById('chatHeader')||{}).textContent='';
       (document.getElementById('chatHtml')||{}).innerHTML='';
       (document.getElementById('chatThread')||{}).innerHTML='';
       (document.getElementById('chatEnriched')||{}).style.display='none';
       return;
     }
-    (document.getElementById('chatHeader')||{}).textContent = `${it.composant || 'Équipement'} — ID ${it.id}`;
-    renderHTML(document.getElementById('chatHtml'), it.content || '—');
-    const enr = it.enriched || {};
-    const toLis = (arr)=> (arr||[]).map(li=>`<li>${li}</li>`).join('') || '<li class="text-muted">—</li>';
-    (document.getElementById('chatWhy')||{}).innerHTML      = enr.why || '';
-    (document.getElementById('chatPalliative')||{}).innerHTML = toLis(enr.palliatives);
-    (document.getElementById('chatPreventive')||{}).innerHTML = toLis(enr.preventives);
-    (document.getElementById('chatRefs')||{}).innerHTML       = toLis(enr.refs);
-    (document.getElementById('chatCosts')||{}).innerHTML      = toLis(enr.costs);
-    (document.getElementById('chatEnriched')||{}).style.display='block';
-    renderThread(document.getElementById('chatThread'), getThread(it.id));
+    const last = Number(localStorage.getItem(LAST_IA_KEY)||0);
+    const it = h.find(x=>x.id===last) || h[0];
+    showHistoryItem(it);
   }
   function selectHistoryChat(idx){
-    const h = getHistory();
-    const it = h[idx]; if(!it) return;
-    currentIA = it.id;
-    (document.getElementById('chatHeader')||{}).textContent = `${it.composant || 'Équipement'} — ID ${it.id}`;
-    renderHTML(document.getElementById('chatHtml'), it.content || '—');
-    const enr = it.enriched || {};
-    const toLis = (arr)=> (arr||[]).map(li=>`<li>${li}</li>`).join('') || '<li class="text-muted">—</li>';
-    (document.getElementById('chatWhy')||{}).innerHTML      = enr.why || '';
-    (document.getElementById('chatPalliative')||{}).innerHTML = toLis(enr.palliatives);
-    (document.getElementById('chatPreventive')||{}).innerHTML = toLis(enr.preventives);
-    (document.getElementById('chatRefs')||{}).innerHTML       = toLis(enr.refs);
-    (document.getElementById('chatCosts')||{}).innerHTML      = toLis(enr.costs);
-    (document.getElementById('chatEnriched')||{}).style.display='block';
-    renderThread(document.getElementById('chatThread'), getThread(it.id));
-  }
-
-  function requiredCategoryForZone(zg, zd){
-    const zgNum = String(zg||'').replace(/[^0-9]/g,'') || '';
-    const zdNum = String(zd||'').replace(/[^0-9]/g,'') || '';
-    if(zgNum === '0' || zdNum === '20') return 'II 1GD';
-    if(zgNum === '1' || zdNum === '21') return 'II 2GD';
-    return 'II 3GD';
-  }
-  function buildDynamicSuggestions(eq){
-    const cont = document.getElementById('autoLinks');
-    if(!cont) return;
-    cont.innerHTML = '';
-    const isNC = String(eq?.conformite || '').toLowerCase().includes('non');
-    const req = requiredCategoryForZone(eq?.zone_gaz, eq?.zone_poussieres);
-    const comp = (eq?.composant || '').toLowerCase();
-
-    const items = [];
-    if (comp.includes('pression') || comp.includes('capteur')){
-      items.push({ type:'Capteur pression ATEX', name:'IFM PN7092', href:'https://www.ifm.com/' });
-    }
-    if (comp.includes('moteur') || comp.includes('pompe')){
-      items.push({ type:'Moteur Ex d', name:'WEG W22X', href:'https://www.weg.net/' });
-    }
-    items.push({ type:'Boîte de jonction Ex e', name:'R. STAHL série 8146/5-V', href:'https://r-stahl.com/' });
-    items.push({ type:'Presse-étoupe Ex e/Ex d', name:'Hawke 501/421', href:'https://www.ehawke.com/' });
-    items.push({ type:'Câble & accessoires ATEX', name:'RS Components', href:'https://uk.rs-online.com/' });
-
-    cont.innerHTML = `
-      <div class="small-muted mb-2">Catégorie requise estimée : <strong>${req}</strong></div>
-      ${!isNC ? '<div class="text-muted small mb-2">Équipement conforme — suggestions générales :</div>' : '<div class="text-danger small mb-2">Équipement non conforme — remplacements conseillés :</div>'}
-      <ul class="mb-2">${items.map(it=>`<li><strong>${it.type}</strong> — ${it.name} • <a href="${it.href}" target="_blank" rel="noopener">Voir</a></li>`).join('')}</ul>
-      <div class="small-muted">Ajusté en fonction du composant et des zones (G/D).</div>
-    `;
+    const h = getHistory(); showHistoryItem(h[idx]);
   }
 
   async function openIA(id){
     currentIA = id;
+    localStorage.setItem(LAST_IA_KEY, String(id));
     const loading = document.getElementById('chatLoading'); if (loading) loading.style.display='block';
     try{
       let eq; const cached = getCachedHelp(id);
       if (cached && cached.eq) eq = cached.eq;
-      else { const r = await fetch(API.equipment(id)); if(!r.ok) throw new Error('Équipement introuvable'); eq = await r.json(); }
+      else { const r = await fetch(API.equipment(id), { cache:'no-store' }); if(!r.ok) throw new Error('Équipement introuvable'); eq = await r.json(); }
 
       let help = cached && cached.help;
       if (!help){
@@ -554,7 +521,6 @@
       renderHistory();
       renderHistoryChat();
       renderThread(document.getElementById('iaThread'), getThread(eq.id));
-      buildDynamicSuggestions(eq);
       toast('Analyse IA chargée','success');
     }catch(e){ toast('Erreur IA: '+(e.message||e),'danger'); }
     finally{ if (loading) loading.style.display='none'; }
@@ -584,7 +550,7 @@
     }catch(e){ toast('Erreur chat: '+(e.message||e),'danger'); }
   }
 
-  // ---------- IMPORT (via fetch pour garder Authorization) ----------
+  // ---------- IMPORT (fetch pour garder auth) ----------
   function prettyModalJSON(title, obj){
     const id = 'jsonModal_'+Date.now();
     const text = JSON.stringify(obj, null, 2);
@@ -601,7 +567,6 @@
     modal.show();
     document.getElementById(id).addEventListener('hidden.bs.modal', e => e.currentTarget.remove(), { once:true });
   }
-
   async function handleOpenImportColumns(e){
     e?.preventDefault();
     try{
@@ -611,7 +576,6 @@
       prettyModalJSON('Définition des colonnes', data);
     }catch(err){ toast('Erreur chargement définition: '+(err.message||err),'danger'); }
   }
-
   async function downloadViaFetch(url, filename){
     try{
       const r = await fetch(url, { cache: 'no-store' });
@@ -626,16 +590,8 @@
       toast('Téléchargement prêt','success');
     }catch(err){ toast('Erreur téléchargement: '+(err.message||err),'danger'); }
   }
-
-  async function handleDownloadCsv(e){
-    e?.preventDefault();
-    await downloadViaFetch(API.importCsvTpl, 'atex_import_template.csv');
-  }
-  async function handleDownloadXlsx(e){
-    e?.preventDefault();
-    await downloadViaFetch(API.importXlsxTpl, 'atex_import_template.xlsx');
-  }
-
+  async function handleDownloadCsv(e){ e?.preventDefault(); await downloadViaFetch(API.importCsvTpl, 'atex_import_template.csv'); }
+  async function handleDownloadXlsx(e){ e?.preventDefault(); await downloadViaFetch(API.importXlsxTpl, 'atex_import_template.xlsx'); }
   async function handleImportExcel(){
     try{
       const input = document.getElementById('excelFile');
@@ -652,6 +608,10 @@
 
   // ---------- Wiring ----------
   document.addEventListener('DOMContentLoaded', () => {
+    // Restaurer historique IA immédiatement
+    renderHistory();
+    renderHistoryChat();
+
     document.getElementById('btnApplyFilters')?.addEventListener('click', applyFilters);
     document.getElementById('btnClearFilters')?.addEventListener('click', clearFilters);
     document.getElementById('btnSync')?.addEventListener('click', loadEquipments);
@@ -677,6 +637,7 @@
       (document.getElementById('chatThread')||{}).innerHTML='';
       (document.getElementById('chatHtml')||{}).innerHTML='';
       currentIA=null;
+      localStorage.removeItem(LAST_IA_KEY);
       renderHistoryChat(); renderHistory();
       toast('Discussion supprimée','info');
     });
@@ -690,6 +651,7 @@
     document.getElementById('iaSend')?.addEventListener('click', ()=>sendChat('panel'));
     document.getElementById('btnClearOne')?.addEventListener('click', ()=>{
       if(!currentIA) return; deleteThread(currentIA); removeFromHistory(currentIA); deleteHelpCache(currentIA);
+      localStorage.removeItem(LAST_IA_KEY);
       renderHistory(); renderHistoryChat();
       toast('Discussion supprimée','info');
     });
@@ -720,10 +682,8 @@
         const id = Number(btn.dataset.id);
         const eq = equipments.find(e => e.id === id);
         if (!eq) return;
-
-        // ✅ Utiliser le viewer avancé avec flèches s'il existe, sinon fallback simple
         if (typeof window.openAttachmentViewer === 'function'){
-          window.openAttachmentViewer(eq);  // défini dans atex-control.ui.js
+          window.openAttachmentViewer(eq);
         } else {
           openAttachmentsModal(eq);
         }
@@ -731,7 +691,7 @@
       }
     });
 
-    // IMPORT: intercepter les liens pour utiliser fetch (avec token)
+    // IMPORT: intercepter les liens pour utiliser fetch
     document.querySelector('a[href="/api/atex-import-columns"]')?.addEventListener('click', handleOpenImportColumns);
     document.querySelector('a[href="/api/atex-import-template"]')?.addEventListener('click', handleDownloadCsv);
     document.querySelector('a[href="/api/atex-import-template.xlsx"]')?.addEventListener('click', handleDownloadXlsx);
@@ -740,7 +700,7 @@
     loadEquipments(); loadSecteurs();
   });
 
-  // Photo modal (si jamais utilisé ailleurs)
+  // Photo modal (legacy)
   function openPhoto(encoded){
     const src = decodeURIComponent(encoded);
     const img = document.getElementById('photoModalImg'), a=document.getElementById('photoDownload');
