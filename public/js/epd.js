@@ -1,31 +1,61 @@
-// public/js/epd.js — IA propre + génération CDC + UI modales
+// /public/js/epd.js — EPD UI + IA + génération (design inchangé)
 
+// ---------- Account helper (même esprit que atex-control.core.js) ----------
+(function(){
+  function getAccountId() {
+    try {
+      const u = new URL(window.location.href);
+      const fromQS = u.searchParams.get('account_id');
+      const stored = localStorage.getItem('app_account_id')
+                 || localStorage.getItem('selected_account_id')
+                 || localStorage.getItem('autonomix_selected_account_id');
+      const id = fromQS || stored || '10';
+      if (id !== stored) localStorage.setItem('app_account_id', id);
+      return id;
+    } catch { return '10'; }
+  }
+  window.__EPD_ACCOUNT_ID__ = getAccountId();
+  window.__withAccount__ = (path) => `${path}${path.includes('?') ? '&' : '?'}account_id=${encodeURIComponent(window.__EPD_ACCOUNT_ID__)}`;
+  window.__bodyWithAccount__ = (o = {}) => Object.assign({}, o, { account_id: window.__EPD_ACCOUNT_ID__ });
+})();
+
+// ---------- API endpoints ----------
 const API = {
-  equipments: '/api/atex-equipments',
-  chat: '/api/atex-chat',          // endpoint IA déjà présent dans ton app
-  epd: '/api/epd',
-  epdStatus: (id)=> `/api/epd/${id}/status`,
-  upload: '/api/upload'
+  equipments: __withAccount__('/api/atex-equipments'),     // reuse ATEX list in EPD UI
+  chat: __withAccount__('/api/atex-chat'),                 // IA côté ATEX
+  epd: __withAccount__('/api/epd'),
+  epdStatus: (id)=> __withAccount__('/api/epd/' + id + '/status'),
+  upload: __withAccount__('/api/upload')
 };
 
+// ---------- Token helper (fallback multi-clés, même si guard injecte déjà Authorization) ----------
 function getToken(){
-  return localStorage.getItem('autonomix_token')
-      || localStorage.getItem('token')
-      || localStorage.getItem('auth_token')
-      || localStorage.getItem('access_token')
-      || (JSON.parse(localStorage.getItem('autonomix_user')||'{}')?.token || '');
+  try {
+    return localStorage.getItem('autonomix_token')
+        || localStorage.getItem('token')
+        || localStorage.getItem('auth_token')
+        || localStorage.getItem('access_token')
+        || (JSON.parse(localStorage.getItem('autonomix_user')||'{}')?.token || '');
+  } catch { return ''; }
 }
 
+// ---------- fetchAuth (fonctionne aussi sans le fetch override, par précaution) ----------
 async function fetchAuth(url, opts={}){
   const token = getToken();
   const headers = Object.assign({}, opts.headers||{}, token ? { Authorization: 'Bearer '+token } : {});
-  const res = await fetch(url, Object.assign({}, opts, { headers, credentials:'include' }));
+  // si l’URL n’a pas encore account_id, on l’ajoute (sécurisant par-dessus le fetch override)
+  if (/^\/api\/(?:atex-|epd)/.test(url) && !/[?&]account_id=/.test(url)) {
+    url = __withAccount__(url);
+  }
+  const res = await fetch(url, Object.assign({}, opts, { headers }));
   if (res.status === 401) {
-    localStorage.removeItem('autonomix_token');
-    localStorage.removeItem('token');
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('autonomix_user');
+    try{
+      localStorage.removeItem('autonomix_token');
+      localStorage.removeItem('token');
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('autonomix_user');
+    }catch(_e){}
     window.location.href = 'login.html';
     throw new Error('401 Unauthorized');
   }
@@ -57,11 +87,6 @@ document.addEventListener('DOMContentLoaded', () => {
   restoreUI();
 });
 
-// ………………………………………
-// (Le reste de TON FICHIER ORIGINAL est conservé tel quel ci-dessous.)
-// J’ai uniquement renforcé getToken() et fetchAuth() ci-dessus.
-// ………………………………………
-
 /* ======= Projets ======= */
 async function loadProjects() {
   const res = await fetchAuth(API.epd);
@@ -72,7 +97,7 @@ async function loadProjects() {
 function renderProjects(list) {
   const tbody = document.getElementById('projTableBody');
   tbody.innerHTML = '';
-  list.forEach(p => {
+  (list||[]).forEach(p => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><strong>${escapeHtml(p.name || 'Sans nom')}</strong></td>
@@ -108,7 +133,7 @@ function renderProjects(list) {
     const res = await fetchAuth(API.epd, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
+      body: JSON.stringify(__bodyWithAccount__({ name }))
     });
     const p = await res.json();
     await loadProjects();
@@ -117,7 +142,7 @@ function renderProjects(list) {
 }
 
 async function openProject(id) {
-  const res = await fetchAuth(`${API.epd}/${id}`);
+  const res = await fetchAuth(`${__withAccount__('/api/epd')}/${id}`);
   const proj = await res.json();
   state.currentProjectId = proj.id;
   // hydrate UI
@@ -132,7 +157,7 @@ async function openProject(id) {
 
 async function deleteProject(id) {
   if (!confirm('Supprimer ce projet ?')) return;
-  await fetchAuth(`${API.epd}/${id}`, { method: 'DELETE' });
+  await fetchAuth(`${__withAccount__('/api/epd')}/${id}`, { method: 'DELETE' });
   if (state.currentProjectId === id) state.currentProjectId = null;
   await loadProjects();
 }
@@ -142,7 +167,6 @@ function bindContext() {
   const ta = document.getElementById('contextText');
   ta.addEventListener('input', () => debouncedSave());
 }
-
 function bindProjects() { loadProjects(); }
 
 /* ======= Zonage ======= */
@@ -162,7 +186,8 @@ function bindEquipments() {
 
 async function loadEquipments() {
   const q = document.getElementById('equipSearch').value || '';
-  const url = q ? `${API.equipments}?q=${encodeURIComponent(q)}` : API.equipments;
+  const base = API.equipments; // déjà avec account_id
+  const url = q ? `${base}${base.includes('?') ? '&' : '?'}q=${encodeURIComponent(q)}` : base;
   const res = await fetchAuth(url);
   const list = await res.json();
   state.equipments = list || [];
@@ -253,7 +278,7 @@ function debouncedSave() {
 
 async function saveProject() {
   if (!state.currentProjectId) return;
-  const payload = {
+  const payload = __bodyWithAccount__({
     context: document.getElementById('contextText').value || '',
     zone_type: document.getElementById('zoneType').value || '',
     zone_gaz: document.getElementById('zoneGaz').value || '',
@@ -261,8 +286,8 @@ async function saveProject() {
     equipments: Array.from(state.selectedEquip.values()).map(e => e.id),
     measures: document.getElementById('measuresText').value || '',
     attachments: state.attachments || []
-  };
-  await fetchAuth(`${API.epd}/${state.currentProjectId}`, {
+  });
+  await fetchAuth(`${__withAccount__('/api/epd')}/${state.currentProjectId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -274,7 +299,7 @@ async function generateEpd() {
   if (!state.currentProjectId) { alert('Ouvrez un projet EPD.'); return; }
   const el = document.getElementById('buildStatus');
   el.textContent = 'Génération en cours…';
-  const res = await fetchAuth(`${API.epd}/${state.currentProjectId}/build`, { method: 'POST' });
+  const res = await fetchAuth(`${__withAccount__('/api/epd')}/${state.currentProjectId}/build`, { method: 'POST' });
   const data = await res.json();
   const out = document.getElementById('buildOutput');
   out.innerHTML = marked.parse(data.html || data.text || '—');
@@ -304,7 +329,12 @@ async function askIA() {
   const res = await fetchAuth(API.chat, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question: q, equipment: anyEquip, history: [] })
+    body: JSON.stringify(__bodyWithAccount__({
+      question: q,
+      equipment_id: anyEquip?.id || null,
+      equipment: null,
+      history: []
+    }))
   });
   const data = await res.json();
   document.getElementById('iaResponse').innerHTML = data.response || '<em>Aucune réponse</em>';
@@ -319,3 +349,11 @@ function fmtDate(s) {
 }
 function restoreUI(){ updateGuide(); }
 
+// (optionnel) filtrage côté équipements
+function filterEquip(){
+  const q = (document.getElementById('equipSearch').value || '').toLowerCase();
+  const rows = Array.from(document.getElementById('equipTableBody').children || []);
+  rows.forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
