@@ -1,4 +1,4 @@
-// public/js/atex-control.core.js — v15 (import fixes + downloads via fetch + keep existing features)
+// public/js/atex-control.core.js — v16 (attachments on save + viewer arrows + import fixes intact)
 (function(){
   if (window.lucide){ try{ window.lucide.createIcons(); }catch{} }
 
@@ -115,7 +115,7 @@
   function isImageLink(u){ return /^data:image\//.test(u) || /\.(png|jpe?g|webp|gif)$/i.test(u||''); }
   function isPdfLink(u){ return /\.(pdf)$/i.test(u||''); }
 
-  // ---------- Simple attachments modal ----------
+  // ---------- Simple attachments modal (fallback si viewer avancé absent) ----------
   function openAttachmentsModal(eq){
     let atts = eq.attachments;
     if (typeof atts === 'string'){ try{ atts = JSON.parse(atts); }catch{ atts = null; } }
@@ -301,11 +301,32 @@
     el.addEventListener('hidden.bs.modal', ()=> el.remove(), {once:true});
   }
 
+  // --------- Helpers: files -> DataURL ----------
+  function readFileAsDataURL(file){
+    return new Promise((resolve, reject)=>{
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+    });
+  }
+  function normalizeAtt(arr){
+    if (!arr) return [];
+    if (typeof arr === 'string'){ try{ arr = JSON.parse(arr); }catch{ arr = []; } }
+    if (!Array.isArray(arr)) return [];
+    return arr.map(a => {
+      if (a && typeof a === 'object') return a;
+      if (typeof a === 'string') return { url: a };
+      return {};
+    }).filter(x => (x.url || x.data));
+  }
+
   // --------- Save / Edit ---------
   function clearForm(){
     ['equipId','secteur-input','batiment-input','local-input','zone-g-input','zone-d-input','composant-input','fournisseur-input','type-input','identifiant-input','marquage_atex-input','comments-input','last-inspection-input'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
     const file = document.getElementById('photo-input'); if(file) file.value='';
   }
+
   async function saveEquipment(){
     const reqd = ['secteur-input','batiment-input','composant-input'];
     const missing = reqd.filter(id => !((document.getElementById(id)||{}).value||'').trim());
@@ -329,6 +350,36 @@
       photo: null
     });
 
+    // ====== NEW: collect attachments (keep existing + add selected file) ======
+    try{
+      // Existing attachments if editing
+      let existingAtt = [];
+      if (id){
+        const eq = equipments.find(e => String(e.id) === String(id));
+        if (eq && (eq.attachments || eq.Attachments)) existingAtt = normalizeAtt(eq.attachments || eq.Attachments);
+      }
+
+      // New file from input
+      const fileInp = document.getElementById('photo-input');
+      const f = fileInp?.files?.[0] || null;
+      let newAtt = null;
+      if (f){
+        const dataUrl = await readFileAsDataURL(f);
+        newAtt = { name: f.name, mime: f.type || '', data: String(dataUrl) };
+        // If it's an image, also update "photo" column
+        if ((f.type||'').startsWith('image/')) data.photo = String(dataUrl);
+      }
+
+      const finalAtt = [...existingAtt];
+      if (newAtt) finalAtt.push(newAtt);
+
+      // Always send attachments to avoid perte côté serveur
+      data.attachments = finalAtt;
+    }catch(e){
+      console.warn('[saveEquipment] attachment encode failed', e);
+    }
+    // ===========================================================
+
     try{
       const r = await fetch(id ? API.equipment(id) : API.equipments, {
         method: id?'PUT':'POST',
@@ -342,11 +393,16 @@
       }
       await r.json();
       toast('Équipement sauvegardé.','success');
+
+      // reset file field
+      const file = document.getElementById('photo-input'); if(file) file.value='';
+
       await loadEquipments();
       document.getElementById('list-tab')?.click();
       clearForm();
     }catch(e){ toast('Erreur: '+(e.message||e),'danger'); }
   }
+
   async function editEquipment(id){
     try{
       document.getElementById('add-tab')?.click(); await new Promise(r=>setTimeout(r,0));
@@ -528,7 +584,7 @@
     }catch(e){ toast('Erreur chat: '+(e.message||e),'danger'); }
   }
 
-  // ---------- IMPORT (fix: passer par fetch + token) ----------
+  // ---------- IMPORT (via fetch pour garder Authorization) ----------
   function prettyModalJSON(title, obj){
     const id = 'jsonModal_'+Date.now();
     const text = JSON.stringify(obj, null, 2);
@@ -663,7 +719,14 @@
       if (act === 'open-attachments'){
         const id = Number(btn.dataset.id);
         const eq = equipments.find(e => e.id === id);
-        if (eq) openAttachmentsModal(eq);
+        if (!eq) return;
+
+        // ✅ Utiliser le viewer avancé avec flèches s'il existe, sinon fallback simple
+        if (typeof window.openAttachmentViewer === 'function'){
+          window.openAttachmentViewer(eq);  // défini dans atex-control.ui.js
+        } else {
+          openAttachmentsModal(eq);
+        }
         e.preventDefault();
       }
     });
