@@ -1,6 +1,7 @@
 // Initialize DB schema (ATEX)
 // - Garde la création/MAJ de public.atex_equipments
 // - AJOUTE la table public.atex_secteurs (et son index unique)
+// - AJOUTE la table public.atex_chat_threads (persistance par utilisateur)
 // - Conserve le style "idempotent" (CREATE IF NOT EXISTS / IF NOT EXISTS)
 
 module.exports = async function initDb(pool) {
@@ -41,7 +42,7 @@ module.exports = async function initDb(pool) {
     );
   `);
 
-  // Colonnes utiles (idempotent: ajout si manquantes)
+  // Colonnes utiles (idempotent)
   await pool.query(`ALTER TABLE public.atex_equipments ADD COLUMN IF NOT EXISTS account_id INTEGER;`);
   await pool.query(`ALTER TABLE public.atex_equipments ADD COLUMN IF NOT EXISTS created_by VARCHAR;`);
   await pool.query(`ALTER TABLE public.atex_equipments ADD COLUMN IF NOT EXISTS next_inspection_date TIMESTAMP WITH TIME ZONE;`);
@@ -55,7 +56,6 @@ module.exports = async function initDb(pool) {
     RETURNS TRIGGER AS $$
     BEGIN
       IF NEW.last_inspection_date IS NOT NULL THEN
-        -- frequence en mois (par défaut 36 si null)
         NEW.next_inspection_date := (NEW.last_inspection_date + make_interval(months => COALESCE(NEW.frequence, 36)));
       END IF;
       RETURN NEW;
@@ -64,9 +64,7 @@ module.exports = async function initDb(pool) {
   `);
 
   // Trigger pour maintenir next_inspection_date à jour
-  await pool.query(`
-    DROP TRIGGER IF EXISTS trg_atx_set_next ON public.atex_equipments;
-  `);
+  await pool.query(`DROP TRIGGER IF EXISTS trg_atx_set_next ON public.atex_equipments;`);
   await pool.query(`
     CREATE TRIGGER trg_atx_set_next
       BEFORE INSERT OR UPDATE OF last_inspection_date, frequence
@@ -75,13 +73,10 @@ module.exports = async function initDb(pool) {
       EXECUTE FUNCTION public.atex_set_next_date();
   `);
 
-  // Index utile
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_atex_next_date ON public.atex_equipments(next_inspection_date);
-  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_atex_next_date ON public.atex_equipments(next_inspection_date);`);
 
   // =========================
-  // (AJOUT) Table des secteurs ATEX
+  // Table des secteurs ATEX
   // =========================
   await pool.query(`
     CREATE TABLE IF NOT EXISTS public.atex_secteurs (
@@ -91,8 +86,6 @@ module.exports = async function initDb(pool) {
       created_by VARCHAR
     );
   `);
-
-  // Index / unicité "un nom de secteur par compte"
   await pool.query(`
     DO $$
     BEGIN
@@ -107,5 +100,27 @@ module.exports = async function initDb(pool) {
     $$;
   `);
 
-  console.log('[initDb] ATEX: tables atex_equipments et atex_secteurs OK');
+  // =========================
+  // (NOUVEAU) Table des threads IA par utilisateur
+  // =========================
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.atex_chat_threads (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER NOT NULL,
+      equipment_id INTEGER NOT NULL,
+      user_id VARCHAR NOT NULL,
+      history JSONB,
+      updated_at TIMESTAMPTZ DEFAULT now()
+    );
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_threads_account_eq_user
+      ON public.atex_chat_threads(account_id, equipment_id, user_id);
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_chat_threads_updated
+      ON public.atex_chat_threads(updated_at DESC);
+  `);
+
+  console.log('[initDb] ATEX: tables atex_equipments, atex_secteurs et atex_chat_threads OK');
 };
