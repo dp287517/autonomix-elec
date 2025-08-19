@@ -1,8 +1,11 @@
-// public/js/atex-control.core.js — v11 (fix account_id, secteurs 500, threads par équipement, cache IA, 4 cards, effacer OK) 
+// public/js/atex-control.core.js — v12
+// Aligne les IDs/sections de ton atex-control.html d'origine, sans changer le design.
+// Correctifs : account_id sur toutes les routes, création secteur OK, édition préremplie,
+// threads IA par équipement + cache, 4 cards + suggestions, boutons Effacer, Copier, Ré-analyser, Liens pièces.
 (function(){
   if (window.lucide){ try{ window.lucide.createIcons(); }catch{} }
 
-  // ---- Account helper: try URL ?account_id=, else localStorage, else 10
+  // ---------- Account helper ----------
   function getAccountId(){
     try{
       const u = new URL(window.location.href);
@@ -18,7 +21,7 @@
     return `${path}${path.includes('?') ? '&' : '?'}account_id=${encodeURIComponent(ACCOUNT_ID)}`;
   }
 
-  // ---- API endpoints (no UI change)
+  // ---------- API endpoints ----------
   const API = {
     secteurs: withAccount('/api/atex-secteurs'),
     equipments: withAccount('/api/atex-equipments'),
@@ -34,7 +37,7 @@
   };
   const bodyWithAccount = (o={}) => Object.assign({}, o, { account_id: ACCOUNT_ID });
 
-  // ---- State / storage (keeps your original design)
+  // ---------- State / Storage ----------
   let equipments = [];
   let currentIA = null;
 
@@ -67,7 +70,7 @@
   function toast(msg,variant='primary'){
     const id='t'+Date.now();
     const html=`<div id="${id}" class="toast text-bg-${variant} border-0 mb-2" role="alert"><div class="d-flex"><div class="toast-body">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>`;
-    const cont = document.getElementById('toasts') || (function(){ const d=document.createElement('div'); d.id='toasts'; d.className='toast-container position-fixed bottom-0 end-0 p-3'; document.body.appendChild(d); return d; })();
+    const cont = document.getElementById('toasts') || (function(){ const d=document.createElement('div'); d.id='toasts'; d.className='toast-container position-fixed top-0 end-0 p-3'; document.body.appendChild(d); return d; })();
     cont.insertAdjacentHTML('beforeend', html);
     const t = new bootstrap.Toast(document.getElementById(id), {delay:2500}); t.show();
     setTimeout(()=>document.getElementById(id)?.remove(), 3000);
@@ -162,7 +165,7 @@
     $$('.rowchk').forEach(c => c.addEventListener('change', updateBulkBtn));
   }
 
-  // --------- Filters (unchanged UI) ---------
+  // --------- Filters (IDs alignés à atex-control.html) ---------
   const activeFilters = { secteurs: new Set(), batiments: new Set(), conformites: new Set(), statut: new Set(), text: '' };
   function buildFilterLists(){
     const secteurs = [...new Set(equipments.map(e=>e.secteur).filter(Boolean))].sort();
@@ -190,7 +193,7 @@
     document.getElementById('filterText').value=''; renderPills(); applyFilters();
   }
   function renderPills(){
-    const box = document.getElementById('filterPills'); if (!box) return;
+    const box = document.getElementById('activePills'); if (!box) return;
     box.innerHTML='';
     const pill = (l)=>`<span class="badge text-bg-light">${l}</span>`;
     activeFilters.secteurs.forEach(s=> box.insertAdjacentHTML('beforeend', pill('Secteur: '+s)));
@@ -221,7 +224,7 @@
     finally{ bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteModal')).hide(); }
   }
 
-  // --------- Secteurs (fix 500 by adding account_id to body) ---------
+  // --------- Secteurs ---------
   async function loadSecteurs(){
     try{
       const r = await fetch(API.secteurs);
@@ -323,7 +326,7 @@
     }catch(e){ toast('Erreur édition: '+(e.message||e),'danger'); }
   }
 
-  // --------- IA Panel & Chat (per equipment thread + cache) ---------
+  // --------- IA helpers ---------
   function stripCodeFences(s){ if(typeof s!=='string') return ''; return s.replace(/(?:^```(?:html)?|```$)/g,'').trim(); }
   function renderHTML(el, raw){
     let s = stripCodeFences(raw||'').trim();
@@ -367,6 +370,7 @@
       (document.getElementById('chatHeader')||{}).textContent='';
       (document.getElementById('chatHtml')||{}).innerHTML='';
       (document.getElementById('chatThread')||{}).innerHTML='';
+      (document.getElementById('chatEnriched')||{}).style.display='none';
       return;
     }
     (document.getElementById('chatHeader')||{}).textContent = `${it.composant || 'Équipement'} — ID ${it.id}`;
@@ -378,6 +382,7 @@
     (document.getElementById('chatPreventive')||{}).innerHTML = toLis(enr.preventives);
     (document.getElementById('chatRefs')||{}).innerHTML       = toLis(enr.refs);
     (document.getElementById('chatCosts')||{}).innerHTML      = toLis(enr.costs);
+    (document.getElementById('chatEnriched')||{}).style.display='block';
     renderThread(document.getElementById('chatThread'), getThread(it.id));
   }
   function selectHistoryChat(idx){
@@ -393,7 +398,42 @@
     (document.getElementById('chatPreventive')||{}).innerHTML = toLis(enr.preventives);
     (document.getElementById('chatRefs')||{}).innerHTML       = toLis(enr.refs);
     (document.getElementById('chatCosts')||{}).innerHTML      = toLis(enr.costs);
+    (document.getElementById('chatEnriched')||{}).style.display='block';
     renderThread(document.getElementById('chatThread'), getThread(it.id));
+  }
+
+  function requiredCategoryForZone(zg, zd){
+    const zgNum = String(zg||'').replace(/[^0-9]/g,'') || '';
+    const zdNum = String(zd||'').replace(/[^0-9]/g,'') || '';
+    if(zgNum === '0' || zdNum === '20') return 'II 1GD';
+    if(zgNum === '1' || zdNum === '21') return 'II 2GD';
+    return 'II 3GD';
+  }
+  function buildDynamicSuggestions(eq){
+    const cont = document.getElementById('autoLinks');
+    if(!cont) return;
+    cont.innerHTML = '';
+    const isNC = String(eq?.conformite || '').toLowerCase().includes('non');
+    const req = requiredCategoryForZone(eq?.zone_gaz, eq?.zone_poussieres);
+    const comp = (eq?.composant || '').toLowerCase();
+
+    const items = [];
+    if (comp.includes('pression') || comp.includes('capteur')){
+      items.push({ type:'Capteur pression ATEX', name:'IFM PN7092', href:'https://www.ifm.com/' });
+    }
+    if (comp.includes('moteur') || comp.includes('pompe')){
+      items.push({ type:'Moteur Ex d', name:'WEG W22X', href:'https://www.weg.net/' });
+    }
+    items.push({ type:'Boîte de jonction Ex e', name:'R. STAHL série 8146/5-V', href:'https://r-stahl.com/' });
+    items.push({ type:'Presse-étoupe Ex e/Ex d', name:'Hawke 501/421', href:'https://www.ehawke.com/' });
+    items.push({ type:'Câble & accessoires ATEX', name:'RS Components', href:'https://uk.rs-online.com/' });
+
+    cont.innerHTML = `
+      <div class="small-muted mb-2">Catégorie requise estimée : <strong>${req}</strong></div>
+      ${!isNC ? '<div class="text-muted small mb-2">Équipement conforme — suggestions générales :</div>' : '<div class="text-danger small mb-2">Équipement non conforme — remplacements conseillés :</div>'}
+      <ul class="mb-2">${items.map(it=>`<li><strong>${it.type}</strong> — ${it.name} • <a href="${it.href}" target="_blank" rel="noopener">Voir</a></li>`).join('')}</ul>
+      <div class="small-muted">Ajusté en fonction du composant et des zones (G/D).</div>
+    `;
   }
 
   async function openIA(id){
@@ -421,6 +461,7 @@
       renderHistory();
       renderHistoryChat();
       renderThread(document.getElementById('iaThread'), getThread(eq.id));
+      buildDynamicSuggestions(eq);
       toast('Analyse IA chargée','success');
     }catch(e){ toast('Erreur IA: '+(e.message||e),'danger'); }
     finally{ if (loading) loading.style.display='none'; }
@@ -479,7 +520,7 @@
     document.getElementById(id).addEventListener('hidden.bs.modal', e => e.currentTarget.remove(), { once:true });
   }
 
-  // --------- Delegations / wiring (preserve original design) ---------
+  // --------- Wiring ----------
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnApplyFilters')?.addEventListener('click', applyFilters);
     document.getElementById('btnClearFilters')?.addEventListener('click', clearFilters);
@@ -497,10 +538,43 @@
     document.getElementById('btnCancel')?.addEventListener('click', ()=>{ document.getElementById('list-tab').click(); });
     document.getElementById('btnAddSecteur')?.addEventListener('click', openModalSecteur);
 
-    // Chat actions
+    // Chat actions (onglet)
     document.getElementById('btnSend')?.addEventListener('click', ()=>sendChat('tab'));
     document.getElementById('btnClearChat')?.addEventListener('click', clearAllHistory);
+    document.getElementById('btnDeleteDiscussion')?.addEventListener('click', ()=>{ if(!currentIA) return; setThread(currentIA, []); toast('Discussion effacée','info'); });
+    document.getElementById('btnReanalyse')?.addEventListener('click', ()=>{ if(currentIA) openIA(currentIA); });
+    document.getElementById('btnCopier')?.addEventListener('click', ()=>{
+      const text = ($('#chatHtml')?.innerText || '') + '\n\n' + ($('#chatThread')?.innerText || '');
+      navigator.clipboard.writeText(text).then(()=>toast('Contenu copié','success'));
+    });
+    document.getElementById('btnPartLinks')?.addEventListener('click', (e)=>{
+      e.preventDefault();
+      const sel = document.getElementById('partType'); const val = sel?.value || 'capteur';
+      const cont = document.getElementById('partLinks'); if(!cont) return;
+      const links = {
+        capteur: [
+          {name:'IFM PN7092', href:'https://www.ifm.com/'}, {name:'RS Components', href:'https://uk.rs-online.com/'}
+        ],
+        boite_e: [
+          {name:'R.STAHL 8146/5-V', href:'https://r-stahl.com/'}
+        ],
+        boite_d: [
+          {name:'R.STAHL Ex d', href:'https://r-stahl.com/'}
+        ],
+        formation: [
+          {name:'Formation ATEX (INERIS)', href:'https://www.ineris.fr/'}
+        ]
+      }[val] || [];
+      cont.innerHTML = links.map(l=>`<div><a href="${l.href}" target="_blank" rel="noopener">${l.name}</a></div>`).join('') || '<div class="text-muted">Aucun lien.</div>';
+    });
+
+    // Offcanvas IA (panel)
+    document.getElementById('iaSend')?.addEventListener('click', ()=>sendChat('panel'));
     document.getElementById('btnClearOne')?.addEventListener('click', ()=>{ if(!currentIA) return; setThread(currentIA, []); toast('Discussion effacée','info'); });
+    document.getElementById('btnOpenInChat')?.addEventListener('click', ()=>{
+      const tabBtn = document.getElementById('chat-tab'); tabBtn && tabBtn.click();
+      renderHistoryChat();
+    });
 
     // Table actions
     document.addEventListener('click', (e)=>{
