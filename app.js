@@ -18,7 +18,7 @@ app.set('trust proxy', 1);
 // Logs HTTP
 app.use(morgan('dev'));
 
-// CSP (patch: autoriser PDF en iframe via data:/blob:/https:)
+// CSP (patch: autoriser PDF en iframe via data:/blob:/https: + hash inline EPD)
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -33,7 +33,9 @@ app.use(
           "'sha256-Wglttk6u7n6jtm/l0HzvsAle8kFKAnhMIkQBLkiJpTA='",
           "'sha256-fzrEw4S1b1r+XcBoUL+/L7ZjCdR96GNidBRivIM+PFY='",
           "'sha256-VBsLKmk1R7Ia418rRwDElBT39eCZENxnujzihkgLpHQ='",
-          "'sha256-dmtOGFVV8ciM0XL1bXpiarcZDOCMOUdk6XJB4yFFUsg'"
+          "'sha256-dmtOGFVV8ciM0XL1bXpiarcZDOCMOUdk6XJB4yFFUsg'",
+          // ✅ hash ajouté pour le script inline d’EPD (corrige l’erreur CSP)
+          "'sha256-5CEzTibXtN/srthZhIaRd1Npf98LpyzZl7NhdqhAgTM='"
         ],
         "script-src-elem": [
           "'self'",
@@ -44,7 +46,9 @@ app.use(
           "'sha256-Wglttk6u7n6jtm/l0HzvsAle8kFKAnhMIkQBLkiJpTA='",
           "'sha256-fzrEw4S1b1r+XcBoUL+/L7ZjCdR96GNidBRivIM+PFY='",
           "'sha256-VBsLKmk1R7Ia418rRwDElBT39eCZENxnujzihkgLpHQ='",
-          "'sha256-dmtOGFVV8ciM0XL1bXpiarcZDOCMOUdk6XJB4yFFUsg'"
+          "'sha256-dmtOGFVV8ciM0XL1bXpiarcZDOCMOUdk6XJB4yFFUsg'",
+          // ✅ même hash pour les <script> dans le DOM
+          "'sha256-5CEzTibXtN/srthZhIaRd1Npf98LpyzZl7NhdqhAgTM='"
         ],
         "style-src": [
           "'self'",
@@ -165,11 +169,31 @@ try {
   }
 })();
 
+// ✅ [AJOUT] EPD: montage du routeur /api/epd* et /api/upload
+(() => {
+  try {
+    const epdStoreRoutes = require('./routes/epdStore');
+    app.use('/api', epdStoreRoutes);
+    console.log('✅ Mounted /api (epdStore via routes/epdStore)');
+  } catch (e1) {
+    try {
+      const epdStoreRoutesAlt = require('./epdStore');
+      app.use('/api', epdStoreRoutesAlt);
+      console.log('✅ Mounted /api (epdStore via ./epdStore)');
+    } catch (e2) {
+      console.warn('⚠️ epdStore route not mounted:', e2?.message);
+    }
+  }
+})();
+
 // Healthcheck
 app.get('/ping', (_req, res) => res.send('pong'));
 
 // Static
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ✅ [AJOUT] Servir les fichiers uploadés (thumbnails/pièces jointes)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // 404 JSON pour /api/*
 app.use('/api', (_req, res) => {
