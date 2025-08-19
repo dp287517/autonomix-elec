@@ -1,4 +1,4 @@
-// public/js/atex-control.core.js — v13
+// public/js/atex-control.core.js — v14 (attachments upload + photo + robust secteurs)
 (function(){
   if (window.lucide){ try{ window.lucide.createIcons(); }catch{} }
 
@@ -33,6 +33,10 @@
     photo: (id) => withAccount('/api/atex-photo/' + id)
   };
   const bodyWithAccount = (o={}) => Object.assign({}, o, { account_id: ACCOUNT_ID });
+
+  // Expose pour d'autres scripts (ex: atex-control.ui.js)
+  window.API = API;
+  window.state = Object.assign(window.state || {}, { accountId: ACCOUNT_ID });
 
   // ---------- State / Storage ----------
   let equipments = [];
@@ -106,27 +110,48 @@
   function isImageLink(u){ return /^data:image\//.test(u) || /\.(png|jpe?g|webp|gif)$/i.test(u||''); }
   function isPdfLink(u){ return /\.(pdf)$/i.test(u||''); }
 
-  // ---------- Attachments MODAL ----------
+  // ---------- Attachments MODAL (fallback simple si viewer avancé absent) ----------
   function openAttachmentsModal(eq){
     let atts = eq.attachments;
     if (typeof atts === 'string'){ try{ atts = JSON.parse(atts); }catch{ atts = null; } }
     atts = Array.isArray(atts) ? atts : [];
+
     const id = 'attsModal_'+eq.id;
+    const blocks = [];
+
+    // Affiche la photo "legacy" si présente
+    if (eq.photo && typeof eq.photo === 'string' && eq.photo.startsWith('data:')){
+      blocks.push(`
+        <div class="mb-3">
+          <div class="small fw-semibold mb-1">Photo</div>
+          <img src="${eq.photo}" class="img-fluid rounded border">
+        </div>
+      `);
+    }
+
+    // Affiche les attachments (url ou data)
+    if (atts.length){
+      blocks.push(atts.map((a,i)=>{
+        const url = a && (a.url||a.data||a.href||a.path||a) || '';
+        const name = a && (a.name||a.label) || ('Fichier '+(i+1));
+        if (!url) return '';
+        if (isImageLink(url)){
+          return `<div class="mb-3"><div class="small fw-semibold mb-1">${name}</div><img src="${url}" class="img-fluid rounded border"></div>`;
+        }
+        const ico = isPdfLink(url) ? '📄' : '📎';
+        return `<div class="mb-2"><a href="${url}" target="_blank" rel="noopener">${ico} ${name}</a></div>`;
+      }).join(''));
+    }
+    if (!blocks.length){
+      blocks.push('<div class="text-muted">Aucune pièce jointe.</div>');
+    }
+
     const modalHTML = `
     <div class="modal fade" id="${id}" tabindex="-1">
       <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
         <div class="modal-header"><h5 class="modal-title">Pièces jointes — Équipement #${eq.id}</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
-          ${atts.length ? atts.map((a,i)=>{
-            const url = a && (a.url||a.href||a.path||a) || '';
-            const name = a && (a.name||a.label) || ('Fichier '+(i+1));
-            if (!url) return '';
-            if (isImageLink(url)){
-              return `<div class="mb-3"><div class="small fw-semibold mb-1">${name}</div><img src="${url}" class="img-fluid rounded border"></div>`;
-            }
-            const ico = isPdfLink(url) ? '📄' : '📎';
-            return `<div class="mb-2"><a href="${url}" target="_blank" rel="noopener">${ico} ${name}</a></div>`;
-          }).join('') : '<div class="text-muted">Aucune pièce jointe.</div>'}
+          ${blocks.join('')}
         </div>
         <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
       </div></div>
@@ -249,18 +274,28 @@
 
   // --------- Secteurs ---------
   async function loadSecteurs(){
+    const sel = document.getElementById('secteur-input');
+    if (!sel) return;
     try{
       const r = await fetch(API.secteurs);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const arr = await r.json();
-      const sel = document.getElementById('secteur-input');
-      if (!sel) return;
       sel.innerHTML = '<option value="" disabled selected>— Sélectionner —</option>';
-      (arr||[]).forEach(s=>{
-        const name = (typeof s === 'string') ? s : (s && s.name) ? s.name : '';
-        if(!name) return;
-        const o=document.createElement('option'); o.value=name; o.text=name; sel.appendChild(o);
-      });
-    }catch{}
+      const items = Array.isArray(arr) ? arr : [];
+      if (!items.length){
+        sel.insertAdjacentHTML('beforeend', '<option value="" disabled>— Aucun secteur —</option>');
+      } else {
+        items.forEach(s=>{
+          const name = (typeof s === 'string') ? s : (s && s.name) ? s.name : '';
+          if(!name) return;
+          const o=document.createElement('option'); o.value=name; o.text=name; sel.appendChild(o);
+        });
+      }
+    }catch(e){
+      console.error('[loadSecteurs] fail:', e);
+      toast('Erreur chargement secteurs','danger');
+      sel.innerHTML = '<option value="" disabled selected>— Erreur —</option>';
+    }
   }
   function openModalSecteur(){
     const html=`
@@ -279,16 +314,49 @@
     </div>`;
     document.body.insertAdjacentHTML('beforeend', html);
     const el = document.getElementById('modalSecteur'), modal = new bootstrap.Modal(el); modal.show();
-    el.querySelector('#saveSecteurBtn').addEventListener('click', async ()=>{
+
+    const doSave = async ()=>{
+      const btn = el.querySelector('#saveSecteurBtn');
+      const msg = el.querySelector('#secteurSaveMsg');
       const name=(el.querySelector('#newSecteurName').value||'').trim();
-      if(!name){ el.querySelector('#secteurSaveMsg').textContent='Nom requis.'; return; }
+      if(!name){ msg.textContent='Nom requis.'; return; }
+      btn.disabled = true; msg.textContent='Enregistrement...';
       try{
         const r = await fetch(API.secteurs,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(bodyWithAccount({name}))});
-        if(!r.ok) throw new Error('Erreur API');
+        if(!r.ok){
+          const err = await r.json().catch(()=>({}));
+          throw new Error(err?.message || `HTTP ${r.status}`);
+        }
         await loadSecteurs(); document.getElementById('secteur-input').value=name; toast('Secteur enregistré','success'); modal.hide(); el.remove();
-      }catch(err){ el.querySelector('#secteurSaveMsg').textContent='Erreur: '+(err.message||err); }
-    }, {once:true});
+      }catch(err){ msg.textContent='Erreur: '+(err.message||err); btn.disabled=false; }
+    };
+
+    el.querySelector('#saveSecteurBtn').addEventListener('click', doSave);
+    el.querySelector('#newSecteurName').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); doSave(); } });
     el.addEventListener('hidden.bs.modal', ()=> el.remove(), {once:true});
+  }
+
+  // --------- Attachments: helpers pour lire l'<input type="file"> en dataURL ---------
+  async function fileToDataUrl(file) {
+    const MAX = 8 * 1024 * 1024; // 8 Mo
+    if (file.size > MAX) throw new Error(`Fichier trop volumineux (>8 Mo): ${file.name}`);
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(r.error || new Error('read_failed'));
+      r.readAsDataURL(file);
+    });
+  }
+  async function gatherFormAttachments() {
+    const input = document.getElementById('photo-input');
+    if (!input || !input.files || !input.files.length) return [];
+    const files = Array.from(input.files);
+    const out = [];
+    for (const f of files) {
+      const dataUrl = await fileToDataUrl(f);
+      out.push({ name: f.name, mime: f.type || '', data: dataUrl });
+    }
+    return out;
   }
 
   // --------- Save / Edit ---------
@@ -302,7 +370,7 @@
     if (missing.length){ toast('Champs manquants : '+missing.join(', '),'warning'); return; }
 
     const id = (document.getElementById('equipId')||{}).value || null;
-    const data = bodyWithAccount({
+    const base = {
       secteur: (document.getElementById('secteur-input')||{}).value,
       batiment: (document.getElementById('batiment-input')||{}).value,
       local: (document.getElementById('local-input')||{}).value,
@@ -312,22 +380,54 @@
       identifiant: (document.getElementById('identifiant-input')||{}).value,
       marquage_atex: (document.getElementById('marquage_atex-input')||{}).value,
       comments: (document.getElementById('comments-input')||{}).value,
-      last_inspection_date: (document.getElementById('last-inspection-input')||{}).value || null, // <<< FIX N/A
+      last_inspection_date: (document.getElementById('last-inspection-input')||{}).value || null, // "YYYY-MM-DD" ou null
       zone_gaz: (document.getElementById('zone-g-input')||{}).value || null,
       zone_poussieres: (document.getElementById('zone-d-input')||{}).value || null,
       zone_poussiere: (document.getElementById('zone-d-input')||{}).value || null,
       photo: null
-    });
+    };
+    const data = bodyWithAccount(base);
+
+    // ---> Intégration des pièces jointes du formulaire
+    try{
+      const newAtts = await gatherFormAttachments();
+      if (newAtts.length){
+        if (id){ // édition
+          const cur = equipments.find(e => String(e.id) === String(id)) || null;
+          const existing = Array.isArray(cur?.attachments) ? cur.attachments : [];
+          data.attachments = existing.concat(newAtts);
+          if (!cur?.photo){
+            const firstImg = newAtts.find(a => (a.mime||'').startsWith('image/'));
+            if (firstImg) data.photo = firstImg.data;
+          }
+        } else { // création
+          data.attachments = newAtts;
+          const firstImg = newAtts.find(a => (a.mime||'').startsWith('image/'));
+          if (firstImg) data.photo = firstImg.data;
+        }
+      }
+    }catch(e){
+      console.error('[attachments] skip:', e);
+      toast('Pièce ignorée: ' + (e.message || e), 'warning');
+    }
 
     try{
-      const r = await fetch(id ? API.equipment(id) : API.equipments, { method: id?'PUT':'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+      const r = await fetch(id ? API.equipment(id) : API.equipments, {
+        method: id?'PUT':'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(data)
+      });
       if(!r.ok){
         if (r.status===409) throw new Error('Identifiant déjà utilisé.');
         const err = await r.json().catch(()=>({}));
         throw new Error(err?.message || 'Erreur enregistrement');
       }
-      const saved = await r.json();
+      await r.json(); // {id:...} ou {ok:true}
       toast('Équipement sauvegardé.','success');
+
+      // Nettoyage champ fichier pour éviter ré-envoi involontaire
+      const file = document.getElementById('photo-input'); if(file) file.value='';
+
       await loadEquipments();
       document.getElementById('list-tab')?.click();
       clearForm();
@@ -351,6 +451,7 @@
       (document.getElementById('marquage_atex-input')||{}).value = eq.marquage_atex || '';
       (document.getElementById('comments-input')||{}).value  = eq.comments || '';
       (document.getElementById('last-inspection-input')||{}).value = eq.last_inspection_date ? new Date(eq.last_inspection_date).toISOString().slice(0,10) : '';
+      const file = document.getElementById('photo-input'); if(file) file.value='';
     }catch(e){ toast('Erreur édition: '+(e.message||e),'danger'); }
   }
 
@@ -505,8 +606,8 @@
           question: text,
           equipment: null,
           history: thread.map(m=>({ role: m.role==='assistant'?'assistant':'user', content: m.content }))
-        }))
-      });
+        }))}
+      );
       const data = await resp.json();
       const iaText = data?.response || 'Réponse indisponible.';
       const next = [...thread, {role:'user', content:text}, {role:'assistant', content:iaText}];
@@ -517,9 +618,6 @@
   }
 
   // ---------- Wiring ----------
-  function updateBulkBtn(){ const sel = $$('.rowchk:checked').map(i=>+i.dataset.id); const b=document.getElementById('btnBulkDelete'); if(b) b.disabled = sel.length===0; }
-  function toggleAll(e){ const checked = e.target.checked; $$('.rowchk').forEach(c=>{ c.checked = checked; }); updateBulkBtn(); }
-
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnApplyFilters')?.addEventListener('click', applyFilters);
     document.getElementById('btnClearFilters')?.addEventListener('click', clearFilters);
@@ -573,7 +671,7 @@
       if(!btn) return;
       const act = btn.dataset.action;
       if (act === 'edit-equipment'){ editEquipment(Number(btn.dataset.id)); }
-      if (act === 'delete-equipment'){ 
+      if (act === 'delete-equipment'){
         const id = Number(btn.dataset.id);
         document.getElementById('deleteMsg').textContent = 'Voulez-vous vraiment supprimer cet équipement ATEX ?';
         document.getElementById('deleteMeta').textContent = btn.dataset.label ? `Équipement : ${btn.dataset.label} (ID ${id})` : `ID ${id}`;
@@ -587,6 +685,12 @@
       if (act === 'open-ia'){ openIA(Number(btn.dataset.id)); }
       if (act === 'open-attachments'){
         const id = Number(btn.dataset.id);
+        // Si le viewer avancé est chargé (atex-control.ui.js), on l'utilise, sinon fallback local.
+        if (typeof window.openAttachmentViewer === 'function'){
+          e.preventDefault();
+          window.openAttachmentViewer(id);
+          return;
+        }
         const eq = equipments.find(e => e.id === id);
         if (eq) openAttachmentsModal(eq);
         e.preventDefault();
