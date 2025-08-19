@@ -1,47 +1,72 @@
-// public/js/epd-guard.js
-// Objectif : éviter la redirection à tort vers login.
-// 1) On tente d'abord /api/me en mode "cookie/session" (credentials: 'include').
-// 2) Si pas OK, on tente en Bearer avec un éventail de clés possibles dans le localStorage.
-// 3) On ne redirige vers login QUE si les deux échouent.
-
-(async function(){
-  try {
-    // Tentative 1 : session/cookie (ton app.js renvoie 200 ici)
-    // => si OK on laisse charger la page, même sans token.
-    const rCookie = await fetch('/api/me', { credentials: 'include' });
-    if (rCookie.ok) return;
-
-    // Tentative 2 : Bearer multi-clés (dashboard/anciens noms)
-    const token =
-      localStorage.getItem('autonomix_token') ||
-      localStorage.getItem('token') ||
-      localStorage.getItem('auth_token') ||
-      localStorage.getItem('access_token') ||
-      (JSON.parse(localStorage.getItem('autonomix_user')||'{}')?.token || '');
-
-    if (!token) {
-      window.location.href = 'login.html';
-      return;
-    }
-
-    const rBearer = await fetch('/api/me', {
-      headers: { Authorization: 'Bearer '+token },
-      credentials: 'include'
-    });
-
-    if (!rBearer.ok) {
-      // Nettoyage défensif
+// /public/js/epd.guard.js
+(function(){
+  // --- mêmes conventions que atex-control.guard.js ---
+  function getToken(){ try{ return localStorage.getItem('autonomix_token') || ''; }catch(_e){ return ''; } }
+  function logout(){
+    try{
       localStorage.removeItem('autonomix_token');
-      localStorage.removeItem('token');
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('access_token');
       localStorage.removeItem('autonomix_user');
-      window.location.href = 'login.html';
-      return;
-    }
-
-    // Sinon OK → on reste sur la page
-  } catch {
-    window.location.href = 'login.html';
+      localStorage.removeItem('selected_account_id');
+      localStorage.removeItem('autonomix_selected_account_id');
+    }catch(_e){}
+    location.href = 'login.html';
   }
+
+  function currentAccountId(){
+    try{
+      const qsId = new URLSearchParams(location.search).get('account_id');
+      if (qsId) return qsId;
+      return localStorage.getItem('selected_account_id')
+          || localStorage.getItem('autonomix_selected_account_id')
+          || null;
+    }catch(_e){ return null; }
+  }
+
+  async function guard(){
+    const t = getToken();
+    if (!t) { logout(); return; }
+    try{
+      const url = new URL('/api/me', location.origin);
+      const aId = currentAccountId();
+      if (aId) url.searchParams.set('account_id', aId);
+      const r = await fetch(url.toString(), { headers: { Authorization: 'Bearer ' + t }, cache:'no-store' });
+      if (!r.ok) { logout(); return; }
+      await r.json();
+    }catch(_e){ logout(); }
+  }
+
+  // --- Override fetch : ajoute Authorization + ?account_id=... pour /api/atex-* et /api/epd* ---
+  const origFetch = window.fetch ? window.fetch.bind(window) : null;
+  if (origFetch) {
+    window.fetch = function(input, init){
+      try{
+        let url = (typeof input === 'string') ? input : input.url;
+        if (url && url.indexOf('/api/') === 0) {
+          init = init || {};
+          const headers = new Headers(init.headers || {});
+          const tok = getToken();
+          if (tok && !headers.has('Authorization')) {
+            headers.set('Authorization', 'Bearer ' + tok);
+          }
+          // Auto-append account_id pour /api/atex-* ET /api/epd*
+          if (/^\/api\/(?:atex-|epd)/.test(url) && !/[?&]account_id=/.test(url)) {
+            const acc = currentAccountId();
+            if (acc) {
+              const u = new URL(url, location.origin);
+              u.searchParams.set('account_id', acc);
+              url = u.pathname + u.search;
+            }
+          }
+          init.headers = headers;
+          input = (typeof input === 'string') ? url : new Request(url, input);
+        }
+      }catch(_e){ /* ignore */ }
+      return origFetch(input, init).then(function(r){
+        if (r && r.status === 401) { logout(); throw new Error('unauthenticated'); }
+        return r;
+      });
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){ guard(); });
 })();
