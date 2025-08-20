@@ -64,12 +64,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ====== API ======
 
-// (optionnel) /api/me minimal pour le front ATEX si ton auth ne le fournit pas
-app.get('/api/me', (req, res) => {
-  const account_id = Number(req.query.account_id || 0) || null;
-  const email = process.env.DEMO_EMAIL || 'palhadaniel.elec@gmail.com';
-  return res.json({ email, account_id, role: 'owner' });
-});
+
 
 // Auth (login/register/me/debug)
 try {
