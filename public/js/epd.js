@@ -28,7 +28,7 @@ const API = {
   upload: __withAccount__('/api/upload')
 };
 
-// ---------- Token helper (fallback multi-clés) ----------
+// ---------- Token helpers ----------
 function getToken(){
   try {
     return localStorage.getItem('autonomix_token')
@@ -39,23 +39,29 @@ function getToken(){
   } catch { return ''; }
 }
 
-// ---------- fetchAuth ----------
+function buildAuthHeaders(){
+  const tok = getToken();
+  if (!tok) return {};
+  const value = /^(Bearer|Token)\s+/i.test(tok) ? tok : ('Bearer ' + tok);
+  // on ajoute aussi des headers tolérants si ton backend les lise
+  return {
+    Authorization: value,
+    'X-Auth-Token': tok,
+    'X-Access-Token': tok
+  };
+}
+
+// ---------- fetchAuth (sans redirection auto) ----------
 async function fetchAuth(url, opts={}){
-  const token = getToken();
-  const headers = Object.assign({}, opts.headers||{}, token ? { Authorization: 'Bearer '+token } : {});
-  if (/^\/api\/(?:atex-|epd)/.test(url) && !/[?&]account_id=/.test(url)) {
-    url = __withAccount__(url);
+  let u = url;
+  if (/^\/api\/(?:atex-|epd)/.test(u) && !/[?&]account_id=/.test(u)) {
+    u = __withAccount__(u);
   }
-  const res = await fetch(url, Object.assign({}, opts, { headers }));
+  const headers = Object.assign({}, opts.headers||{}, buildAuthHeaders());
+  const res = await fetch(u, Object.assign({}, opts, { headers }));
   if (res.status === 401) {
-    try{
-      localStorage.removeItem('autonomix_token');
-      localStorage.removeItem('token');
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('autonomix_user');
-    }catch(_e){}
-    window.location.href = 'login.html';
+    // NE PAS rediriger ici: on laisse la page active pour debug.
+    // (l’ancien code faisait location.href='login.html')
     throw new Error('401 Unauthorized');
   }
   return res;
@@ -76,7 +82,6 @@ const state = {
 let saveTimer = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  // init icônes
   if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
 
   bindProjects();
@@ -101,7 +106,7 @@ function renderProjects(list) {
   (list||[]).forEach(p => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><strong>${escapeHtml(p.name || 'Sans nom')}</strong></td>
+      <td><strong>${escapeHtml(p.name || p.title || 'Sans nom')}</strong></td>
       <td>${escapeHtml(p.secteur || '')}</td>
       <td>${escapeHtml(p.batiment || '')}</td>
       <td>${escapeHtml(p.local || '')}</td>
@@ -134,7 +139,7 @@ function renderProjects(list) {
     const res = await fetchAuth(API.epd, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(__bodyWithAccount__({ name }))
+      body: JSON.stringify(__bodyWithAccount__({ name, title: name }))
     });
     const p = await res.json();
     await loadProjects();
@@ -146,12 +151,11 @@ async function openProject(id) {
   const res = await fetchAuth(`${__withAccount__('/api/epd')}/${id}`);
   const proj = await res.json();
   state.currentProjectId = proj.id;
-  // hydrate UI
-  document.getElementById('contextText').value = proj.context || '';
-  document.getElementById('zoneType').value = proj.zone_type || '';
-  document.getElementById('zoneGaz').value = proj.zone_gaz || '';
-  document.getElementById('zonePoussiere').value = proj.zone_poussiere || '';
-  state.attachments = Array.isArray(proj.attachments) ? proj.attachments : [];
+  document.getElementById('contextText').value = proj.context || proj.payload?.context || '';
+  document.getElementById('zoneType').value = proj.zone_type || proj.payload?.zone_type || '';
+  document.getElementById('zoneGaz').value = proj.zone_gaz || proj.payload?.zone_gaz || '';
+  document.getElementById('zonePoussiere').value = proj.zone_poussiere || proj.payload?.zone_poussiere || '';
+  state.attachments = Array.isArray(proj.attachments || proj.payload?.attachments) ? (proj.attachments || proj.payload?.attachments) : [];
   updateGuide();
   switchTab('context');
 }
@@ -187,7 +191,7 @@ function bindEquipments() {
 
 async function loadEquipments() {
   const q = document.getElementById('equipSearch').value || '';
-  const base = API.equipments; // déjà avec account_id
+  const base = API.equipments;
   const url = q ? `${base}${base.includes('?') ? '&' : '?'}q=${encodeURIComponent(q)}` : base;
   const res = await fetchAuth(url);
   const list = await res.json();
@@ -219,9 +223,8 @@ function renderEquipments() {
   });
 }
 
-// ✅ ajout de la fonction manquante (évite l'erreur "addEquipment is not defined")
+// évite l'erreur "addEquipment is not defined"
 function addEquipment() {
-  // Stub simple : à remplacer plus tard par une modale si besoin
   alert("Ajout manuel d'équipement (à implémenter). Utilisez la recherche pour sélectionner dans la base.");
 }
 
@@ -356,7 +359,7 @@ function fmtDate(s) {
 }
 function restoreUI(){ updateGuide(); }
 
-// (optionnel) filtrage côté équipements
+// filtrage côté équipements
 function filterEquip(){
   const q = (document.getElementById('equipSearch').value || '').toLowerCase();
   const rows = Array.from(document.getElementById('equipTableBody').children || []);
