@@ -1,57 +1,49 @@
 // public/js/epd-guard.js
 // Garde EPD :
-// - Valide l'accès via /api/me (avec ou sans account_id)
-// - Injecte Authorization + account_id sur /api/epd* et /api/atex-*
-// - Ne force PAS le logout sur un 401 générique (uniquement si /api/me échoue)
+// - Exige un token présent AVANT tout (sinon → login)
+// - Valide /api/me (avec puis sans ?account_id)
+// - Injecte toujours Authorization (Bearer <JWT>) + account_id sur /api/epd* et /api/atex-*
+// - Ne fait PAS de logout automatique sur un 401 générique (uniquement si /api/me échoue)
 
 (function () {
-  // -------- token helpers ----------
+  // -------- Token helpers ----------
   function readTokenRaw() {
     try {
-      // clés possibles
       const ls = localStorage;
-      const direct =
+      return (
         ls.getItem('autonomix_token') ||
         ls.getItem('token') ||
         ls.getItem('auth_token') ||
-        ls.getItem('access_token');
-      if (direct) return direct;
-
-      // variantes dans un objet JSON
-      const u = JSON.parse(ls.getItem('autonomix_user') || '{}');
-      return (
-        u.token ||
-        u.jwt ||
-        u.accessToken ||
-        u.access_token ||
-        u.idToken ||
-        u.id_token ||
-        ''
-      );
-    } catch { return ''; }
+        ls.getItem('access_token') ||
+        (JSON.parse(ls.getItem('autonomix_user') || '{}')?.token || '')
+      ) || '';
+    } catch {
+      return '';
+    }
   }
 
-  function normalizeAuthValue(tok) {
-    if (!tok) return '';
-    const t = String(tok).trim();
-    // si l'app a déjà stocké "Bearer xxx", on ne double pas
-    if (/^(Bearer|Token)\s+/i.test(t)) return t;
-    return 'Bearer ' + t;
+  function jwtFromRaw(raw) {
+    if (!raw) return '';
+    return String(raw).trim().replace(/^Bearer\s+/i, ''); // enlève un éventuel "Bearer "
   }
 
-  // -------- account helpers ----------
+  function authHeaderValue() {
+    const jwt = jwtFromRaw(readTokenRaw());
+    return jwt ? ('Bearer ' + jwt) : '';
+  }
+
+  // -------- Account helpers ----------
   function parseJwtForAccountId(tok) {
     try {
       const t = String(tok).trim().replace(/^(Bearer|Token)\s+/i, '');
-      const [, payload] = t.split('.');
-      if (!payload) return null;
-      const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+      const parts = t.split('.');
+      if (parts.length < 2) return null;
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
       return (
-        json.account_id ||
-        json.accountId ||
-        json.acc ||
-        json.aid ||
-        json.organization_id ||
+        payload.account_id ||
+        payload.accountId ||
+        payload.aid ||
+        payload.organization_id ||
         null
       );
     } catch { return null; }
@@ -70,17 +62,6 @@
         ls.getItem('account_id');
       if (fromLs) return fromLs;
 
-      // tenter depuis autonomix_user
-      try {
-        const u = JSON.parse(ls.getItem('autonomix_user') || '{}');
-        const a =
-          u.account_id ||
-          (u.account && (u.account.id || u.account.account_id)) ||
-          (Array.isArray(u.accounts) && u.accounts[0] && (u.accounts[0].id || u.accounts[0].account_id));
-        if (a) return String(a);
-      } catch {}
-
-      // tenter depuis le JWT
       const tok = readTokenRaw();
       const aid = parseJwtForAccountId(tok);
       if (aid) return String(aid);
@@ -97,40 +78,44 @@
     } catch {}
   }
 
-  // -------- guard: valide /api/me ----------
+  // -------- Guard: exige token + valide /api/me ----------
   async function guard() {
     try {
-      const tok = readTokenRaw();
-      const auth = normalizeAuthValue(tok);
+      const jwt = jwtFromRaw(readTokenRaw());
+      if (!jwt) {
+        // Pas de token → pas de faux positif via un éventuel /api/me “stub”
+        location.href = 'login.html';
+        return;
+      }
+
+      const auth = 'Bearer ' + jwt;
       const aid = currentAccountId();
 
-      // tentative 1 : /api/me avec account_id si dispo
-      let meUrl = new URL('/api/me', location.origin);
-      if (aid) meUrl.searchParams.set('account_id', aid);
-
-      let r = await fetch(meUrl.toString(), {
-        headers: auth ? { Authorization: auth } : {},
+      // Essai 1 : /api/me avec account_id
+      let me = new URL('/api/me', location.origin);
+      if (aid) me.searchParams.set('account_id', aid);
+      let r = await fetch(me.toString(), {
+        headers: { Authorization: auth },
         credentials: 'include',
         cache: 'no-store'
       });
 
+      // Essai 2 : /api/me sans account_id (backend peut choisir l’account par défaut)
       if (!r.ok) {
-        // tentative 2 : /api/me sans account_id (certains backends renvoient l'account par défaut)
-        meUrl = new URL('/api/me', location.origin);
-        r = await fetch(meUrl.toString(), {
-          headers: auth ? { Authorization: auth } : {},
+        me = new URL('/api/me', location.origin);
+        r = await fetch(me.toString(), {
+          headers: { Authorization: auth },
           credentials: 'include',
           cache: 'no-store'
         });
       }
 
       if (!r.ok) {
-        // échec d’authentification réel
         location.href = 'login.html';
         return;
       }
 
-      // si /api/me renvoie un account_id, on le mémorise
+      // mémorise un éventuel account_id renvoyé
       try {
         const data = await r.json();
         const found = data?.account_id || data?.account?.id || data?.id || null;
@@ -141,7 +126,7 @@
     }
   }
 
-  // -------- fetch override ----------
+  // -------- fetch override : impose Authorization + ?account_id ----------
   const origFetch = window.fetch ? window.fetch.bind(window) : null;
   if (origFetch) {
     window.fetch = function (input, init) {
@@ -150,14 +135,15 @@
         if (url && url.indexOf('/api/') === 0) {
           init = init || {};
           const headers = new Headers(init.headers || {});
-          const tok = readTokenRaw();
-          const auth = normalizeAuthValue(tok);
+          const auth = authHeaderValue();
+          const raw = readTokenRaw();
 
-          // Authorization si absente
-          if (auth && !headers.has('Authorization')) headers.set('Authorization', auth);
-          // headers tolérants (au cas où ton backend les lise)
-          if (tok && !headers.has('X-Auth-Token')) headers.set('X-Auth-Token', tok);
-          if (tok && !headers.has('X-Access-Token')) headers.set('X-Access-Token', tok);
+          // Écrase toujours Authorization pour garantir "Bearer <JWT>" exact
+          if (auth) headers.set('Authorization', auth);
+          if (raw) {
+            headers.set('X-Auth-Token', jwtFromRaw(raw));
+            headers.set('X-Access-Token', jwtFromRaw(raw));
+          }
 
           // Append ?account_id=... pour /api/epd* et /api/atex-*
           if (/^\/api\/(?:epd|atex-)/.test(url) && !/[?&]account_id=/.test(url)) {
@@ -174,9 +160,7 @@
           input = typeof input === 'string' ? url : new Request(url, input);
         }
       } catch { /* ignore */ }
-
-      // IMPORTANT : ne pas faire de logout automatique ici.
-      // On laisse le code appelant gérer un 401 (sauf /api/me dans guard()).
+      // Pas de logout automatique ici
       return origFetch(input, init);
     };
   }
