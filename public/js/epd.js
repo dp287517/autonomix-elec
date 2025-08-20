@@ -1,4 +1,5 @@
 // public/js/epd.js — EPD UI + IA + génération
+// Design inchangé. Auth normalisée. Pas de redirection auto sur 401 génériques.
 
 // ---------- Account helper ----------
 (function(){
@@ -8,9 +9,10 @@
       const fromQS = u.searchParams.get('account_id');
       const stored = localStorage.getItem('app_account_id')
                  || localStorage.getItem('selected_account_id')
-                 || localStorage.getItem('autonomix_selected_account_id');
+                 || localStorage.getItem('autonomix_selected_account_id')
+                 || localStorage.getItem('account_id');
       const id = fromQS || stored || '10';
-      if (id !== stored) localStorage.setItem('app_account_id', id);
+      if (id && id !== stored) localStorage.setItem('app_account_id', id);
       return id;
     } catch { return '10'; }
   }
@@ -29,27 +31,19 @@ const API = {
 };
 
 // ---------- Token helpers ----------
-function getToken(){
+function _readTokenRaw(){
   try {
-    return localStorage.getItem('autonomix_token')
-        || localStorage.getItem('token')
-        || localStorage.getItem('auth_token')
-        || localStorage.getItem('access_token')
-        || (JSON.parse(localStorage.getItem('autonomix_user')||'{}')?.token || '');
+    return (
+      localStorage.getItem('autonomix_token') ||
+      localStorage.getItem('token') ||
+      localStorage.getItem('auth_token') ||
+      localStorage.getItem('access_token') ||
+      (JSON.parse(localStorage.getItem('autonomix_user')||'{}')?.token || '')
+    ) || '';
   } catch { return ''; }
 }
-
-function buildAuthHeaders(){
-  const tok = getToken();
-  if (!tok) return {};
-  const value = /^(Bearer|Token)\s+/i.test(tok) ? tok : ('Bearer ' + tok);
-  // on ajoute aussi des headers tolérants si ton backend les lise
-  return {
-    Authorization: value,
-    'X-Auth-Token': tok,
-    'X-Access-Token': tok
-  };
-}
+function _jwtFromRaw(raw){ return String(raw||'').trim().replace(/^Bearer\s+/i, ''); }
+function _authHeaderValue(){ const jwt=_jwtFromRaw(_readTokenRaw()); return jwt ? ('Bearer ' + jwt) : ''; }
 
 // ---------- fetchAuth (sans redirection auto) ----------
 async function fetchAuth(url, opts={}){
@@ -57,11 +51,14 @@ async function fetchAuth(url, opts={}){
   if (/^\/api\/(?:atex-|epd)/.test(u) && !/[?&]account_id=/.test(u)) {
     u = __withAccount__(u);
   }
-  const headers = Object.assign({}, opts.headers||{}, buildAuthHeaders());
+  const headers = Object.assign({}, opts.headers||{}, (() => {
+    const jwt = _jwtFromRaw(_readTokenRaw());
+    if (!jwt) return {};
+    return { Authorization: 'Bearer ' + jwt, 'X-Auth-Token': jwt, 'X-Access-Token': jwt };
+  })());
   const res = await fetch(u, Object.assign({}, opts, { headers }));
   if (res.status === 401) {
-    // NE PAS rediriger ici: on laisse la page active pour debug.
-    // (l’ancien code faisait location.href='login.html')
+    // on ne redirige pas ici : on laisse la page active pour debug
     throw new Error('401 Unauthorized');
   }
   return res;
@@ -126,25 +123,33 @@ function renderProjects(list) {
     btn.addEventListener('click', () => deleteProject(btn.dataset.id));
   });
 
-  document.getElementById('searchProject').addEventListener('input', (e) => {
-    const q = e.target.value.toLowerCase();
-    Array.from(tbody.children).forEach(tr => {
-      tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  const search = document.getElementById('searchProject');
+  if (search && !search.__wired) {
+    search.__wired = true;
+    search.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase();
+      Array.from(tbody.children).forEach(tr => {
+        tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
     });
-  });
+  }
 
-  document.getElementById('btnNewProject').addEventListener('click', async () => {
-    const name = prompt('Nom du projet ?');
-    if (!name) return;
-    const res = await fetchAuth(API.epd, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(__bodyWithAccount__({ name, title: name }))
+  const btnNew = document.getElementById('btnNewProject');
+  if (btnNew && !btnNew.__wired) {
+    btnNew.__wired = true;
+    btnNew.addEventListener('click', async () => {
+      const name = prompt('Nom du projet ?');
+      if (!name) return;
+      const res = await fetchAuth(API.epd, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(__bodyWithAccount__({ name, title: name }))
+      });
+      const p = await res.json();
+      await loadProjects();
+      await openProject(p.id);
     });
-    const p = await res.json();
-    await loadProjects();
-    await openProject(p.id);
-  });
+  }
 }
 
 async function openProject(id) {
@@ -167,26 +172,42 @@ async function deleteProject(id) {
   await loadProjects();
 }
 
+function bindProjects() {
+  // évite les "Unhandled promise rejection" en dev
+  loadProjects().catch(err => console.warn('EPD load error:', err && err.message || err));
+}
+
 /* ======= Contexte ======= */
 function bindContext() {
   const ta = document.getElementById('contextText');
-  ta.addEventListener('input', () => debouncedSave());
+  if (ta && !ta.__wired) {
+    ta.__wired = true;
+    ta.addEventListener('input', () => debouncedSave());
+  }
 }
-function bindProjects() { loadProjects(); }
 
 /* ======= Zonage ======= */
 function bindZoning() {
-  document.getElementById('zoneType').addEventListener('change', debouncedSave);
-  document.getElementById('zoneGaz').addEventListener('change', debouncedSave);
-  document.getElementById('zonePoussiere').addEventListener('change', debouncedSave);
+  const zt = document.getElementById('zoneType');
+  const zg = document.getElementById('zoneGaz');
+  const zp = document.getElementById('zonePoussiere');
+  [zt,zg,zp].forEach(el => {
+    if (el && !el.__wired) { el.__wired = true; el.addEventListener('change', debouncedSave); }
+  });
 }
 
 /* ======= Équipements ======= */
 function bindEquipments() {
-  document.getElementById('equipSearch').addEventListener('input', filterEquip);
-  document.getElementById('btnAddEquip').addEventListener('click', addEquipment);
-  document.getElementById('btnAskIA').addEventListener('click', openIA);
-  loadEquipments();
+  const search = document.getElementById('equipSearch');
+  if (search && !search.__wired) { search.__wired = true; search.addEventListener('input', filterEquip); }
+
+  const add = document.getElementById('btnAddEquip');
+  if (add && !add.__wired) { add.__wired = true; add.addEventListener('click', addEquipment); }
+
+  const ia = document.getElementById('btnAskIA');
+  if (ia && !ia.__wired) { ia.__wired = true; ia.addEventListener('click', openIA); }
+
+  loadEquipments().catch(err => console.warn('Equip load error:', err && err.message || err));
 }
 
 async function loadEquipments() {
@@ -223,7 +244,7 @@ function renderEquipments() {
   });
 }
 
-// évite l'erreur "addEquipment is not defined"
+// stub pour bouton "Ajouter"
 function addEquipment() {
   alert("Ajout manuel d'équipement (à implémenter). Utilisez la recherche pour sélectionner dans la base.");
 }
@@ -238,14 +259,19 @@ function toggleEquip(id) {
 
 /* ======= Mesures ======= */
 function bindMeasures() {
-  document.getElementById('measuresText').addEventListener('input', debouncedSave);
+  const ta = document.getElementById('measuresText');
+  if (ta && !ta.__wired) { ta.__wired = true; ta.addEventListener('input', debouncedSave); }
 }
 
 /* ======= Build ======= */
 function bindBuild() {
-  document.getElementById('btnNext').addEventListener('click', nextStep);
-  document.getElementById('btnBuild').addEventListener('click', () => switchTab('build'));
-  document.getElementById('btnGenerate').addEventListener('click', generateEpd);
+  const btnNext = document.getElementById('btnNext');
+  const btnBuildTab = document.getElementById('btnBuild');
+  const btnGenerate = document.getElementById('btnGenerate');
+
+  if (btnNext && !btnNext.__wired) { btnNext.__wired = true; btnNext.addEventListener('click', nextStep); }
+  if (btnBuildTab && !btnBuildTab.__wired) { btnBuildTab.__wired = true; btnBuildTab.addEventListener('click', () => switchTab('build')); }
+  if (btnGenerate && !btnGenerate.__wired) { btnGenerate.__wired = true; btnGenerate.addEventListener('click', generateEpd); }
 }
 
 function switchTab(id) {
@@ -308,12 +334,12 @@ async function saveProject() {
 async function generateEpd() {
   if (!state.currentProjectId) { alert('Ouvrez un projet EPD.'); return; }
   const el = document.getElementById('buildStatus');
-  el.textContent = 'Génération en cours…';
+  if (el) el.textContent = 'Génération en cours…';
   const res = await fetchAuth(`${__withAccount__('/api/epd')}/${state.currentProjectId}/build`, { method: 'POST' });
   const data = await res.json();
   const out = document.getElementById('buildOutput');
-  out.innerHTML = marked.parse(data.html || data.text || '—');
-  el.textContent = 'Terminé';
+  out.innerHTML = (window.marked && (data.html || data.text)) ? marked.parse(data.html || data.text) : (data.html || data.text || '—');
+  if (el) el.textContent = 'Terminé';
 }
 
 /* ======= Upload ======= */
