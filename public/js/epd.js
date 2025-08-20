@@ -1,6 +1,6 @@
-// /public/js/epd.js — EPD UI + IA + génération (design inchangé)
+// public/js/epd.js — EPD UI + IA + génération
 
-// ---------- Account helper (même esprit que atex-control.core.js) ----------
+// ---------- Account helper ----------
 (function(){
   function getAccountId() {
     try {
@@ -21,14 +21,14 @@
 
 // ---------- API endpoints ----------
 const API = {
-  equipments: __withAccount__('/api/atex-equipments'),     // reuse ATEX list in EPD UI
-  chat: __withAccount__('/api/atex-chat'),                 // IA côté ATEX
+  equipments: __withAccount__('/api/atex-equipments'),
+  chat: __withAccount__('/api/atex-chat'),
   epd: __withAccount__('/api/epd'),
   epdStatus: (id)=> __withAccount__('/api/epd/' + id + '/status'),
   upload: __withAccount__('/api/upload')
 };
 
-// ---------- Token helper (fallback multi-clés, même si guard injecte déjà Authorization) ----------
+// ---------- Token helper (fallback multi-clés) ----------
 function getToken(){
   try {
     return localStorage.getItem('autonomix_token')
@@ -39,11 +39,10 @@ function getToken(){
   } catch { return ''; }
 }
 
-// ---------- fetchAuth (fonctionne aussi sans le fetch override, par précaution) ----------
+// ---------- fetchAuth ----------
 async function fetchAuth(url, opts={}){
   const token = getToken();
   const headers = Object.assign({}, opts.headers||{}, token ? { Authorization: 'Bearer '+token } : {});
-  // si l’URL n’a pas encore account_id, on l’ajoute (sécurisant par-dessus le fetch override)
   if (/^\/api\/(?:atex-|epd)/.test(url) && !/[?&]account_id=/.test(url)) {
     url = __withAccount__(url);
   }
@@ -77,7 +76,9 @@ const state = {
 let saveTimer = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  if (window.lucide) window.lucide.createIcons();
+  // init icônes
+  if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
+
   bindProjects();
   bindContext();
   bindZoning();
@@ -216,6 +217,12 @@ function renderEquipments() {
   tbody.querySelectorAll('button[data-action="select"]').forEach(btn => {
     btn.addEventListener('click', () => toggleEquip(btn.dataset.id));
   });
+}
+
+// ✅ ajout de la fonction manquante (évite l'erreur "addEquipment is not defined")
+function addEquipment() {
+  // Stub simple : à remplacer plus tard par une modale si besoin
+  alert("Ajout manuel d'équipement (à implémenter). Utilisez la recherche pour sélectionner dans la base.");
 }
 
 function toggleEquip(id) {
