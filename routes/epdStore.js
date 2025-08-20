@@ -1,10 +1,9 @@
 // routes/epdStore.js — CRUD + upload (secured with ATEX tier >= 2)
-//
-// Drop-in replacement for your previous epdStore.js (or main/routes/epdStore.js).
-// Changes vs prior version:
-//  - Adds `requireLicense('ATEX', 2)` to ensure only ATEX Personal/Pro (tier>=2) can use EPD features.
-//  - Keeps endpoints identical to avoid front-end changes.
-//  - Small hardening around upload dir creation.
+// Base: ton fichier existant, avec ajouts:
+//  - PATCH /epd/:id  (le front sauvegarde en PATCH)
+//  - POST  /epd/:id/build  (génération EPD)
+//  - GET   /epd/:id/status (lecture d'état)
+//  - upload: accepte "file" ET "files"
 
 const express = require('express');
 const router = express.Router();
@@ -42,6 +41,7 @@ try {
 // All EPD endpoints require: logged-in user + ATEX tier >= 2 (Personal/Pro)
 router.use(requireAuth, requireLicense('ATEX', 2));
 
+// ====== Schema ======
 async function ensureTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS atex_epd_docs (
@@ -77,6 +77,7 @@ async function ensureTable() {
   `);
 }
 
+// ====== Uploads ======
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
 try {
   if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -94,17 +95,30 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 25 * 1024 * 1024 } });
 
-router.post('/upload', upload.array('files', 10), async (req, res) => {
-  try {
-    const out = (req.files || []).map(f => ({
-      name: f.originalname, type: f.mimetype, size: f.size,
-      url: `/uploads/${path.basename(f.path)}`
-    }));
-    res.json(out);
-  } catch {
-    res.status(500).json({ error: 'upload_failed' });
-  }
+// ✅ accepte "file" (1) et "files" (multiple)
+router.post('/upload', (req, res, next) => {
+  const mw = upload.fields([{ name: 'file', maxCount: 10 }, { name: 'files', maxCount: 10 }]);
+  mw(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: 'upload_failed', detail: err?.message });
+    try {
+      const merged = [
+        ...((req.files && req.files.file) || []),
+        ...((req.files && req.files.files) || [])
+      ];
+      const out = merged.map(f => ({
+        name: f.originalname,
+        type: f.mimetype,
+        size: f.size,
+        url: `/uploads/${path.basename(f.path)}`
+      }));
+      res.json(out);
+    } catch {
+      res.status(500).json({ error: 'upload_failed' });
+    }
+  });
 });
+
+// ====== CRUD ======
 
 /** LIST */
 router.get('/epd', async (req, res, next) => {
@@ -179,7 +193,36 @@ router.put('/epd/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-/** PATCH status */
+/** ✅ UPDATE (partial) — ce que ton front utilise */
+router.patch('/epd/:id', async (req, res, next) => {
+  try {
+    await ensureTable();
+    const { title, status, payload, ...rest } = req.body || {};
+    const fields = [];
+    const params = [];
+    if (title !== undefined)  { params.push(title);  fields.push(`title = $${params.length}`); }
+    if (status !== undefined) { params.push(status); fields.push(`status = $${params.length}`); }
+    // on fusionne payload existant si besoin
+    if (payload !== undefined || Object.keys(rest).length) {
+      const cur = await pool.query(`SELECT payload FROM atex_epd_docs WHERE id = $1`, [req.params.id]);
+      const base = (cur.rows[0]?.payload || {});
+      const merged = Object.assign({}, base, payload || {}, rest); // supporte context/zone_* etc. sans wrapper
+      params.push(merged); fields.push(`payload = $${params.length}`);
+    }
+    if (!fields.length) return res.status(400).json({ error: 'nothing_to_update' });
+
+    params.push(req.params.id);
+    const r = await pool.query(
+      `UPDATE atex_epd_docs SET ${fields.join(', ')}, updated_at = NOW()
+       WHERE id = $${params.length} RETURNING *`,
+      params
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'not_found' });
+    res.json(r.rows[0]);
+  } catch (e) { next(e); }
+});
+
+/** PATCH status (spécifique) */
 router.patch('/epd/:id/status', async (req, res, next) => {
   try {
     await ensureTable();
@@ -195,6 +238,16 @@ router.patch('/epd/:id/status', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/** ✅ GET status (utilitaire) */
+router.get('/epd/:id/status', async (req, res, next) => {
+  try {
+    await ensureTable();
+    const r = await pool.query(`SELECT id, status, updated_at FROM atex_epd_docs WHERE id = $1`, [req.params.id]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'not_found' });
+    res.json(r.rows[0]);
+  } catch (e) { next(e); }
+});
+
 /** DELETE */
 router.delete('/epd/:id', async (req, res, next) => {
   try {
@@ -204,5 +257,36 @@ router.delete('/epd/:id', async (req, res, next) => {
     res.json({ ok: true, id: r.rows[0].id });
   } catch (e) { next(e); }
 });
+
+// ====== Génération (stub) ======
+router.post('/epd/:id/build', async (req, res, next) => {
+  try {
+    await ensureTable();
+    const r0 = await pool.query(`SELECT * FROM atex_epd_docs WHERE id = $1`, [req.params.id]);
+    if (!r0.rows[0]) return res.status(404).json({ error: 'not_found' });
+
+    // marquer en cours
+    await pool.query(`UPDATE atex_epd_docs SET status='Generation', updated_at=NOW() WHERE id=$1`, [req.params.id]);
+
+    // Ici tu brancheras ton moteur (OpenAI, etc.)
+    const payload = r0.rows[0].payload || {};
+    const html = `
+      <h2>EPD #${r0.rows[0].id} — ${r0.rows[0].title || 'EPD'}</h2>
+      <p><strong>Contexte:</strong> ${escapeHtml(payload.context || '')}</p>
+      <p><strong>Zones:</strong> type=${escapeHtml(payload.zone_type||'')} gaz=${escapeHtml(payload.zone_gaz||'')} poussières=${escapeHtml(payload.zone_poussiere||'')}</p>
+      <p><em>(contenu généré — stub)</em></p>
+    `;
+
+    // marquer terminé
+    await pool.query(`UPDATE atex_epd_docs SET status='Généré', updated_at=NOW() WHERE id=$1`, [req.params.id]);
+
+    res.json({ ok: true, html });
+  } catch (e) { next(e); }
+});
+
+// ====== utils ======
+function escapeHtml (s='') {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+}
 
 module.exports = router;
