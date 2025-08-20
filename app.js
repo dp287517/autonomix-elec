@@ -18,7 +18,7 @@ app.set('trust proxy', 1);
 // Logs HTTP
 app.use(morgan('dev'));
 
-// CSP (patch: autoriser PDF en iframe via data:/blob:/https: + hash inline EPD)
+// CSP (patch: autoriser PDF en iframe via data:/blob:/https:, corriger hash invalide et polices Lucide)
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -28,27 +28,13 @@ app.use(
           "'self'",
           "https://unpkg.com",
           "https://cdn.jsdelivr.net",
-          "https://cdnjs.cloudflare.com",
-          "'sha256-QXP0lggFom0sCQGU7C8Ga1ZZ4nZXMv/Ae7a6FMMPn8Q='",
-          "'sha256-Wglttk6u7n6jtm/l0HzvsAle8kFKAnhMIkQBLkiJpTA='",
-          "'sha256-fzrEw4S1b1r+XcBoUL+/L7ZjCdR96GNidBRivIM+PFY='",
-          "'sha256-VBsLKmk1R7Ia418rRwDElBT39eCZENxnujzihkgLpHQ='",
-          "'sha256-dmtOGFVV8ciM0XL1bXpiarcZDOCMOUdk6XJB4yFFUsg'",
-          // ✅ hash du NOUVEAU script inline (guard EPD multi-clés)
-          'sha256-dgFlJLGuSetG4Ib7uL23SCpXN69n6VqYAJ42Nlgggag='
+          "https://cdnjs.cloudflare.com"
         ],
         "script-src-elem": [
           "'self'",
           "https://unpkg.com",
           "https://cdn.jsdelivr.net",
-          "https://cdnjs.cloudflare.com",
-          "'sha256-QXP0lggFom0sCQGU7C8Ga1ZZ4nZXMv/Ae7a6FMMPn8Q='",
-          "'sha256-Wglttk6u7n6jtm/l0HzvsAle8kFKAnhMIkQBLkiJpTA='",
-          "'sha256-fzrEw4S1b1r+XcBoUL+/L7ZjCdR96GNidBRivIM+PFY='",
-          "'sha256-VBsLKmk1R7Ia418rRwDElBT39eCZENxnujzihkgLpHQ='",
-          "'sha256-dmtOGFVV8ciM0XL1bXpiarcZDOCMOUdk6XJB4yFFUsg'",
-          // ✅ idem pour <script> du DOM
-          'sha256-dgFlJLGuSetG4Ib7uL23SCpXN69n6VqYAJ42Nlgggag='
+          "https://cdnjs.cloudflare.com"
         ],
         "style-src": [
           "'self'",
@@ -56,10 +42,11 @@ app.use(
           "https://fonts.googleapis.com",
           "'unsafe-inline'"
         ],
-        "font-src": ["'self'", "https://fonts.gstatic.com", "data:"],
+        // ✅ ajout jsDelivr pour les polices Lucide
+        "font-src": ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net", "data:"],
         "img-src": ["'self'", "data:", "blob:"],
         "connect-src": ["'self'"],
-        // ✅ PATCH IFRAME PDF
+        // ✅ autoriser éventuels PDF/embeds
         "frame-src": ["'self'", "data:", "blob:", "https:"],
         "child-src": ["'self'", "data:", "blob:", "https:"],
         "frame-ancestors": ["'self'"]
