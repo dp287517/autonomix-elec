@@ -1,5 +1,5 @@
 // public/js/epd.js — EPD UI + IA + génération
-// Design inchangé. Auth normalisée. Pas de redirection auto sur 401 génériques.
+// Design inchangé. Auth normalisée. Gestion 401/402/403 + bandeau d’erreur.
 
 // ---------- Account helper ----------
 (function(){
@@ -45,7 +45,26 @@ function _readTokenRaw(){
 function _jwtFromRaw(raw){ return String(raw||'').trim().replace(/^Bearer\s+/i, ''); }
 function _authHeaderValue(){ const jwt=_jwtFromRaw(_readTokenRaw()); return jwt ? ('Bearer ' + jwt) : ''; }
 
-// ---------- fetchAuth (sans redirection auto) ----------
+// ---------- UI helpers ----------
+function showAlert(msg, type='danger') {
+  try {
+    let host = document.getElementById('epdAlerts');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'epdAlerts';
+      host.className = 'container mb-3';
+      const body = document.body;
+      body.insertBefore(host, body.firstChild.nextSibling || body.firstChild);
+    }
+    host.innerHTML = `
+      <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${escapeHtml(msg)}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>`;
+  } catch {}
+}
+
+// ---------- fetchAuth (jette sur 401/402/403) ----------
 async function fetchAuth(url, opts={}){
   let u = url;
   if (/^\/api\/(?:atex-|epd)/.test(u) && !/[?&]account_id=/.test(u)) {
@@ -57,10 +76,25 @@ async function fetchAuth(url, opts={}){
     return { Authorization: 'Bearer ' + jwt, 'X-Auth-Token': jwt, 'X-Access-Token': jwt };
   })());
   const res = await fetch(u, Object.assign({}, opts, { headers }));
+
+  // Gestion fine des statuts
   if (res.status === 401) {
-    // on ne redirige pas ici : on laisse la page active pour debug
-    throw new Error('401 Unauthorized');
+    const t = await (res.clone().text().catch(()=>Promise.resolve('')));
+    throw new Error('401 Unauthorized' + (t ? ` — ${t}` : ''));
   }
+  if (res.status === 402) {
+    const t = await (res.clone().text().catch(()=>Promise.resolve('')));
+    throw new Error('402 Payment Required' + (t ? ` — ${t}` : ''));
+  }
+  if (res.status === 403) {
+    const t = await (res.clone().text().catch(()=>Promise.resolve('')));
+    throw new Error('403 Forbidden' + (t ? ` — ${t}` : ''));
+  }
+  if (!res.ok) {
+    const t = await (res.clone().text().catch(()=>Promise.resolve('')));
+    throw new Error(`${res.status} ${res.statusText}${t ? ` — ${t}` : ''}`);
+  }
+
   return res;
 }
 
@@ -92,13 +126,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
 /* ======= Projets ======= */
 async function loadProjects() {
-  const res = await fetchAuth(API.epd);
-  const list = await res.json();
-  renderProjects(list);
+  try {
+    const res  = await fetchAuth(API.epd);
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : []);
+    if (!Array.isArray(list)) throw new Error('Réponse inattendue du serveur (liste de projets).');
+    renderProjects(list);
+  } catch (err) {
+    console.warn('EPD load error:', err && err.message || err);
+    // message UX clair selon l’erreur
+    const m = String(err && err.message || err || '');
+    if (m.startsWith('402')) {
+      showAlert("Votre licence ne permet pas l'accès à l'EPD pour ce compte. Vérifiez l’abonnement ATEX (compte " + __EPD_ACCOUNT_ID__ + ").", 'warning');
+    } else if (m.startsWith('401')) {
+      showAlert("Session invalide. Merci de vous reconnecter.", 'warning');
+    } else if (m.startsWith('403')) {
+      showAlert("Accès refusé à l'EPD pour ce compte.", 'warning');
+    } else {
+      showAlert("Impossible de charger les projets EPD. " + m, 'danger');
+    }
+    // on laisse le tableau vide proprement
+    renderProjects([]);
+  }
 }
 
 function renderProjects(list) {
   const tbody = document.getElementById('projTableBody');
+  if (!tbody) return;
   tbody.innerHTML = '';
   (list||[]).forEach(p => {
     const tr = document.createElement('tr');
@@ -140,41 +194,55 @@ function renderProjects(list) {
     btnNew.addEventListener('click', async () => {
       const name = prompt('Nom du projet ?');
       if (!name) return;
-      const res = await fetchAuth(API.epd, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(__bodyWithAccount__({ name, title: name }))
-      });
-      const p = await res.json();
-      await loadProjects();
-      await openProject(p.id);
+      try {
+        const res = await fetchAuth(API.epd, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(__bodyWithAccount__({ name, title: name }))
+        });
+        const p = await res.json();
+        await loadProjects();
+        await openProject(p.id);
+      } catch (err) {
+        showAlert("Impossible de créer le projet. " + (err?.message || err), 'danger');
+      }
     });
   }
 }
 
 async function openProject(id) {
-  const res = await fetchAuth(`${__withAccount__('/api/epd')}/${id}`);
-  const proj = await res.json();
-  state.currentProjectId = proj.id;
-  document.getElementById('contextText').value = proj.context || proj.payload?.context || '';
-  document.getElementById('zoneType').value = proj.zone_type || proj.payload?.zone_type || '';
-  document.getElementById('zoneGaz').value = proj.zone_gaz || proj.payload?.zone_gaz || '';
-  document.getElementById('zonePoussiere').value = proj.zone_poussiere || proj.payload?.zone_poussiere || '';
-  state.attachments = Array.isArray(proj.attachments || proj.payload?.attachments) ? (proj.attachments || proj.payload?.attachments) : [];
-  updateGuide();
-  switchTab('context');
+  try {
+    const res = await fetchAuth(`${__withAccount__('/api/epd')}/${id}`);
+    const proj = await res.json();
+    state.currentProjectId = proj.id;
+    document.getElementById('contextText').value = proj.context || proj.payload?.context || '';
+    document.getElementById('zoneType').value = proj.zone_type || proj.payload?.zone_type || '';
+    document.getElementById('zoneGaz').value = proj.zone_gaz || proj.payload?.zone_gaz || '';
+    document.getElementById('zonePoussiere').value = proj.zone_poussiere || proj.payload?.zone_poussiere || '';
+    state.attachments = Array.isArray(proj.attachments || proj.payload?.attachments) ? (proj.attachments || proj.payload?.attachments) : [];
+    updateGuide();
+    switchTab('context');
+  } catch (err) {
+    showAlert("Impossible d’ouvrir ce projet. " + (err?.message || err), 'danger');
+  }
 }
 
 async function deleteProject(id) {
   if (!confirm('Supprimer ce projet ?')) return;
-  await fetchAuth(`${__withAccount__('/api/epd')}/${id}`, { method: 'DELETE' });
-  if (state.currentProjectId === id) state.currentProjectId = null;
-  await loadProjects();
+  try {
+    await fetchAuth(`${__withAccount__('/api/epd')}/${id}`, { method: 'DELETE' });
+    if (state.currentProjectId === id) state.currentProjectId = null;
+    await loadProjects();
+  } catch (err) {
+    showAlert("Suppression impossible. " + (err?.message || err), 'danger');
+  }
 }
 
 function bindProjects() {
-  // évite les "Unhandled promise rejection" en dev
-  loadProjects().catch(err => console.warn('EPD load error:', err && err.message || err));
+  loadProjects().catch(err => {
+    console.warn('EPD load error:', err && err.message || err);
+    showAlert("Impossible de charger les projets EPD. " + (err?.message || err), 'danger');
+  });
 }
 
 /* ======= Contexte ======= */
@@ -207,7 +275,10 @@ function bindEquipments() {
   const ia = document.getElementById('btnAskIA');
   if (ia && !ia.__wired) { ia.__wired = true; ia.addEventListener('click', openIA); }
 
-  loadEquipments().catch(err => console.warn('Equip load error:', err && err.message || err));
+  loadEquipments().catch(err => {
+    console.warn('Equip load error:', err && err.message || err);
+    showAlert("Impossible de charger les équipements. " + (err?.message || err), 'warning');
+  });
 }
 
 async function loadEquipments() {
@@ -215,13 +286,15 @@ async function loadEquipments() {
   const base = API.equipments;
   const url = q ? `${base}${base.includes('?') ? '&' : '?'}q=${encodeURIComponent(q)}` : base;
   const res = await fetchAuth(url);
-  const list = await res.json();
+  const data = await res.json();
+  const list = Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : []);
   state.equipments = list || [];
   renderEquipments();
 }
 
 function renderEquipments() {
   const tbody = document.getElementById('equipTableBody');
+  if (!tbody) return;
   tbody.innerHTML = '';
   state.equipments.forEach(e => {
     const tr = document.createElement('tr');
@@ -303,6 +376,7 @@ function updateGuide() {
 
 function setStatus(id, ok) {
   const el = document.getElementById(id);
+  if (!el) return;
   el.classList.remove('status-green','status-orange');
   el.classList.add(ok ? 'status-green':'status-orange');
 }
@@ -314,32 +388,41 @@ function debouncedSave() {
 
 async function saveProject() {
   if (!state.currentProjectId) return;
-  const payload = __bodyWithAccount__({
-    context: document.getElementById('contextText').value || '',
-    zone_type: document.getElementById('zoneType').value || '',
-    zone_gaz: document.getElementById('zoneGaz').value || '',
-    zone_poussiere: document.getElementById('zonePoussiere').value || '',
-    equipments: Array.from(state.selectedEquip.values()).map(e => e.id),
-    measures: document.getElementById('measuresText').value || '',
-    attachments: state.attachments || []
-  });
-  await fetchAuth(`${__withAccount__('/api/epd')}/${state.currentProjectId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  updateGuide();
+  try {
+    const payload = __bodyWithAccount__({
+      context: document.getElementById('contextText').value || '',
+      zone_type: document.getElementById('zoneType').value || '',
+      zone_gaz: document.getElementById('zoneGaz').value || '',
+      zone_poussiere: document.getElementById('zonePoussiere').value || '',
+      equipments: Array.from(state.selectedEquip.values()).map(e => e.id),
+      measures: document.getElementById('measuresText').value || '',
+      attachments: state.attachments || []
+    });
+    await fetchAuth(`${__withAccount__('/api/epd')}/${state.currentProjectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    updateGuide();
+  } catch (err) {
+    showAlert("Sauvegarde impossible. " + (err?.message || err), 'danger');
+  }
 }
 
 async function generateEpd() {
   if (!state.currentProjectId) { alert('Ouvrez un projet EPD.'); return; }
   const el = document.getElementById('buildStatus');
-  if (el) el.textContent = 'Génération en cours…';
-  const res = await fetchAuth(`${__withAccount__('/api/epd')}/${state.currentProjectId}/build`, { method: 'POST' });
-  const data = await res.json();
-  const out = document.getElementById('buildOutput');
-  out.innerHTML = (window.marked && (data.html || data.text)) ? marked.parse(data.html || data.text) : (data.html || data.text || '—');
-  if (el) el.textContent = 'Terminé';
+  try {
+    if (el) el.textContent = 'Génération en cours…';
+    const res = await fetchAuth(`${__withAccount__('/api/epd')}/${state.currentProjectId}/build`, { method: 'POST' });
+    const data = await res.json();
+    const out = document.getElementById('buildOutput');
+    out.innerHTML = (window.marked && (data.html || data.text)) ? marked.parse(data.html || data.text) : (data.html || data.text || '—');
+    if (el) el.textContent = 'Terminé';
+  } catch (err) {
+    if (el) el.textContent = '';
+    showAlert("Génération impossible. " + (err?.message || err), 'danger');
+  }
 }
 
 /* ======= Upload ======= */
@@ -362,18 +445,22 @@ async function askIA() {
   if (!q) return;
   const anyEquip = Array.from(state.selectedEquip.values())[0] || null;
 
-  const res = await fetchAuth(API.chat, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(__bodyWithAccount__({
-      question: q,
-      equipment_id: anyEquip?.id || null,
-      equipment: null,
-      history: []
-    }))
-  });
-  const data = await res.json();
-  document.getElementById('iaResponse').innerHTML = data.response || '<em>Aucune réponse</em>';
+  try {
+    const res = await fetchAuth(API.chat, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(__bodyWithAccount__({
+        question: q,
+        equipment_id: anyEquip?.id || null,
+        equipment: null,
+        history: []
+      }))
+    });
+    const data = await res.json();
+    document.getElementById('iaResponse').innerHTML = data.response || '<em>Aucune réponse</em>';
+  } catch (err) {
+    showAlert("Appel IA impossible. " + (err?.message || err), 'warning');
+  }
 }
 
 /* ======= Utils ======= */
