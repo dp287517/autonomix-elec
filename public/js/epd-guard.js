@@ -1,6 +1,6 @@
-// /public/js/epd.guard.js
+// /public/js/epd-guard.js
 (function(){
-  // --- mêmes conventions que atex-control.guard.js ---
+  // --- helpers mêmes conventions que atex-control.guard.js ---
   function getToken(){ try{ return localStorage.getItem('autonomix_token') || ''; }catch(_e){ return ''; } }
   function logout(){
     try{
@@ -8,20 +8,22 @@
       localStorage.removeItem('autonomix_user');
       localStorage.removeItem('selected_account_id');
       localStorage.removeItem('autonomix_selected_account_id');
+      localStorage.removeItem('app_account_id');
     }catch(_e){}
     location.href = 'login.html';
   }
-
   function currentAccountId(){
     try{
       const qsId = new URLSearchParams(location.search).get('account_id');
       if (qsId) return qsId;
       return localStorage.getItem('selected_account_id')
           || localStorage.getItem('autonomix_selected_account_id')
+          || localStorage.getItem('app_account_id')
           || null;
     }catch(_e){ return null; }
   }
 
+  // --- garde d'accès : /api/me avec Bearer + ?account_id= ---
   async function guard(){
     const t = getToken();
     if (!t) { logout(); return; }
@@ -35,7 +37,7 @@
     }catch(_e){ logout(); }
   }
 
-  // --- Override fetch : ajoute Authorization + ?account_id=... pour /api/atex-* et /api/epd* ---
+  // --- override fetch : injecte Authorization + ?account_id= pour /api/atex-* ET /api/epd* ---
   const origFetch = window.fetch ? window.fetch.bind(window) : null;
   if (origFetch) {
     window.fetch = function(input, init){
@@ -48,7 +50,7 @@
           if (tok && !headers.has('Authorization')) {
             headers.set('Authorization', 'Bearer ' + tok);
           }
-          // Auto-append account_id pour /api/atex-* ET /api/epd*
+          // Auto-append account_id pour /api/atex-* et /api/epd*
           if (/^\/api\/(?:atex-|epd)/.test(url) && !/[?&]account_id=/.test(url)) {
             const acc = currentAccountId();
             if (acc) {
