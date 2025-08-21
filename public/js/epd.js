@@ -1,5 +1,6 @@
 // public/js/epd.js — EPD UI + IA + génération
 // Design inchangé. Auth normalisée. Gestion 401/402/403 + bandeau d’erreur.
+// ✅ FIX: URLs avec ID d’abord, puis ?account_id=... (plus de /api/epd?account_id=10/2)
 
 // ---------- Account helper ----------
 (function(){
@@ -26,7 +27,9 @@ const API = {
   equipments: __withAccount__('/api/atex-equipments'),
   chat: __withAccount__('/api/atex-chat'),
   epd: __withAccount__('/api/epd'),
-  epdStatus: (id)=> __withAccount__('/api/epd/' + id + '/status'),
+  epdById: (id) => __withAccount__(`/api/epd/${id}`),               // ✅ helper id→URL
+  epdBuild: (id)=> __withAccount__(`/api/epd/${id}/build`),         // ✅ helper
+  epdStatus: (id)=> __withAccount__(`/api/epd/${id}/status`),
   upload: __withAccount__('/api/upload')
 };
 
@@ -134,7 +137,6 @@ async function loadProjects() {
     renderProjects(list);
   } catch (err) {
     console.warn('EPD load error:', err && err.message || err);
-    // message UX clair selon l’erreur
     const m = String(err && err.message || err || '');
     if (m.startsWith('402')) {
       showAlert("Votre licence ne permet pas l'accès à l'EPD pour ce compte. Vérifiez l’abonnement ATEX (compte " + __EPD_ACCOUNT_ID__ + ").", 'warning');
@@ -145,7 +147,6 @@ async function loadProjects() {
     } else {
       showAlert("Impossible de charger les projets EPD. " + m, 'danger');
     }
-    // on laisse le tableau vide proprement
     renderProjects([]);
   }
 }
@@ -212,7 +213,9 @@ function renderProjects(list) {
 
 async function openProject(id) {
   try {
-    const res = await fetchAuth(`${__withAccount__('/api/epd')}/${id}`);
+    // ❌ AVANT : `${__withAccount__('/api/epd')}/${id}`  → /api/epd?account_id=10/2
+    // ✅ MAINTENANT :
+    const res = await fetchAuth(API.epdById(id));
     const proj = await res.json();
     state.currentProjectId = proj.id;
     document.getElementById('contextText').value = proj.context || proj.payload?.context || '';
@@ -230,7 +233,8 @@ async function openProject(id) {
 async function deleteProject(id) {
   if (!confirm('Supprimer ce projet ?')) return;
   try {
-    await fetchAuth(`${__withAccount__('/api/epd')}/${id}`, { method: 'DELETE' });
+    const url = API.epdById(id); // ✅ /api/epd/ID?account_id=...
+    await fetchAuth(url, { method: 'DELETE' });
     if (state.currentProjectId === id) state.currentProjectId = null;
     await loadProjects();
   } catch (err) {
@@ -398,7 +402,8 @@ async function saveProject() {
       measures: document.getElementById('measuresText').value || '',
       attachments: state.attachments || []
     });
-    await fetchAuth(`${__withAccount__('/api/epd')}/${state.currentProjectId}`, {
+    const url = API.epdById(state.currentProjectId); // ✅ /api/epd/ID?account_id=...
+    await fetchAuth(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -414,7 +419,7 @@ async function generateEpd() {
   const el = document.getElementById('buildStatus');
   try {
     if (el) el.textContent = 'Génération en cours…';
-    const res = await fetchAuth(`${__withAccount__('/api/epd')}/${state.currentProjectId}/build`, { method: 'POST' });
+    const res = await fetchAuth(API.epdBuild(state.currentProjectId)); // ✅ /api/epd/ID/build?account_id=...
     const data = await res.json();
     const out = document.getElementById('buildOutput');
     out.innerHTML = (window.marked && (data.html || data.text)) ? marked.parse(data.html || data.text) : (data.html || data.text || '—');
