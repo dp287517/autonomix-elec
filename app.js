@@ -64,8 +64,6 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ====== API ======
 
-
-
 // Auth (login/register/me/debug)
 try {
   const authRoutes = require('./auth');
@@ -151,7 +149,7 @@ try {
   }
 })();
 
-// ✅ [AJOUT] EPD: montage du routeur /api/epd* et /api/upload
+// ✅ EPD: montage du routeur /api/epd* et /api/upload
 (() => {
   try {
     const epdStoreRoutes = require('./routes/epdStore');
@@ -168,13 +166,24 @@ try {
   }
 })();
 
+// ✅ [AJOUT] Passerelle Neon sous /neon
+(() => {
+  try {
+    const neonRouter = require('./routes/neonRouter');
+    app.use('/neon', neonRouter);
+    console.log('✅ Mounted /neon (Neon Gateway)');
+  } catch (e) {
+    console.warn('⚠️ neon router not mounted:', e?.message);
+  }
+})();
+
 // Healthcheck
 app.get('/ping', (_req, res) => res.send('pong'));
 
 // Static
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ✅ [AJOUT] Servir les fichiers uploadés (thumbnails/pièces jointes)
+// ✅ Servir les fichiers uploadés (thumbnails/pièces jointes)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // 404 JSON pour /api/*
@@ -185,7 +194,7 @@ app.use('/api', (_req, res) => {
 // Handler d’erreurs JSON
 app.use((err, req, res, next) => {
   console.error('💥 API error:', err);
-  if (req.path.startsWith('/api')) {
+  if (req.path.startsWith('/api') || req.path.startsWith('/neon')) {
     return res.status(500).json({ error: 'server_error' });
   }
   next(err);
