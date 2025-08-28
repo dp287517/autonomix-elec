@@ -9,10 +9,10 @@
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <link href="/styles.css" rel="stylesheet">
 
-  <!-- Font Awesome via jsDelivr (autorisé CSP) -->
+  <!-- Font Awesome via jsDelivr (autorisé par ta CSP) -->
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css" rel="stylesheet">
 
-  <!-- Lib externe -->
+  <!-- Lib externe (si tu l’utilises) -->
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
 
   <style>
@@ -46,8 +46,7 @@
     .divider { height: 1px; background: #1f2937; margin: 1rem 0; }
     .kbd { background: #111827; border: 1px solid #374151; border-radius: .375rem; padding: .125rem .375rem; font-size: .75rem; }
     .muted { color: #94a3b8; }
-    #equipement-form .form-section { display: none; }
-    #equipement-form .form-section.active { display: block; }
+    .hidden { display: none; }
     .sticky-footer { position: sticky; bottom: 0; background: #0b1220; border-top: 1px solid #1f2937; padding: .75rem; }
     .grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
     .grid-two .input-like { width: 100%; }
@@ -89,37 +88,41 @@
         </div>
         <div class="row">
           <label for="tableau-isHTA" class="field-label">Tableau HTA</label>
-          <input id="tableau-isHTA" type="checkbox" class="w-6 h-6" onchange="toggleHTAFields()"/>
+          <input id="tableau-isHTA" type="checkbox" class="w-6 h-6"/>
         </div>
       </div>
     </section>
 
-    <!-- Champs HTA (affichés si isHTA coché) -->
+    <!-- Champs HTA -->
     <section id="hta-fields" class="section-card hidden">
       <h2 class="section-title">Informations HTA</h2>
       <div class="grid-gap">
         <div class="row">
-          <label class="field-label">Tension primaire</label>
+          <label class="field-label" for="hta-voltage">Tension primaire</label>
           <input id="hta-voltage" type="text" class="input-like" placeholder="20 kV"/>
         </div>
         <div class="row">
-          <label class="field-label">Puissance transfo</label>
+          <label class="field-label" for="hta-power">Puissance transfo</label>
           <input id="hta-power" type="text" class="input-like" placeholder="250 kVA"/>
         </div>
       </div>
     </section>
 
-    <!-- Liste des disjoncteurs -->
+    <!-- Disjoncteurs -->
     <section class="section-card">
       <h2 class="section-title">Disjoncteurs</h2>
-      <button id="add-disjoncteur" class="btn btn-primary">+ Ajouter un disjoncteur</button>
+      <div class="flex gap-2">
+        <button id="add-disjoncteur" class="btn btn-primary">+ Ajouter un disjoncteur</button>
+      </div>
       <ul id="disjoncteurs-list" class="mt-4 space-y-2"></ul>
     </section>
 
     <!-- Autres équipements -->
     <section class="section-card">
       <h2 class="section-title">Autres équipements</h2>
-      <button id="add-equipement" class="btn btn-primary">+ Ajouter un équipement</button>
+      <div class="flex gap-2">
+        <button id="add-equipement" class="btn btn-primary">+ Ajouter un équipement</button>
+      </div>
       <ul id="equipements-list" class="mt-4 space-y-2"></ul>
     </section>
 
@@ -129,7 +132,7 @@
     </div>
   </main>
 
-  <!-- Script externe -->
+  <!-- Script de la page -->
   <script src="/js/create.js" defer></script>
 </body>
 </html>
