@@ -75,6 +75,51 @@ function normalizeNumericValue(value, field = '') {
   return `${number} ${defaultUnit}`;
 }
 
+/* ---------- Auth helper ---------- */
+function getAuthToken() {
+  const keys = ['token', 'authToken', 'access_token', 'jwt', 'autonomix_token', 'aleon_token'];
+  for (const k of keys) {
+    try {
+      const v = localStorage.getItem(k);
+      if (v) return v.replace(/^"|"$/g, '');
+    } catch {} // localStorage peut throw en mode privé
+  }
+  return null;
+}
+
+/* ---------- Fetch util (envoie cookies + Authorization si dispo) ---------- */
+async function safeFetchJSON(url, options = {}) {
+  const token = getAuthToken();
+  const headers = new Headers(options.headers || {});
+  headers.set('Accept', 'application/json');
+
+  // si POST/PUT/PATCH/DELETE sans Content-Type, on met JSON
+  if (!headers.has('Content-Type') && options.method && options.method !== 'GET') {
+    headers.set('Content-Type', 'application/json');
+  }
+  // si on a un token en localStorage et pas déjà d'Authorization → on l'ajoute
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const res = await fetch(url, {
+    ...options,
+    headers,
+    credentials: 'include', // inclut les cookies (session)
+  });
+
+  if (!res.ok) {
+    let text = '';
+    try { text = await res.text(); } catch {}
+    const msg = `Erreur HTTP: ${res.status}${text ? ` – ${text}` : ''}`;
+    throw new Error(msg);
+  }
+
+  const ct = res.headers.get('content-type') || '';
+  if (ct.includes('application/json')) return res.json();
+  return res.text();
+}
+
 /* ---------- Bascule HTA (tolérante aux IDs) ---------- */
 function toggleHTAFields() {
   const isHTA = !!$id('tableau-isHTA')?.checked;
@@ -95,7 +140,7 @@ function toggleHTAFields() {
   }
 }
 
-/* ---------- Rendu liste (très simple, évite les erreurs si vide) ---------- */
+/* ---------- Rendu liste (évite les erreurs si vide) ---------- */
 function renderList(ulId, items, renderItem) {
   const ul = $id(ulId);
   if (!ul) return;
@@ -108,23 +153,11 @@ function renderList(ulId, items, renderItem) {
   });
 }
 
-/* ---------- Fetch util ---------- */
-async function safeFetchJSON(url, options = {}) {
-  const res = await fetch(url, options);
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    const msg = `Erreur HTTP: ${res.status}${text ? ` – ${text}` : ''}`;
-    throw new Error(msg);
-  }
-  return res.json();
-}
-
 /* ---------- Charger équipements existants (tolérant 401) ---------- */
 async function chargerEquipementsExistants() {
   console.log('[Create] Chargement équipements existants');
   try {
     const data = await safeFetchJSON('/api/equipements');
-    // data = array d’équipements { id, equipmentType, ... }
     renderList('equipements-list', data, (it) => {
       const label = it?.id || it?.equipmentType || 'Équipement';
       return `<div class="flex items-center justify-between">
@@ -135,7 +168,6 @@ async function chargerEquipementsExistants() {
   } catch (e) {
     console.warn('[Create] Erreur chargement équipements existants:', e);
     showPopup('Erreur lors du chargement des équipements existants: ' + e.message, 'Chargement');
-    // on n’arrête pas l’init pour autant
   }
 }
 
@@ -144,9 +176,7 @@ async function chargerTableaux() {
   console.log('[Create] Chargement liste tableaux');
   try {
     const tableaux = await safeFetchJSON('/api/tableaux');
-    // tableaux = [{id, disjoncteurs, ...}]
-    // ici on ne fait que logguer pour éviter le hors-scope
-    console.log('[Create] Tableaux existants:', tableaux?.length || 0);
+    console.log('[Create] Tableaux existants:', Array.isArray(tableaux) ? tableaux.length : 0);
   } catch (e) {
     console.warn('[Create] Erreur chargement tableaux:', e);
     showPopup('Erreur lors du chargement des tableaux: ' + e.message, 'Chargement');
@@ -193,7 +223,7 @@ async function saveTableau() {
 
   const payload = {
     id,
-    disjoncteurs: [],          // à connecter à ton UI si tu veux sérialiser la liste
+    disjoncteurs: [],          // à brancher sur ton UI si tu veux sérialiser
     autresEquipements: [],     // idem
     isSiteMain,
     isHTA,
@@ -206,7 +236,6 @@ async function saveTableau() {
   try {
     const res = await safeFetchJSON('/api/tableaux', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
     console.log('[Create] Sauvegarde OK:', res);
@@ -250,7 +279,7 @@ window.addEventListener('DOMContentLoaded', () => {
   setChecked('tableau-isHTA', false);
   toggleHTAFields();
 
-  // Chargements (tolérants 401)
+  // Chargements (tolérants 401/invalid_token)
   chargerEquipementsExistants();
   chargerTableaux();
 });
