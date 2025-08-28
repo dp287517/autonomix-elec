@@ -871,3 +871,36 @@ function normalizeNumericValue(value, field = '') {
                 chargerTableaux();
                 toggleEquipementForm();
             };
+
+function toggleHTAFields() {
+  const getEl = (...ids) => {
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el) return el;
+    }
+    return null;
+  };
+
+  const isHTA = document.getElementById('tableau-isHTA')?.checked ?? false;
+  console.log('[Create] Bascule champs HTA:', isHTA);
+
+  // Section HTA (afficher/masquer)
+  const htaSection = getEl('hta-fields', 'hta_fields', 'section-hta');
+  if (htaSection) {
+    htaSection.classList.toggle('hidden', !isHTA);
+  }
+
+  // Champs possibles (on couvre plusieurs conventions d'IDs)
+  const voltageInput = getEl('hta-voltage', 'hta_voltage', 'tension_primaire', 'hta-tension');
+  const powerInput   = getEl('hta-power',   'hta_power',   'puissance_transfo', 'hta-puissance');
+
+  if (!voltageInput && ! powerInput) return;
+
+  if (isHTA) {
+    if (voltageInput && !voltageInput.value) voltageInput.value = '20 kV';
+    if (powerInput && !powerInput.value)     powerInput.value   = '250 kVA';
+  } else {
+    if (voltageInput) voltageInput.value = '';
+    if (powerInput)   powerInput.value   = '';
+  }
+}
