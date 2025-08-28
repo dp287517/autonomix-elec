@@ -1,209 +1,115 @@
-// app.js — serveur AutonomiX (Express, Render/Neon ready)
+// app.js — Autonomix Elec (Express)
 const express = require('express');
 const morgan = require('morgan');
 const helmet = require('helmet');
 const compression = require('compression');
 const cors = require('cors');
-const dotenv = require('dotenv');
 const path = require('path');
-
-process.on('uncaughtException', (err) => console.error('❌ Uncaught Exception:', err));
-process.on('unhandledRejection', (err) => console.error('❌ Unhandled Rejection:', err));
-
-dotenv.config();
 
 const app = express();
 app.set('trust proxy', 1);
 
-// Logs HTTP
-app.use(morgan('dev'));
+// ===== Logs / perf / parsers =====
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+app.use(compression());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// CSP (patch: autoriser PDF en iframe via data:/blob:/https:, corriger hash invalide et polices Lucide)
+// ===== CSP (compatible avec tes pages/CDN) =====
 app.use(
   helmet({
     contentSecurityPolicy: {
       useDefaults: true,
       directives: {
-        "script-src": [
-          "'self'",
-          "https://unpkg.com",
-          "https://cdn.jsdelivr.net",
-          "https://cdnjs.cloudflare.com"
-        ],
-        "script-src-elem": [
-          "'self'",
-          "https://unpkg.com",
-          "https://cdn.jsdelivr.net",
-          "https://cdnjs.cloudflare.com"
-        ],
-        "style-src": [
-          "'self'",
-          "https://cdn.jsdelivr.net",
-          "https://fonts.googleapis.com",
-          "'unsafe-inline'"
-        ],
-        // ✅ ajout jsDelivr pour les polices Lucide
-        "font-src": ["'self'", "https://fonts.gstatic.com", "https://cdn.jsdelivr.net", "data:"],
+        "default-src": ["'self'"],
+        "script-src": ["'self'", "https://unpkg.com", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
+        "script-src-elem": ["'self'", "https://unpkg.com", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
+        "style-src": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+        "style-src-elem": ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+        "font-src": ["'self'", "https://fonts.gstatic.com", "data:"],
         "img-src": ["'self'", "data:", "blob:"],
         "connect-src": ["'self'"],
-        // ✅ autoriser éventuels PDF/embeds
-        "frame-src": ["'self'", "data:", "blob:", "https:"],
-        "child-src": ["'self'", "data:", "blob:", "https:"],
-        "frame-ancestors": ["'self'"]
+        "frame-ancestors": ["'self'"],
+        "object-src": ["'none'"]
       }
     },
     crossOriginEmbedderPolicy: false,
   })
 );
 
-// Perf & parsing
-app.use(compression());
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// ===== CORS (utile si tu prévisualises ailleurs) =====
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
 
-// ====== API ======
+// ===== Static front =====
+const PUBLIC_DIR = path.join(__dirname, 'public');
+app.use(express.static(PUBLIC_DIR, { extensions: ['html'] }));
 
-// Auth (login/register/me/debug)
-try {
-  const authRoutes = require('./auth');
-  app.use('/api', authRoutes);
-  console.log('✅ Mounted /api (auth)');
-} catch (e) {
-  console.error('❌ Failed to mount ./auth routes:', e);
-}
+// ===== Routes API réelles =====
+const apiRouter = express.Router();
 
-// Compteurs usage
-try {
-  const usageRoutes = require('./usage');
-  app.use('/api/usage', usageRoutes);
-  console.log('✅ Mounted /api/usage');
-} catch (e) {
-  console.warn('⚠️ usage.js not mounted:', e?.message);
-}
+// Monte les routers qui existent vraiment dans ton repo :
+try { apiRouter.use(require('./routes/tableaux')); } catch {}
+try { apiRouter.use(require('./routes/obsolescence')); } catch {}
+try { apiRouter.use(require('./routes/safety')); } catch {}
+try { apiRouter.use(require('./routes/reports')); } catch {}
+// (si tu as d'autres routers, ajoute-les ici)
 
-// Accounts
-(() => {
-  try {
-    const accountsRoutes = require('./routes/accounts');
-    app.use('/api', accountsRoutes);
-    console.log('✅ Mounted /api (accounts via routes/...)');
-  } catch (e1) {
-    try {
-      const accountsRoutesAlt = require('./accounts');
-      app.use('/api', accountsRoutesAlt);
-      console.log('✅ Mounted /api (accounts via ./accounts)');
-    } catch (e2) {
-      console.warn('⚠️ accounts route not mounted:', e2?.message);
-    }
+// ===== Public GET whitelist (AUCUNE auth) =====
+// Objectif: que tes pages front puissent LIRE sans token (comme avant).
+const PUBLIC_GET = [
+  /^\/tableaux\/?$/i,           // GET /api/tableaux           (list)   — routes/tableaux.js
+  /^\/tableaux\/ids\/?$/i,      // GET /api/tableaux/ids       (ids)    — routes/tableaux.js
+  /^\/tableaux\/[^/]+\/?$/i,    // GET /api/tableaux/:id       (item)   — routes/tableaux.js
+  /^\/equipements\/?$/i,        // GET /api/equipements        (agg)    — routes/tableaux.js
+  /^\/arc-flash/i,              // GET /api/arc-flash*                 — routes/tableaux.js
+  /^\/fault-level/i,            // GET /api/fault-level*               — routes/tableaux.js
+  /^\/obsolescence\/?$/i,       // GET /api/obsolescence               — routes/obsolescence.js
+  /^\/safety-actions\/?$/i,     // GET /api/safety-actions             — routes/safety.js
+  /^\/reports\/health\/?$/i     // GET /api/reports/health            — routes/reports.js
+];
+
+// On sert D'ABORD les GET publics, sans passer par l'auth
+app.use('/api', (req, res, next) => {
+  if (req.method === 'GET' && PUBLIC_GET.some(rx => rx.test(req.path))) {
+    return apiRouter(req, res, next);
   }
-})();
-
-// Licenses
-(() => {
-  try {
-    const licensesRoutes = require('./routes/licenses');
-    app.use('/api', licensesRoutes);
-    console.log('✅ Mounted /api (licenses)');
-  } catch (e) {
-    console.warn('⚠️ licenses route not mounted:', e?.message);
-  }
-})();
-
-// Subscriptions
-(() => {
-  try {
-    const subsRoutes = require('./routes/subscriptions');
-    app.use('/api', subsRoutes);
-    console.log('✅ Mounted /api (subscriptions)');
-  } catch (e) {
-    console.warn('⚠️ subscriptions route not mounted:', e?.message);
-  }
-})();
-
-// Invitations (members & seats)
-(() => {
-  try {
-    const inviteRoutes = require('./routes/accounts_invite');
-    app.use('/api', inviteRoutes);
-    console.log('✅ Mounted /api (accounts_invite)');
-  } catch (e) {
-    console.warn('⚠️ accounts_invite route not mounted:', e?.message);
-  }
-})();
-
-// ATEX — en dernier
-(() => {
-  try {
-    const atexRoutes = require('./routes/atex');
-    app.use('/api', atexRoutes);
-    console.log('✅ Mounted /api (atex via routes/...)');
-  } catch (e1) {
-    try {
-      const atexRoutesAlt = require('./atex');
-      app.use('/api', atexRoutesAlt);
-      console.log('✅ Mounted /api (atex via ./atex)');
-    } catch (e2) {
-      console.warn('⚠️ atex route not mounted:', e2?.message);
-    }
-  }
-})();
-
-// ✅ EPD: montage du routeur /api/epd* et /api/upload
-(() => {
-  try {
-    const epdStoreRoutes = require('./routes/epdStore');
-    app.use('/api', epdStoreRoutes);
-    console.log('✅ Mounted /api (epdStore via routes/epdStore)');
-  } catch (e1) {
-    try {
-      const epdStoreRoutesAlt = require('./epdStore');
-      app.use('/api', epdStoreRoutesAlt);
-      console.log('✅ Mounted /api (epdStore via ./epdStore)');
-    } catch (e2) {
-      console.warn('⚠️ epdStore route not mounted:', e2?.message);
-    }
-  }
-})();
-
-// ✅ [AJOUT] Passerelle Neon sous /neon
-(() => {
-  try {
-    const neonRouter = require('./routes/neonRouter');
-    app.use('/neon', neonRouter);
-    console.log('✅ Mounted /neon (Neon Gateway)');
-  } catch (e) {
-    console.warn('⚠️ neon router not mounted:', e?.message);
-  }
-})();
-
-// Healthcheck
-app.get('/ping', (_req, res) => res.send('pong'));
-
-// Static
-app.use(express.static(path.join(__dirname, 'public')));
-
-// ✅ Servir les fichiers uploadés (thumbnails/pièces jointes)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// 404 JSON pour /api/*
-app.use('/api', (_req, res) => {
-  res.status(404).json({ error: 'not_found' });
+  next();
 });
 
-// Handler d’erreurs JSON
-app.use((err, req, res, next) => {
+// ===== Auth middleware (OPTIONNEL) pour le reste =====
+// Si tu as un middleware d'auth, on l'active ici uniquement pour les routes non publiques.
+let authMiddleware = null;
+try { authMiddleware = require('./middleware/auth'); } catch { authMiddleware = (_req, _res, next) => next(); }
+app.use(authMiddleware);
+
+// Puis on (re)monte l’API pour toutes les autres routes (POST/PUT/DELETE et GET non whitelists)
+app.use('/api', apiRouter);
+
+// ===== Routes front =====
+app.get('/', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
+
+// 404 API propre
+app.use('/api', (req, res, next) => {
+  if (!req.route) return res.status(404).json({ error: 'not_found' });
+  next();
+});
+
+// Handler d’erreurs
+app.use((err, req, res, _next) => {
   console.error('💥 API error:', err);
-  if (req.path.startsWith('/api') || req.path.startsWith('/neon')) {
-    return res.status(500).json({ error: 'server_error' });
+  if (req.path.startsWith('/api')) {
+    return res.status(err.status || 500).json({ error: err.code || 'server_error', message: err.message });
   }
-  next(err);
+  res.status(500).send('Server error');
 });
 
 // Boot
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server listening on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Server listening on ${PORT}`));
 
 module.exports = app;
