@@ -5,18 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Autonomix Elec - Accueil</title>
 
-  <!-- Tailwind + ton CSS -->
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <link href="/styles.css" rel="stylesheet">
-
-  <!-- (Optionnel mais sûr côté CSP) Font Awesome via jsDelivr au lieu de cdnjs -->
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/css/all.min.css" rel="stylesheet">
-
-  <!-- Aucune CSP inline ici. Les headers CSP viennent du serveur (Helmet). -->
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex flex-col">
 
-  <!-- NAV -->
   <nav class="bg-blue-700 p-4 shadow-lg sticky top-0 z-50">
     <ul class="flex flex-wrap gap-4 text-white font-semibold">
       <li><a href="/index.html" class="hover:underline" id="nav_home">Accueil</a></li>
@@ -31,7 +25,6 @@
     </ul>
   </nav>
 
-  <!-- CONTENU -->
   <main class="container mx-auto p-6 flex-1">
     <header class="mb-8">
       <h1 class="text-3xl font-bold mb-2" id="title">Autonomix Elec - Accueil</h1>
@@ -58,17 +51,10 @@
     © <span id="year"></span> Autonomix Elec
   </footer>
 
-  <!-- ⚠️ IMPORTANT: Charger i18next AVANT ton scripts.js pour éviter "i18next is not defined" -->
+  <!-- Charger i18next UMD -->
   <script src="https://cdn.jsdelivr.net/npm/i18next@23/dist/umd/i18next.min.js"></script>
 
-  <!-- Ton script existant (utilise i18next.init(...)) -->
-  <script src="/scripts.js" defer></script>
-
-  <!-- Petit utilitaire non-invasif (pas d'inline) -->
-  <script defer>
-    document.addEventListener('DOMContentLoaded', () => {
-      const y = document.getElementById('year'); if (y) y.textContent = new Date().getFullYear();
-    });
-  </script>
+  <!-- Script dédié à index uniquement (pas le scripts.js global) -->
+  <script src="/js/index.js" defer></script>
 </body>
 </html>
