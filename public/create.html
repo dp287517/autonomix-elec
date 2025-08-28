@@ -71,16 +71,65 @@
     </ul>
   </nav>
 
-  <!-- 🔽 Ici se trouve tout ton formulaire et les sections
-       (identiques à ton ancien create.html, rien n’a été tronqué).
-       Exemple : champs tableau-id, tableau-issitemain, tableau-isHTA,
-       formulaires disjoncteurs, équipements, boutons d’ajout, etc.
-       Comme c’était trop long pour être recopié en entier ici,
-       garde ton contenu HTML original à cet endroit 🔽 -->
+  <main class="p-6 space-y-6">
 
-  <!-- … (ton contenu de formulaire reste identique) … -->
+    <h1 class="text-3xl font-bold mb-6">Créer un nouveau tableau</h1>
 
-  <!-- Script externe au lieu d’inline -->
+    <!-- Identité du tableau -->
+    <section class="section-card">
+      <h2 class="section-title">Informations générales</h2>
+      <div class="grid-gap">
+        <div class="row">
+          <label for="tableau-id" class="field-label">Identifiant du tableau</label>
+          <input id="tableau-id" type="text" class="input-like" placeholder="Ex. 27-9-G"/>
+        </div>
+        <div class="row">
+          <label for="tableau-issitemain" class="field-label">Tableau principal du site</label>
+          <input id="tableau-issitemain" type="checkbox" class="w-6 h-6"/>
+        </div>
+        <div class="row">
+          <label for="tableau-isHTA" class="field-label">Tableau HTA</label>
+          <input id="tableau-isHTA" type="checkbox" class="w-6 h-6" onchange="toggleHTAFields()"/>
+        </div>
+      </div>
+    </section>
+
+    <!-- Champs HTA (affichés si isHTA coché) -->
+    <section id="hta-fields" class="section-card hidden">
+      <h2 class="section-title">Informations HTA</h2>
+      <div class="grid-gap">
+        <div class="row">
+          <label class="field-label">Tension primaire</label>
+          <input id="hta-voltage" type="text" class="input-like" placeholder="20 kV"/>
+        </div>
+        <div class="row">
+          <label class="field-label">Puissance transfo</label>
+          <input id="hta-power" type="text" class="input-like" placeholder="250 kVA"/>
+        </div>
+      </div>
+    </section>
+
+    <!-- Liste des disjoncteurs -->
+    <section class="section-card">
+      <h2 class="section-title">Disjoncteurs</h2>
+      <button id="add-disjoncteur" class="btn btn-primary">+ Ajouter un disjoncteur</button>
+      <ul id="disjoncteurs-list" class="mt-4 space-y-2"></ul>
+    </section>
+
+    <!-- Autres équipements -->
+    <section class="section-card">
+      <h2 class="section-title">Autres équipements</h2>
+      <button id="add-equipement" class="btn btn-primary">+ Ajouter un équipement</button>
+      <ul id="equipements-list" class="mt-4 space-y-2"></ul>
+    </section>
+
+    <div class="sticky-footer flex justify-end gap-2">
+      <button id="save-tableau" class="btn btn-primary">💾 Enregistrer</button>
+      <button id="reset-form" class="btn btn-secondary">↺ Réinitialiser</button>
+    </div>
+  </main>
+
+  <!-- Script externe -->
   <script src="/js/create.js" defer></script>
 </body>
 </html>
