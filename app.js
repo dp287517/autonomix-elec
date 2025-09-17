@@ -2,13 +2,13 @@
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
-const { pool } = require('./config/db'); // Si tu as config/db.js
-const initDb = require('./initDb'); // Init DB schema
+const { pool } = require('./config/db');
+const initDb = require('./initDb');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Init DB au boot
+// Init DB
 initDb(pool).catch(err => console.error('[initDb] error', err));
 
 // Middlewares
@@ -16,19 +16,19 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Static /public (pour dashboards HTML/JS)
+// Static /public
 const PUBLIC_DIR = path.join(__dirname, 'public');
 app.use(express.static(PUBLIC_DIR));
 
 // API routes
-app.use('/api', require('./routes/auth')); // Auth (signup, login, me) - Assumez que ce fichier existe
-app.use('/api', require('./routes/accounts')); // Accounts (create, owners, invite) - Assumez que ce fichier existe
-app.use('/api', require('./routes/atex')); // ATEX (secteurs, equipments, inspect, chat, etc.)
+app.use('/api', require('./routes/auth')); // Assumez que ce fichier existe
+app.use('/api', require('./routes/accounts')); // Assumez que ce fichier existe
+app.use('/api', require('./routes/atex'));
 
 // Health
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
-// SPA fallback pour dashboards (ex. /atex-control -> public/atex-control.html)
+// SPA fallback
 const SPA_INDEX = new Set(['/dashboard', '/atex-control', '/subscription_atex']);
 app.get('*', (req, res, next) => {
   if (SPA_INDEX.has(req.path)) {
