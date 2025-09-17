@@ -1,26 +1,30 @@
-// public/js/atex-control.js — Version complète avec auth, viewer, filtres
+// public/js/atex-control.js — Version complète avec auth serveur
 (function () {
   const API = '/api';
-
-  // Cache for secteurs to resolve names
+  let userData = null;
   let secteursCache = [];
 
-  // Get account ID
-  function getAccountId() {
-    return localStorage.getItem('app_account_id') || '10';
-  }
-
-  // Get JWT token
-  function getToken() {
-    return localStorage.getItem('autonomix_token') || '';
-  }
-
-  // Headers with auth
+  // Headers with auth (assumes token in cookies or headers)
   function authHeaders() {
     return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${getToken()}`
+      'Content-Type': 'application/json'
+      // Token géré par authz.requireAuth côté serveur
     };
+  }
+
+  // Fetch current user
+  async function getCurrentUser() {
+    try {
+      const response = await fetch(`${API}/me`, { headers: authHeaders() });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      userData = await response.json();
+      return userData; // { user: { id }, accountId }
+    } catch (err) {
+      console.error('[getCurrentUser] error', err);
+      showToast('Erreur authentification: Veuillez vous reconnecter', 'danger');
+      window.location.href = '/login.html';
+      return null;
+    }
   }
 
   // Helpers
@@ -70,7 +74,7 @@
       const img = document.createElement('img');
       img.alt = item.name || 'Image';
       img.src = src;
-      img.className = 'img-fluid';
+      img.className = 'img-fluid rounded';
       stage.appendChild(img);
     }
 
@@ -156,13 +160,10 @@
   async function loadSecteurs() {
     try {
       showLoader(true);
-      const response = await fetch(`${API}/atex-secteurs?account_id=${getAccountId()}`, {
+      const response = await fetch(`${API}/atex-secteurs?account_id=${userData.accountId}`, {
         headers: authHeaders()
       });
-      if (!response.ok) {
-        if (response.status === 401) throw new Error('Non autorisé');
-        throw new Error(`HTTP ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       secteursCache = await response.json();
       const select = document.getElementById('filter-secteur');
       const editSelect = document.getElementById('secteur');
@@ -174,31 +175,26 @@
       }
     } catch (err) {
       console.error('[loadSecteurs] error', err);
-      showToast(`Erreur lors du chargement des secteurs: ${err.message}`, 'danger');
-      if (err.message === 'Non autorisé') window.location.href = '/login.html';
+      showToast(`Erreur chargement secteurs: ${err.message}`, 'danger');
     } finally {
       showLoader(false);
     }
   }
 
-  // Load Equipments and render
+  // Load Equipments
   async function loadEquipments(filters = {}) {
     try {
       showLoader(true);
-      const query = new URLSearchParams({ account_id: getAccountId(), ...filters }).toString();
+      const query = new URLSearchParams({ account_id: userData.accountId, ...filters }).toString();
       const response = await fetch(`${API}/atex-equipments?${query}`, {
         headers: authHeaders()
       });
-      if (!response.ok) {
-        if (response.status === 401) throw new Error('Non autorisé');
-        throw new Error(`HTTP ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const equipments = await response.json();
       renderEquipments(equipments);
     } catch (err) {
       console.error('[loadEquipments] error', err);
-      showToast(`Erreur lors du chargement des équipements: ${err.message}`, 'danger');
-      if (err.message === 'Non autorisé') window.location.href = '/login.html';
+      showToast(`Erreur chargement équipements: ${err.message}`, 'danger');
     } finally {
       showLoader(false);
     }
@@ -210,17 +206,16 @@
     if (!tbody) return;
     tbody.innerHTML = '';
     if (!equipments.length) {
-      tbody.innerHTML = '<tr><td colspan="13" class="text-center">Aucun équipement trouvé</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="13" class="text-center py-4">Aucun équipement trouvé. Ajoutez-en un ou vérifiez les filtres.</td></tr>';
       return;
     }
     equipments.forEach(eq => {
-      const secteur = secteursCache.find(s => s.id === eq.secteur_id) || { name: 'Inconnu' };
       const statut = getStatut(eq);
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${eq.id}</td>
         <td>${eq.composant || ''}</td>
-        <td>${secteur.name}</td>
+        <td>${eq.secteur_name || 'Inconnu'}</td>
         <td>${eq.batiment || ''}</td>
         <td>${eq.local || ''}</td>
         <td>${eq.zone_gaz || ''}</td>
@@ -240,7 +235,7 @@
           <button data-action="open-attachments" data-id="${eq.id}" class="btn btn-info btn-sm" title="Pièces jointes">
             <i class="fas fa-paperclip"></i>
           </button>
-          <button data-action="open-ia" data-id="${eq.id}" class="btn btn-warning btn-sm" title="Chat IA">
+          <button data-action="open-ia" data-id="${eq.id}" class="btn btn-accent btn-sm" title="Chat IA">
             <i class="fas fa-robot"></i>
           </button>
         </td>
@@ -327,7 +322,7 @@
       showLoader(true);
       const response = await fetch(`${API}/atex-import-excel`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${getToken()}` },
+        headers: authHeaders(),
         body: formData
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -356,13 +351,10 @@
   }
 
   // Init and Bind
-  window.addEventListener('DOMContentLoaded', () => {
-    // Check if logged in
-    if (!getToken()) {
-      showToast('Veuillez vous connecter', 'danger');
-      window.location.href = '/login.html';
-      return;
-    }
+  window.addEventListener('DOMContentLoaded', async () => {
+    // Fetch user data
+    userData = await getCurrentUser();
+    if (!userData) return;
 
     // Load initial data
     loadSecteurs();
@@ -393,6 +385,7 @@
         loadEquipments();
         form.reset();
         delete form.dataset.id;
+        document.querySelector('.nav-tabs a[href="#list"]').click();
       });
     }
 
@@ -442,7 +435,7 @@
         document.getElementById('comments').value = eq.comments || '';
         document.getElementById('last_inspection_date').value = eq.last_inspection_date ? new Date(eq.last_inspection_date).toISOString().split('T')[0] : '';
         document.getElementById('frequence').value = eq.frequence || 36;
-        document.querySelector('.nav-tabs a[href="#add-edit"]').click(); // Switch to tab
+        document.querySelector('.nav-tabs a[href="#add-edit"]').click();
       }
       if (act === 'delete-equipment') {
         const id = btn.dataset.id;
