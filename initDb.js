@@ -1,9 +1,9 @@
-// initDb.js — Initialize DB schema for ATEX (idempotent, ne casse pas l'existant)
-const { pool } = require('./config/db'); // Assure-toi que config/db.js existe
+// initDb.js — Initialize DB schema for ATEX (idempotent)
+const { pool } = require('./config/db');
 
 module.exports = async function initDb() {
   try {
-    // Table users (si pas existante)
+    // Table users
     await pool.query(`
       CREATE TABLE IF NOT EXISTS public.users (
         id SERIAL PRIMARY KEY,
@@ -13,7 +13,7 @@ module.exports = async function initDb() {
       );
     `);
 
-    // Table accounts (sites)
+    // Table accounts
     await pool.query(`
       CREATE TABLE IF NOT EXISTS public.accounts (
         id SERIAL PRIMARY KEY,
@@ -22,7 +22,7 @@ module.exports = async function initDb() {
       );
     `);
 
-    // Table user_accounts (memberships)
+    // Table user_accounts
     await pool.query(`
       CREATE TABLE IF NOT EXISTS public.user_accounts (
         id SERIAL PRIMARY KEY,
@@ -32,7 +32,7 @@ module.exports = async function initDb() {
       );
     `);
 
-    // Table atex_secteurs (départements)
+    // Table atex_secteurs
     await pool.query(`
       CREATE TABLE IF NOT EXISTS public.atex_secteurs (
         id SERIAL PRIMARY KEY,
@@ -109,6 +109,18 @@ module.exports = async function initDb() {
     await pool.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_atex_chat_unique ON public.atex_chat_threads (account_id, equipment_id, user_id);
     `);
+
+    // Insert default data for testing
+    const accountRes = await pool.query('SELECT id FROM accounts WHERE id = $1', [10]);
+    if (!accountRes.rows.length) {
+      await pool.query('INSERT INTO accounts (id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING', [10, 'Test Account']);
+      await pool.query('INSERT INTO atex_secteurs (name, account_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', ['Secteur Test', 10]);
+      await pool.query(`
+        INSERT INTO atex_equipments (account_id, secteur_id, composant, fabricant, type, marquage_atex, last_inspection_date)
+        VALUES ($1, (SELECT id FROM atex_secteurs WHERE account_id = $1 LIMIT 1), $2, $3, $4, $5, $6)
+        ON CONFLICT DO NOTHING
+      `, [10, 'Pompe', 'Fabricant X', 'Type A', 'Ex d IIB T4', '2025-01-01']);
+    }
 
     console.log('[initDb] Tables ATEX initialisées avec succès');
   } catch (err) {
