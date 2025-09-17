@@ -1,6 +1,9 @@
-// public/js/atex-control.js — Version complète avec auth, viewer, load/render
+// public/js/atex-control.js — Version complète avec auth, viewer, filtres
 (function () {
   const API = '/api';
+
+  // Cache for secteurs to resolve names
+  let secteursCache = [];
 
   // Get account ID
   function getAccountId() {
@@ -29,7 +32,7 @@
   }
 
   function normalizeAttachments(eq) {
-    let atts = eq.attachments;
+    let atts = eq.attachments || [];
     if (typeof atts === 'string') { try { atts = JSON.parse(atts); } catch { atts = []; } }
     if (!Array.isArray(atts)) atts = [];
     const items = atts.map((a, i) => {
@@ -59,13 +62,13 @@
 
     if (mime.includes('pdf')) {
       const iframe = document.createElement('iframe');
-      iframe.title = item.name || 'document';
+      iframe.title = item.name || 'Document';
       iframe.className = 'w-100 h-100';
       iframe.src = src;
       stage.appendChild(iframe);
     } else {
       const img = document.createElement('img');
-      img.alt = item.name || 'image';
+      img.alt = item.name || 'Image';
       img.src = src;
       img.className = 'img-fluid';
       stage.appendChild(img);
@@ -89,7 +92,7 @@
       const modal = new bootstrap.Modal(document.getElementById('attViewerModal'));
       const items = normalizeAttachments(eq);
       if (!items.length) {
-        console.log('Aucune pièce jointe', 'warning');
+        showToast('Aucune pièce jointe', 'warning');
         return;
       }
       const state = { items, idx: 0 };
@@ -129,86 +132,139 @@
       }, { once: true });
     } catch (err) {
       console.error('[openAttachmentViewer] fail', err);
-      console.log('Erreur en ouvrant les pièces', 'danger');
+      showToast('Erreur en ouvrant les pièces', 'danger');
     }
   }
 
-  window.openAttachmentViewer = openAttachmentViewer;
+  // Toast helper
+  function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} alert-dismissible fade show`;
+    toast.style.position = 'fixed';
+    toast.style.top = '20px';
+    toast.style.right = '20px';
+    toast.style.zIndex = '2000';
+    toast.innerHTML = `
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
+  }
 
   // Load Secteurs
   async function loadSecteurs() {
     try {
+      showLoader(true);
       const response = await fetch(`${API}/atex-secteurs?account_id=${getAccountId()}`, {
         headers: authHeaders()
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const secteurs = await response.json();
+      if (!response.ok) {
+        if (response.status === 401) throw new Error('Non autorisé');
+        throw new Error(`HTTP ${response.status}`);
+      }
+      secteursCache = await response.json();
       const select = document.getElementById('filter-secteur');
       const editSelect = document.getElementById('secteur');
       if (select) {
-        select.innerHTML = '<option>Secteur</option>' + secteurs.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        select.innerHTML = '<option value="">Tous les secteurs</option>' + secteursCache.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
       }
       if (editSelect) {
-        editSelect.innerHTML = '<option>Secteur</option>' + secteurs.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        editSelect.innerHTML = '<option value="">Sélectionner un secteur</option>' + secteursCache.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
       }
     } catch (err) {
       console.error('[loadSecteurs] error', err);
-      alert('Erreur lors du chargement des secteurs');
+      showToast(`Erreur lors du chargement des secteurs: ${err.message}`, 'danger');
+      if (err.message === 'Non autorisé') window.location.href = '/login.html';
+    } finally {
+      showLoader(false);
     }
   }
 
-  // Load Equipments and render in table
-  async function loadEquipments() {
+  // Load Equipments and render
+  async function loadEquipments(filters = {}) {
     try {
-      const response = await fetch(`${API}/atex-equipments?account_id=${getAccountId()}`, {
+      showLoader(true);
+      const query = new URLSearchParams({ account_id: getAccountId(), ...filters }).toString();
+      const response = await fetch(`${API}/atex-equipments?${query}`, {
         headers: authHeaders()
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        if (response.status === 401) throw new Error('Non autorisé');
+        throw new Error(`HTTP ${response.status}`);
+      }
       const equipments = await response.json();
       renderEquipments(equipments);
     } catch (err) {
       console.error('[loadEquipments] error', err);
-      alert('Erreur lors du chargement des équipements');
+      showToast(`Erreur lors du chargement des équipements: ${err.message}`, 'danger');
+      if (err.message === 'Non autorisé') window.location.href = '/login.html';
+    } finally {
+      showLoader(false);
     }
   }
 
-  // Render equipments in table (added)
+  // Render equipments
   function renderEquipments(equipments) {
     const tbody = document.querySelector('#equipmentsTable tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
     if (!equipments.length) {
-      tbody.innerHTML = '<tr><td colspan="13">Aucun équipement trouvé</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="13" class="text-center">Aucun équipement trouvé</td></tr>';
       return;
     }
     equipments.forEach(eq => {
+      const secteur = secteursCache.find(s => s.id === eq.secteur_id) || { name: 'Inconnu' };
+      const statut = getStatut(eq);
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${eq.id}</td>
-        <td>${eq.composant}</td>
-        <td>${eq.secteur_id}</td> <!-- TODO: Resolver nom secteur -->
+        <td>${eq.composant || ''}</td>
+        <td>${secteur.name}</td>
         <td>${eq.batiment || ''}</td>
         <td>${eq.local || ''}</td>
         <td>${eq.zone_gaz || ''}</td>
         <td>${eq.zone_poussieres || ''}</td>
         <td>${eq.conformite || ''}</td>
-        <td>${eq.grade || ''}</td> <!-- Statut/Risque -->
+        <td><span class="badge bg-${statut.class}">${statut.text}</span></td>
         <td>${eq.risk || ''}</td>
-        <td>${eq.last_inspection_date ? new Date(eq.last_inspection_date).toLocaleDateString() : ''}</td>
-        <td>${eq.next_inspection_date ? new Date(eq.next_inspection_date).toLocaleDateString() : ''}</td>
+        <td>${eq.last_inspection_date ? new Date(eq.last_inspection_date).toLocaleDateString('fr-FR') : ''}</td>
+        <td>${eq.next_inspection_date ? new Date(eq.next_inspection_date).toLocaleDateString('fr-FR') : ''}</td>
         <td>
-          <button data-action="edit-equipment" data-id="${eq.id}" class="btn btn-primary">Éditer</button>
-          <button data-action="delete-equipment" data-id="${eq.id}" class="btn btn-danger">Supprimer</button>
-          <button data-action="open-attachments" data-id="${eq.id}">Pièces</button>
+          <button data-action="edit-equipment" data-id="${eq.id}" class="btn btn-primary btn-sm" title="Éditer">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button data-action="delete-equipment" data-id="${eq.id}" class="btn btn-danger btn-sm" title="Supprimer">
+            <i class="fas fa-trash"></i>
+          </button>
+          <button data-action="open-attachments" data-id="${eq.id}" class="btn btn-info btn-sm" title="Pièces jointes">
+            <i class="fas fa-paperclip"></i>
+          </button>
+          <button data-action="open-ia" data-id="${eq.id}" class="btn btn-warning btn-sm" title="Chat IA">
+            <i class="fas fa-robot"></i>
+          </button>
         </td>
       `;
       tbody.appendChild(tr);
     });
   }
 
+  // Calculate statut
+  function getStatut(eq) {
+    if (!eq.next_inspection_date) return { text: 'Inconnu', class: 'secondary' };
+    const today = new Date();
+    const next = new Date(eq.next_inspection_date);
+    const diffDays = (next - today) / (1000 * 60 * 60 * 24);
+    if (diffDays < 0) return { text: 'En retard', class: 'danger' };
+    if (diffDays <= 7) return { text: 'Bientôt', class: 'warning' };
+    if (diffDays <= 30) return { text: 'Aujourd’hui', class: 'info' };
+    return { text: 'OK', class: 'success' };
+  }
+
   // Save Equipment
   async function saveEquipment(equipment) {
     try {
+      showLoader(true);
       const method = equipment.id ? 'PUT' : 'POST';
       const url = equipment.id ? `${API}/atex-equipments/${equipment.id}` : `${API}/atex-equipments`;
       const response = await fetch(url, {
@@ -217,30 +273,38 @@
         body: JSON.stringify(equipment)
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      showToast('Équipement sauvegardé', 'success');
       return await response.json();
     } catch (err) {
       console.error('[saveEquipment] error', err);
-      alert('Erreur sauvegarde équipement');
+      showToast(`Erreur sauvegarde équipement: ${err.message}`, 'danger');
+    } finally {
+      showLoader(false);
     }
   }
 
   // Delete Equipment
   async function deleteEquipment(id) {
     try {
+      showLoader(true);
       const response = await fetch(`${API}/atex-equipments/${id}`, {
         method: 'DELETE',
         headers: authHeaders()
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      showToast('Équipement supprimé', 'success');
     } catch (err) {
       console.error('[deleteEquipment] error', err);
-      alert('Erreur suppression équipement');
+      showToast(`Erreur suppression équipement: ${err.message}`, 'danger');
+    } finally {
+      showLoader(false);
     }
   }
 
   // Get IA Help
   async function getIAHelp(id) {
     try {
+      showLoader(true);
       const response = await fetch(`${API}/atex-help/${id}`, {
         headers: authHeaders()
       });
@@ -248,34 +312,10 @@
       return await response.json();
     } catch (err) {
       console.error('[getIAHelp] error', err);
-      alert('Erreur IA help');
-    }
-  }
-
-  // Get Chat Thread
-  async function getChatThread(equipment_id) {
-    try {
-      const response = await fetch(`${API}/atex-chat/${equipment_id}`, {
-        headers: authHeaders()
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return await response.json();
-    } catch (err) {
-      console.error('[getChatThread] error', err);
-      alert('Erreur récupération chat');
-    }
-  }
-
-  async function deleteChatThread(equipment_id) {
-    try {
-      const response = await fetch(`${API}/atex-chat/${equipment_id}`, {
-        method: 'DELETE',
-        headers: authHeaders()
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    } catch (err) {
-      console.error('[deleteChatThread] error', err);
-      alert('Erreur suppression chat');
+      showToast(`Erreur IA help: ${err.message}`, 'danger');
+      return { html: 'Erreur lors du chargement de l’aide IA' };
+    } finally {
+      showLoader(false);
     }
   }
 
@@ -284,29 +324,51 @@
     const formData = new FormData();
     formData.append('file', file);
     try {
+      showLoader(true);
       const response = await fetch(`${API}/atex-import-excel`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${getToken()}` }, // No Content-Type for FormData
+        headers: { 'Authorization': `Bearer ${getToken()}` },
         body: formData
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return await response.json();
+      const result = await response.json();
+      showToast(`Import réussi: ${result.count} équipements`, 'success');
+      return result;
     } catch (err) {
       console.error('[importFile] error', err);
-      alert('Erreur import');
+      showToast(`Erreur import: ${err.message}`, 'danger');
+    } finally {
+      showLoader(false);
     }
+  }
+
+  // Show/hide loader
+  function showLoader(show) {
+    let loader = document.getElementById('loader');
+    if (!loader) {
+      loader = document.createElement('div');
+      loader.id = 'loader';
+      loader.className = 'loader';
+      loader.style.display = 'none';
+      document.querySelector('.container').prepend(loader);
+    }
+    loader.style.display = show ? 'block' : 'none';
   }
 
   // Init and Bind
   window.addEventListener('DOMContentLoaded', () => {
     // Check if logged in
     if (!getToken()) {
+      showToast('Veuillez vous connecter', 'danger');
       window.location.href = '/login.html';
       return;
     }
+
+    // Load initial data
     loadSecteurs();
     loadEquipments();
 
+    // Form submission
     const form = document.getElementById('equipment-form');
     if (form) {
       form.addEventListener('submit', async (e) => {
@@ -334,6 +396,25 @@
       });
     }
 
+    // Filter form
+    const filterForm = document.getElementById('filter-form');
+    if (filterForm) {
+      filterForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const filters = {
+          secteur_id: document.getElementById('filter-secteur').value,
+          conformite: document.getElementById('filter-conformite').value,
+          statut: document.getElementById('filter-statut').value
+        };
+        loadEquipments(filters);
+      });
+      filterForm.addEventListener('reset', () => {
+        filterForm.reset();
+        loadEquipments();
+      });
+    }
+
+    // Actions
     document.addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-action]');
       if (!btn) return;
@@ -341,6 +422,10 @@
       if (act === 'edit-equipment') {
         const id = btn.dataset.id;
         const response = await fetch(`${API}/atex-equipments/${id}`, { headers: authHeaders() });
+        if (!response.ok) {
+          showToast('Erreur chargement équipement', 'danger');
+          return;
+        }
         const eq = await response.json();
         const form = document.getElementById('equipment-form');
         form.dataset.id = id;
@@ -357,6 +442,7 @@
         document.getElementById('comments').value = eq.comments || '';
         document.getElementById('last_inspection_date').value = eq.last_inspection_date ? new Date(eq.last_inspection_date).toISOString().split('T')[0] : '';
         document.getElementById('frequence').value = eq.frequence || 36;
+        document.querySelector('.nav-tabs a[href="#add-edit"]').click(); // Switch to tab
       }
       if (act === 'delete-equipment') {
         const id = btn.dataset.id;
@@ -368,17 +454,23 @@
       if (act === 'open-attachments') {
         const id = btn.dataset.id;
         const response = await fetch(`${API}/equip/${id}`, { headers: authHeaders() });
+        if (!response.ok) {
+          showToast('Erreur chargement pièces jointes', 'danger');
+          return;
+        }
         const payload = await response.json();
         window.openAttachmentViewer(payload);
       }
       if (act === 'open-ia') {
         const id = btn.dataset.id;
         const { html } = await getIAHelp(id);
-        // Afficher dans un modal ou div (ajoutez un modal IA si nécessaire)
-        alert(html); // Placeholder
+        const modal = new bootstrap.Modal(document.getElementById('iaModal'));
+        document.getElementById('iaModalContent').innerHTML = html;
+        modal.show();
       }
     });
 
+    // Import
     const importBtn = document.getElementById('import-btn');
     const importFileInput = document.getElementById('import-file');
     if (importBtn && importFileInput) {
