@@ -21,8 +21,8 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 app.use(express.static(PUBLIC_DIR));
 
 // API routes
-app.use('/api', require('./routes/auth')); // Auth (signup, login, me)
-app.use('/api', require('./routes/accounts')); // Accounts (create, owners, invite)
+app.use('/api', require('./routes/auth')); // Auth (signup, login, me) - Assumez que ce fichier existe
+app.use('/api', require('./routes/accounts')); // Accounts (create, owners, invite) - Assumez que ce fichier existe
 app.use('/api', require('./routes/atex')); // ATEX (secteurs, equipments, inspect, chat, etc.)
 
 // Health
