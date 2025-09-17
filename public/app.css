@@ -80,6 +80,43 @@ body {
   min-width: 120px;
 }
 
+/* Table styles (added) */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th, .table td {
+  border: 1px solid var(--border);
+  padding: 8px;
+  text-align: left;
+}
+.table th {
+  background: #f8fafc;
+}
+
+/* Modal styles (added) */
+.modal {
+  display: none;
+}
+.modal.is-active {
+  display: block;
+}
+
+/* Buttons (added) */
+.btn {
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.btn-primary {
+  background: var(--primary);
+  color: white;
+}
+.btn-danger {
+  background: var(--danger);
+  color: white;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .container { margin: 16px auto 64px; }
