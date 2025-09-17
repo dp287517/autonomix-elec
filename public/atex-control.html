@@ -2,583 +2,141 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Contrôle ATEX - Équipements</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <!-- 🔐 Garde d'accès -->
-  
-
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/lucide@latest"></script>
-
-  <style>
-    :root{
-      --actions-min-width: 220px;
-      --offcanvas-w: clamp(420px, 40vw, 580px);
-    }
-    body{ background:#f8f9fa; font-family:'Poppins',sans-serif; color:#333; }
-    .card{ border-radius:14px; box-shadow:0 4px 10px rgba(0,0,0,.06); }
-    .table-responsive{ overflow-x:auto; }
-    .last-photo{ max-width:52px; border-radius:6px; cursor:zoom-in; }
-    .form-text{ color:#6c757d; }
-    .small-muted{ font-size:.85rem; color:#6c757d; }
-    .link-list a{ text-decoration:none; }
-
-    .badge-conf{ font-weight:600; padding:.40rem .55rem; font-size:.82rem; border-radius:.65rem; white-space:nowrap; }
-    .badge-conf.ok{ background:#16a34a; color:#fff; }
-    .badge-conf.ko{ background:#dc2626; color:#fff; }
-    td.col-conf{ white-space:nowrap; }
-
-    .badge-st.ok{ background:#22c55e; }
-    .badge-st.soon{ background:#f59e0b; }
-    .badge-st.today{ background:#0ea5e9; }
-    .badge-st.late{ background:#ef4444; }
-    .badge-st{ color:#fff; font-weight:600; }
-
-    td.actions{ min-width:var(--actions-min-width); white-space:nowrap; }
-    @media (max-width: 992px){
-      td.actions{ display:grid; grid-template-columns: repeat(3, 1fr); gap:.4rem; }
-      td.actions .btn{ width:100%; }
-    }
-    @media (max-width: 576px){ td.actions{ grid-template-columns: 1fr; } }
-
-    .offcanvas-ia{ --bs-offcanvas-width: var(--offcanvas-w); }
-    #iaPanel{ border-left:1px solid #e5e7eb; }
-    #iaPanel .offcanvas-body{ display:flex; flex-direction:column; gap:1rem; padding-top:.75rem; }
-    .ia-history{ border:1px solid #e9ecef; border-radius:10px; overflow:hidden; max-height:55vh; overflow-y:auto; background:#fff; }
-    .ia-item{ cursor:pointer; }
-    .ia-item.active{ background:#eef2ff; border-left:3px solid #0d6efd; }
-    .ia-details{ border:1px solid #e9ecef; border-radius:10px; background:#fff; max-height:55vh; overflow:auto; padding:1rem; }
-    .chat-thread{ border:1px solid #e9ecef; border-radius:10px; background:#fff; padding:1rem; max-height:45vh; overflow:auto; }
-    .msg{ padding:.45rem .65rem; border-radius:.5rem; margin-bottom:.5rem; }
-    .msg.user{ background:#eef2ff; }
-    .msg.ia{ background:#f6f7f9; }
-    .chat-input{ display:flex; gap:.5rem; }
-    .chat-input textarea{ resize:vertical; min-height:44px; }
-
-    .dropdown-checklist{ min-width:240px; max-height:260px; overflow:auto; }
-    .filter-pills .badge{ margin-right:.4rem; margin-bottom:.4rem; }
-
-    .def-list dt{ font-weight:600; }
-    .def-list dd{ margin-bottom:.75rem; color:#475569; }
-
-    footer{ margin-top:32px; color:#6b7280; }
-  
-/* IA sidebar polish */
-.ia-section-title{font-weight:600;margin:8px 0 2px;}
-.ia-muted{font-size:.9rem;color:#6c757d;}
-.ia-card{border:1px solid #e9ecef;border-radius:.75rem;padding:12px;height:100%;background:#fff;}
-.ia-chip{display:inline-block;border:1px solid #dee2e6;border-radius:999px;padding:2px 8px;margin:2px 6px 2px 0;font-size:.8rem;}
-.ia-chat-msg{border-radius:12px;padding:10px 12px;margin:6px 0;max-width:100%;white-space:pre-wrap;word-break:break-word;}
-.ia-chat-user{background:#e7f1ff;border:1px solid #cfe2ff;}
-.ia-chat-assistant{background:#f8f9fa;border:1px solid #e9ecef;}
-</style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contrôle des Équipements ATEX</title>
+  <link rel="stylesheet" href="app.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/atex-control.guard.js"></script>
+  <script src="js/atex-control.ui.js"></script>
+  <script src="js/atex-control.core.js"></script>
+  <script src="js/atex-control.js"></script>
 </head>
-<body class="container my-5">
+<body>
+  <div class="container">
+    <h1>Contrôle des Équipements ATEX</h1>
+    <p>Inspecter, ajouter et suivre les conformités ATEX.</p>
 
-  <header class="d-flex align-items-center justify-content-between mb-3">
-    <div>
-      <h1 class="mb-1">Contrôle des Équipements ATEX</h1>
-      <p class="lead mb-0">Inspecter, ajouter et suivre les conformités ATEX.</p>
+    <nav>
+      <button id="btn-list">Liste</button>
+      <button id="btn-edit">Ajouter/Éditer</button>
+      <button id="btn-chat">Chat IA</button>
+      <button id="btn-import">Importer</button>
+      <button id="btn-explanations">Explications</button>
+    </nav>
+
+    <section id="list-section">
+      <h2>Filtres</h2>
+      <form id="filter-form">
+        <select id="filter-secteur">
+          <option>Secteur</option>
+          <!-- Loaded by JS -->
+        </select>
+        <input id="filter-batiment" placeholder="Bâtiment">
+        <select id="filter-conformite">
+          <option>Conformité</option>
+          <option>Conforme</option>
+          <option>Non Conforme</option>
+        </select>
+        <select id="filter-statut">
+          <option>Statut</option>
+          <option>En retard</option>
+          <option>Aujourd’hui</option>
+          <option>Bientôt</option>
+          <option>OK</option>
+        </select>
+        <button type="button" id="filter-clear">Effacer</button>
+        <button type="submit">Appliquer</button>
+      </form>
+
+      <h2>Liste des Équipements</h2>
+      <button id="delete-selected">Supprimer sélection</button>
+      <button id="sync">Sync</button>
+
+      <table id="equipments-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Composant</th>
+            <th>Secteur</th>
+            <th>Bâtiment</th>
+            <th>Local</th>
+            <th>Zone G</th>
+            <th>Zone D</th>
+            <th>Conformité</th>
+            <th>Statut</th>
+            <th>Risque</th>
+            <th>Dernière</th>
+            <th>Prochaine</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Loaded by JS -->
+        </tbody>
+      </table>
+    </section>
+
+    <section id="edit-section">
+      <form id="equipment-form">
+        <select id="secteur" required>
+          <option>Secteur</option>
+          <!-- Loaded by JS -->
+        </select>
+        <input id="batiment" placeholder="Bâtiment">
+        <input id="local" placeholder="Local">
+        <select id="zone_gaz">
+          <option>Zone ATEX (Gaz)</option>
+          <option>0 (Gaz)</option>
+          <option>1 (Gaz)</option>
+          <option>2 (Gaz)</option>
+        </select>
+        <select id="zone_poussieres">
+          <option>Zone ATEX (Poussières)</option>
+          <option>20 (Poussières)</option>
+          <option>21 (Poussières)</option>
+          <option>22 (Poussières)</option>
+        </select>
+        <input id="composant" placeholder="Composant*" required>
+        <input id="fabricant" placeholder="Fabricant*" required>
+        <input id="type" placeholder="Type (référence)*" required>
+        <input id="identifiant" placeholder="Identifiant">
+        <input id="marquage_atex" placeholder="Marquage ATEX*" required>
+        <input type="file" id="photo" accept="image/*">
+        <input type="file" id="attachments" multiple>
+        <input id="comments" placeholder="Comments">
+        <input type="date" id="last_inspection_date" placeholder="Dernière inspection">
+        <input type="number" id="frequence" placeholder="Fréquence (mois)" value="36">
+        <button type="submit">Sauvegarder</button>
+      </form>
+    </section>
+
+    <section id="chat-section">
+      <!-- Chat IA UI -->
+    </section>
+
+    <section id="import-section">
+      <input type="file" id="import-file" accept=".csv,.xlsx">
+      <button id="import-btn">Importer</button>
+    </section>
+
+    <section id="explanations-section">
+      <!-- Explications statiques -->
+    </section>
+
+    <!-- Modals (photo, delete, help IA, etc.) -->
+    <div id="photo-modal">
+      <!-- Ton modal photo -->
     </div>
-    <div class="d-flex gap-2 flex-wrap">
-      <a class="btn btn-outline-secondary" href="dashboard.html"><i data-lucide="home"></i> Menu</a>
-      <a class="btn btn-outline-secondary" href="atex-risk.html"><i data-lucide="scan-search"></i> Analyse</a>
+    <div id="delete-modal">
+      <!-- Ton modal delete -->
     </div>
-  </header>
-
-  <ul class="nav nav-tabs" id="atexTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-      <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab">
-        <i data-lucide="list"></i> Liste
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="add-tab" data-bs-toggle="tab" data-bs-target="#add" type="button" role="tab">
-        <i data-lucide="plus"></i> Ajouter/Éditer
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="chat-tab" data-bs-toggle="tab" data-bs-target="#chat" type="button" role="tab">
-        <i data-lucide="bot"></i> Chat IA
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="import-tab" data-bs-toggle="tab" data-bs-target="#import" type="button" role="tab">
-        <i data-lucide="upload"></i> Importer
-      </button>
-    </li>
-    <li class="nav-item" role="presentation">
-      <button class="nav-link" id="help-tab" data-bs-toggle="tab" data-bs-target="#help" type="button" role="tab">
-        <i data-lucide="info"></i> Explications
-      </button>
-    </li>
-  </ul>
-
-  <div class="tab-content mt-3" id="atexTabContent">
-
-    <!-- LISTE -->
-    <div class="tab-pane fade show active" id="list" role="tabpanel">
-      <div class="card mb-3">
-        <div class="card-header d-flex align-items-center justify-content-between flex-wrap">
-          <h5 class="mb-0">Filtres</h5>
-          <div class="d-flex gap-2">
-            <button id="btnClearFilters" class="btn btn-sm btn-outline-secondary"><i data-lucide="eraser"></i> Effacer</button>
-            <button id="btnApplyFilters" class="btn btn-sm btn-primary"><i data-lucide="filter"></i> Appliquer</button>
-          </div>
-        </div>
-        <div class="card-body">
-          <div class="row g-3 align-items-end">
-            <div class="col-md-3">
-              <div class="dropdown">
-                <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown">
-                  <i data-lucide="building-2"></i> Secteur
-                </button>
-                <div class="dropdown-menu p-2 dropdown-checklist" id="dd-secteurs"></div>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="dropdown">
-                <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown">
-                  <i data-lucide="map-pin"></i> Bâtiment
-                </button>
-                <div class="dropdown-menu p-2 dropdown-checklist" id="dd-batiments"></div>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="dropdown">
-                <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown">
-                  <i data-lucide="shield-check"></i> Conformité
-                </button>
-                <div class="dropdown-menu p-2 dropdown-checklist" id="dd-conformite">
-                  <div class="form-check"><input class="form-check-input" type="checkbox" value="Conforme" id="ckc1"><label class="form-check-label" for="ckc1">Conforme</label></div>
-                  <div class="form-check"><input class="form-check-input" type="checkbox" value="Non Conforme" id="ckc2"><label class="form-check-label" for="ckc2">Non Conforme</label></div>
-                </div>
-              </div>
-            </div>
-            <div class="col-md-3">
-              <div class="dropdown">
-                <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown">
-                  <i data-lucide="calendar-check-2"></i> Statut
-                </button>
-                <div class="dropdown-menu p-2 dropdown-checklist" id="dd-statut">
-                  <div class="form-check"><input class="form-check-input" type="checkbox" value="late" id="cks1"><label class="form-check-label" for="cks1">En retard</label></div>
-                  <div class="form-check"><input class="form-check-input" type="checkbox" value="today" id="cks2"><label class="form-check-label" for="cks2">Aujourd’hui</label></div>
-                  <div class="form-check"><input class="form-check-input" type="checkbox" value="soon" id="cks3"><label class="form-check-label" for="cks3">Bientôt</label></div>
-                  <div class="form-check"><input class="form-check-input" type="checkbox" value="ok" id="cks4"><label class="form-check-label" for="cks4">OK</label></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-md-6">
-              <input id="filterText" class="form-control" placeholder="Recherche composant / type / marquage…">
-            </div>
-            <div class="col-md-6 text-end">
-              <div id="activePills" class="filter-pills"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="mb-0">Liste des Équipements</h5>
-          <div class="d-flex gap-2 flex-wrap">
-            <button id="btnBulkDelete" class="btn btn-outline-danger" disabled><i data-lucide="trash-2"></i> Supprimer sélection</button>
-            <button id="btnSync" class="btn btn-info"><i data-lucide="refresh-cw"></i> Sync</button>
-          </div>
-        </div>
-        <div class="card-body table-responsive">
-          <table class="table table-striped align-middle">
-            <thead>
-              <tr>
-                <th><input type="checkbox" id="chkAll"></th>
-                <th>ID</th><th>Composant</th><th>Secteur</th><th>Bâtiment</th>
-                <th>Local</th><th>Zone G</th><th>Zone D</th><th>Conformité</th><th>Statut</th><th>Risque</th>
-                <th>Dernière</th><th>Prochaine</th><th style="min-width:var(--actions-min-width)">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="equipmentsTable"></tbody>
-          </table>
-        </div>
-      </div>
+    <div id="help-modal">
+      <!-- Ton modal IA -->
     </div>
-
-    <!-- AJOUT / EDIT -->
-    <div class="tab-pane fade" id="add" role="tabpanel">
-      <div class="card">
-        <div class="card-body">
-          <form id="equipForm" novalidate>
-            <input type="hidden" id="equipId">
-            <div class="row">
-              <div class="col-md-6">
-                <label class="form-label">Secteur</label>
-                <div class="input-group">
-                  <select id="secteur-input" class="form-select" required></select>
-                  <button class="btn btn-outline-secondary" type="button" id="btnAddSecteur" title="Ajouter un secteur">➕</button>
-                </div>
-                <div class="form-text">Clique sur ➕ pour créer un nouveau secteur.</div>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Bâtiment</label>
-                <div class="input-group">
-                  <input id="batiment-input" class="form-control" required placeholder="Ex: B06, B11…">
-                  <button class="btn btn-outline-secondary" type="button" id="btnFillBatLocal" title="Préremplir">↻</button>
-                </div>
-                <div class="form-text">↻ préremplit Bâtiment/Local selon les dernières saisies pour ce secteur.</div>
-              </div>
-            </div>
-
-            <div class="row mt-3">
-              <div class="col-md-6">
-                <label class="form-label">Local</label>
-                <input id="local-input" class="form-control" required>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label">Zone ATEX (Gaz)</label>
-                <select id="zone-g-input" class="form-select">
-                  <option value="">— aucune —</option>
-                  <option value="0">0 (Gaz)</option>
-                  <option value="1">1 (Gaz)</option>
-                  <option value="2">2 (Gaz)</option>
-                </select>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label">Zone ATEX (Poussières)</label>
-                <select id="zone-d-input" class="form-select">
-                  <option value="">— aucune —</option>
-                  <option value="20">20 (Poussières)</option>
-                  <option value="21">21 (Poussières)</option>
-                  <option value="22">22 (Poussières)</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="row mt-3">
-              <div class="col-md-6">
-                <label class="form-label">Composant*</label>
-                <div class="input-group">
-                  <input id="composant-input" class="form-control" required>
-                  <button class="btn btn-outline-secondary" type="button" id="btnDupLast" title="Remplir depuis le dernier type">⎘</button>
-                </div>
-                <div class="form-text">⎘ charge le dernier couple Composant/Type/Fabricant utilisé.</div>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Fabricant*</label>
-                <input id="fournisseur-input" class="form-control" required>
-              </div>
-            </div>
-
-            <div class="row mt-3">
-              <div class="col-md-6">
-                <label class="form-label">Type (référence)*</label>
-                <input id="type-input" class="form-control" required>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Identifiant</label>
-                <input id="identifiant-input" class="form-control">
-              </div>
-            </div>
-
-            <div class="row mt-3">
-              <div class="col-md-6">
-                <label class="form-label">Marquage ATEX*</label>
-                <input id="marquage_atex-input" class="form-control" placeholder="Ex: II 2G Ex d IIC T4 Gb / II 2D Ex tb IIIC T135°C Db" required>
-                <div class="form-text">Tu peux saisir **Gaz** et **Poussières** dans la même ligne (séparés par ‘/’) si besoin.</div>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Dernière inspection</label>
-                <input type="date" id="last-inspection-input" class="form-control">
-                <div class="form-text">La prochaine sera recalculée.</div>
-              </div>
-            </div>
-
-            <div class="row mt-3">
-              <div class="col-md-6">
-                <label class="form-label">Photo / Doc</label>
-                <input type="file" id="photo-input" class="form-control" accept="image/*,.pdf">
-                <div class="form-text">Les images sont compressées automatiquement avant envoi.</div>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Commentaires</label>
-                <textarea id="comments-input" class="form-control" rows="2"></textarea>
-              </div>
-            </div>
-
-            <div class="mt-4 d-flex gap-2 flex-wrap">
-              <button type="button" id="btnSave" class="btn btn-success"><i data-lucide="save"></i> Enregistrer</button>
-              <button type="button" id="btnCancel" class="btn btn-secondary"><i data-lucide="arrow-left"></i> Annuler</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    <!-- CHAT IA -->
-    <div class="tab-pane fade" id="chat" role="tabpanel">
-      <div class="row g-3">
-        <div class="col-lg-4">
-          <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <strong><i data-lucide="history"></i> Historique</strong>
-              <button class="btn btn-sm btn-outline-secondary" id="btnClearChat"><i data-lucide="eraser"></i> Effacer</button>
-            </div>
-            <div class="card-body p-0">
-              <ul class="list-group list-group-flush" id="iaHistoryListChat" style="max-height:60vh; overflow:auto"></ul>
-            </div>
-          </div>
-        </div>
-        <div class="col-lg-8">
-          <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-              <strong><i data-lucide="bot"></i> Aide IA</strong>
-              <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-outline-primary" id="btnReanalyse"><i data-lucide="sparkles"></i> Ré-analyser</button>
-                <button class="btn btn-sm btn-outline-danger" id="btnDeleteDiscussion"><i data-lucide="trash-2"></i> Effacer discussion</button>
-              <button class="btn btn-sm btn-outline-secondary" id="btnCopier"><i data-lucide="copy"></i> Copier</button>
-              </div>
-            </div>
-            <div class="card-body">
-              <div id="chatLoading" class="text-center text-muted" style="display:none">
-                <div class="spinner-border" role="status" aria-hidden="true"></div>
-                <div class="mt-2">Réflexion en cours (le temps pour OpenAI de faire son analyse)</div>
-              </div>
-
-              <div id="chatHeader" class="mb-2 small-muted"></div>
-
-              <div id="chatHtml" class="border rounded p-3" style="min-height:200px"></div>
-              <div id="chatEnriched" class="mt-3" style="display:none">
-                <h6>Synthèse actionnable</h6>
-                <div id="chatWhy" class="mb-2"></div>
-                <div class="row g-3">
-                  <div class="col-md-6">
-                    <div class="border rounded p-3 h-100">
-                      <strong>Mesures palliatives</strong>
-                      <ul id="chatPalliative" class="mb-0"></ul>
-                    </div>
-                  </div>
-                  <div class="col-md-6">
-                    <div class="border rounded p-3 h-100">
-                      <strong>Mesures préventives</strong>
-                      <ul id="chatPreventive" class="mb-0"></ul>
-                    </div>
-                  </div>
-                </div>
-                <div class="row g-3 mt-1">
-                  <div class="col-md-6">
-                    <div class="border rounded p-3 h-100">
-                      <strong>Références & changements</strong>
-                      <ul id="chatRefs" class="mb-0"></ul>
-                    </div>
-                  </div>
-                  <div class="col-md-6">
-                    <div class="border rounded p-3 h-100">
-                      <strong>Estimation des coûts (£)</strong>
-                      <ul id="chatCosts" class="mb-0"></ul>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="mt-3">
-                  <h6>Suggestions d’achat (automatiques)</h6>
-                  <div id="autoLinks" class="link-list"></div>
-                <div class="mt-3">
-                  <h6>Pièces & Liens d’achat (manuel)</h6>
-                  <div class="row g-2 align-items-end">
-                    <div class="col-md-7">
-                      <label class="form-label">Type de pièce</label>
-                      <select id="partType" class="form-select">
-                        <option value="capteur">Capteur de pression ATEX (ex: IFM PN7092)</option>
-                        <option value="boite_e">Boîte de jonction Ex e (R. STAHL)</option>
-                        <option value="boite_d">Boîte de jonction Ex d (R. STAHL)</option>
-                        <option value="formation">Formation / Audit ATEX</option>
-                      </select>
-                    </div>
-                    <div class="col-md-5">
-                      <button id="btnPartLinks" class="btn btn-outline-primary w-100"><i data-lucide="link"></i> Proposer des liens</button>
-                    </div>
-                  </div>
-                  <div class="mt-2 small-muted">Les liens ouvrent les distributeurs/fabricants (IFM, R.STAHL, RS UK) pour comparer et obtenir un prix réel.</div>
-                  <div id="partLinks" class="mt-2 link-list"></div>
-                </div>
-
-                </div>
-              </div>
-
-              <hr class="my-3">
-              <h6 class="mb-2">Discussion sur le même sujet</h6>
-              <div id="chatThread" class="chat-thread"></div>
-              <div class="chat-input mt-2">
-                <textarea id="chatPrompt" class="form-control" placeholder="Pose ta question complémentaire…"></textarea>
-                <button class="btn btn-primary" id="btnSend"><i data-lucide="send"></i></button>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- IMPORT -->
-    <div class="tab-pane fade" id="import" role="tabpanel">
-      <div class="card">
-        <div class="card-body">
-          <p><strong>Colonnes minimales requises</strong> (ordre attendu) :</p>
-          <div class="mb-2">
-            <span class="badge bg-light text-dark">secteur</span>
-            <span class="badge bg-light text-dark">batiment</span>
-            <span class="badge bg-light text-dark">local</span>
-            <span class="badge bg-light text-dark">composant</span>
-            <span class="badge bg-light text-dark">fabricant</span>
-            <span class="badge bg-light text-dark">type</span>
-            <span class="badge bg-light text-dark">identifiant</span>
-            <span class="badge bg-light text-dark">zone_gaz</span>
-            <span class="badge bg-light text-dark">zone_poussieres</span>
-            <span class="badge bg-light text-dark">marquage_atex</span>
-            <span class="badge bg-light text-dark">last_inspection_date</span>
-          </div>
-
-          <div class="d-flex gap-2 flex-wrap mb-3">
-            <a class="btn btn-outline-secondary" href="/api/atex-import-columns" target="_blank" rel="noopener">
-              <i data-lucide="list"></i> Voir la définition JSON
-            </a>
-            <a class="btn btn-outline-primary" href="/api/atex-import-template" target="_blank" rel="noopener">
-              <i data-lucide="download"></i> Télécharger modèle CSV
-            </a>
-            <a class="btn btn-outline-primary" href="/api/atex-import-template.xlsx" target="_blank" rel="noopener">
-              <i data-lucide="download"></i> Télécharger modèle XLSX
-            </a>
-          </div>
-
-          <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" class="form-control mb-3">
-          <button id="btnImport" class="btn btn-primary"><i data-lucide="upload"></i> Importer</button>
-          <div class="form-text mt-2">Les routes d’import & modèles sont fournies côté serveur.</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- EXPLICATIONS -->
-    <div class="tab-pane fade" id="help" role="tabpanel">
-      <div class="card">
-        <div class="card-body">
-          <h5>Explications des paramètres</h5>
-          <dl class="def-list">
-            <dt>Échéance (prochaine inspection)</dt>
-            <dd>Calculée à partir de la dernière inspection + fréquence (par défaut 3 ans). Mise à jour automatiquement à chaque inspection.</dd>
-            <dt>Risque (0–5)</dt>
-            <dd>Basé sur la zone la plus sévère (0/20 → 5, 1/21 → 3, 2/22 → 1) augmenté de +2 si Non Conforme. Limité entre 0 et 5.</dd>
-            <dt>Conformité</dt>
-            <dd>Comparaison du marquage ATEX avec les exigences **gaz** et **poussières**. L’état global est **Non Conforme** si l’une des deux filières (G/D) n’est pas satisfaite.</dd>
-          </dl>
-        </div>
-      </div>
+    <div id="att-viewer-modal">
+      <!-- Viewer attachments -->
     </div>
   </div>
-
-  <!-- Modals & Offcanvas (inchangés) -->
-  <div class="modal fade" id="photoModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-      <div class="modal-content">
-        <div class="modal-header"><h5 class="modal-title">Photo</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body text-center"><img id="photoModalImg" src="" class="img-fluid" alt="Photo équipement"></div>
-        <div class="modal-footer"><a id="photoDownload" class="btn btn-outline-secondary" download>Télécharger</a><button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header"><h5 class="modal-title text-danger"><i data-lucide="trash-2"></i> Confirmer la suppression</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body">
-          <p id="deleteMsg">Voulez-vous vraiment supprimer cet équipement ATEX ?</p>
-          <div id="deleteMeta" class="small-muted"></div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-          <button class="btn btn-danger" id="confirmDeleteBtn">Supprimer</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Offcanvas IA (inchangé) -->
-  <div class="offcanvas offcanvas-end offcanvas-ia" tabindex="-1" id="iaPanel" data-bs-scroll="true" data-bs-backdrop="false" aria-labelledby="iaPanelLabel">
-    <div class="offcanvas-header">
-      <h5 class="offcanvas-title" id="iaPanelLabel"><i data-lucide="bot"></i> Aide IA</h5>
-      <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
-    </div>
-    <div class="offcanvas-body">
-      <div class="row g-3">
-        <div class="col-12">
-          <div id="iaHeader" class="small-muted"></div>
-          <div class="ia-badges mb-2"></div>
-        </div>
-        <div class="col-12">
-          <div class="ia-history">
-            <ul class="list-group list-group-flush" id="iaHistoryList"></ul>
-          </div>
-        </div>
-        <div class="col-12">
-          <div id="iaLoading" class="text-center text-muted" style="display:none">
-            <div class="spinner-border" role="status" aria-hidden="true"></div>
-            <div class="mt-2">Réflexion en cours (le temps pour OpenAI de faire son analyse)</div>
-          </div>
-          <div id="iaDetails" class="ia-details" style="display:none"></div>
-        </div>
-        <div class="col-12">
-          <h6>Discussion</h6>
-          <div id="iaThread" class="chat-thread"></div>
-          <div class="chat-input mt-2">
-            <textarea id="iaPrompt" class="form-control" placeholder="Question complémentaire…"></textarea>
-            <button class="btn btn-outline-primary" id="iaSend"><i data-lucide="send"></i></button>
-          </div>
-        </div>
-        <div class="col-12 d-flex gap-2 flex-wrap">
-          <button class="btn btn-outline-primary" id="btnOpenInChat"><i data-lucide="panel-right-open"></i> Ouvrir dans Chat IA</button>
-          <button class="btn btn-outline-danger" id="btnClearOne"><i data-lucide="trash-2"></i> Effacer discussion</button>
-          
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <footer class="text-center small mt-4">© AutonomiX — Tous droits réservés</footer>
-  <div class="toast-container position-fixed top-0 end-0 p-3" id="toasts" style="z-index: 2000;"></div>
-
-  
-
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-
-  <!-- Attachment Viewer (Lightbox) -->
-  <div class="modal fade" id="attViewerModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-fullscreen">
-      <div class="modal-content bg-dark">
-        <div class="modal-header border-0">
-          <h5 class="modal-title text-white" id="attViewerTitle">Aperçu</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body d-flex align-items-center justify-content-center p-0">
-          <div id="attViewerStage" class="w-100 h-100 d-flex align-items-center justify-content-center"></div>
-        </div>
-        <div class="modal-footer border-0 justify-content-between">
-          <div class="text-white-50 small" id="attViewerMeta"></div>
-          <div class="d-flex gap-2">
-            <button class="btn btn-outline-light" id="attPrev"><i data-lucide="chevron-left"></i></button>
-            <button class="btn btn-outline-light" id="attNext"><i data-lucide="chevron-right"></i></button>
-            <a class="btn btn-primary" id="attOpen" href="#" target="_blank" rel="noopener">Ouvrir dans un onglet</a>
-            <button class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="js/atex-control.core.js" defer></script>
-  <script src="js/atex-control.ui.js" defer></script>
-
+  © AutonomiX — Tous droits réservés
 </body>
 </html>
