@@ -6,8 +6,8 @@ const multer = require('multer');
 const XLSX = require('xlsx');
 const Papa = require('papaparse');
 const { pool } = require('../config/db');
-const { oneShot, chat } = require('../config/openai'); // Ton openai.js
-const authz = require('../middleware/authz');
+const { oneShot, chat } = require('../config/openai'); // Ton openai.js - Assumez qu'il existe
+const authz = require('../middleware/authz'); // Assumez middleware auth
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -115,12 +115,13 @@ router.get('/atex-equipments/:id', authz.requireAuth, async (req, res) => {
 router.post('/atex-equipments', authz.requireAuth, async (req, res) => {
   const equipment = req.body;
   const accountId = req.accountId;
-  equipment.attachments = ensureArray(equipment.attachments);
+  equipment.attachments = ensureArray(equipment.attachments).map(sanitizeAttachmentItem).filter(Boolean);
   try {
     const fields = ['account_id', 'secteur_id', 'batiment', 'local', 'composant', 'fabricant', 'type', 'identifiant', 'zone_gaz', 'zone_poussieres', 'marquage_atex', 'photo', 'attachments', 'conformite', 'comments', 'last_inspection_date', 'frequence', 'risk', 'grade'];
     const placeholders = fields.map((_, i) => `$${i+1}`).join(', ');
     const values = fields.map(f => equipment[f] || null);
     values[0] = accountId; // account_id
+    values[12] = JSON.stringify(values[12]); // attachments as JSON
     const result = await pool.query(
       `INSERT INTO atex_equipments (${fields.join(', ')}) VALUES (${placeholders}) RETURNING id`,
       values
@@ -136,14 +137,19 @@ router.put('/atex-equipments/:id', authz.requireAuth, async (req, res) => {
   const id = req.params.id;
   const equipment = req.body;
   const accountId = req.accountId;
-  equipment.attachments = ensureArray(equipment.attachments);
+  equipment.attachments = ensureArray(equipment.attachments).map(sanitizeAttachmentItem).filter(Boolean);
   try {
-    const fields = Object.keys(equipment).map((k, i) => `${k} = $${i+2}`).join(', ');
-    const values = Object.values(equipment);
-    await pool.query(
-      `UPDATE atex_equipments SET ${fields} WHERE id = $1 AND account_id = $${values.length + 1}`,
-      [id, ...values, accountId]
+    const fields = ['secteur_id', 'batiment', 'local', 'composant', 'fabricant', 'type', 'identifiant', 'zone_gaz', 'zone_poussieres', 'marquage_atex', 'photo', 'attachments', 'conformite', 'comments', 'last_inspection_date', 'frequence', 'risk', 'grade'];
+    const setters = fields.map((f, i) => `${f} = $${i+1}`).join(', ');
+    const values = fields.map(f => equipment[f] || null);
+    values[11] = JSON.stringify(values[11]); // attachments
+    values.push(id);
+    values.push(accountId);
+    const result = await pool.query(
+      `UPDATE atex_equipments SET ${setters} WHERE id = $${fields.length + 1} AND account_id = $${fields.length + 2} RETURNING id`,
+      values
     );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     res.json({ success: true });
   } catch (err) {
     console.error('[PUT atex-equipments/:id] error', err);
@@ -155,7 +161,8 @@ router.delete('/atex-equipments/:id', authz.requireAuth, async (req, res) => {
   const id = req.params.id;
   const accountId = req.accountId;
   try {
-    await pool.query('DELETE FROM atex_equipments WHERE id = $1 AND account_id = $2', [id, accountId]);
+    const result = await pool.query('DELETE FROM atex_equipments WHERE id = $1 AND account_id = $2', [id, accountId]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
     res.json({ success: true });
   } catch (err) {
     console.error('[DELETE atex-equipments/:id] error', err);
@@ -163,32 +170,16 @@ router.delete('/atex-equipments/:id', authz.requireAuth, async (req, res) => {
   }
 });
 
-// Photo upload (dataURL base64)
-router.post('/atex-photo/:id', authz.requireAuth, async (req, res) => {
-  const id = req.params.id;
-  const accountId = req.accountId;
-  const { photo } = req.body;
-  try {
-    await pool.query('UPDATE atex_equipments SET photo = $1 WHERE id = $2 AND account_id = $3', [photo, id, accountId]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[POST atex-photo/:id] error', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Inspections
+// Inspections (example, extend as needed)
 router.post('/atex-inspections', authz.requireAuth, async (req, res) => {
-  const { equipment_id, comments, conformite, attachments } = req.body;
+  const { equipment_id, conformite, comments, date } = req.body;
   const accountId = req.accountId;
   try {
-    const result = await pool.query(
-      'INSERT INTO atex_inspections (equipment_id, comments, conformite, attachments, inspection_date) VALUES ($1, $2, $3, $4, NOW()) RETURNING id',
-      [equipment_id, comments, conformite, attachments]
+    await pool.query(
+      'UPDATE atex_equipments SET conformite = $1, comments = $2, last_inspection_date = $3 WHERE id = $4 AND account_id = $5',
+      [conformite, comments, date, equipment_id, accountId]
     );
-    // Update last_inspection_date in equipments
-    await pool.query('UPDATE atex_equipments SET last_inspection_date = NOW() WHERE id = $1 AND account_id = $2', [equipment_id, accountId]);
-    res.json({ id: result.rows[0].id });
+    res.json({ success: true });
   } catch (err) {
     console.error('[POST atex-inspections] error', err);
     res.status(500).json({ error: 'Server error' });
@@ -203,7 +194,7 @@ router.get('/atex-help/:id', authz.requireAuth, async (req, res) => {
     const result = await pool.query('SELECT * FROM atex_equipments WHERE id = $1 AND account_id = $2', [id, accountId]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     const equipment = result.rows[0];
-    const html = await oneShot(equipment);
+    const html = await oneShot(equipment); // Assume oneShot returns HTML
     res.json({ html });
   } catch (err) {
     console.error('[GET atex-help/:id] error', err);
@@ -217,9 +208,9 @@ router.post('/atex-chat', authz.requireAuth, async (req, res) => {
   const accountId = req.accountId;
   const userId = req.user.id;
   try {
-    const response = await chat({ question, equipment: { id: equipment_id }, history });
+    const response = await chat({ question, equipment: { id: equipment_id }, history }); // Assume chat returns text
     // Save history to DB
-    const newHistory = [...history, { role: 'user', content: question }, { role: 'assistant', content: response }];
+    const newHistory = [...(history || []), { role: 'user', content: question }, { role: 'assistant', content: response }];
     await pool.query(
       'INSERT INTO atex_chat_threads (account_id, equipment_id, user_id, history) VALUES ($1, $2, $3, $4) ON CONFLICT (account_id, equipment_id, user_id) DO UPDATE SET history = $4, updated_at = NOW()',
       [accountId, equipment_id, userId, JSON.stringify(newHistory)]
@@ -271,28 +262,56 @@ router.post('/atex-import-excel', upload.single('file'), authz.requireAuth, asyn
   const file = req.file;
   if (!file) return res.status(400).json({ error: 'No file' });
   try {
-    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-    // Process data and insert into DB
-    for (const row of data.slice(1)) {
-      const equipment = {
-        secteur: row[0],
-        batiment: row[1],
-        local: row[2],
-        composant: row[3],
-        fabricant: row[4],
-        type: row[5],
-        identifiant: row[6],
-        zone_gaz: row[7],
-        zone_poussieres: row[8],
-        marquage_atex: row[9],
-        last_inspection_date: row[10] ? new Date(row[10]) : null
-      };
-      await saveEquipment(equipment, accountId); // Function to insert
+    let data;
+    if (file.originalname.endsWith('.csv')) {
+      const csv = file.buffer.toString('utf8');
+      data = Papa.parse(csv, { header: false }).data;
+    } else {
+      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
     }
-    res.json({ success: true, count: data.length - 1 });
+    // Process data and insert into DB
+    let count = 0;
+    for (const row of data.slice(1)) {
+      if (!row.length) continue;
+      const equipment = {
+        secteur: normStr(row[0]),
+        batiment: normStr(row[1]),
+        local: normStr(row[2]),
+        composant: normStr(row[3]),
+        fabricant: normStr(row[4]),
+        type: normStr(row[5]),
+        identifiant: normStr(row[6]),
+        zone_gaz: normStr(row[7]),
+        zone_poussieres: normStr(row[8]),
+        marquage_atex: normStr(row[9]),
+        last_inspection_date: row[10] ? new Date(row[10]) : null,
+        attachments: [] // Add if in sheet
+      };
+      // Resolve secteur_id if name provided
+      if (equipment.secteur) {
+        const secteurRes = await pool.query('SELECT id FROM atex_secteurs WHERE name = $1 AND account_id = $2', [equipment.secteur, accountId]);
+        if (secteurRes.rows.length) {
+          equipment.secteur_id = secteurRes.rows[0].id;
+        } else {
+          // Create if not exists
+          const newSect = await pool.query('INSERT INTO atex_secteurs (name, account_id) VALUES ($1, $2) RETURNING id', [equipment.secteur, accountId]);
+          equipment.secteur_id = newSect.rows[0].id;
+        }
+      }
+      delete equipment.secteur;
+      // Insert
+      const fields = ['account_id', 'secteur_id', 'batiment', 'local', 'composant', 'fabricant', 'type', 'identifiant', 'zone_gaz', 'zone_poussieres', 'marquage_atex', 'last_inspection_date', 'attachments'];
+      const placeholders = fields.map((_, i) => `$${i+1}`).join(', ');
+      const values = fields.map(f => equipment[f] || null);
+      values[0] = accountId;
+      values[12] = JSON.stringify(values[12]);
+      await pool.query(`INSERT INTO atex_equipments (${fields.join(', ')}) VALUES (${placeholders})`, values);
+      count++;
+    }
+    res.json({ success: true, count });
   } catch (err) {
     console.error('[POST atex-import-excel] error', err);
     res.status(500).json({ error: 'Server error' });
@@ -307,9 +326,9 @@ router.get('/equip/:id', authz.requireAuth, async (req, res) => {
     const result = await pool.query('SELECT * FROM atex_equipments WHERE id = $1 AND account_id = $2', [id, accountId]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     const eq = result.rows[0];
-    const items = ensureArray(eq.attachments).map(sanitizeAttachmentItem);
+    const items = ensureArray(eq.attachments).map(sanitizeAttachmentItem).filter(Boolean);
     if (eq.photo) items.unshift({ name: 'Photo', src: eq.photo, mime: 'image/jpeg' });
-    res.json({ id: eq.id, items });
+    res.json({ id: eq.id, attachments: items }); // Changed to attachments for clarity
   } catch (err) {
     console.error('[GET /equip/:id] error', err);
     res.status(500).json({ error: 'Server error' });
