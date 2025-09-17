@@ -37,7 +37,8 @@ module.exports = async function initDb() {
       CREATE TABLE IF NOT EXISTS public.atex_secteurs (
         id SERIAL PRIMARY KEY,
         name VARCHAR NOT NULL,
-        account_id INTEGER REFERENCES public.accounts(id)
+        account_id INTEGER REFERENCES public.accounts(id),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
     `);
     await pool.query(`
@@ -68,7 +69,9 @@ module.exports = async function initDb() {
         risk INTEGER,
         grade VARCHAR,
         frequence INTEGER DEFAULT 36,
-        ia_history JSONB DEFAULT '[]'::jsonb
+        ia_history JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_atex_equipments_account ON public.atex_equipments (account_id);`);
@@ -80,6 +83,7 @@ module.exports = async function initDb() {
         IF NEW.last_inspection_date IS NOT NULL THEN
           NEW.next_inspection_date = NEW.last_inspection_date + INTERVAL '1 month' * COALESCE(NEW.frequence, 36);
         END IF;
+        NEW.updated_at = NOW();
         RETURN NEW;
       END;
       $$ LANGUAGE plpgsql;
