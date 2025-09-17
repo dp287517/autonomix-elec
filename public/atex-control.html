@@ -13,14 +13,17 @@
     <header class="header">
       <div class="header-inner">
         <div class="brand">
-          <span>AutonomiX</span>
-          <span class="brand-badge">ATEX</span>
+          <i class="fas fa-shield-alt"></i>
+          <span>AutonomiX ATEX</span>
+          <span class="brand-badge">v1.0</span>
         </div>
       </div>
     </header>
 
-    <h1 class="my-4">Contrôle des Équipements ATEX</h1>
-    <p class="text-muted">Inspecter, ajouter et suivre les conformités ATEX.</p>
+    <div class="card">
+      <h1 class="mb-3">Contrôle des Équipements ATEX</h1>
+      <p class="text-muted">Gérez, inspectez et suivez vos équipements ATEX avec facilité.</p>
+    </div>
 
     <ul class="nav nav-tabs mb-4">
       <li class="nav-item"><a class="nav-link active" href="#list" data-bs-toggle="tab">Liste</a></li>
@@ -32,140 +35,157 @@
     <div class="tab-content">
       <!-- Liste -->
       <div class="tab-pane fade show active" id="list">
-        <h2>Filtres</h2>
-        <form id="filter-form" class="row g-3 mb-4">
-          <div class="col-md-3">
-            <select id="filter-secteur" class="select form-control"></select>
-          </div>
-          <div class="col-md-3">
-            <select id="filter-conformite" class="select form-control">
-              <option value="">Conformité</option>
-              <option>Conforme</option>
-              <option>Non Conforme</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <select id="filter-statut" class="select form-control">
-              <option value="">Statut</option>
-              <option>En retard</option>
-              <option>Aujourd’hui</option>
-              <option>Bientôt</option>
-              <option>OK</option>
-            </select>
-          </div>
-          <div class="col-md-3">
-            <button type="reset" class="btn btn-secondary me-2"><i class="fas fa-eraser"></i> Effacer</button>
-            <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Appliquer</button>
-          </div>
-        </form>
+        <div class="card">
+          <div class="card-body">
+            <h2 class="card-title">Filtres</h2>
+            <form id="filter-form" class="row g-3 mb-4">
+              <div class="col-md-3">
+                <select id="filter-secteur" class="select form-control"></select>
+              </div>
+              <div class="col-md-3">
+                <select id="filter-conformite" class="select form-control">
+                  <option value="">Conformité</option>
+                  <option>Conforme</option>
+                  <option>Non Conforme</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <select id="filter-statut" class="select form-control">
+                  <option value="">Statut</option>
+                  <option>En retard</option>
+                  <option>Aujourd’hui</option>
+                  <option>Bientôt</option>
+                  <option>OK</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <button type="reset" class="btn btn-secondary me-2"><i class="fas fa-eraser"></i> Effacer</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Appliquer</button>
+              </div>
+            </form>
 
-        <h2>Liste des Équipements</h2>
-        <div class="mb-3">
-          <button class="btn btn-danger me-2"><i class="fas fa-trash"></i> Supprimer sélection</button>
-          <button class="btn btn-primary"><i class="fas fa-sync"></i> Sync</button>
+            <h2 class="card-title">Liste des Équipements</h2>
+            <div class="mb-3">
+              <button class="btn btn-danger me-2"><i class="fas fa-trash"></i> Supprimer sélection</button>
+              <button class="btn btn-primary"><i class="fas fa-sync"></i> Sync</button>
+            </div>
+            <table id="equipmentsTable" class="table">
+              <thead>
+                <tr>
+                  <th>ID</th><th>Composant</th><th>Secteur</th><th>Bâtiment</th><th>Local</th>
+                  <th>Zone G</th><th>Zone D</th><th>Conformité</th><th>Statut</th><th>Risque</th>
+                  <th>Dernière</th><th>Prochaine</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </div>
-        <table id="equipmentsTable" class="table">
-          <thead>
-            <tr>
-              <th>ID</th><th>Composant</th><th>Secteur</th><th>Bâtiment</th><th>Local</th>
-              <th>Zone G</th><th>Zone D</th><th>Conformité</th><th>Statut</th><th>Risque</th>
-              <th>Dernière</th><th>Prochaine</th><th>Actions</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
       </div>
 
       <!-- Ajouter/Éditer -->
       <div class="tab-pane fade" id="add-edit">
-        <h2>Ajouter/Éditer</h2>
-        <form id="equipment-form" class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label">Secteur</label>
-            <select id="secteur" class="select form-control" required></select>
+        <div class="card">
+          <div class="card-body">
+            <h2 class="card-title">Ajouter/Éditer un Équipement</h2>
+            <form id="equipment-form" class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Secteur</label>
+                <select id="secteur" class="select form-control" required></select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Bâtiment</label>
+                <input id="batiment" class="form-control">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Local</label>
+                <input id="local" class="form-control">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Zone ATEX (Gaz)</label>
+                <select id="zone_gaz" class="select form-control">
+                  <option value="">Zone ATEX (Gaz)</option>
+                  <option>0 (Gaz)</option>
+                  <option>1 (Gaz)</option>
+                  <option>2 (Gaz)</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Zone ATEX (Poussières)</label>
+                <select id="zone_poussieres" class="select form-control">
+                  <option value="">Zone ATEX (Poussières)</option>
+                  <option>20 (Poussières)</option>
+                  <option>21 (Poussières)</option>
+                  <option>22 (Poussières)</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Composant</label>
+                <input id="composant" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Fabricant</label>
+                <input id="fabricant" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Type</label>
+                <input id="type" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Identifiant</label>
+                <input id="identifiant" class="form-control">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Marquage ATEX</label>
+                <input id="marquage_atex" class="form-control" required>
+              </div>
+              <div class="col-md-12">
+                <label class="form-label">Commentaires</label>
+                <textarea id="comments" class="form-control" rows="4"></textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Dernière inspection</label>
+                <input id="last_inspection_date" type="date" class="form-control">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Fréquence (mois)</label>
+                <input id="frequence" type="number" class="form-control" value="36">
+              </div>
+              <div class="col-12">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Sauvegarder</button>
+              </div>
+            </form>
           </div>
-          <div class="col-md-6">
-            <label class="form-label">Bâtiment</label>
-            <input id="batiment" class="form-control">
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Local</label>
-            <input id="local" class="form-control">
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Zone ATEX (Gaz)</label>
-            <select id="zone_gaz" class="select form-control">
-              <option value="">Zone ATEX (Gaz)</option>
-              <option>0 (Gaz)</option>
-              <option>1 (Gaz)</option>
-              <option>2 (Gaz)</option>
-            </select>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Zone ATEX (Poussières)</label>
-            <select id="zone_poussieres" class="select form-control">
-              <option value="">Zone ATEX (Poussières)</option>
-              <option>20 (Poussières)</option>
-              <option>21 (Poussières)</option>
-              <option>22 (Poussières)</option>
-            </select>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Composant</label>
-            <input id="composant" class="form-control" required>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Fabricant</label>
-            <input id="fabricant" class="form-control" required>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Type</label>
-            <input id="type" class="form-control" required>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Identifiant</label>
-            <input id="identifiant" class="form-control">
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Marquage ATEX</label>
-            <input id="marquage_atex" class="form-control" required>
-          </div>
-          <div class="col-md-12">
-            <label class="form-label">Commentaires</label>
-            <textarea id="comments" class="form-control" rows="4"></textarea>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Dernière inspection</label>
-            <input id="last_inspection_date" type="date" class="form-control">
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Fréquence (mois)</label>
-            <input id="frequence" type="number" class="form-control" value="36">
-          </div>
-          <div class="col-12">
-            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Sauvegarder</button>
-          </div>
-        </form>
+        </div>
       </div>
 
       <!-- Importer -->
       <div class="tab-pane fade" id="import">
-        <h2>Importer</h2>
-        <div class="mb-3">
-          <input id="import-file" type="file" accept=".xlsx,.csv" class="form-control">
-          <button id="import-btn" class="btn btn-primary mt-2"><i class="fas fa-upload"></i> Importer</button>
+        <div class="card">
+          <div class="card-body">
+            <h2 class="card-title">Importer des Équipements</h2>
+            <div class="mb-3">
+              <input id="import-file" type="file" accept=".xlsx,.csv" class="form-control">
+              <button id="import-btn" class="btn btn-primary mt-3"><i class="fas fa-upload"></i> Importer</button>
+            </div>
+          </div>
         </div>
       </div>
 
       <!-- Explications -->
       <div class="tab-pane fade" id="explications">
-        <h2>Explications</h2>
-        <p>Guide pour gérer les équipements ATEX :</p>
-        <ul>
-          <li>Ajoutez ou éditez des équipements via le formulaire.</li>
-          <li>Importez des données via Excel/CSV.</li>
-          <li>Utilisez le chat IA pour des analyses.</li>
-        </ul>
+        <div class="card">
+          <div class="card-body">
+            <h2 class="card-title">Explications</h2>
+            <p>Gérez vos équipements ATEX efficacement :</p>
+            <ul>
+              <li><strong>Liste</strong> : Visualisez et filtrez les équipements.</li>
+              <li><strong>Ajouter/Éditer</strong> : Créez ou modifiez un équipement.</li>
+              <li><strong>Importer</strong> : Chargez des données via Excel/CSV.</li>
+              <li><strong>Chat IA</strong> : Obtenez des analyses via l’assistant IA.</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
 
