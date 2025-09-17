@@ -114,16 +114,32 @@ module.exports = async function initDb() {
     const accountRes = await pool.query('SELECT id FROM accounts WHERE id = $1', [10]);
     if (!accountRes.rows.length) {
       await pool.query('INSERT INTO accounts (id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING', [10, 'Test Account']);
-      await pool.query('INSERT INTO atex_secteurs (name, account_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', ['Secteur Test', 10]);
+      await pool.query('INSERT INTO atex_secteurs (name, account_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', ['Production', 10]);
+      await pool.query('INSERT INTO atex_secteurs (name, account_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', ['Maintenance', 10]);
       await pool.query(`
-        INSERT INTO atex_equipments (account_id, secteur_id, composant, fabricant, type, marquage_atex, last_inspection_date)
-        VALUES ($1, (SELECT id FROM atex_secteurs WHERE account_id = $1 LIMIT 1), $2, $3, $4, $5, $6)
-        ON CONFLICT DO NOTHING
-      `, [10, 'Pompe', 'Fabricant X', 'Type A', 'Ex d IIB T4', '2025-01-01']);
+        INSERT INTO atex_equipments (account_id, secteur_id, composant, fabricant, type, marquage_atex, last_inspection_date, conformite, comments, photo, attachments)
+        VALUES (
+          $1,
+          (SELECT id FROM atex_secteurs WHERE account_id = $1 AND name = 'Production' LIMIT 1),
+          $2, $3, $4, $5, $6, $7, $8, $9, $10
+        ) ON CONFLICT DO NOTHING
+      `, [
+        10, 'Pompe Centrifuge', 'Fabricant X', 'Type A', 'Ex d IIB T4', '2025-01-01', 'Conforme', 'Fonctionne bien',
+        'https://via.placeholder.com/150', '[{"name":"Manuel","url":"https://via.placeholder.com/150","mime":"application/pdf"}]'
+      ]);
+      await pool.query(`
+        INSERT INTO atex_equipments (account_id, secteur_id, composant, fabricant, type, marquage_atex, last_inspection_date, conformite, comments)
+        VALUES (
+          $1,
+          (SELECT id FROM atex_secteurs WHERE account_id = $1 AND name = 'Maintenance' LIMIT 1),
+          $2, $3, $4, $5, $6, $7, $8
+        ) ON CONFLICT DO NOTHING
+      `, [10, 'Moteur', 'Fabricant Y', 'Type B', 'Ex e IIC T3', '2025-02-01', 'Non Conforme', 'À vérifier']);
     }
 
-    console.log('[initDb] Tables ATEX initialisées avec succès');
+    console.log('[initDb] Tables ATEX initialisées avec données de test');
   } catch (err) {
     console.error('[initDb] Erreur:', err);
+    throw err; // Pour diagnostiquer dans le serveur
   }
 };
