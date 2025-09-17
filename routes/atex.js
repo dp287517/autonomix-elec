@@ -106,7 +106,6 @@ router.get('/atex-equipments', authz.requireAuth, async (req, res) => {
       params.push(conformite);
     }
     if (statut) {
-      // Statut is client-side computed, so we simulate it
       const today = new Date();
       if (statut === 'En retard') {
         query += ` AND e.next_inspection_date < $${params.length + 1}`;
