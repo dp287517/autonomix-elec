@@ -1,126 +1,94 @@
-// Initialize DB schema (ATEX)
-// - Garde la création/MAJ de public.atex_equipments
-// - AJOUTE la table public.atex_secteurs (et son index unique)
-// - AJOUTE la table public.atex_chat_threads (persistance par utilisateur)
-// - Conserve le style "idempotent" (CREATE IF NOT EXISTS / IF NOT EXISTS)
-
+// initDb.js — Initialize DB schema for ATEX
 module.exports = async function initDb(pool) {
-  // =========================
-  // Table des équipements ATEX
-  // =========================
+  // Table atex_secteurs (secteurs/sites)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.atex_secteurs (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR NOT NULL,
+      account_id INTEGER NOT NULL
+    );
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_atex_secteurs_account_name ON public.atex_secteurs (account_id, name);
+  `);
+
+  // Table atex_equipments (équipements)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS public.atex_equipments (
       id SERIAL PRIMARY KEY,
-      risque INTEGER,
-      secteur VARCHAR,
+      account_id INTEGER NOT NULL,
+      secteur_id INTEGER REFERENCES public.atex_secteurs(id),
       batiment VARCHAR,
       local VARCHAR,
-      composant VARCHAR,
-      fournisseur VARCHAR,
-      type VARCHAR,
+      composant VARCHAR NOT NULL,
+      fabricant VARCHAR NOT NULL,
+      type VARCHAR NOT NULL,
       identifiant VARCHAR,
-      interieur VARCHAR,
-      exterieur VARCHAR,
-      categorie_minimum VARCHAR,
-      marquage_atex TEXT,
+      zone_gaz VARCHAR,
+      zone_poussieres VARCHAR,
+      marquage_atex TEXT NOT NULL,
       photo TEXT,
+      attachments JSONB DEFAULT '[]'::jsonb,
       conformite VARCHAR,
       comments TEXT,
       last_inspection_date TIMESTAMP WITH TIME ZONE,
       next_inspection_date TIMESTAMP WITH TIME ZONE,
-      risk_assessment TEXT,
+      risk INTEGER,
       grade VARCHAR,
-      frequence INTEGER,
-      zone_type VARCHAR,
-      zone_gaz VARCHAR,
-      zone_poussiere VARCHAR,
-      zone_poussieres VARCHAR,
-      ia_history JSONB,
-      attachments JSONB,
-      account_id INTEGER,
-      created_by VARCHAR
+      frequence INTEGER DEFAULT 36, -- Mois par défaut
+      ia_history JSONB DEFAULT '[]'::jsonb
     );
   `);
+  // Indexes pour performance
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_atex_equipments_account ON public.atex_equipments (account_id);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_atex_equipments_secteur ON public.atex_equipments (secteur_id);`);
 
-  // Colonnes utiles (idempotent)
-  await pool.query(`ALTER TABLE public.atex_equipments ADD COLUMN IF NOT EXISTS account_id INTEGER;`);
-  await pool.query(`ALTER TABLE public.atex_equipments ADD COLUMN IF NOT EXISTS created_by VARCHAR;`);
-  await pool.query(`ALTER TABLE public.atex_equipments ADD COLUMN IF NOT EXISTS next_inspection_date TIMESTAMP WITH TIME ZONE;`);
-  await pool.query(`ALTER TABLE public.atex_equipments ADD COLUMN IF NOT EXISTS zone_poussieres VARCHAR;`);
-  await pool.query(`ALTER TABLE public.atex_equipments ADD COLUMN IF NOT EXISTS ia_history JSONB;`);
-  await pool.query(`ALTER TABLE public.atex_equipments ADD COLUMN IF NOT EXISTS attachments JSONB;`);
-
-  // Fonction de calcul de la prochaine date d’inspection (si frequence/mois définie)
+  // Fonction et trigger pour next_inspection_date
   await pool.query(`
-    CREATE OR REPLACE FUNCTION public.atex_set_next_date()
-    RETURNS TRIGGER AS $$
+    CREATE OR REPLACE FUNCTION public.atex_set_next_date() RETURNS TRIGGER AS $$
     BEGIN
       IF NEW.last_inspection_date IS NOT NULL THEN
-        NEW.next_inspection_date := (NEW.last_inspection_date + make_interval(months => COALESCE(NEW.frequence, 36)));
+        NEW.next_inspection_date = NEW.last_inspection_date + make_interval(0, COALESCE(NEW.frequence, 36));
       END IF;
       RETURN NEW;
     END;
     $$ LANGUAGE plpgsql;
   `);
-
-  // Trigger pour maintenir next_inspection_date à jour
-  await pool.query(`DROP TRIGGER IF EXISTS trg_atx_set_next ON public.atex_equipments;`);
   await pool.query(`
-    CREATE TRIGGER trg_atx_set_next
-      BEFORE INSERT OR UPDATE OF last_inspection_date, frequence
-      ON public.atex_equipments
-      FOR EACH ROW
-      EXECUTE FUNCTION public.atex_set_next_date();
+    CREATE TRIGGER trg_atex_set_next
+    BEFORE INSERT OR UPDATE OF last_inspection_date, frequence ON public.atex_equipments
+    FOR EACH ROW EXECUTE FUNCTION public.atex_set_next_date();
   `);
 
-  await pool.query(`CREATE INDEX IF NOT EXISTS idx_atex_next_date ON public.atex_equipments(next_inspection_date);`);
-
-  // =========================
-  // Table des secteurs ATEX
-  // =========================
+  // Table atex_inspections (inspections)
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS public.atex_secteurs (
+    CREATE TABLE IF NOT EXISTS public.atex_inspections (
       id SERIAL PRIMARY KEY,
-      name VARCHAR NOT NULL,
-      account_id INTEGER NOT NULL,
-      created_by VARCHAR
+      equipment_id INTEGER REFERENCES public.atex_equipments(id) ON DELETE CASCADE,
+      inspection_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      comments TEXT,
+      conformite VARCHAR,
+      attachments JSONB DEFAULT '[]'::jsonb
     );
   `);
-  await pool.query(`
-    DO $$
-    BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_indexes
-        WHERE schemaname = 'public' AND indexname = 'idx_atex_secteurs_account_name'
-      ) THEN
-        CREATE UNIQUE INDEX idx_atex_secteurs_account_name
-          ON public.atex_secteurs(account_id, name);
-      END IF;
-    END
-    $$;
-  `);
 
-  // =========================
-  // (NOUVEAU) Table des threads IA par utilisateur
-  // =========================
+  // Table atex_chat_threads (chat IA persistent)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS public.atex_chat_threads (
       id SERIAL PRIMARY KEY,
       account_id INTEGER NOT NULL,
-      equipment_id INTEGER NOT NULL,
-      user_id VARCHAR NOT NULL,
-      history JSONB,
-      updated_at TIMESTAMPTZ DEFAULT now()
+      equipment_id INTEGER REFERENCES public.atex_equipments(id),
+      user_id INTEGER NOT NULL,
+      history JSONB DEFAULT '[]'::jsonb,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
   `);
   await pool.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_threads_account_eq_user
-      ON public.atex_chat_threads(account_id, equipment_id, user_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_atex_chat_unique ON public.atex_chat_threads (account_id, equipment_id, user_id);
   `);
   await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_chat_threads_updated
-      ON public.atex_chat_threads(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_atex_chat_updated ON public.atex_chat_threads (updated_at DESC);
   `);
 
-  console.log('[initDb] ATEX: tables atex_equipments, atex_secteurs et atex_chat_threads OK');
+  console.log('[initDb] Tables ATEX initialisées');
 };
