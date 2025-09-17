@@ -5,95 +5,171 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Contrôle des Équipements ATEX</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
   <div class="container">
-    <h1>Contrôle des Équipements ATEX</h1>
-    <p>Inspecter, ajouter et suivre les conformités ATEX.</p>
+    <header class="header">
+      <div class="header-inner">
+        <div class="brand">
+          <span>AutonomiX</span>
+          <span class="brand-badge">ATEX</span>
+        </div>
+      </div>
+    </header>
 
-    <ul class="nav nav-tabs">
-      <li class="nav-item"><a class="nav-link active" href="#">Liste</a></li>
-      <li class="nav-item"><a class="nav-link" href="#">Ajouter/Éditer</a></li>
-      <li class="nav-item"><a class="nav-link" href="#">Chat IA</a></li>
-      <li class="nav-item"><a class="nav-link" href="#">Importer</a></li>
-      <li class="nav-item"><a class="nav-link" href="#">Explications</a></li>
+    <h1 class="my-4">Contrôle des Équipements ATEX</h1>
+    <p class="text-muted">Inspecter, ajouter et suivre les conformités ATEX.</p>
+
+    <ul class="nav nav-tabs mb-4">
+      <li class="nav-item"><a class="nav-link active" href="#list" data-bs-toggle="tab">Liste</a></li>
+      <li class="nav-item"><a class="nav-link" href="#add-edit" data-bs-toggle="tab">Ajouter/Éditer</a></li>
+      <li class="nav-item"><a class="nav-link" href="#import" data-bs-toggle="tab">Importer</a></li>
+      <li class="nav-item"><a class="nav-link" href="#explications" data-bs-toggle="tab">Explications</a></li>
     </ul>
 
-    <section>
-      <h2>Filtres</h2>
-      <form>
-        <select id="filter-secteur" class="select"></select>
-        <select id="filter-conformite" class="select">
-          <option>Conformité</option>
-          <option>Conforme</option>
-          <option>Non Conforme</option>
-        </select>
-        <select id="filter-statut" class="select">
-          <option>Statut</option>
-          <option>En retard</option>
-          <option>Aujourd’hui</option>
-          <option>Bientôt</option>
-          <option>OK</option>
-        </select>
-        <button type="reset" class="btn btn-secondary">Effacer</button>
-        <button type="submit" class="btn btn-primary">Appliquer</button>
-      </form>
-    </section>
+    <div class="tab-content">
+      <!-- Liste -->
+      <div class="tab-pane fade show active" id="list">
+        <h2>Filtres</h2>
+        <form id="filter-form" class="row g-3 mb-4">
+          <div class="col-md-3">
+            <select id="filter-secteur" class="select form-control"></select>
+          </div>
+          <div class="col-md-3">
+            <select id="filter-conformite" class="select form-control">
+              <option value="">Conformité</option>
+              <option>Conforme</option>
+              <option>Non Conforme</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <select id="filter-statut" class="select form-control">
+              <option value="">Statut</option>
+              <option>En retard</option>
+              <option>Aujourd’hui</option>
+              <option>Bientôt</option>
+              <option>OK</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <button type="reset" class="btn btn-secondary me-2"><i class="fas fa-eraser"></i> Effacer</button>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Appliquer</button>
+          </div>
+        </form>
 
-    <section>
-      <h2>Liste des Équipements</h2>
-      <button class="btn btn-danger">Supprimer sélection</button>
-      <button class="btn btn-primary">Sync</button>
-      <table id="equipmentsTable" class="table">
-        <thead>
-          <tr>
-            <th>ID</th><th>Composant</th><th>Secteur</th><th>Bâtiment</th><th>Local</th>
-            <th>Zone G</th><th>Zone D</th><th>Conformité</th><th>Statut</th><th>Risque</th>
-            <th>Dernière</th><th>Prochaine</th><th>Actions</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </section>
+        <h2>Liste des Équipements</h2>
+        <div class="mb-3">
+          <button class="btn btn-danger me-2"><i class="fas fa-trash"></i> Supprimer sélection</button>
+          <button class="btn btn-primary"><i class="fas fa-sync"></i> Sync</button>
+        </div>
+        <table id="equipmentsTable" class="table">
+          <thead>
+            <tr>
+              <th>ID</th><th>Composant</th><th>Secteur</th><th>Bâtiment</th><th>Local</th>
+              <th>Zone G</th><th>Zone D</th><th>Conformité</th><th>Statut</th><th>Risque</th>
+              <th>Dernière</th><th>Prochaine</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
 
-    <section>
-      <h2>Ajouter/Éditer</h2>
-      <form id="equipment-form">
-        <select id="secteur" class="select"></select>
-        <input id="batiment" placeholder="Bâtiment" class="form-control">
-        <input id="local" placeholder="Local" class="form-control">
-        <select id="zone_gaz" class="select">
-          <option>Zone ATEX (Gaz)</option>
-          <option>0 (Gaz)</option>
-          <option>1 (Gaz)</option>
-          <option>2 (Gaz)</option>
-        </select>
-        <select id="zone_poussieres" class="select">
-          <option>Zone ATEX (Poussières)</option>
-          <option>20 (Poussières)</option>
-          <option>21 (Poussières)</option>
-          <option>22 (Poussières)</option>
-        </select>
-        <input id="composant" placeholder="Composant" required class="form-control">
-        <input id="fabricant" placeholder="Fabricant" required class="form-control">
-        <input id="type" placeholder="Type" required class="form-control">
-        <input id="identifiant" placeholder="Identifiant" class="form-control">
-        <input id="marquage_atex" placeholder="Marquage ATEX" required class="form-control">
-        <textarea id="comments" placeholder="Commentaires" class="form-control"></textarea>
-        <input id="last_inspection_date" type="date" class="form-control">
-        <input id="frequence" type="number" placeholder="Fréquence (mois)" value="36" class="form-control">
-        <button type="submit" class="btn btn-primary">Sauvegarder</button>
-      </form>
-    </section>
+      <!-- Ajouter/Éditer -->
+      <div class="tab-pane fade" id="add-edit">
+        <h2>Ajouter/Éditer</h2>
+        <form id="equipment-form" class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Secteur</label>
+            <select id="secteur" class="select form-control" required></select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Bâtiment</label>
+            <input id="batiment" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Local</label>
+            <input id="local" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Zone ATEX (Gaz)</label>
+            <select id="zone_gaz" class="select form-control">
+              <option value="">Zone ATEX (Gaz)</option>
+              <option>0 (Gaz)</option>
+              <option>1 (Gaz)</option>
+              <option>2 (Gaz)</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Zone ATEX (Poussières)</label>
+            <select id="zone_poussieres" class="select form-control">
+              <option value="">Zone ATEX (Poussières)</option>
+              <option>20 (Poussières)</option>
+              <option>21 (Poussières)</option>
+              <option>22 (Poussières)</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Composant</label>
+            <input id="composant" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Fabricant</label>
+            <input id="fabricant" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Type</label>
+            <input id="type" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Identifiant</label>
+            <input id="identifiant" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Marquage ATEX</label>
+            <input id="marquage_atex" class="form-control" required>
+          </div>
+          <div class="col-md-12">
+            <label class="form-label">Commentaires</label>
+            <textarea id="comments" class="form-control" rows="4"></textarea>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Dernière inspection</label>
+            <input id="last_inspection_date" type="date" class="form-control">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Fréquence (mois)</label>
+            <input id="frequence" type="number" class="form-control" value="36">
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Sauvegarder</button>
+          </div>
+        </form>
+      </div>
 
-    <section>
-      <h2>Importer</h2>
-      <input id="import-file" type="file" accept=".xlsx,.csv">
-      <button id="import-btn" class="btn btn-primary">Importer</button>
-    </section>
+      <!-- Importer -->
+      <div class="tab-pane fade" id="import">
+        <h2>Importer</h2>
+        <div class="mb-3">
+          <input id="import-file" type="file" accept=".xlsx,.csv" class="form-control">
+          <button id="import-btn" class="btn btn-primary mt-2"><i class="fas fa-upload"></i> Importer</button>
+        </div>
+      </div>
 
-    <!-- Modal Viewer (added complete) -->
+      <!-- Explications -->
+      <div class="tab-pane fade" id="explications">
+        <h2>Explications</h2>
+        <p>Guide pour gérer les équipements ATEX :</p>
+        <ul>
+          <li>Ajoutez ou éditez des équipements via le formulaire.</li>
+          <li>Importez des données via Excel/CSV.</li>
+          <li>Utilisez le chat IA pour des analyses.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Modal Viewer -->
     <div id="attViewerModal" class="modal fade" tabindex="-1">
       <div class="modal-dialog modal-xl">
         <div class="modal-content">
@@ -106,15 +182,31 @@
           </div>
           <div class="modal-footer">
             <span id="attViewerMeta"></span>
-            <button id="attPrev" class="btn btn-secondary">Précédent</button>
-            <button id="attNext" class="btn btn-secondary">Suivant</button>
-            <a id="attOpen" class="btn btn-primary" target="_blank">Ouvrir</a>
+            <button id="attPrev" class="btn btn-secondary"><i class="fas fa-chevron-left"></i> Précédent</button>
+            <button id="attNext" class="btn btn-secondary">Suivant <i class="fas fa-chevron-right"></i></button>
+            <a id="attOpen" class="btn btn-primary" target="_blank"><i class="fas fa-external-link-alt"></i> Ouvrir</a>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Delete Modal (added) -->
+    <!-- IA Modal -->
+    <div id="iaModal" class="modal fade" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Assistance IA</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body" id="iaModalContent"></div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Modal -->
     <div id="deleteModal" class="modal fade">
       <div class="modal-dialog">
         <div class="modal-content">
@@ -128,14 +220,16 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-            <button id="confirmDeleteBtn" class="btn btn-danger">Supprimer</button>
+            <button id="confirmDeleteBtn" class="btn btn-danger"><i class="fas fa-trash"></i> Supprimer</button>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <footer>© AutonomiX — Tous droits réservés</footer>
+  <footer class="text-center py-4 text-muted">
+    © AutonomiX — Tous droits réservés
+  </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/atex-control.js"></script>
